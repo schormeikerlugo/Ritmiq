@@ -1,22 +1,26 @@
-# Desktop — preservar package.json para que pnpm/Turbo resuelvan el workspace
+# Desktop — no se sirve, pero su package.json se queda para que pnpm
+# resuelva el workspace correctamente. El install command filtra solo PWA.
 apps/desktop/main/**
 apps/desktop/preload/**
 apps/desktop/renderer/**
 apps/desktop/bin/**
-apps/desktop/scripts/**
-apps/desktop/node_modules/**
 apps/desktop/release/**
+apps/desktop/dist
+apps/desktop/dist-electron
 
-# Supabase local
+# Supabase local (migraciones se aplican aparte vía CLI)
 supabase
 
-# Documentación
+# Documentación y planes
 docs
+.opencode
 
 # Build artifacts y logs
 node_modules
 .turbo
 *.log
+*.sqlite
 
-# Entornos locales
+# Entornos locales (Vercel pone los suyos en su panel)
 .env.development
+.env
