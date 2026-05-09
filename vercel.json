@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "VERCEL=1 pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @ritmiq/pwa build && node -e \"const fs=require('fs'),path=require('path');const tries=['dist','../pwa/dist','apps/pwa/dist','../../apps/pwa/dist'];const src=tries.find(p=>fs.existsSync(path.join(p,'index.html')));if(!src){console.error('No build output found in:',tries);process.exit(1)}if(src!=='dist'){fs.rmSync('dist',{recursive:true,force:true});fs.cpSync(src,'dist',{recursive:true});console.log('Copied',src,'->','dist')}else{console.log('Build output already at dist/')}\"",
+  "buildCommand": "pnpm --filter @ritmiq/pwa build && node ../../scripts/vercel-postbuild.js",
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/((?!assets/|.*\\..*).*)", "destination": "/index.html" }
