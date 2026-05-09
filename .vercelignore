@@ -1,0 +1,7 @@
+apps/desktop
+supabase
+docs
+node_modules
+.turbo
+*.log
+.env.development

@@ -1,0 +1,40 @@
+@import './tokens.css';
+@import './reset.css';
+
+html {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg-0);
+  color: var(--color-text-1);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  overscroll-behavior: none;
+}
+
+/* Scrollbars sutiles */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-bg-3);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--color-bg-0);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-3);
+}
+
+/* Focus accesible */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

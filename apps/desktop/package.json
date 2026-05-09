@@ -1,0 +1,65 @@
+{
+  "name": "@ritmiq/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "main/index.js",
+  "scripts": {
+    "dev": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite\" \"wait-on tcp:5174 && electron .\"",
+    "dev:cloud": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite --mode cloud\" \"wait-on tcp:5174 && electron .\"",
+    "postinstall": "node scripts/fetch-ytdlp.js && electron-rebuild -f -w better-sqlite3",
+    "fetch:ytdlp": "node scripts/fetch-ytdlp.js",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
+    "build": "vite build && electron-builder",
+    "build:dir": "vite build && electron-builder --dir"
+  },
+  "dependencies": {
+    "@ritmiq/api": "workspace:*",
+    "@ritmiq/core": "workspace:*",
+    "@ritmiq/db": "workspace:*",
+    "@ritmiq/ui": "workspace:*",
+    "@ritmiq/yt": "workspace:*",
+    "better-sqlite3": "^11.5.0",
+    "bonjour-service": "^1.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "vite": "^6.0.0",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.ritmiq.app",
+    "productName": "Ritmiq",
+    "files": [
+      "main/**/*",
+      "preload/**/*",
+      "renderer/dist/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Audio"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    }
+  }
+}

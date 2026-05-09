@@ -1,0 +1,17 @@
+{
+  "name": "@ritmiq/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./player": "./src/player/index.js",
+    "./queue": "./src/queue/index.js",
+    "./sync": "./src/sync/index.js",
+    "./audio-source": "./src/audio-source.js"
+  },
+  "scripts": {
+    "lint": "echo 'core: no lint configured yet'"
+  }
+}

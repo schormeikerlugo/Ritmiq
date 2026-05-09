@@ -1,0 +1,335 @@
+/**
+ * Canales IPC entre el renderer (UI) y el main (Node).
+ * @module main/ipc
+ */
+
+import { ipcMain, app } from 'electron';
+import { join } from 'node:path';
+import { mkdirSync, statSync, existsSync, unlinkSync } from 'node:fs';
+import { getMetadata, downloadAudio, getStreamUrl, search } from '@ritmiq/yt/ytdlp';
+import { upsertTrack, listTracks } from '@ritmiq/db/sqlite';
+import { randomUUID } from 'node:crypto';
+import { getYtDlpPath } from './ytdlp-path.js';
+
+const YT_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/;
+const ID_RE = /^[\w-]{11}$/;
+
+function isYoutubeRef(s) {
+  return YT_RE.test(s) || ID_RE.test(s);
+}
+
+/**
+ * Replica un track venido de Supabase a la SQLite local, preservando los
+ * campos por-dispositivo (is_downloaded, file_path).
+ *
+ * Maneja "ID drift": si SQLite ya tiene este (user_id, yt_id) bajo otro
+ * UUID (de sesión anterior), migra el ID al canónico de Supabase
+ * actualizando las FKs (playlist_tracks, play_history) y preservando el
+ * estado local de descarga.
+ *
+ * @param {import('better-sqlite3').Database} db
+ * @param {any} track
+ */
+function syncRemoteTrack(db, track) {
+  if (!track?.id) return false;
+
+  // Caso A: ya está bajo el mismo id.
+  const sameId = db
+    .prepare('SELECT is_downloaded, file_path FROM tracks WHERE id = ?')
+    .get(track.id);
+  if (sameId) {
+    upsertTrack(db, {
+      ...track,
+      isDownloaded: !!sameId.is_downloaded,
+      filePath: sameId.file_path,
+    });
+    return true;
+  }
+
+  // Caso B: existe con OTRO id pero mismo (user_id, yt_id) → migrar.
+  if (track.ytId) {
+    const dup = db.prepare(/* sql */ `
+      SELECT id, is_downloaded, file_path
+      FROM tracks WHERE user_id = ? AND yt_id = ?
+    `).get(track.userId, track.ytId);
+
+    if (dup) {
+      const migrate = db.transaction(() => {
+        // Reasignar FKs antes de borrar la fila vieja
+        // (playlist_tracks tiene ON DELETE CASCADE).
+        db.prepare('UPDATE playlist_tracks SET track_id = ? WHERE track_id = ?')
+          .run(track.id, dup.id);
+        db.prepare('UPDATE play_history    SET track_id = ? WHERE track_id = ?')
+          .run(track.id, dup.id);
+        db.prepare('DELETE FROM tracks WHERE id = ?').run(dup.id);
+        upsertTrack(db, {
+          ...track,
+          isDownloaded: !!dup.is_downloaded,
+          filePath: dup.file_path,
+        });
+      });
+      migrate();
+      return true;
+    }
+  }
+
+  // Caso C: no existe en absoluto.
+  upsertTrack(db, { ...track, isDownloaded: false, filePath: null });
+  return true;
+}
+
+/**
+ * @param {Object} ctx
+ * @param {import('better-sqlite3').Database} ctx.db
+ * @param {{ port: number }} ctx.lan
+ */
+export function registerIpc({ db, lan }) {
+  const binary = getYtDlpPath();
+  const ytOpts = { binary };
+
+  ipcMain.handle('app:info', () => ({
+    lanPort: lan.port,
+    audioDir: getAudioDir(),
+    ytdlpPath: binary,
+  }));
+
+  ipcMain.handle('yt:metadata', (_e, idOrUrl) => getMetadata(idOrUrl, ytOpts));
+  ipcMain.handle('yt:streamUrl', (_e, idOrUrl) => getStreamUrl(idOrUrl, ytOpts));
+  ipcMain.handle('yt:search', async (_e, query) => search(query, { ...ytOpts, max: 12 }));
+
+  ipcMain.handle('library:list', (_e, userId) => listTracks(db, userId));
+
+  ipcMain.handle('library:addFromYoutube', async (_e, payload) => {
+    const { idOrUrl, userId } = payload;
+    const meta = await getMetadata(idOrUrl, ytOpts);
+    return persistTrack(db, meta, userId);
+  });
+
+  // Añadir a partir de un resultado de búsqueda (ya tenemos metadata, sin re-fetch).
+  ipcMain.handle('library:addFromMetadata', async (_e, payload) => {
+    const { meta, userId } = payload;
+    return persistTrack(db, meta, userId);
+  });
+
+  ipcMain.handle('library:syncRemote', (_e, track) => syncRemoteTrack(db, track));
+
+  ipcMain.handle('library:deleteRemote', (_e, trackId) => {
+    db.prepare('DELETE FROM tracks WHERE id = ?').run(trackId);
+    return true;
+  });
+
+  ipcMain.handle('library:download', async (e, payload) => {
+    // Acepta string (id) o { trackId, fallback?: Track }. El fallback
+    // permite que el renderer envíe la fila completa si la SQLite local
+    // aún no la tiene (típico tras importar via Spotify, donde el track
+    // vive en Supabase pero quizás no se replicó a SQLite).
+    const trackId = typeof payload === 'string' ? payload : payload?.trackId;
+    const fallback = typeof payload === 'object' ? payload?.fallback : null;
+    if (!trackId) throw new Error('trackId required');
+
+    let row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
+
+    // Si no está y tenemos fallback, sincronizamos via la lógica de
+    // syncRemote (que maneja "ID drift": si el track ya existía con
+    // otro UUID por mismo yt_id, migra al UUID canónico).
+    if (!row && fallback) {
+      try {
+        await syncRemoteTrack(db, fallback);
+        row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
+      } catch (err) {
+        console.warn('[library:download] failed to sync fallback', err);
+      }
+    }
+
+    if (!row || row.source !== 'youtube' || !row.yt_id) {
+      throw new Error('track not downloadable');
+    }
+    const dir = getAudioDir();
+    const out = join(dir, `${row.id}`);
+    await downloadAudio(row.yt_id, out, {
+      ...ytOpts,
+      format: 'opus',
+      onProgress: (pct) => {
+        try { e.sender.send('library:download:progress', { trackId, pct }); } catch {}
+      },
+    });
+    db.prepare(/* sql */ `
+      UPDATE tracks SET is_downloaded = 1, file_path = ?, updated_at = ?
+      WHERE id = ?
+    `).run(`${out}.opus`, new Date().toISOString(), row.id);
+    return `${out}.opus`;
+  });
+
+  ipcMain.handle('library:undownload', async (_e, trackId) => {
+    const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
+    if (!row) return false;
+    if (row.file_path && existsSync(row.file_path)) {
+      try { unlinkSync(row.file_path); } catch {}
+    }
+    db.prepare(/* sql */ `
+      UPDATE tracks SET is_downloaded = 0, file_path = NULL, updated_at = ?
+      WHERE id = ?
+    `).run(new Date().toISOString(), trackId);
+    return true;
+  });
+
+  ipcMain.handle('library:fileSize', async (_e, trackId) => {
+    const row = db.prepare('SELECT file_path FROM tracks WHERE id = ?').get(trackId);
+    if (!row?.file_path || !existsSync(row.file_path)) return 0;
+    try { return statSync(row.file_path).size; } catch { return 0; }
+  });
+
+  // ── PLAYLISTS ────────────────────────────────────────────────────────
+  ipcMain.handle('playlists:list', (_e, userId) => {
+    return db.prepare('SELECT * FROM playlists WHERE user_id = ? ORDER BY created_at')
+      .all(userId)
+      .map(rowToPlaylist);
+  });
+
+  ipcMain.handle('playlists:upsert', (_e, playlist) => {
+    const now = new Date().toISOString();
+    db.prepare(/* sql */ `
+      INSERT INTO playlists (id, user_id, name, is_offline, cover_url, created_at, updated_at)
+      VALUES (@id, @userId, @name, @isOffline, @coverUrl, @createdAt, @updatedAt)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        is_offline = excluded.is_offline,
+        cover_url = excluded.cover_url,
+        updated_at = excluded.updated_at
+    `).run({
+      id: playlist.id,
+      userId: playlist.userId,
+      name: playlist.name,
+      isOffline: playlist.isOffline ? 1 : 0,
+      coverUrl: playlist.coverUrl ?? null,
+      createdAt: playlist.createdAt ?? now,
+      updatedAt: now,
+    });
+    return playlist;
+  });
+
+  ipcMain.handle('playlists:delete', (_e, playlistId) => {
+    db.prepare('DELETE FROM playlists WHERE id = ?').run(playlistId);
+    return true;
+  });
+
+  ipcMain.handle('playlists:tracks', (_e, playlistId) => {
+    return db.prepare(/* sql */ `
+      SELECT t.*, pt.position
+      FROM playlist_tracks pt
+      JOIN tracks t ON t.id = pt.track_id
+      WHERE pt.playlist_id = ?
+      ORDER BY pt.position
+    `).all(playlistId).map(rowToTrack);
+  });
+
+  ipcMain.handle('playlists:addTrack', (_e, { playlistId, trackId }) => {
+    const max = db.prepare('SELECT COALESCE(MAX(position),-1) AS m FROM playlist_tracks WHERE playlist_id = ?')
+      .get(playlistId);
+    db.prepare(/* sql */ `
+      INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position)
+      VALUES (?, ?, ?)
+    `).run(playlistId, trackId, max.m + 1);
+    return true;
+  });
+
+  ipcMain.handle('playlists:removeTrack', (_e, { playlistId, trackId }) => {
+    db.prepare('DELETE FROM playlist_tracks WHERE playlist_id = ? AND track_id = ?')
+      .run(playlistId, trackId);
+    return true;
+  });
+
+  ipcMain.handle('playlists:reorder', (_e, { playlistId, orderedTrackIds }) => {
+    const tx = db.transaction((ids) => {
+      ids.forEach((trackId, position) => {
+        db.prepare(/* sql */ `
+          UPDATE playlist_tracks SET position = ?
+          WHERE playlist_id = ? AND track_id = ?
+        `).run(position, playlistId, trackId);
+      });
+    });
+    tx(orderedTrackIds);
+    return true;
+  });
+
+  ipcMain.handle('playlists:contents', (_e, userId) => {
+    // Devuelve mapa { playlistId: [trackId,…] } para todas las playlists del usuario.
+    const rows = db.prepare(/* sql */ `
+      SELECT pt.playlist_id, pt.track_id, pt.position
+      FROM playlist_tracks pt
+      JOIN playlists p ON p.id = pt.playlist_id
+      WHERE p.user_id = ?
+      ORDER BY pt.position
+    `).all(userId);
+    /** @type {Record<string,string[]>} */
+    const out = {};
+    for (const r of rows) {
+      if (!out[r.playlist_id]) out[r.playlist_id] = [];
+      out[r.playlist_id].push(r.track_id);
+    }
+    return out;
+  });
+}
+
+function rowToPlaylist(r) {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    name: r.name,
+    isOffline: !!r.is_offline,
+    coverUrl: r.cover_url ?? null,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+function persistTrack(db, meta, userId) {
+  // Si ya existe (mismo yt_id para ese user), reusar.
+  const existing = db
+    .prepare('SELECT * FROM tracks WHERE user_id = ? AND yt_id = ?')
+    .get(userId, meta.id);
+  if (existing) return rowToTrack(existing);
+
+  /** @type {import('@ritmiq/core/types').Track} */
+  const track = {
+    id: randomUUID(),
+    userId,
+    source: 'youtube',
+    ytId: meta.id,
+    title: meta.title,
+    artist: meta.uploader ?? null,
+    album: null,
+    durationSeconds: meta.duration ?? null,
+    coverUrl: meta.thumbnail ?? null,
+    filePath: null,
+    isDownloaded: false,
+    createdAt: new Date().toISOString(),
+  };
+  upsertTrack(db, track);
+  return track;
+}
+
+function rowToTrack(r) {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    source: r.source,
+    ytId: r.yt_id,
+    title: r.title,
+    artist: r.artist,
+    album: r.album,
+    durationSeconds: r.duration_seconds,
+    coverUrl: r.cover_url,
+    filePath: r.file_path,
+    isDownloaded: !!r.is_downloaded,
+    createdAt: r.created_at,
+  };
+}
+
+function getAudioDir() {
+  const dir = join(app.getPath('userData'), 'audio');
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+export { isYoutubeRef };

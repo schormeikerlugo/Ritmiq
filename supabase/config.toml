@@ -1,0 +1,39 @@
+project_id = "ritmiq"
+
+[api]
+enabled = true
+port = 54421
+schemas = ["public", "storage", "graphql_public"]
+
+[db]
+port = 54422
+shadow_port = 54420
+major_version = 15
+
+[studio]
+enabled = true
+port = 54423
+
+[inbucket]
+enabled = true
+port = 54424
+
+[storage]
+enabled = true
+file_size_limit = "5MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5174"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+enable_confirmations = false
+
+[edge_runtime]
+enabled = true
+policy = "oneshot"

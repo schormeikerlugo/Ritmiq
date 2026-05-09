@@ -1,0 +1,133 @@
+.wrap {
+  position: fixed;
+  bottom: calc(var(--layout-player-h) + var(--space-3));
+  right: var(--space-4);
+  width: 340px;
+  max-width: calc(100vw - 2 * var(--space-4));
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 80;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.title {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.controls {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.iconBtn {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-3);
+  font-size: var(--fs-sm);
+  display: grid;
+  place-items: center;
+  transition: background var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard);
+}
+
+.iconBtn:hover {
+  background: var(--color-bg-3);
+  color: var(--color-text-1);
+}
+
+.overall {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.overallBar {
+  flex: 1;
+  height: 4px;
+  background: var(--color-bg-3);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.overallFill {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width var(--dur-normal) var(--ease-standard);
+}
+
+.overallText {
+  font-size: var(--fs-xs);
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  max-height: 220px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 1fr 60px 32px;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.itemTitle {
+  font-size: var(--fs-xs);
+  color: var(--color-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemBar {
+  height: 3px;
+  background: var(--color-bg-3);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.itemFill {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width var(--dur-normal) var(--ease-standard);
+}
+
+.itemPct {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.errorRow {
+  font-size: var(--fs-xs);
+  color: var(--color-danger);
+  padding: var(--space-1) 0;
+}

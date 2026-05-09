@@ -1,0 +1,12 @@
+{
+  "name": "@ritmiq/yt",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./ytdlp": "./src/ytdlp-wrapper.js",
+    "./ffmpeg": "./src/ffmpeg-wrapper.js"
+  }
+}
