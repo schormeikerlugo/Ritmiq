@@ -44,17 +44,19 @@ function setOnline(next) {
 
 async function pingSupabase() {
   try {
-    // Ping ligero: head a la URL base del REST. Si responde algo (200/401),
-    // la red al menos llega al servidor.
+    // Ping a /auth/v1/health con apikey: endpoint que responde 200 sin
+    // requerir sesión y no genera ruido de 401 en la consola.
     const url = supabase.supabaseUrl ?? '';
+    const apikey = supabase.supabaseKey ?? '';
     if (!url) return;
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 4000);
-    const res = await fetch(`${url}/rest/v1/`, {
-      method: 'HEAD',
+    const res = await fetch(`${url}/auth/v1/health`, {
+      method: 'GET',
       signal: ctrl.signal,
+      headers: apikey ? { apikey } : {},
     }).finally(() => clearTimeout(t));
-    setOnline(!!res);
+    setOnline(res.ok);
   } catch {
     setOnline(false);
   }

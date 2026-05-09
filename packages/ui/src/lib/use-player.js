@@ -92,8 +92,31 @@ export function usePlayerEngine() {
             }
             if (currentTrack.ytId) {
               const base = import.meta.env.VITE_SUPABASE_URL;
+              const apikey = import.meta.env.VITE_SUPABASE_ANON_KEY;
               if (!base) throw new Error('Supabase URL no configurado');
-              const url = `${base}/functions/v1/resolve-stream?ytId=${encodeURIComponent(currentTrack.ytId)}&proxy=1`;
+
+              // Pre-validar que la Edge Function pueda resolver la URL.
+              // Esto evita que Howler reciba un 502 con JSON y muestre
+              // un críptico "load: 4". Si falla, lanzamos error claro.
+              const probeUrl =
+                `${base}/functions/v1/resolve-stream?ytId=${encodeURIComponent(currentTrack.ytId)}` +
+                (apikey ? `&apikey=${encodeURIComponent(apikey)}` : '');
+              const probe = await fetch(probeUrl);
+              if (!probe.ok) {
+                let detail = '';
+                try { detail = (await probe.json())?.error ?? ''; } catch {}
+                throw new Error(
+                  'Esta canción no se puede reproducir desde el navegador sin tu PC. ' +
+                  (detail ? `(${detail}) ` : '') +
+                  'Conecta vía LAN/Tailscale o pre-descárgala en casa.'
+                );
+              }
+
+              // OK, la Edge Function puede resolver. Construimos URL de proxy
+              // con apikey en query string para que el <audio> pueda fetcharlo.
+              const url =
+                `${base}/functions/v1/resolve-stream?ytId=${encodeURIComponent(currentTrack.ytId)}&proxy=1` +
+                (apikey ? `&apikey=${encodeURIComponent(apikey)}` : '');
               return { url };
             }
             throw new Error('Stream no disponible');
