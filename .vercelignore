@@ -1,14 +1,14 @@
-# Desktop — no se sirve, pero su package.json se queda para que pnpm
-# resuelva el workspace correctamente. El install command filtra solo PWA.
-apps/desktop/main/**
-apps/desktop/preload/**
-apps/desktop/renderer/**
-apps/desktop/bin/**
-apps/desktop/release/**
+# Dejamos apps/desktop intacto en el filesystem para que pnpm pueda resolver
+# el workspace. El postinstall de desktop detecta Vercel via env y se salta
+# los pasos nativos. Solo excluimos artefactos pesados.
+
+apps/desktop/bin
+apps/desktop/release
 apps/desktop/dist
 apps/desktop/dist-electron
+apps/desktop/renderer/dist
 
-# Supabase local (migraciones se aplican aparte vía CLI)
+# Supabase (CLI sube migraciones aparte)
 supabase
 
 # Documentación y planes
@@ -16,11 +16,12 @@ docs
 .opencode
 
 # Build artifacts y logs
-node_modules
 .turbo
 *.log
 *.sqlite
 
 # Entornos locales (Vercel pone los suyos en su panel)
-.env.development
 .env
+.env.development
+.env.local
+.env.cloud

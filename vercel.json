@@ -1,11 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "turbo run build --filter=@ritmiq/pwa...",
+  "framework": "vite",
+  "installCommand": "VERCEL=1 pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @ritmiq/pwa build",
   "outputDirectory": "apps/pwa/dist",
-  "installCommand": "pnpm install",
-  "framework": null,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|.*\\..*).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
@@ -19,6 +19,12 @@
       "source": "/manifest.webmanifest",
       "headers": [
         { "key": "Content-Type", "value": "application/manifest+json" }
+      ]
+    },
+    {
+      "source": "/(.*).(svg|png|jpg|jpeg|webp|woff2)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     }
   ]

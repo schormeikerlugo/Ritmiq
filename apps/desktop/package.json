@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite\" \"wait-on tcp:5174 && electron .\"",
     "dev:cloud": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite --mode cloud\" \"wait-on tcp:5174 && electron .\"",
-    "postinstall": "node scripts/fetch-ytdlp.js && electron-rebuild -f -w better-sqlite3",
+    "postinstall": "node scripts/postinstall.js",
     "fetch:ytdlp": "node scripts/fetch-ytdlp.js",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "build": "vite build && electron-builder",
