@@ -63,17 +63,32 @@ const webApi = {
   appInfo: async () => ({ lanPort: null, audioDir: null }),
 
   ytSearch: async (q) => {
-    if (!getLanBaseUrlSync()) {
-      throw new Error('Configura la conexión con tu PC en Ajustes para buscar canciones.');
+    // 1) Si hay LAN configurado, usarlo (más rápido, sin gastar bandwidth cloud).
+    if (getLanBaseUrlSync()) {
+      try { return await lanSearch(q); } catch (err) {
+        console.warn('[api.ytSearch] LAN falló, intentando Edge Function', err);
+      }
     }
-    return lanSearch(q);
+    // 2) Fallback a Edge Function search-youtube.
+    return edgeSearch(q);
   },
 
   ytMetadata: async (q) => {
-    if (!getLanBaseUrlSync()) {
-      throw new Error('Configura la conexión con tu PC para resolver metadatos.');
+    if (getLanBaseUrlSync()) {
+      try { return await lanMetadata(q); } catch (err) {
+        console.warn('[api.ytMetadata] LAN falló, intentando Edge Function', err);
+      }
     }
-    return lanMetadata(q);
+    // Fallback: usar el primer resultado de search como metadata aproximada.
+    // (Edge Function no tiene endpoint /metadata; con search es suficiente
+    // porque ya trae title/uploader/duration/thumbnail.)
+    const ytId = extractYtId(q);
+    if (ytId) {
+      const items = await edgeSearch(ytId);
+      const hit = items.find((it) => it.id === ytId) ?? items[0];
+      if (hit) return hit;
+    }
+    throw new Error('No se pudo resolver metadata sin LAN');
   },
 
   ytStreamUrl: async () => {
@@ -130,6 +145,43 @@ const webApi = {
   playlistsReorder: async () => true,
   playlistsContents: async () => ({}),
 };
+
+/**
+ * Llama a la Edge Function `search-youtube` (Supabase Cloud) y normaliza
+ * la respuesta al mismo shape que devuelve el LAN server.
+ *
+ * @param {string} q
+ * @returns {Promise<Array<{id:string,title:string,uploader:string|null,duration:number|null,thumbnail:string|null}>>}
+ */
+async function edgeSearch(q) {
+  const base = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!base) throw new Error('Sin Supabase configurado');
+  const url = `${base}/functions/v1/search-youtube?q=${encodeURIComponent(q)}&max=12`;
+  const headers = anonKey
+    ? { apikey: anonKey, Authorization: `Bearer ${anonKey}` }
+    : {};
+  const r = await fetch(url, { headers });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.error ?? `Edge search ${r.status}`);
+  }
+  const j = await r.json();
+  return j.items ?? [];
+}
+
+/**
+ * Extrae un ID de YouTube de una URL completa, una URL corta o un ID pelado.
+ * @param {string} input
+ * @returns {string|null}
+ */
+function extractYtId(input) {
+  if (!input) return null;
+  const trimmed = String(input).trim();
+  if (/^[\w-]{11}$/.test(trimmed)) return trimmed;
+  const m = trimmed.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)([\w-]{11})/);
+  return m?.[1] ?? null;
+}
 
 /**
  * Persiste un track desde metadata en Supabase. Devuelve el Track con
