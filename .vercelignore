@@ -1,7 +1,22 @@
-apps/desktop
+# Desktop — preservar package.json para que pnpm/Turbo resuelvan el workspace
+apps/desktop/main/**
+apps/desktop/preload/**
+apps/desktop/renderer/**
+apps/desktop/bin/**
+apps/desktop/scripts/**
+apps/desktop/node_modules/**
+apps/desktop/release/**
+
+# Supabase local
 supabase
+
+# Documentación
 docs
+
+# Build artifacts y logs
 node_modules
 .turbo
 *.log
+
+# Entornos locales
 .env.development
