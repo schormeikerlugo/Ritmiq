@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
+  "framework": null,
   "installCommand": "VERCEL=1 pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @ritmiq/pwa build",
-  "outputDirectory": "apps/pwa/dist",
+  "buildCommand": "pnpm --filter @ritmiq/pwa build && rm -rf dist && cp -r apps/pwa/dist dist",
+  "outputDirectory": "dist",
   "rewrites": [
     { "source": "/((?!assets/|.*\\..*).*)", "destination": "/index.html" }
   ],
@@ -29,3 +29,4 @@
     }
   ]
 }
+
