@@ -23,7 +23,8 @@ export function DownloadProgress() {
 
   const total = entries.length;
   const done = entries.filter((e) => e.status === 'done').length;
-  const errors = entries.filter((e) => e.status === 'error').length;
+  const errored = entries.filter((e) => e.status === 'error');
+  const errors = errored.length;
   const running = entries.filter((e) => e.status === 'running');
   const overall = total > 0 ? Math.round((done / total) * 100) : 0;
   const allDone = done + errors === total;
@@ -72,11 +73,12 @@ export function DownloadProgress() {
                 <span className={styles.itemPct}>{Math.round(e.progress)}%</span>
               </li>
             ))}
-            {errors > 0 && (
-              <li className={styles.errorRow}>
-                {errors} {errors === 1 ? 'error' : 'errores'} durante la descarga
+            {errored.map((e) => (
+              <li key={`err-${e.trackId}`} className={styles.errorRow} title={e.error}>
+                <span className={styles.errorTitle}>✕ {e.title}</span>
+                {e.error && <span className={styles.errorMsg}>{e.error}</span>}
               </li>
-            )}
+            ))}
           </ul>
         </>
       )}

@@ -10,7 +10,10 @@
  */
 
 import Dexie from 'dexie';
-import { lanStreamUrl, getLanBaseUrlSync, pingLan } from './lan-client.js';
+import {
+  lanStreamUrl, getLanBaseUrlSync, pingLan,
+  getTunnelUrlSync, withTokenInUrl, getReachableLanBaseUrl,
+} from './lan-client.js';
 
 class RitmiqLocalDB extends Dexie {
   constructor() {
@@ -142,22 +145,37 @@ export async function storageEstimate() {
  */
 export async function downloadTrackToLocal(trackId, onProgress, opts = {}) {
   const { ytId } = opts;
-  const base = getLanBaseUrlSync();
-  const lanReady = base && (await pingLan(base));
+
+  // ── Prioridad para descargas:
+  // 1. LAN local (rápido, sin coste).
+  // 2. Cloudflare Tunnel (funciona fuera de casa, usa yt-dlp del PC).
+  // 3. Edge Function `resolve-stream` (último recurso; YouTube suele bloquear
+  //    Innertube desde IPs de cloud y devuelve 502, por eso lo evitamos para
+  //    descargas — solo lo usamos como fallback si el usuario lo intenta sin
+  //    su PC encendido).
+  const reachable = await getReachableLanBaseUrl();
 
   let url;
-  if (lanReady) {
-    url = lanStreamUrl(trackId);
+  if (reachable) {
+    url = withTokenInUrl(`${reachable.replace(/\/$/, '')}/stream/${encodeURIComponent(trackId)}`);
   } else if (ytId) {
     const sup = import.meta.env.VITE_SUPABASE_URL;
-    if (!sup) throw new Error('Sin LAN ni Supabase configurado');
+    if (!sup) throw new Error('Conecta tu PC para descargar canciones.');
     url = `${sup}/functions/v1/resolve-stream?ytId=${encodeURIComponent(ytId)}&proxy=1`;
   } else {
-    throw new Error('Sin LAN y sin ytId — no se puede descargar');
+    throw new Error('Conecta tu PC (LAN o Tunnel) para descargar esta canción.');
   }
 
   const res = await fetch(url);
   if (!res.ok || !res.body) {
+    // 502 típicamente significa: estábamos usando la Edge Function y YouTube
+    // bloqueó la petición desde la IP de Supabase. Mensaje útil al usuario.
+    if (res.status === 502 && !reachable) {
+      throw new Error(
+        'YouTube bloquea descargas desde la nube. ' +
+        'Enciende tu PC con Ritmiq abierto y vuelve a intentarlo.'
+      );
+    }
     throw new Error(`Descarga fallida (${res.status})`);
   }
 
