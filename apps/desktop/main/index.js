@@ -4,6 +4,8 @@ import { dirname, join } from 'node:path';
 import { startLanServer } from './lan-server.js';
 import { initDb } from './db.js';
 import { registerIpc } from './ipc.js';
+import { cloudflared, getStoredToken } from './cloudflared.js';
+import { getOrCreateAccessToken } from './access-token.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -38,24 +40,36 @@ async function createWindow() {
 app.whenReady().then(async () => {
   const db = initDb();
 
-  // El LAN server NO debe ser bloqueante. Si falla (puerto ocupado tras
-  // todos los intentos, permisos, etc.), seguimos cargando la app — sólo
-  // perdemos la capacidad de servir audio a otros dispositivos en LAN.
+  // Token de acceso (Bearer) para que clientes externos (PWA via tunnel)
+  // se autentiquen contra el LAN server. Se genera al primer arranque.
+  const accessToken = getOrCreateAccessToken();
+
+  // El LAN server NO debe ser bloqueante. Si falla, seguimos cargando la app.
   let lan = { port: null, stop: () => {} };
   try {
-    lan = await startLanServer({ port: 3939, db });
+    lan = await startLanServer({ port: 3939, db, accessToken });
   } catch (err) {
     console.error('[main] LAN server no arrancó:', err.message);
-    // Mostrar después en UI vía un evento, por ahora solo log.
   }
 
-  registerIpc({ db, lan });
+  registerIpc({ db, lan, accessToken });
+
+  // Arrancar Cloudflare Tunnel si hay token guardado.
+  if (getStoredToken()) {
+    cloudflared.start().catch((err) => {
+      console.error('[main] tunnel start falló:', err.message);
+    });
+  }
 
   await createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on('before-quit', async () => {
+  try { await cloudflared.stop(); } catch {}
 });
 
 // Capturar excepciones no manejadas para evitar el diálogo brutal de Electron.

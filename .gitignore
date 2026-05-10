@@ -45,3 +45,7 @@ audio-store
 # yt-dlp binary (descarga via script o postinstall)
 apps/desktop/bin/yt-dlp
 apps/desktop/bin/yt-dlp.exe
+
+# cloudflared binary (descarga via script o postinstall)
+apps/desktop/bin/cloudflared
+apps/desktop/bin/cloudflared.exe

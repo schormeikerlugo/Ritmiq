@@ -17,12 +17,47 @@ import { getStreamUrl, getMetadata, search } from '@ritmiq/yt/ytdlp';
 import { getYtDlpPath } from './ytdlp-path.js';
 
 /**
+ * Orígenes permitidos para CORS. Se refleja el `Origin` del request si
+ * coincide; si no, se cae a '*'. Modo permisivo aceptable porque
+ * los endpoints sensibles requieren Bearer token.
+ */
+const ALLOWED_ORIGINS = [
+  /^http:\/\/localhost(:\d+)?$/,
+  /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+  /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/,
+  /^http:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/,
+  /^https:\/\/.*\.vercel\.app$/,
+  /^https:\/\/.*\.cfargotunnel\.com$/,
+  /^https:\/\/.*\.trycloudflare\.com$/,
+];
+
+/**
  * @param {Object} opts
  * @param {number} opts.port
  * @param {import('better-sqlite3').Database} opts.db
+ * @param {string} [opts.accessToken]  Token Bearer requerido para todas las
+ *   rutas excepto /health. Si no se pasa, el server queda abierto.
  */
-export async function startLanServer({ port, db }) {
+export async function startLanServer({ port, db, accessToken }) {
   const ytBinary = getYtDlpPath();
+
+  /**
+   * Verifica si el request está autenticado. Acepta:
+   *  - Header `Authorization: Bearer <token>`
+   *  - Query string `?token=<token>`
+   *  Útil porque <audio> no permite headers custom.
+   */
+  function isAuthorized(req, url) {
+    if (!accessToken) return true; // server abierto si no hay token
+    const auth = req.headers['authorization'];
+    if (auth && auth.toLowerCase().startsWith('bearer ')) {
+      const t = auth.slice(7).trim();
+      if (t === accessToken) return true;
+    }
+    const qsToken = url.searchParams.get('token');
+    if (qsToken && qsToken === accessToken) return true;
+    return false;
+  }
 
   // Cache en memoria de URLs de stream resueltas por yt-dlp.
   // Las URLs de googlevideo expiran a las ~6h; cacheamos 30 minutos para
@@ -54,9 +89,15 @@ export async function startLanServer({ port, db }) {
     try {
       const url = new URL(req.url ?? '/', `http://localhost:${port}`);
 
-      // CORS para que la PWA en Safari pueda llamar
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type');
+      // CORS — restringido a orígenes esperados (PWA Vercel + dev local).
+      // Reflejamos el origin si pertenece a una lista blanca; si no, '*'
+      // (modo permisivo para tooling/curl). Audio Range solicitudes desde
+      // <audio> no envían Origin, así que '*' es necesario por defecto.
+      const origin = req.headers.origin ?? '';
+      const allowedOrigin = ALLOWED_ORIGINS.some((re) => re.test(origin)) ? origin : '*';
+      res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type, Authorization');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
 
@@ -68,6 +109,13 @@ export async function startLanServer({ port, db }) {
       if (url.pathname === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, service: 'ritmiq', version: '0.1.0' }));
+        return;
+      }
+
+      // Resto de rutas: requieren autenticación si hay accessToken configurado.
+      if (!isAuthorized(req, url)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'unauthorized' }));
         return;
       }
 

@@ -38,6 +38,15 @@ const electronApi = isElectron
       ytdlpInfo:               () => window.ritmiq.ytdlp.info(),
       ytdlpUpdate:             () => window.ritmiq.ytdlp.update(),
 
+      tunnelStatus:            () => window.ritmiq.tunnel.status(),
+      tunnelSetToken:          (t) => window.ritmiq.tunnel.setToken(t),
+      tunnelStart:             () => window.ritmiq.tunnel.start(),
+      tunnelStop:              () => window.ritmiq.tunnel.stop(),
+      tunnelOnState:           (cb) => window.ritmiq.tunnel.onState(cb),
+
+      authToken:               () => window.ritmiq.auth.token(),
+      authRegenerateToken:     () => window.ritmiq.auth.regenerateToken(),
+
       libraryList:             (uid) => window.ritmiq.library.list(uid),
       libraryAdd:              (p) => window.ritmiq.library.addFromYoutube(p),
       libraryAddFromMeta:      (p) => window.ritmiq.library.addFromMetadata(p),
@@ -99,6 +108,15 @@ const webApi = {
 
   ytdlpInfo: async () => ({ path: null, version: null }),
   ytdlpUpdate: async () => { throw new Error('Solo desktop'); },
+
+  tunnelStatus: async () => ({ status: 'idle', url: null, error: null, hasToken: false }),
+  tunnelSetToken: async () => { throw new Error('Solo desktop'); },
+  tunnelStart: async () => { throw new Error('Solo desktop'); },
+  tunnelStop: async () => { throw new Error('Solo desktop'); },
+  tunnelOnState: () => () => {},
+
+  authToken: async () => null,
+  authRegenerateToken: async () => null,
 
   // Lista la biblioteca: en PWA consultamos Supabase directamente.
   libraryList: async () => {

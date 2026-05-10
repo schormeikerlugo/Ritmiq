@@ -14,7 +14,9 @@ import { useLibraryStore } from './stores/library.js';
 import { usePlaylistsStore } from './stores/playlists.js';
 import { useViewStore } from './stores/view.js';
 import { usePlayerEngine } from './lib/use-player.js';
-import { autoDetectLanFromHost, setLanBaseUrl, getLanBaseUrlSync } from './lib/lan-client.js';
+import {
+  autoDetectLanFromHost, setLanBaseUrl, getLanBaseUrlSync, setAccessToken,
+} from './lib/lan-client.js';
 import { api, isDesktop } from './lib/api.js';
 import { realtime } from './lib/realtime.js';
 import { onConnectionChange } from './lib/connection.js';
@@ -41,6 +43,9 @@ export function App() {
     if (isDesktop) {
       api.appInfo().then((info) => {
         if (info?.lanPort) setLanBaseUrl(`http://127.0.0.1:${info.lanPort}`);
+        // El renderer desktop también necesita el access token para
+        // autenticarse contra su propio LAN server.
+        if (info?.accessToken) setAccessToken(info.accessToken);
       }).catch(() => {});
     } else {
       autoDetectLanFromHost().then((url) => {

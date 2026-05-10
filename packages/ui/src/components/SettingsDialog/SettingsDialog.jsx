@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
   getLanBaseUrlSync, setLanBaseUrl, pingLan,
+  getTunnelUrlSync, setTunnelUrl,
+  getAccessTokenSync, setAccessToken,
 } from '../../lib/lan-client.js';
 import { api, isDesktop } from '../../lib/api.js';
 import styles from './SettingsDialog.module.css';
@@ -185,6 +187,9 @@ export function SettingsDialog({ onClose }) {
         </div>
 
         {isDesktop && <YtDlpSection />}
+        {isDesktop && <DesktopTunnelSection />}
+        {isDesktop && <DesktopAccessTokenSection />}
+        {!isDesktop && <PwaRemoteSection />}
       </div>
     </div>
   );
@@ -258,4 +263,236 @@ function normalize(s) {
   } catch {
     return u.replace(/\/$/, '');
   }
+}
+
+/**
+ * Desktop: gestiona el Cloudflare Tunnel embebido. Permite pegar el token
+ * desde Cloudflare Zero Trust y arranca/para el tunnel automáticamente.
+ */
+function DesktopTunnelSection() {
+  const [token, setToken] = useState('');
+  const [state, setState] = useState({
+    status: 'idle', url: null, error: null, hasToken: false,
+  });
+  const [busy, setBusy] = useState(false);
+
+  const refresh = async () => {
+    try { setState(await api.tunnelStatus()); } catch {}
+  };
+
+  useEffect(() => {
+    refresh();
+    return api.tunnelOnState((s) => setState(s));
+  }, []);
+
+  const onSave = async () => {
+    setBusy(true);
+    try {
+      await api.tunnelSetToken(token.trim() || null);
+      setToken('');
+    } finally { setBusy(false); }
+  };
+
+  const onStop = async () => {
+    setBusy(true);
+    try { await api.tunnelStop(); } finally { setBusy(false); }
+  };
+
+  const statusBadge = state.status === 'connected' ? '🟢 Conectado'
+                    : state.status === 'connecting' ? '🟡 Conectando…'
+                    : state.status === 'error' ? '🔴 Error'
+                    : '⚪ Desconectado';
+
+  return (
+    <div className={styles.field} style={{ marginTop: '1.25rem' }}>
+      <label className={styles.label}>Acceso remoto (Cloudflare Tunnel)</label>
+      <p className={styles.hint}>
+        Pega aquí el token del tunnel desde{' '}
+        <code>Cloudflare Zero Trust → Networks → Tunnels → Create</code>.
+        El tunnel hace que tu PC sea accesible desde cualquier red.
+      </p>
+
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', margin: '0.5rem 0' }}>
+        <span>{statusBadge}</span>
+        {state.url && (
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            style={{ height: 28, padding: '0 0.5rem', fontSize: '0.75rem' }}
+            onClick={() => navigator.clipboard.writeText(state.url)}
+          >Copiar URL pública</button>
+        )}
+      </div>
+
+      {state.url && (
+        <p className={styles.hint}>
+          URL: <code style={{ wordBreak: 'break-all' }}>{state.url}</code>
+        </p>
+      )}
+      {state.error && (
+        <p className={styles.status} data-ok={false}>{state.error}</p>
+      )}
+
+      <input
+        className={styles.input}
+        type="password"
+        value={token}
+        onChange={(e) => setToken(e.target.value)}
+        placeholder={state.hasToken ? '••• token guardado (pega uno nuevo para cambiar) •••' : 'Pega el token de Cloudflare Tunnel'}
+        disabled={busy}
+        autoComplete="off"
+      />
+      <div className={styles.actions}>
+        {state.hasToken && (
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            onClick={onStop}
+            disabled={busy}
+          >Detener</button>
+        )}
+        <div className={styles.spacer} />
+        <button
+          type="button"
+          className={styles.btnPrimary}
+          onClick={onSave}
+          disabled={busy || !token.trim()}
+        >{busy ? 'Aplicando…' : (state.hasToken ? 'Reemplazar token' : 'Guardar y conectar')}</button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Desktop: muestra el token de acceso (Bearer) que el usuario debe
+ * configurar en la PWA para autenticar peticiones.
+ */
+function DesktopAccessTokenSection() {
+  const [token, setTokenValue] = useState('');
+  const [revealed, setRevealed] = useState(false);
+
+  const refresh = async () => {
+    try { setTokenValue(await api.authToken() ?? ''); } catch {}
+  };
+
+  useEffect(() => { refresh(); }, []);
+
+  const onCopy = () => {
+    navigator.clipboard.writeText(token);
+  };
+
+  const onRegen = async () => {
+    if (!confirm('Regenerar el token invalida los clientes ya configurados. ¿Continuar?')) return;
+    setTokenValue(await api.authRegenerateToken());
+  };
+
+  const masked = token ? token.slice(0, 4) + '•••••••••••••••••••••' + token.slice(-4) : '—';
+
+  return (
+    <div className={styles.field} style={{ marginTop: '1.25rem' }}>
+      <label className={styles.label}>Token de acceso para clientes externos</label>
+      <p className={styles.hint}>
+        Cópialo y pégalo en la PWA → Ajustes → "Token". Necesario sólo cuando
+        accedes vía Tunnel; en la misma WiFi LAN no hace falta.
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <code style={{
+          flex: 1, padding: '0.5rem', background: 'var(--color-bg-2)',
+          borderRadius: 6, fontSize: '0.75rem', wordBreak: 'break-all',
+        }}>{revealed ? token : masked}</code>
+        <button
+          type="button"
+          className={styles.btnSecondary}
+          style={{ height: 32, padding: '0 0.75rem' }}
+          onClick={() => setRevealed((v) => !v)}
+        >{revealed ? 'Ocultar' : 'Mostrar'}</button>
+      </div>
+      <div className={styles.actions} style={{ marginTop: '0.5rem' }}>
+        <button
+          type="button"
+          className={styles.btnSecondary}
+          onClick={onRegen}
+        >Regenerar token</button>
+        <div className={styles.spacer} />
+        <button
+          type="button"
+          className={styles.btnPrimary}
+          onClick={onCopy}
+          disabled={!token}
+        >Copiar al portapapeles</button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PWA: configurar URL del Cloudflare Tunnel del PC + token de acceso.
+ */
+function PwaRemoteSection() {
+  const [tunnel, setTunnelInput] = useState(getTunnelUrlSync() ?? '');
+  const [token, setTokenInput] = useState(getAccessTokenSync() ?? '');
+  const [msg, setMsg] = useState(null);
+  const [msgOk, setMsgOk] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  const onSave = async () => {
+    setTesting(true);
+    setMsg('Probando conexión…');
+    try {
+      const url = (tunnel ?? '').trim().replace(/\/$/, '');
+      if (url) {
+        // Test el tunnel respondiendo /health (no requiere token).
+        const ok = await pingLan(url, 4000);
+        if (!ok) {
+          setMsg('No se pudo alcanzar la URL. Verifica que el tunnel esté activo.');
+          setMsgOk(false);
+          return;
+        }
+      }
+      setTunnelUrl(url || null);
+      setAccessToken(token.trim() || null);
+      setMsg(url ? `✓ Tunnel guardado` : 'Tunnel borrado');
+      setMsgOk(true);
+    } finally { setTesting(false); }
+  };
+
+  return (
+    <div className={styles.field} style={{ marginTop: '1.25rem' }}>
+      <label className={styles.label}>Acceso remoto (cuando estás fuera de tu WiFi)</label>
+      <p className={styles.hint}>
+        Si tu PC tiene un Cloudflare Tunnel configurado, pega aquí su URL
+        pública y el token de acceso.
+      </p>
+      <input
+        className={styles.input}
+        type="url"
+        value={tunnel}
+        onChange={(e) => setTunnelInput(e.target.value)}
+        placeholder="https://nombre.cfargotunnel.com"
+        disabled={testing}
+      />
+      <input
+        className={styles.input}
+        style={{ marginTop: '0.5rem' }}
+        type="password"
+        value={token}
+        onChange={(e) => setTokenInput(e.target.value)}
+        placeholder="Token de acceso del PC"
+        disabled={testing}
+        autoComplete="off"
+      />
+      {msg && (
+        <p className={styles.status} data-ok={msgOk}>{msg}</p>
+      )}
+      <div className={styles.actions}>
+        <div className={styles.spacer} />
+        <button
+          type="button"
+          className={styles.btnPrimary}
+          onClick={onSave}
+          disabled={testing}
+        >{testing ? 'Probando…' : 'Guardar'}</button>
+      </div>
+    </div>
+  );
 }

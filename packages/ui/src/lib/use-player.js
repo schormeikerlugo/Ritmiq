@@ -9,7 +9,9 @@ import { createHowlerBackend } from './howler-backend.js';
 import { usePlayerStore } from '../stores/player.js';
 import { api, isDesktop } from './api.js';
 import { isEphemeralTrack } from './track-helpers.js';
-import { getLanBaseUrlSync, pingLan } from './lan-client.js';
+import {
+  getLanBaseUrlSync, pingLan, getTunnelUrlSync, withTokenInUrl,
+} from './lan-client.js';
 import { getLocalBlobUrl } from './local-downloads.js';
 
 export function usePlayerEngine() {
@@ -79,11 +81,17 @@ export function usePlayerEngine() {
               const info = await api.appInfo();
               return info?.lanPort ? `http://127.0.0.1:${info.lanPort}` : null;
             }
-            // PWA: el LAN server sabe expandir "yt:<id>" para efímeros y
-            // también sirve los persistidos (descargados o streaming).
-            const cached = getLanBaseUrlSync();
-            if (cached && (await pingLan(cached))) return cached;
+            // PWA: probar primero la LAN local; si no, el tunnel.
+            const lan = getLanBaseUrlSync();
+            if (lan && (await pingLan(lan))) return lan;
+            const tunnel = getTunnelUrlSync();
+            if (tunnel && (await pingLan(tunnel, 3000))) return tunnel;
             return null;
+          },
+          buildLanStreamUrl: (trackId, base) => {
+            // Añade ?token=<accessToken> si está configurado, para que
+            // <audio> autentique sin necesidad de headers.
+            return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}`);
           },
           resolveCloudStream: async () => {
             if (isDesktop && currentTrack.ytId) {

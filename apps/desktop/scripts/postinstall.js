@@ -28,15 +28,24 @@ if (isCI) {
 }
 
 // 1. Descargar binario yt-dlp si falta.
-const fetchScript = join(__dirname, 'fetch-ytdlp.js');
-if (existsSync(fetchScript)) {
-  const a = spawnSync(process.execPath, [fetchScript], { stdio: 'inherit' });
+const ytFetchScript = join(__dirname, 'fetch-ytdlp.js');
+if (existsSync(ytFetchScript)) {
+  const a = spawnSync(process.execPath, [ytFetchScript], { stdio: 'inherit' });
   if (a.status !== 0) {
     console.error('[ritmiq/desktop] fetch-ytdlp.js failed');
     process.exit(a.status ?? 1);
   }
 } else {
   console.warn('[ritmiq/desktop] fetch-ytdlp.js not found, skipping');
+}
+
+// 1b. Descargar binario cloudflared si falta.
+const cfFetchScript = join(__dirname, 'fetch-cloudflared.js');
+if (existsSync(cfFetchScript)) {
+  const a = spawnSync(process.execPath, [cfFetchScript], { stdio: 'inherit' });
+  if (a.status !== 0) {
+    console.warn('[ritmiq/desktop] fetch-cloudflared.js failed (no fatal)');
+  }
 }
 
 // 2. Recompilar better-sqlite3 contra el ABI de Electron.

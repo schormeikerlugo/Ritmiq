@@ -12,6 +12,21 @@ contextBridge.exposeInMainWorld('ritmiq', {
     info: () => ipcRenderer.invoke('ytdlp:info'),
     update: () => ipcRenderer.invoke('ytdlp:update'),
   },
+  tunnel: {
+    status: () => ipcRenderer.invoke('tunnel:status'),
+    setToken: (token) => ipcRenderer.invoke('tunnel:setToken', token),
+    start: () => ipcRenderer.invoke('tunnel:start'),
+    stop: () => ipcRenderer.invoke('tunnel:stop'),
+    onState: (cb) => {
+      const handler = (_e, state) => cb(state);
+      ipcRenderer.on('tunnel:state', handler);
+      return () => ipcRenderer.removeListener('tunnel:state', handler);
+    },
+  },
+  auth: {
+    token: () => ipcRenderer.invoke('auth:token'),
+    regenerateToken: () => ipcRenderer.invoke('auth:regenerateToken'),
+  },
   library: {
     list: (userId) => ipcRenderer.invoke('library:list', userId),
     addFromYoutube: (payload) => ipcRenderer.invoke('library:addFromYoutube', payload),

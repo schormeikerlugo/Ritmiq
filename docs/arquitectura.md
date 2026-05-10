@@ -154,6 +154,61 @@ chmod +x apps/desktop/release/Ritmiq-0.1.0.AppImage
 - **Windows**: `electron-builder --win` desde Linux (requiere Wine) o GitHub Actions.
 - **Mac**: requiere macOS o GitHub Actions runner macOS.
 
+## 8c. Acceso remoto vía Cloudflare Tunnel
+
+El AppImage embebido lleva `cloudflared` y permite exponer el LAN server (puerto 3939) como una URL pública HTTPS sin abrir puertos en el router. Esto resuelve el problema de **Mixed Content** (PWA Vercel HTTPS → LAN HTTP) y permite acceder al PC desde cualquier red.
+
+### Configuración inicial (una vez)
+
+1. **Cuenta Cloudflare** en https://cloudflare.com (gratis).
+2. **Zero Trust** → activar.
+3. **Networks → Tunnels → Create a tunnel → Cloudflared**:
+   - Nombre: `ritmiq-pc` (o el que quieras).
+   - Cloudflare te da un comando con un token largo. Copia solo el token.
+4. **Configura una Public Hostname** en el tunnel:
+   - **Service**: `HTTP localhost:3939`.
+   - **Public hostname**: si tienes dominio en Cloudflare, un subdominio (`ritmiq.tudominio.com`); si no, deja la default `<tunnel-uuid>.cfargotunnel.com`.
+
+### En el AppImage
+
+1. Abre Settings → "Acceso remoto (Cloudflare Tunnel)".
+2. Pega el token → "Guardar y conectar".
+3. Estado pasa a 🟢 Conectado y aparece la URL pública.
+4. Copia esa URL.
+5. Settings → "Token de acceso" → copia el token Bearer (autenticación contra el LAN).
+
+### En la PWA (Vercel)
+
+1. Settings → "Acceso remoto":
+   - URL: pega la URL del Cloudflare Tunnel.
+   - Token: pega el token Bearer del PC.
+2. Guardar.
+
+### Flujo de conexión
+
+```
+   PWA Vercel (HTTPS)
+        │
+        ▼
+   pingLan(LAN URL)  →  responde?  →  ✓ usar LAN
+        │ no
+        ▼
+   pingLan(Tunnel URL)  →  responde?  →  ✓ usar Tunnel
+        │ no
+        ▼
+   error visible al usuario
+```
+
+Estando en casa: usa LAN local (rápido, sin gastar bandwidth Cloudflare).
+Fuera de casa: usa Tunnel (HTTPS válido, funciona en cualquier red).
+
+### Seguridad
+
+- **Bearer token obligatorio** en todas las rutas excepto `/health`.
+- **CORS restringido**: sólo orígenes confiables (Vercel, dev local, Cloudflare).
+- **Auto-restart** si `cloudflared` muere.
+- **Sin auto-update inseguro**: el binario embebido no se actualiza solo (tú decides cuándo actualizar via rebuild del AppImage).
+
 ## 9. Roadmap
 
 - **Fase 0** ✅ Setup monorepo

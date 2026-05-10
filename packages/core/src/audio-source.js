@@ -18,6 +18,10 @@
  *           Devuelve la base URL del servidor LAN (ej. "http://192.168.1.50:3939") o null.
  * @property {(trackId: string) => Promise<{url: string, expiresAt?: number}>} resolveCloudStream
  *           Llama a la edge function 'resolve-stream' de Supabase.
+ * @property {(trackId: string, baseUrl: string) => string} [buildLanStreamUrl]
+ *           Opcional: permite al consumidor construir la URL de stream LAN
+ *           (por ejemplo añadiendo token Bearer como query string). Si no
+ *           se pasa, se usa una construcción simple sin auth.
  */
 
 /**
@@ -40,10 +44,10 @@ export async function resolveAudioSource(track, deps) {
   // 2. ¿Hay servidor LAN accesible?
   const lanBase = await deps.getLanBaseUrl();
   if (lanBase) {
-    return {
-      url: `${lanBase}/stream/${encodeURIComponent(track.id)}`,
-      origin: 'lan',
-    };
+    const url = deps.buildLanStreamUrl
+      ? deps.buildLanStreamUrl(track.id, lanBase)
+      : `${lanBase}/stream/${encodeURIComponent(track.id)}`;
+    return { url, origin: 'lan' };
   }
 
   // 3. Fallback: cloud edge function

@@ -7,6 +7,8 @@
  */
 
 const STORAGE_KEY = 'ritmiq:lan:baseUrl';
+const TUNNEL_KEY = 'ritmiq:lan:tunnelUrl';
+const TOKEN_KEY  = 'ritmiq:lan:accessToken';
 const HEALTH = '/health';
 
 /** @returns {string|null} */
@@ -23,6 +25,53 @@ export function setLanBaseUrl(url) {
   } catch {}
 }
 
+/** URL del tunnel Cloudflare (para acceso fuera de LAN). */
+export function getTunnelUrlSync() {
+  try { return localStorage.getItem(TUNNEL_KEY); } catch { return null; }
+}
+
+/** @param {string|null} url */
+export function setTunnelUrl(url) {
+  try {
+    if (url) localStorage.setItem(TUNNEL_KEY, url);
+    else localStorage.removeItem(TUNNEL_KEY);
+  } catch {}
+}
+
+/** Token Bearer para autenticarse contra el LAN server. */
+export function getAccessTokenSync() {
+  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+}
+
+/** @param {string|null} token */
+export function setAccessToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {}
+}
+
+/**
+ * Construye headers `Authorization: Bearer <token>` si hay token guardado.
+ * Útil para llamadas vía `fetch()` (no para `<audio>` que no soporta headers).
+ */
+export function authHeaders() {
+  const t = getAccessTokenSync();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+/**
+ * Añade el token como query string a una URL. Necesario para que el
+ * `<audio>` element pueda autenticarse (no permite headers custom).
+ * @param {string} url
+ */
+export function withTokenInUrl(url) {
+  const t = getAccessTokenSync();
+  if (!t || !url) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}token=${encodeURIComponent(t)}`;
+}
+
 /**
  * Verifica que un base URL responde correctamente al endpoint /health.
  * @param {string} baseUrl
@@ -34,6 +83,7 @@ export async function pingLan(baseUrl, timeoutMs = 1500) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
+    // /health es público, no requiere token. Lo usamos como sanity check.
     const res = await fetch(`${baseUrl.replace(/\/$/, '')}${HEALTH}`, {
       signal: ctrl.signal,
     });
@@ -48,13 +98,16 @@ export async function pingLan(baseUrl, timeoutMs = 1500) {
 }
 
 /**
- * Devuelve el LAN base URL actualmente alcanzable, o null.
- * Si hay uno cacheado y responde, lo usa.
+ * Devuelve el primer base URL alcanzable en este orden:
+ *   1. LAN local (rápido, mismas red)
+ *   2. Cloudflare Tunnel (lento, funciona desde cualquier red)
  * @returns {Promise<string|null>}
  */
 export async function getReachableLanBaseUrl() {
-  const cached = getLanBaseUrlSync();
-  if (cached && (await pingLan(cached))) return cached;
+  const lan = getLanBaseUrlSync();
+  if (lan && (await pingLan(lan))) return lan;
+  const tunnel = getTunnelUrlSync();
+  if (tunnel && (await pingLan(tunnel, 3000))) return tunnel;
   return null;
 }
 
@@ -90,65 +143,75 @@ export async function autoDetectLanFromHost() {
 }
 
 /**
- * Búsqueda de YouTube vía LAN.
+ * Resuelve el base URL preferido (LAN local sync) o nulo. Si necesitas el
+ * que efectivamente responde con `pingLan`, usa `getReachableLanBaseUrl`.
+ */
+function preferredBase() {
+  return getLanBaseUrlSync() || getTunnelUrlSync();
+}
+
+/**
+ * Búsqueda de YouTube vía LAN o tunnel.
  * @param {string} query
- * @returns {Promise<Array<{id:string,title:string,uploader:string|null,duration:number|null,thumbnail:string|null}>>}
  */
 export async function lanSearch(query) {
-  const base = getLanBaseUrlSync();
-  if (!base) throw new Error('LAN no configurado');
-  const r = await fetch(`${base}/yt/search?q=${encodeURIComponent(query)}`);
+  const base = preferredBase();
+  if (!base) throw new Error('LAN/Tunnel no configurado');
+  const r = await fetch(`${base}/yt/search?q=${encodeURIComponent(query)}`, {
+    headers: authHeaders(),
+  });
   if (!r.ok) throw new Error(`LAN search ${r.status}`);
   const j = await r.json();
   return j.items ?? [];
 }
 
 /**
- * Metadata de un video por URL/ID vía LAN.
+ * Metadata de un video por URL/ID.
  * @param {string} idOrUrl
  */
 export async function lanMetadata(idOrUrl) {
-  const base = getLanBaseUrlSync();
-  if (!base) throw new Error('LAN no configurado');
-  const r = await fetch(`${base}/yt/metadata?q=${encodeURIComponent(idOrUrl)}`);
+  const base = preferredBase();
+  if (!base) throw new Error('LAN/Tunnel no configurado');
+  const r = await fetch(`${base}/yt/metadata?q=${encodeURIComponent(idOrUrl)}`, {
+    headers: authHeaders(),
+  });
   if (!r.ok) throw new Error(`LAN metadata ${r.status}`);
   return r.json();
 }
 
 /**
- * URL del stream de un track persistido en biblioteca, servida por el LAN
- * server. Si está descargado, devuelve el archivo local; si no, redirige
- * al stream URL de yt-dlp.
+ * URL del stream de un track con el token incluido (para `<audio>`).
  * @param {string} trackId
  * @returns {string|null}
  */
 export function lanStreamUrl(trackId) {
-  const base = getLanBaseUrlSync();
+  const base = preferredBase();
   if (!base) return null;
-  return `${base}/stream/${encodeURIComponent(trackId)}`;
+  return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}`);
 }
 
 /**
- * Le pide al LAN server que pre-resuelva la URL de stream y la cachee.
- * Es fire-and-forget; no bloquea.
- *
+ * Pre-calienta el cache de stream URL.
  * @param {string} ytId
  */
 export function prewarmStream(ytId) {
-  const base = getLanBaseUrlSync();
+  const base = preferredBase();
   if (!base || !ytId) return;
-  fetch(`${base}/yt/prewarm?q=${encodeURIComponent(ytId)}`).catch(() => {});
+  fetch(`${base}/yt/prewarm?q=${encodeURIComponent(ytId)}`, {
+    headers: authHeaders(),
+  }).catch(() => {});
 }
 
 /**
- * Obtiene los datos de una playlist pública de Spotify vía LAN.
+ * Obtiene los datos de una playlist pública de Spotify vía LAN/Tunnel.
  * @param {string} spotifyUrl
- * @returns {Promise<{name:string, description:string|null, coverUrl:string|null, tracks:Array<{title:string,artist:string,durationMs:number}>}>}
  */
 export async function lanSpotifyPlaylist(spotifyUrl) {
-  const base = getLanBaseUrlSync();
-  if (!base) throw new Error('LAN no configurado');
-  const r = await fetch(`${base}/spotify/playlist?url=${encodeURIComponent(spotifyUrl)}`);
+  const base = preferredBase();
+  if (!base) throw new Error('LAN/Tunnel no configurado');
+  const r = await fetch(`${base}/spotify/playlist?url=${encodeURIComponent(spotifyUrl)}`, {
+    headers: authHeaders(),
+  });
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
     throw new Error(j.error ?? `LAN spotify ${r.status}`);

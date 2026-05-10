@@ -3,7 +3,7 @@
  * @module main/ipc
  */
 
-import { ipcMain, app } from 'electron';
+import { ipcMain, app, BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import { mkdirSync, statSync, existsSync, unlinkSync, chmodSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -13,6 +13,8 @@ import { getMetadata, downloadAudio, getStreamUrl, search } from '@ritmiq/yt/ytd
 import { upsertTrack, listTracks } from '@ritmiq/db/sqlite';
 import { randomUUID } from 'node:crypto';
 import { getYtDlpPath, getYtDlpUserDataPath } from './ytdlp-path.js';
+import { cloudflared, getStoredToken, setStoredToken } from './cloudflared.js';
+import { getOrCreateAccessToken, regenerateAccessToken } from './access-token.js';
 
 const YT_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/;
 const ID_RE = /^[\w-]{11}$/;
@@ -84,9 +86,10 @@ function syncRemoteTrack(db, track) {
 /**
  * @param {Object} ctx
  * @param {import('better-sqlite3').Database} ctx.db
- * @param {{ port: number }} ctx.lan
+ * @param {{ port: number|null }} ctx.lan
+ * @param {string} ctx.accessToken  Token Bearer para clientes externos.
  */
-export function registerIpc({ db, lan }) {
+export function registerIpc({ db, lan, accessToken }) {
   const binary = getYtDlpPath();
   const ytOpts = { binary };
 
@@ -94,7 +97,51 @@ export function registerIpc({ db, lan }) {
     lanPort: lan.port,
     audioDir: getAudioDir(),
     ytdlpPath: binary,
+    accessToken,
   }));
+
+  // ─── Cloudflare Tunnel ───────────────────────────────────────────────
+  ipcMain.handle('tunnel:status', () => ({
+    ...cloudflared.state,
+    hasToken: Boolean(getStoredToken()),
+  }));
+
+  ipcMain.handle('tunnel:setToken', async (_e, token) => {
+    setStoredToken(token);
+    if (token) {
+      await cloudflared.restart();
+    } else {
+      await cloudflared.stop();
+    }
+    return { ...cloudflared.state, hasToken: Boolean(getStoredToken()) };
+  });
+
+  ipcMain.handle('tunnel:start', async () => {
+    await cloudflared.start();
+    return { ...cloudflared.state, hasToken: Boolean(getStoredToken()) };
+  });
+
+  ipcMain.handle('tunnel:stop', async () => {
+    await cloudflared.stop();
+    return { ...cloudflared.state, hasToken: Boolean(getStoredToken()) };
+  });
+
+  // Suscripción a cambios de estado del tunnel: el preload registra un
+  // listener que reenvía eventos al renderer.
+  cloudflared.onChange((state) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      try {
+        win.webContents.send('tunnel:state', {
+          ...state,
+          hasToken: Boolean(getStoredToken()),
+        });
+      } catch {}
+    }
+  });
+
+  // ─── Access token (Bearer) ───────────────────────────────────────────
+  ipcMain.handle('auth:token', () => getOrCreateAccessToken());
+  ipcMain.handle('auth:regenerateToken', () => regenerateAccessToken());
 
   ipcMain.handle('yt:metadata', (_e, idOrUrl) => getMetadata(idOrUrl, ytOpts));
   ipcMain.handle('yt:streamUrl', (_e, idOrUrl) => getStreamUrl(idOrUrl, ytOpts));
