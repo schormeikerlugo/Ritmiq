@@ -224,12 +224,10 @@ function UserMenu() {
         <div className={styles.userMenu}>
           <div className={styles.userEmail}>{user?.email}</div>
           <hr className={styles.userSep} />
-          {!isDesktop && (
-            <button
-              className={styles.userItem}
-              onClick={() => { setOpen(false); setSettingsOpen(true); }}
-            >Conexión con tu PC…</button>
-          )}
+          <button
+            className={styles.userItem}
+            onClick={() => { setOpen(false); setSettingsOpen(true); }}
+          >{isDesktop ? 'Ajustes…' : 'Conexión con tu PC…'}</button>
           <button
             className={styles.userItem}
             onClick={() => { setOpen(false); signOut(); }}

@@ -118,6 +118,42 @@ supabase/
 docs/
 ```
 
+## 8b. Build del Desktop (release Linux AppImage)
+
+El desktop empaquetado lleva **yt-dlp embebido** y apunta directamente a Supabase Cloud. Funciona como cliente "completo" mientras la PWA en Vercel actúa como cliente ligero.
+
+### Comandos
+```bash
+# Compilar AppImage Linux apuntando al cloud (.env.production)
+pnpm --filter @ritmiq/desktop run build:linux
+
+# Salida: apps/desktop/release/Ritmiq-0.1.0.AppImage (~114 MB)
+chmod +x apps/desktop/release/Ritmiq-0.1.0.AppImage
+./apps/desktop/release/Ritmiq-0.1.0.AppImage
+```
+
+### Lo que incluye el bundle
+- Electron 33 + Chromium → `~85 MB`
+- `bin/yt-dlp` (3 MB) → embebido en `extraResources`
+- Renderer (Vite build production) → URL Supabase Cloud baked in
+- `better-sqlite3` recompilado contra ABI de Electron
+- LAN server (puerto 3939) con fallback a 3940/3941/etc si está ocupado
+
+### Robustez
+- Si el puerto LAN está ocupado: prueba siguientes hasta encontrar libre.
+- Si todo falla: la app sigue arrancando, sólo pierde la capacidad de servir audio a otros dispositivos en LAN.
+- `process.on('uncaughtException')` evita el diálogo brutal de Electron en errores no manejados.
+
+### Actualización de yt-dlp por el usuario
+- Settings → "Actualizar yt-dlp" descarga la última release de GitHub.
+- Se guarda en `app.getPath('userData')/bin/yt-dlp`.
+- Tiene prioridad sobre el bundled (que queda como fallback si el user borra el suyo).
+
+### Distribución a otras plataformas
+- **Linux**: Listo (AppImage).
+- **Windows**: `electron-builder --win` desde Linux (requiere Wine) o GitHub Actions.
+- **Mac**: requiere macOS o GitHub Actions runner macOS.
+
 ## 9. Roadmap
 
 - **Fase 0** ✅ Setup monorepo

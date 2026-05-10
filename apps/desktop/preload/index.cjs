@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld('ritmiq', {
     streamUrl: (idOrUrl) => ipcRenderer.invoke('yt:streamUrl', idOrUrl),
     search: (query) => ipcRenderer.invoke('yt:search', query),
   },
+  ytdlp: {
+    info: () => ipcRenderer.invoke('ytdlp:info'),
+    update: () => ipcRenderer.invoke('ytdlp:update'),
+  },
   library: {
     list: (userId) => ipcRenderer.invoke('library:list', userId),
     addFromYoutube: (payload) => ipcRenderer.invoke('library:addFromYoutube', payload),

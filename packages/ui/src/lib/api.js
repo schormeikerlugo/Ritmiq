@@ -35,6 +35,8 @@ const electronApi = isElectron
       ytMetadata:              (q) => window.ritmiq.yt.metadata(q),
       ytStreamUrl:             (q) => window.ritmiq.yt.streamUrl(q),
       ytSearch:                (q) => window.ritmiq.yt.search(q),
+      ytdlpInfo:               () => window.ritmiq.ytdlp.info(),
+      ytdlpUpdate:             () => window.ritmiq.ytdlp.update(),
 
       libraryList:             (uid) => window.ritmiq.library.list(uid),
       libraryAdd:              (p) => window.ritmiq.library.addFromYoutube(p),
@@ -94,6 +96,9 @@ const webApi = {
   ytStreamUrl: async () => {
     throw new Error('PWA: stream URL se obtiene vía LAN /stream/:id');
   },
+
+  ytdlpInfo: async () => ({ path: null, version: null }),
+  ytdlpUpdate: async () => { throw new Error('Solo desktop'); },
 
   // Lista la biblioteca: en PWA consultamos Supabase directamente.
   libraryList: async () => {

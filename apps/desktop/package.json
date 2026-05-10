@@ -6,12 +6,13 @@
   "main": "main/index.js",
   "scripts": {
     "dev": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite\" \"wait-on tcp:5174 && electron .\"",
-    "dev:cloud": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite --mode cloud\" \"wait-on tcp:5174 && electron .\"",
+    "dev:cloud": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite --mode production\" \"wait-on tcp:5174 && electron .\"",
     "postinstall": "node scripts/postinstall.js",
     "fetch:ytdlp": "node scripts/fetch-ytdlp.js",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
-    "build": "vite build && electron-builder",
-    "build:dir": "vite build && electron-builder --dir"
+    "build": "vite build && electron-builder --linux",
+    "build:linux": "vite build && electron-builder --linux",
+    "build:dir": "vite build && electron-builder --linux --dir"
   },
   "dependencies": {
     "@ritmiq/api": "workspace:*",
@@ -36,30 +37,39 @@
   "build": {
     "appId": "com.ritmiq.app",
     "productName": "Ritmiq",
+    "asar": true,
     "files": [
       "main/**/*",
       "preload/**/*",
-      "renderer/dist/**/*"
+      "renderer/dist/**/*",
+      "scripts/fetch-ytdlp.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "bin/yt-dlp",
+        "to": "bin/yt-dlp"
+      }
     ],
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build-resources"
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb"
+        "AppImage"
       ],
-      "category": "Audio"
+      "category": "AudioVideo",
+      "executableName": "ritmiq",
+      "synopsis": "Reproductor de música personal con sync cloud",
+      "description": "Ritmiq — reproductor de música multiplataforma con yt-dlp embebido y sync con Supabase.",
+      "icon": "build-resources/icon.png"
     },
     "win": {
-      "target": [
-        "nsis"
-      ]
+      "target": ["nsis"]
     },
     "mac": {
-      "target": [
-        "dmg"
-      ]
+      "target": ["dmg"]
     }
   }
 }

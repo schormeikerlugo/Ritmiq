@@ -5,11 +5,14 @@
 
 import { ipcMain, app } from 'electron';
 import { join } from 'node:path';
-import { mkdirSync, statSync, existsSync, unlinkSync } from 'node:fs';
+import { mkdirSync, statSync, existsSync, unlinkSync, chmodSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { pipeline } from 'node:stream/promises';
+import { createWriteStream } from 'node:fs';
 import { getMetadata, downloadAudio, getStreamUrl, search } from '@ritmiq/yt/ytdlp';
 import { upsertTrack, listTracks } from '@ritmiq/db/sqlite';
 import { randomUUID } from 'node:crypto';
-import { getYtDlpPath } from './ytdlp-path.js';
+import { getYtDlpPath, getYtDlpUserDataPath } from './ytdlp-path.js';
 
 const YT_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/;
 const ID_RE = /^[\w-]{11}$/;
@@ -96,6 +99,37 @@ export function registerIpc({ db, lan }) {
   ipcMain.handle('yt:metadata', (_e, idOrUrl) => getMetadata(idOrUrl, ytOpts));
   ipcMain.handle('yt:streamUrl', (_e, idOrUrl) => getStreamUrl(idOrUrl, ytOpts));
   ipcMain.handle('yt:search', async (_e, query) => search(query, { ...ytOpts, max: 12 }));
+
+  // Información y actualización del binario yt-dlp.
+  ipcMain.handle('ytdlp:info', async () => {
+    const path = getYtDlpPath();
+    let version = null;
+    try {
+      const r = spawnSync(path, ['--version'], { encoding: 'utf8' });
+      version = r.stdout?.trim() || null;
+    } catch {}
+    return { path, version };
+  });
+
+  ipcMain.handle('ytdlp:update', async () => {
+    const platform = process.platform;
+    const target = platform === 'win32'  ? 'yt-dlp.exe'
+                 : platform === 'darwin' ? 'yt-dlp_macos'
+                 : 'yt-dlp';
+    const url = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${target}`;
+    const out = getYtDlpUserDataPath();
+
+    const res = await fetch(url, { redirect: 'follow' });
+    if (!res.ok) throw new Error(`Descarga falló: HTTP ${res.status}`);
+    if (!res.body) throw new Error('Respuesta vacía');
+
+    await pipeline(res.body, createWriteStream(out));
+    if (platform !== 'win32') chmodSync(out, 0o755);
+
+    // Devuelve la nueva versión instalada.
+    const r = spawnSync(out, ['--version'], { encoding: 'utf8' });
+    return { path: out, version: r.stdout?.trim() ?? null };
+  });
 
   ipcMain.handle('library:list', (_e, userId) => listTracks(db, userId));
 

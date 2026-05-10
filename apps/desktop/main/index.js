@@ -37,7 +37,18 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   const db = initDb();
-  const lan = await startLanServer({ port: 3939, db });
+
+  // El LAN server NO debe ser bloqueante. Si falla (puerto ocupado tras
+  // todos los intentos, permisos, etc.), seguimos cargando la app — sólo
+  // perdemos la capacidad de servir audio a otros dispositivos en LAN.
+  let lan = { port: null, stop: () => {} };
+  try {
+    lan = await startLanServer({ port: 3939, db });
+  } catch (err) {
+    console.error('[main] LAN server no arrancó:', err.message);
+    // Mostrar después en UI vía un evento, por ahora solo log.
+  }
+
   registerIpc({ db, lan });
 
   await createWindow();
@@ -45,6 +56,14 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+// Capturar excepciones no manejadas para evitar el diálogo brutal de Electron.
+process.on('uncaughtException', (err) => {
+  console.error('[main] uncaughtException:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[main] unhandledRejection:', reason);
 });
 
 app.on('window-all-closed', () => {

@@ -164,27 +164,64 @@ export async function startLanServer({ port, db }) {
     }
   });
 
-  await new Promise((resolve) => server.listen(port, resolve));
-  console.log(`[lan-server] listening on :${port}`);
+  // Intentar el puerto preferido; si está ocupado probar los siguientes.
+  // Esto evita crashes si hay otra instancia de Ritmiq corriendo.
+  const actualPort = await listenWithFallback(server, port, 5);
+  console.log(`[lan-server] listening on :${actualPort}`);
 
   // Anuncio mDNS
-  const bonjour = new Bonjour();
-  const advert = bonjour.publish({
-    name: 'Ritmiq',
-    type: 'ritmiq',
-    protocol: 'tcp',
-    port,
-    txt: { version: '0.1.0' },
-  });
+  let bonjour = null;
+  let advert = null;
+  try {
+    bonjour = new Bonjour();
+    advert = bonjour.publish({
+      name: 'Ritmiq',
+      type: 'ritmiq',
+      protocol: 'tcp',
+      port: actualPort,
+      txt: { version: '0.1.0' },
+    });
+  } catch (err) {
+    console.warn('[lan-server] mDNS no disponible:', err.message);
+  }
 
   return {
-    port,
+    port: actualPort,
     stop: async () => {
-      advert.stop?.();
-      bonjour.destroy();
+      try { advert?.stop?.(); } catch {}
+      try { bonjour?.destroy(); } catch {}
       await new Promise((r) => server.close(r));
     },
   };
+}
+
+/**
+ * Intenta escuchar en `startPort`; si está ocupado, prueba los siguientes
+ * hasta `tries` puertos. Devuelve el puerto que terminó funcionando.
+ */
+function listenWithFallback(server, startPort, tries = 5) {
+  return new Promise((resolve, reject) => {
+    let attempt = 0;
+    const tryPort = (p) => {
+      const onError = (err) => {
+        if (err.code === 'EADDRINUSE' && attempt < tries) {
+          attempt++;
+          server.removeListener('error', onError);
+          console.warn(`[lan-server] puerto :${p} ocupado, probando :${p + 1}`);
+          tryPort(p + 1);
+        } else {
+          server.removeListener('error', onError);
+          reject(err);
+        }
+      };
+      server.once('error', onError);
+      server.listen(p, () => {
+        server.removeListener('error', onError);
+        resolve(p);
+      });
+    };
+    tryPort(startPort);
+  });
 }
 
 /**

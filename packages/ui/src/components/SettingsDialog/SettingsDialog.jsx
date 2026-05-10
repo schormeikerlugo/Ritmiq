@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   getLanBaseUrlSync, setLanBaseUrl, pingLan,
 } from '../../lib/lan-client.js';
+import { api, isDesktop } from '../../lib/api.js';
 import styles from './SettingsDialog.module.css';
 
 /**
@@ -182,6 +183,64 @@ export function SettingsDialog({ onClose }) {
             disabled={scanning}
           >Probar y guardar</button>
         </div>
+
+        {isDesktop && <YtDlpSection />}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sección de gestión del binario yt-dlp (sólo visible en desktop).
+ */
+function YtDlpSection() {
+  const [info, setInfo] = useState({ path: null, version: null });
+  const [updating, setUpdating] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [msgOk, setMsgOk] = useState(false);
+
+  const refresh = async () => {
+    try { setInfo(await api.ytdlpInfo()); } catch {}
+  };
+
+  useEffect(() => { refresh(); }, []);
+
+  const onUpdate = async () => {
+    setUpdating(true);
+    setMsg('Descargando última versión…');
+    setMsgOk(false);
+    try {
+      const next = await api.ytdlpUpdate();
+      setInfo(next);
+      setMsg(`✓ Actualizado a ${next.version ?? '?'}`);
+      setMsgOk(true);
+    } catch (err) {
+      setMsg(`Error: ${String(err?.message ?? err)}`);
+      setMsgOk(false);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  return (
+    <div className={styles.field} style={{ marginTop: '1.25rem' }}>
+      <label className={styles.label}>Motor de YouTube (yt-dlp)</label>
+      <p className={styles.hint}>
+        Versión instalada: <code>{info.version ?? '—'}</code>
+      </p>
+      {msg && (
+        <p className={styles.status} data-ok={msgOk}>
+          {msg}
+        </p>
+      )}
+      <div className={styles.actions}>
+        <div className={styles.spacer} />
+        <button
+          type="button"
+          className={styles.btnSecondary}
+          onClick={onUpdate}
+          disabled={updating}
+        >{updating ? 'Actualizando…' : 'Actualizar yt-dlp'}</button>
       </div>
     </div>
   );
