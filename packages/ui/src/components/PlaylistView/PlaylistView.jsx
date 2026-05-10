@@ -270,7 +270,7 @@ export function PlaylistView({ playlistId }) {
         <button
           className={styles.iconAction}
           onClick={downloadAll}
-          disabled={!isDesktop || tracks.length === 0 || allDownloaded}
+          disabled={tracks.length === 0 || allDownloaded}
           aria-label="Descargar toda la playlist"
           title={allDownloaded ? 'Todo descargado' : 'Descargar toda la playlist'}
         >↓</button>
@@ -423,7 +423,6 @@ function PlaylistRow({
       id: 'dl',
       label: track.isDownloaded ? 'Quitar descarga' : 'Descargar',
       icon: track.isDownloaded ? '✕' : '↓',
-      disabled: !isDesktop,
       onClick: () => track.isDownloaded
         ? actions.undownloadOne(track.id)
         : actions.downloadOne(track.id),

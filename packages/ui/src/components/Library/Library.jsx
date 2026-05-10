@@ -105,7 +105,6 @@ export function Library() {
               id: 'dl',
               label: t.isDownloaded ? 'Quitar descarga' : 'Descargar',
               icon: t.isDownloaded ? '✕' : '↓',
-              disabled: !isDesktop,
               onClick: () => t.isDownloaded ? undownload(t.id) : download(t.id),
             },
             { id: 'info', label: 'Mostrar info', icon: 'ⓘ', onClick: () => setInfoTrack(t) },

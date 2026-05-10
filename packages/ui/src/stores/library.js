@@ -201,9 +201,8 @@ export const useLibraryStore = create((set, get) => ({
     await get().load();
   },
 
-  /** Borra el archivo local de un track descargado. */
+  /** Borra el archivo local (desktop) o el blob de IndexedDB (PWA). */
   async undownload(trackId) {
-    if (!isDesktop) throw new Error('Solo desktop por ahora');
     await api.libraryUndownload(trackId);
     await get().load();
   },
