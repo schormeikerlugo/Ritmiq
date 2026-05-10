@@ -79,6 +79,8 @@ export function usePlayerEngine() {
   const nextUrlRef = useRef(null);
   /** Track al que corresponde nextUrlRef.current (para validar antes del swap). */
   const nextTrackRef = useRef(null);
+  /** Id del track actualmente cargado en el <audio>. Evita doble load tras swap. */
+  const loadedTrackIdRef = useRef(null);
 
   const setState = usePlayerStore((s) => s.patch);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
@@ -182,46 +184,99 @@ export function usePlayerEngine() {
     });
   }, [backend, setState]);
 
-  /* ── Evento `ended`: swap SÍNCRONO al siguiente, sin pasar por React ── */
+  /* ── Pre-end swap: cambiar al siguiente ANTES de que `ended` dispare ── */
+  // iOS Safari mantiene la autorización del `<audio>` para reproducir en
+  // background SOLO mientras el elemento siga reproduciendo sin gap. El
+  // evento `ended` ya está fuera de esa ventana → cualquier play() en
+  // background falla silenciosamente. Por eso disparamos el swap a
+  // duration - 0.4s, cuando el `<audio>` AÚN está en estado `playing`.
+  const swapDoneRef = useRef(null); // id del track ya consumido (anti-dup)
+  useEffect(() => {
+    return backend.onPosition((pos) => {
+      const store = usePlayerStore.getState();
+      const cur = store.currentTrack;
+      if (!cur || !store.isPlaying) return;
+
+      const audioDur = backend.duration();
+      const metaDur = Number(cur.durationSeconds) || 0;
+      const dur = (Number.isFinite(audioDur) && audioDur > 0) ? audioDur : metaDur;
+      if (!dur || dur < 2) return;
+
+      const remaining = dur - pos;
+      // Margen 0.4s — suficiente para que iOS lo trate como continuación.
+      if (remaining > 0.4) return;
+
+      // Repeat one: reseek dentro del mismo elemento, NO swap.
+      if (store.repeat === 'one') {
+        if (swapDoneRef.current === cur.id + ':loop:' + Math.floor(pos)) return;
+        swapDoneRef.current = cur.id + ':loop:' + Math.floor(pos);
+        backend.seek(0);
+        return;
+      }
+
+      // Evitar disparar el swap dos veces para el mismo track.
+      if (swapDoneRef.current === cur.id) return;
+
+      const nextIdx = store.shuffle ? pickShuffleIdx(store) : store.index + 1;
+      if (nextIdx < 0 || nextIdx >= store.queue.length) {
+        // Fin de cola: dejar que termine naturalmente.
+        return;
+      }
+      const nextTrack = store.queue[nextIdx];
+      const preUrl = (nextTrackRef.current?.id === nextTrack.id) ? nextUrlRef.current : null;
+
+      if (!preUrl) {
+        // Precarga no lista: NO hacemos swap (no podemos resolver async sin
+        // perder el contexto). Dejamos que `ended` dispare el camino lento;
+        // en foreground funcionará, en lockscreen no — limitación conocida.
+        return;
+      }
+
+      swapDoneRef.current = cur.id;
+
+      // 1) Swap del audio MIENTRAS está reproduciendo (iOS conserva sesión).
+      backend.swapAndPlay(preUrl);
+      // 2) Marcar el nuevo track como cargado para que el useEffect que
+      //    vigila currentTrack NO vuelva a hacer load() y rompa la sesión.
+      loadedTrackIdRef.current = nextTrack.id;
+      // 3) Metadata MediaSession para nueva canción.
+      applyMediaSessionMetadata(nextTrack);
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+      // 4) Sincronizar el store (React).
+      nextUrlRef.current = null;
+      nextTrackRef.current = null;
+      store.patch({
+        index: nextIdx,
+        currentTrack: nextTrack,
+        isPlaying: true,
+        positionSeconds: 0,
+      });
+    });
+  }, [backend]);
+
+  /** @param {{queue:any[], index:number}} store */
+  function pickShuffleIdx(store) {
+    if (store.queue.length === 0) return -1;
+    if (store.queue.length === 1) return 0;
+    let n;
+    do { n = Math.floor(Math.random() * store.queue.length); } while (n === store.index);
+    return n;
+  }
+
+  // Reset del flag anti-dup cuando cambia el track.
+  useEffect(() => { swapDoneRef.current = null; }, [currentTrack]);
+
+  /* ── Evento `ended` (fallback foreground / fin de cola) ─────────────── */
   useEffect(() => {
     return backend.onEnded(() => {
       const store = usePlayerStore.getState();
-      // Repeat one: reseek y seguir.
       if (store.repeat === 'one' && store.currentTrack) {
         backend.seek(0);
         backend.play().catch(() => {});
         return;
       }
-      // Si hay URL precargada para el siguiente track esperado → swap inmediato
-      // dentro del mismo task del evento `ended`. Esto preserva la autorización
-      // de iOS para reproducir en background.
-      const nextIdx = store.shuffle
-        ? -1 // shuffle no es predecible → caemos al path lento
-        : store.index + 1;
-      if (
-        nextIdx >= 0 &&
-        nextIdx < store.queue.length &&
-        nextUrlRef.current &&
-        nextTrackRef.current?.id === store.queue[nextIdx].id
-      ) {
-        // 1) Swap síncrono del audio (iOS conserva la sesión).
-        backend.swapAndPlay(nextUrlRef.current);
-        // 2) Actualizar metadata MediaSession síncronamente.
-        applyMediaSessionMetadata(store.queue[nextIdx]);
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
-        // 3) Sincronizar el store DESPUÉS (React).
-        store.patch({
-          index: nextIdx,
-          currentTrack: store.queue[nextIdx],
-          isPlaying: true,
-          positionSeconds: 0,
-        });
-        // Invalida la precarga consumida.
-        nextUrlRef.current = null;
-        nextTrackRef.current = null;
-        return;
-      }
-      // Fallback (precarga no disponible o shuffle): camino lento por React.
+      // En este punto el pre-end swap no se disparó (sin precarga lista o
+      // fin de cola). Camino lento; en lockscreen iOS bloqueará el play().
       store.next();
     });
   }, [backend]);
@@ -232,9 +287,16 @@ export function usePlayerEngine() {
   /* ── Track actual: cargar y reproducir ──────────────────────────────── */
   useEffect(() => {
     if (!currentTrack) return;
-    let cancelled = false;
+    // Si el track ya fue cargado por el pre-end swap, no recargamos: solo
+    // sincronizamos metadata y duración. Esto evita un gap audible al
+    // cambiar de canción dentro de la cola.
+    if (loadedTrackIdRef.current === currentTrack.id) {
+      applyMediaSessionMetadata(currentTrack);
+      setState({ durationSeconds: backend.duration() });
+      return;
+    }
 
-    // Metadata ANTES del play — crítico para que iOS asocie la sesión.
+    let cancelled = false;
     applyMediaSessionMetadata(currentTrack);
 
     (async () => {
@@ -244,6 +306,7 @@ export function usePlayerEngine() {
         if (cancelled) return;
         await backend.load(url);
         if (cancelled) return;
+        loadedTrackIdRef.current = currentTrack.id;
         await backend.play();
         setState({ isPlaying: true, durationSeconds: backend.duration() });
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
