@@ -86,6 +86,24 @@ export function createHtmlAudioBackend() {
       });
     },
 
+    /**
+     * Cambio SÍNCRONO de src + play, pensado para llamarse dentro del evento
+     * `ended` original. iOS solo respeta la sesión activa si el siguiente
+     * play() ocurre dentro del mismo task del evento `ended` previo, sin
+     * await intermedios. Esta función no devuelve promise para no romper
+     * el contexto del gesto.
+     * @param {string} url
+     */
+    swapAndPlay(url) {
+      const el = ensureAudio();
+      el.src = url;
+      el.load();
+      // play() devuelve Promise pero la disparamos SIN await — iOS lo permite
+      // porque el contexto del evento `ended` está activo.
+      const p = el.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    },
+
     async play() {
       const el = ensureAudio();
       try { await el.play(); } catch (err) {
