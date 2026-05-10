@@ -29,6 +29,11 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
         navigateFallback: '/index.html',
+        // El Service Worker NUNCA debe interceptar peticiones de audio:
+        // los `<audio>` con Range requests rompen si el SW responde con
+        // cuerpos completos, y en iOS eso suspende la reproducción en
+        // background. Excluimos rutas /stream/, dominios de tunnel y blobs.
+        navigateFallbackDenylist: [/\/stream\//, /\.trycloudflare\.com/, /\.cfargotunnel\.com/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/,
@@ -37,6 +42,25 @@ export default defineConfig({
               cacheName: 'ritmiq-covers',
               expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
+          },
+          {
+            // Streaming desde el LAN server / tunnel: bypass total para que
+            // Range requests funcionen y el <audio> mantenga la sesión activa.
+            urlPattern: /\/stream\//,
+            handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /^https:\/\/[a-z0-9-]+\.trycloudflare\.com\//,
+            handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /^https:\/\/[a-z0-9-]+\.cfargotunnel\.com\//,
+            handler: 'NetworkOnly',
+          },
+          {
+            // Edge Function resolve-stream: nunca cachear.
+            urlPattern: /\/functions\/v1\/resolve-stream/,
+            handler: 'NetworkOnly',
           },
           {
             // Carátulas de Supabase local (HTTP) — no cacheamos en SW para
