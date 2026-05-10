@@ -18,6 +18,18 @@ class RitmiqLocalDB extends Dexie {
     this.version(1).stores({
       audioBlobs: 'trackId, downloadedAt',
     });
+    // v2 — cache de metadatos para funcionar 100% offline.
+    //   tracks         → biblioteca del usuario (mirror de Supabase `tracks`)
+    //   playlists      → playlists del usuario  (mirror de `playlists`)
+    //   playlistTracks → contenido por playlist (mirror de `playlist_tracks`)
+    //   meta           → key/value para timestamps y banderas de sync
+    this.version(2).stores({
+      audioBlobs: 'trackId, downloadedAt',
+      tracks: 'id, userId, ytId, createdAt',
+      playlists: 'id, userId, updatedAt',
+      playlistTracks: '[playlistId+trackId], playlistId, trackId, position',
+      meta: 'key',
+    });
   }
 }
 
@@ -183,6 +195,84 @@ export async function downloadTrackToLocal(trackId, onProgress, opts = {}) {
   requestPersistOnce();
 
   return { size: blob.size, mime };
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Cache de metadatos offline (tracks / playlists / playlist_tracks).
+ * Permite que la PWA abra y muestre contenido sin red.
+ * ───────────────────────────────────────────────────────────────────── */
+
+/** @param {import('@ritmiq/core/types').Track[]} tracks */
+export async function cacheTracks(tracks) {
+  if (!Array.isArray(tracks) || tracks.length === 0) return;
+  // Persistimos solo metadata (sin blob). Los flags por-dispositivo se ignoran.
+  const rows = tracks.map((t) => ({
+    id: t.id,
+    userId: t.userId,
+    source: t.source,
+    ytId: t.ytId ?? null,
+    title: t.title,
+    artist: t.artist ?? null,
+    album: t.album ?? null,
+    durationSeconds: t.durationSeconds ?? null,
+    coverUrl: t.coverUrl ?? null,
+    createdAt: t.createdAt ?? null,
+  }));
+  await db.table('tracks').bulkPut(rows);
+  await db.table('meta').put({ key: 'tracks.syncedAt', value: new Date().toISOString() });
+}
+
+/** @returns {Promise<import('@ritmiq/core/types').Track[]>} */
+export async function getCachedTracks() {
+  const rows = await db.table('tracks').toArray();
+  return rows.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+}
+
+/** @param {string} trackId */
+export async function removeCachedTrack(trackId) {
+  await db.table('tracks').delete(trackId);
+}
+
+/** @param {import('@ritmiq/core/types').Playlist[]} playlists */
+export async function cachePlaylists(playlists) {
+  if (!Array.isArray(playlists)) return;
+  await db.transaction('rw', db.table('playlists'), async () => {
+    await db.table('playlists').clear();
+    if (playlists.length) await db.table('playlists').bulkPut(playlists);
+  });
+  await db.table('meta').put({ key: 'playlists.syncedAt', value: new Date().toISOString() });
+}
+
+/** @returns {Promise<import('@ritmiq/core/types').Playlist[]>} */
+export async function getCachedPlaylists() {
+  const rows = await db.table('playlists').toArray();
+  return rows.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
+}
+
+/** @param {Record<string,string[]>} contents */
+export async function cachePlaylistContents(contents) {
+  const rows = [];
+  for (const [playlistId, trackIds] of Object.entries(contents ?? {})) {
+    trackIds.forEach((trackId, position) => {
+      rows.push({ playlistId, trackId, position });
+    });
+  }
+  await db.transaction('rw', db.table('playlistTracks'), async () => {
+    await db.table('playlistTracks').clear();
+    if (rows.length) await db.table('playlistTracks').bulkPut(rows);
+  });
+}
+
+/** @returns {Promise<Record<string,string[]>>} */
+export async function getCachedPlaylistContents() {
+  const rows = await db.table('playlistTracks').toArray();
+  rows.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  /** @type {Record<string,string[]>} */
+  const out = {};
+  for (const r of rows) {
+    (out[r.playlistId] ??= []).push(r.trackId);
+  }
+  return out;
 }
 
 /** Borra todas las descargas locales (útil para vista de Downloads "limpiar"). */

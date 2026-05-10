@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase.js';
 import { pullTracks, pushTrack, deleteTrackRemote } from '../lib/sync.js';
 import { tryOrQueue } from '../lib/sync-queue.js';
 import { isEphemeralTrack } from '../lib/track-helpers.js';
-import { listLocalIds } from '../lib/local-downloads.js';
+import { listLocalIds, cacheTracks, getCachedTracks } from '../lib/local-downloads.js';
 import { usePlayerStore } from './player.js';
 
 /**
@@ -27,7 +27,30 @@ export const useLibraryStore = create((set, get) => ({
         return;
       }
 
-      const remote = await pullTracks();
+      // PWA: hidratar primero desde Dexie para que la UI tenga contenido al instante (offline-first).
+      if (!isDesktop) {
+        try {
+          const cached = await getCachedTracks();
+          if (cached.length > 0) {
+            const localIds = await listLocalIds();
+            set({
+              tracks: cached.map((t) => ({ ...t, isDownloaded: localIds.has(t.id), filePath: null })),
+            });
+          }
+        } catch (e) {
+          console.warn('[library] cache hidratación falló:', e?.message ?? e);
+        }
+      }
+
+      let remote;
+      try {
+        remote = await pullTracks();
+      } catch (e) {
+        // Sin red: aceptar el estado hidratado de cache.
+        console.info('[library] sin red — usando cache local');
+        set({ loading: false });
+        return;
+      }
 
       let merged = remote;
       if (isDesktop) {
@@ -59,6 +82,11 @@ export const useLibraryStore = create((set, get) => ({
       }
 
       set({ tracks: merged, loading: false });
+
+      // PWA: persistir cache para próximo arranque offline.
+      if (!isDesktop) {
+        cacheTracks(remote).catch(() => {});
+      }
     } catch (err) {
       set({ error: String(err?.message ?? err), loading: false });
     }

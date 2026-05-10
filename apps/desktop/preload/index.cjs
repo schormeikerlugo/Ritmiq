@@ -15,7 +15,9 @@ contextBridge.exposeInMainWorld('ritmiq', {
   tunnel: {
     status: () => ipcRenderer.invoke('tunnel:status'),
     setToken: (token) => ipcRenderer.invoke('tunnel:setToken', token),
-    start: () => ipcRenderer.invoke('tunnel:start'),
+    setCustomUrl: (url) => ipcRenderer.invoke('tunnel:setCustomUrl', url),
+    start: (opts) => ipcRenderer.invoke('tunnel:start', opts),
+    startQuick: () => ipcRenderer.invoke('tunnel:startQuick'),
     stop: () => ipcRenderer.invoke('tunnel:stop'),
     onState: (cb) => {
       const handler = (_e, state) => cb(state);

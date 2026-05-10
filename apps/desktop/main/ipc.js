@@ -13,7 +13,7 @@ import { getMetadata, downloadAudio, getStreamUrl, search } from '@ritmiq/yt/ytd
 import { upsertTrack, listTracks } from '@ritmiq/db/sqlite';
 import { randomUUID } from 'node:crypto';
 import { getYtDlpPath, getYtDlpUserDataPath } from './ytdlp-path.js';
-import { cloudflared, getStoredToken, setStoredToken } from './cloudflared.js';
+import { cloudflared, getStoredToken, setStoredToken, getCustomUrl, setCustomUrl } from './cloudflared.js';
 import { getOrCreateAccessToken, regenerateAccessToken } from './access-token.js';
 
 const YT_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/;
@@ -104,7 +104,17 @@ export function registerIpc({ db, lan, accessToken }) {
   ipcMain.handle('tunnel:status', () => ({
     ...cloudflared.state,
     hasToken: Boolean(getStoredToken()),
+    customUrl: getCustomUrl(),
   }));
+
+  ipcMain.handle('tunnel:setCustomUrl', (_e, url) => {
+    setCustomUrl(url);
+    // Si está conectado, refleja la URL custom en el estado actual.
+    if (url && cloudflared.state.status === 'connected') {
+      cloudflared.setState({ url });
+    }
+    return { ...cloudflared.state, hasToken: Boolean(getStoredToken()), customUrl: url };
+  });
 
   ipcMain.handle('tunnel:setToken', async (_e, token) => {
     setStoredToken(token);
@@ -116,8 +126,13 @@ export function registerIpc({ db, lan, accessToken }) {
     return { ...cloudflared.state, hasToken: Boolean(getStoredToken()) };
   });
 
-  ipcMain.handle('tunnel:start', async () => {
-    await cloudflared.start();
+  ipcMain.handle('tunnel:start', async (_e, opts) => {
+    await cloudflared.start(opts ?? {});
+    return { ...cloudflared.state, hasToken: Boolean(getStoredToken()) };
+  });
+
+  ipcMain.handle('tunnel:startQuick', async () => {
+    await cloudflared.start({ mode: 'quick' });
     return { ...cloudflared.state, hasToken: Boolean(getStoredToken()) };
   });
 

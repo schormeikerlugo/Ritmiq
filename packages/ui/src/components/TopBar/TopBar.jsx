@@ -5,7 +5,7 @@ import { useAuthStore } from '../../stores/auth.js';
 import { useViewStore } from '../../stores/view.js';
 import { api, isDesktop } from '../../lib/api.js';
 import { metaToCandidate } from '../../lib/track-helpers.js';
-import { onConnectionChange } from '../../lib/connection.js';
+import { onConnectivityChange } from '../../lib/connectivity.js';
 import { onQueueSizeChange } from '../../lib/sync-queue.js';
 import { prewarmStream } from '../../lib/lan-client.js';
 import { SettingsDialog } from '../SettingsDialog/SettingsDialog.jsx';
@@ -183,8 +183,9 @@ export function TopBar() {
 function UserMenu() {
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [online, setOnline] = useState(true);
+  const [conn, setConn] = useState({ internet: true, lan: false, tunnel: false, source: 'cloud' });
   const [pending, setPending] = useState(0);
+  const online = conn.internet || conn.lan || conn.tunnel;
   const ref = useRef(null);
   const { user, signOut } = useAuthStore();
 
@@ -196,13 +197,18 @@ function UserMenu() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
-  useEffect(() => onConnectionChange(setOnline), []);
+  useEffect(() => onConnectivityChange(setConn), []);
   useEffect(() => onQueueSizeChange(setPending), []);
 
   const initial = (user?.email ?? 'U').slice(0, 1).toUpperCase();
+  const sourceLabel =
+    conn.lan ? 'LAN'
+    : conn.tunnel ? 'Tunnel'
+    : conn.internet ? 'Nube'
+    : 'Offline';
   const statusTitle = online
-    ? (pending > 0 ? `Conectado · ${pending} cambios pendientes` : 'Conectado')
-    : (pending > 0 ? `Sin conexión · ${pending} cambios en cola` : 'Sin conexión');
+    ? `${sourceLabel}${pending > 0 ? ` · ${pending} cambios pendientes` : ''}`
+    : `Sin conexión${pending > 0 ? ` · ${pending} cambios en cola` : ''}`;
 
   return (
     <div className={styles.actions} ref={ref}>

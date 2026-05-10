@@ -36,6 +36,12 @@ function tokenPath() {
   return join(dir, 'tunnel-token.txt');
 }
 
+function customUrlPath() {
+  const dir = app.getPath('userData');
+  mkdirSync(dir, { recursive: true });
+  return join(dir, 'tunnel-custom-url.txt');
+}
+
 /** @returns {string|null} */
 export function getStoredToken() {
   try {
@@ -53,6 +59,35 @@ export function setStoredToken(token) {
     return;
   }
   writeFileSync(p, token.trim(), 'utf8');
+}
+
+/**
+ * URL pública custom (dominio propio). Cloudflared no la imprime en logs
+ * para Named Tunnels con dominio custom — el usuario la configura manualmente.
+ * @returns {string|null}
+ */
+export function getCustomUrl() {
+  try {
+    const p = customUrlPath();
+    if (!existsSync(p)) return null;
+    return readFileSync(p, 'utf8').trim() || null;
+  } catch { return null; }
+}
+
+/** @param {string|null} url */
+export function setCustomUrl(url) {
+  const p = customUrlPath();
+  if (!url) {
+    try { unlinkSync(p); } catch {}
+    return;
+  }
+  // Normalizar: añadir https:// si falta el esquema, quitar / final.
+  let normalized = url.trim();
+  if (normalized && !/^https?:\/\//i.test(normalized)) {
+    normalized = 'https://' + normalized;
+  }
+  normalized = normalized.replace(/\/$/, '');
+  writeFileSync(p, normalized, 'utf8');
 }
 
 /**
@@ -97,24 +132,39 @@ class CloudflaredManager {
     return !!this.process && !this.process.killed;
   }
 
-  /** Inicia el tunnel con el token almacenado. */
-  async start() {
+  /**
+   * Inicia el tunnel.
+   *  - Si hay token guardado → modo Named Tunnel (persistente, requiere
+   *    dominio configurado en Cloudflare).
+   *  - Si no hay token → modo Quick Tunnel (URL aleatoria gratis,
+   *    `*.trycloudflare.com`, cambia al reiniciar).
+   *
+   * @param {{ mode?: 'auto'|'quick'|'named' }} [opts]
+   */
+  async start(opts = {}) {
     const token = getStoredToken();
-    if (!token) {
-      this.setState({ status: 'error', url: null, error: 'No hay token de tunnel configurado.' });
+    const mode = opts.mode === 'quick' ? 'quick'
+               : opts.mode === 'named' ? 'named'
+               : (token ? 'named' : 'quick');
+
+    if (mode === 'named' && !token) {
+      this.setState({
+        status: 'error', url: null,
+        error: 'No hay token de tunnel configurado.',
+      });
       return;
     }
     if (this.isRunning()) return;
 
     const bin = getCloudflaredPath();
-    if (!bin || !existsSync(bin)) {
-      // fallback al PATH también puede no existir; lo intentamos igual.
-    }
-
     this.intentStopped = false;
     this.setState({ status: 'connecting', error: null });
 
-    const child = spawn(bin, ['tunnel', '--no-autoupdate', 'run', '--token', token], {
+    const args = mode === 'quick'
+      ? ['tunnel', '--no-autoupdate', '--url', 'http://localhost:3939']
+      : ['tunnel', '--no-autoupdate', 'run', '--token', token];
+
+    const child = spawn(bin, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -160,6 +210,18 @@ class CloudflaredManager {
       if (this.restartTimer) clearTimeout(this.restartTimer);
       this.restartTimer = setTimeout(() => this.start(), 10_000);
     });
+
+    // Si el usuario tiene una URL custom guardada (Named Tunnel con dominio
+    // propio), la reflejamos como URL "activa" después de unos segundos
+    // independientemente de que cloudflared la imprima o no.
+    setTimeout(() => {
+      const custom = getCustomUrl();
+      if (custom && this.state.status === 'connecting') {
+        this.setState({ status: 'connected', url: custom });
+      } else if (custom && this.state.status === 'connected' && !this.state.url) {
+        this.setState({ url: custom });
+      }
+    }, 8000);
   }
 
   /** Detiene el tunnel y evita el auto-restart. */

@@ -54,9 +54,10 @@ app.whenReady().then(async () => {
 
   registerIpc({ db, lan, accessToken });
 
-  // Arrancar Cloudflare Tunnel si hay token guardado.
+  // No autoarrancamos el tunnel sin elección explícita del usuario.
+  // Si hay token guardado, asumimos que el user quiere modo Named.
   if (getStoredToken()) {
-    cloudflared.start().catch((err) => {
+    cloudflared.start({ mode: 'named' }).catch((err) => {
       console.error('[main] tunnel start falló:', err.message);
     });
   }

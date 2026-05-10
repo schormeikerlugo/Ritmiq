@@ -10,6 +10,10 @@ import { tryOrQueue } from '../lib/sync-queue.js';
 import { randomId } from '../lib/id.js';
 import { useLibraryStore } from './library.js';
 import { useDownloadsStore } from './downloads.js';
+import {
+  cachePlaylists, cachePlaylistContents,
+  getCachedPlaylists, getCachedPlaylistContents,
+} from '../lib/local-downloads.js';
 
 function enqueueOfflineDownload(trackId) {
   try {
@@ -46,8 +50,38 @@ export const usePlaylistsStore = create((set, get) => ({
         return;
       }
 
-      const remote = await pullPlaylists();
-      const contents = await pullPlaylistContents();
+      // ── 1. HIDRATAR desde Dexie inmediatamente (offline-first) ──
+      // Si no hay red, este es el único origen de datos y la app sigue usable.
+      if (!isDesktop) {
+        try {
+          const [cachedPls, cachedContents] = await Promise.all([
+            getCachedPlaylists(),
+            getCachedPlaylistContents(),
+          ]);
+          if (cachedPls.length > 0) {
+            const favs = cachedPls.find((p) => p.name === FAVS_NAME);
+            set({
+              playlists: cachedPls,
+              favoritesId: favs?.id ?? null,
+              contents: cachedContents,
+            });
+          }
+        } catch (e) {
+          console.warn('[playlists] cache hidratación falló:', e?.message ?? e);
+        }
+      }
+
+      // ── 2. PULL desde Supabase y refrescar cache ──
+      let remote, contents;
+      try {
+        remote = await pullPlaylists();
+        contents = await pullPlaylistContents();
+      } catch (e) {
+        // Sin internet: nos quedamos con lo hidratado de Dexie.
+        console.info('[playlists] sin red — usando cache local');
+        set({ loading: false });
+        return;
+      }
 
       // Asegurar 'Favoritas'
       let favs = remote.find((p) => p.name === FAVS_NAME);
@@ -90,6 +124,12 @@ export const usePlaylistsStore = create((set, get) => ({
         contents,
         loading: false,
       });
+
+      // Persistir cache para próximo arranque offline.
+      if (!isDesktop) {
+        cachePlaylists(remote).catch(() => {});
+        cachePlaylistContents(contents).catch(() => {});
+      }
     } catch (err) {
       set({ error: String(err?.message ?? err), loading: false });
     }

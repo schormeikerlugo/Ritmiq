@@ -19,8 +19,9 @@ import {
 } from './lib/lan-client.js';
 import { api, isDesktop } from './lib/api.js';
 import { realtime } from './lib/realtime.js';
-import { onConnectionChange } from './lib/connection.js';
+import { onConnectivityChange, forceRecheck } from './lib/connectivity.js';
 import { flushQueue } from './lib/sync-queue.js';
+import { subscribeTunnelUrl, publishTunnelUrl, clearTunnelUrl } from './lib/tunnel-registry.js';
 import styles from './App.module.css';
 
 export function App() {
@@ -76,16 +77,67 @@ export function App() {
     return () => realtime.stop();
   }, [user]);
 
-  // Drenar la cola pendiente cada vez que recuperamos conexión.
+  // Detector unificado de conectividad: dispara reconciliación al
+  // recuperar internet, y refresca la fuente cuando vuelve LAN/tunnel.
   useEffect(() => {
-    return onConnectionChange((online) => {
-      if (online) {
+    if (!user) return;
+    let prev = { internet: false, lan: false, tunnel: false };
+    return onConnectivityChange((s) => {
+      const recoveredInternet = !prev.internet && s.internet;
+      const recoveredDesktop = (!prev.lan && s.lan) || (!prev.tunnel && s.tunnel);
+      prev = s;
+
+      if (recoveredInternet) {
+        // 1) flush mutaciones pendientes
         flushQueue().then((n) => {
           if (n > 0) console.info(`[sync-queue] ${n} mutaciones aplicadas tras reconexión`);
         }).catch(() => {});
+        // 2) re-pull playlists/library para alinearse con el servidor
+        loadPlaylists();
+        loadLibrary();
+      }
+      if (recoveredDesktop) {
+        console.info(`[connectivity] desktop alcanzable (source=${s.source})`);
+        // Forzar refresh de búsqueda y previews — el cambio de fuente
+        // queda reflejado automáticamente en futuras llamadas a
+        // getReachableLanBaseUrl/resolveAudioSource.
       }
     });
-  }, []);
+  }, [user, loadPlaylists, loadLibrary]);
+
+  // PWA: observa la URL pública del tunnel del usuario en Supabase y la
+  // refresca en localStorage automáticamente. Resuelve Quick Tunnels que
+  // cambian de URL en cada arranque del desktop.
+  useEffect(() => {
+    if (!user || isDesktop) return;
+    const unsub = subscribeTunnelUrl(user.id, () => {
+      forceRecheck();
+    });
+    return unsub;
+  }, [user]);
+
+  // Desktop: publica/borra la URL del tunnel en Supabase para que la PWA
+  // del mismo usuario pueda encontrarla sin pasos manuales.
+  useEffect(() => {
+    if (!user || !isDesktop) return;
+    /** @type {string|null} */
+    let lastPublished = null;
+    const unsub = api.tunnelOnState?.((st) => {
+      const url = st?.url ?? null;
+      if (st?.status === 'connected' && url && url !== lastPublished) {
+        lastPublished = url;
+        // Detectar quick vs named por el dominio.
+        const source = /\.trycloudflare\.com$/.test(url) ? 'quick'
+                     : /\.cfargotunnel\.com$/.test(url) ? 'named'
+                     : 'custom';
+        publishTunnelUrl(user.id, url, source);
+      } else if (st?.status === 'idle' && lastPublished) {
+        lastPublished = null;
+        clearTunnelUrl(user.id);
+      }
+    });
+    return () => { try { unsub?.(); } catch {} };
+  }, [user]);
 
   // Motor de audio activo siempre que haya sesión
   usePlayerEngine();

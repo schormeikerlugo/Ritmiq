@@ -40,7 +40,9 @@ const electronApi = isElectron
 
       tunnelStatus:            () => window.ritmiq.tunnel.status(),
       tunnelSetToken:          (t) => window.ritmiq.tunnel.setToken(t),
-      tunnelStart:             () => window.ritmiq.tunnel.start(),
+      tunnelSetCustomUrl:      (u) => window.ritmiq.tunnel.setCustomUrl(u),
+      tunnelStart:             (opts) => window.ritmiq.tunnel.start(opts),
+      tunnelStartQuick:        () => window.ritmiq.tunnel.startQuick(),
       tunnelStop:              () => window.ritmiq.tunnel.stop(),
       tunnelOnState:           (cb) => window.ritmiq.tunnel.onState(cb),
 
@@ -109,9 +111,11 @@ const webApi = {
   ytdlpInfo: async () => ({ path: null, version: null }),
   ytdlpUpdate: async () => { throw new Error('Solo desktop'); },
 
-  tunnelStatus: async () => ({ status: 'idle', url: null, error: null, hasToken: false }),
+  tunnelStatus: async () => ({ status: 'idle', url: null, error: null, hasToken: false, customUrl: null }),
   tunnelSetToken: async () => { throw new Error('Solo desktop'); },
+  tunnelSetCustomUrl: async () => { throw new Error('Solo desktop'); },
   tunnelStart: async () => { throw new Error('Solo desktop'); },
+  tunnelStartQuick: async () => { throw new Error('Solo desktop'); },
   tunnelStop: async () => { throw new Error('Solo desktop'); },
   tunnelOnState: () => () => {},
 

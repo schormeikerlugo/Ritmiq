@@ -271,19 +271,34 @@ function normalize(s) {
  */
 function DesktopTunnelSection() {
   const [token, setToken] = useState('');
+  const [customUrl, setCustomUrlInput] = useState('');
   const [state, setState] = useState({
-    status: 'idle', url: null, error: null, hasToken: false,
+    status: 'idle', url: null, error: null, hasToken: false, customUrl: null,
   });
   const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
-    try { setState(await api.tunnelStatus()); } catch {}
+    try {
+      const s = await api.tunnelStatus();
+      setState(s);
+      if (s.customUrl && !customUrl) setCustomUrlInput(s.customUrl);
+    } catch {}
   };
 
   useEffect(() => {
     refresh();
-    return api.tunnelOnState((s) => setState(s));
+    return api.tunnelOnState((s) => setState((prev) => ({ ...prev, ...s })));
   }, []);
+
+  const onSaveCustomUrl = async () => {
+    setBusy(true);
+    try {
+      let url = (customUrl ?? '').trim().replace(/\/$/, '');
+      if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+      setCustomUrlInput(url); // refleja la normalización en el input
+      await api.tunnelSetCustomUrl(url || null);
+    } finally { setBusy(false); }
+  };
 
   const onSave = async () => {
     setBusy(true);
@@ -291,6 +306,11 @@ function DesktopTunnelSection() {
       await api.tunnelSetToken(token.trim() || null);
       setToken('');
     } finally { setBusy(false); }
+  };
+
+  const onQuick = async () => {
+    setBusy(true);
+    try { await api.tunnelStartQuick(); } finally { setBusy(false); }
   };
 
   const onStop = async () => {
@@ -307,9 +327,12 @@ function DesktopTunnelSection() {
     <div className={styles.field} style={{ marginTop: '1.25rem' }}>
       <label className={styles.label}>Acceso remoto (Cloudflare Tunnel)</label>
       <p className={styles.hint}>
-        Pega aquí el token del tunnel desde{' '}
-        <code>Cloudflare Zero Trust → Networks → Tunnels → Create</code>.
-        El tunnel hace que tu PC sea accesible desde cualquier red.
+        Dos opciones:
+        <br />• <strong>Quick Tunnel (gratis, sin dominio)</strong>: URL aleatoria
+          tipo <code>*.trycloudflare.com</code>. Cambia al reiniciar la app.
+        <br />• <strong>Named Tunnel (persistente)</strong>: requiere dominio en
+          Cloudflare. Pega el token de{' '}
+          <code>Zero Trust → Networks → Tunnels → Create</code>.
       </p>
 
       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', margin: '0.5rem 0' }}>
@@ -342,8 +365,33 @@ function DesktopTunnelSection() {
         disabled={busy}
         autoComplete="off"
       />
+
+      <p className={styles.hint} style={{ marginTop: '0.75rem' }}>
+        <strong>URL pública (solo Named Tunnel con dominio propio)</strong>:
+        si tu Public Hostname es <code>ritmiq.tudominio.com</code>, escríbela
+        aquí. cloudflared no la imprime en los logs así que el AppImage no
+        puede detectarla sola.
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <input
+          className={styles.input}
+          type="url"
+          value={customUrl}
+          onChange={(e) => setCustomUrlInput(e.target.value)}
+          placeholder="https://ritmiq.tudominio.com"
+          disabled={busy}
+          style={{ flex: 1 }}
+        />
+        <button
+          type="button"
+          className={styles.btnSecondary}
+          onClick={onSaveCustomUrl}
+          disabled={busy}
+          style={{ height: 40, padding: '0 0.75rem' }}
+        >Guardar URL</button>
+      </div>
       <div className={styles.actions}>
-        {state.hasToken && (
+        {(state.status === 'connected' || state.status === 'connecting') && (
           <button
             type="button"
             className={styles.btnSecondary}
@@ -351,13 +399,19 @@ function DesktopTunnelSection() {
             disabled={busy}
           >Detener</button>
         )}
+        <button
+          type="button"
+          className={styles.btnSecondary}
+          onClick={onQuick}
+          disabled={busy}
+        >{busy ? '…' : 'Quick Tunnel (gratis)'}</button>
         <div className={styles.spacer} />
         <button
           type="button"
           className={styles.btnPrimary}
           onClick={onSave}
           disabled={busy || !token.trim()}
-        >{busy ? 'Aplicando…' : (state.hasToken ? 'Reemplazar token' : 'Guardar y conectar')}</button>
+        >{busy ? 'Aplicando…' : (state.hasToken ? 'Reemplazar token' : 'Guardar token')}</button>
       </div>
     </div>
   );
