@@ -1,0 +1,59 @@
+.wrap {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+}
+
+.ok {
+  color: var(--color-success);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.queued {
+  color: var(--color-text-3);
+  font-size: 14px;
+  line-height: 1;
+  animation: dl-pulse 1.4s ease-in-out infinite;
+}
+
+.error {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--color-danger, #ef4444);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+
+.track {
+  fill: none;
+  stroke: var(--color-text-3);
+  stroke-opacity: 0.25;
+  stroke-width: 3;
+}
+
+.fill {
+  fill: none;
+  stroke: var(--color-accent, #4ade80);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 200ms linear;
+}
+
+@keyframes dl-pulse {
+  0%, 100% { opacity: 0.35; transform: translateY(0); }
+  50%      { opacity: 1;    transform: translateY(-1px); }
+}

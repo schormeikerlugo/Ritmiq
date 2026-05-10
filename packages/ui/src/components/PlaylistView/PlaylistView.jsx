@@ -21,6 +21,7 @@ import { TrackInfoDialog } from '../TrackInfoDialog/TrackInfoDialog.jsx';
 import { CoverUploadDialog } from '../CoverUploadDialog/CoverUploadDialog.jsx';
 import { exportPlaylistJson, exportPlaylistCsv } from '../../lib/export.js';
 import { isDesktop } from '../../lib/api.js';
+import { DownloadIndicator } from '../DownloadIndicator/DownloadIndicator.jsx';
 import styles from './PlaylistView.module.css';
 
 function fmtDur(s) {
@@ -129,12 +130,10 @@ export function PlaylistView({ playlistId }) {
   };
 
   const downloadAll = () => {
-    if (!isDesktop) return;
     enqueueDownloads(tracks);
   };
 
   const undownloadAll = async () => {
-    if (!isDesktop) return;
     const dls = tracks.filter((t) => t.isDownloaded);
     if (dls.length === 0) return;
     if (!confirm(`¿Borrar las ${dls.length} descargas locales de esta playlist?`)) return;
@@ -152,7 +151,7 @@ export function PlaylistView({ playlistId }) {
   const onToggleOffline = async () => {
     const next = !playlist.isOffline;
     await setOffline(playlist.id, next);
-    if (next && isDesktop) enqueueDownloads(tracks);
+    if (next) enqueueDownloads(tracks);
   };
 
   const handleDragEnd = (event) => {
@@ -466,9 +465,7 @@ function PlaylistRow({
           <span className={styles.rowArtist}>{track.artist ?? '—'}</span>
         </div>
       </button>
-      <span className={styles.dlIndicator}>
-        {track.isDownloaded ? <span className={styles.dlOk} title="Descargada">●</span> : null}
-      </span>
+      <DownloadIndicator trackId={track.id} isDownloaded={track.isDownloaded} className={styles.dlIndicator} />
       <span className={styles.dur}>{fmtDur(track.durationSeconds)}</span>
       <DropdownMenu trigger="⋯" items={trackMenu} align="right" label="Opciones de la canción" />
     </li>

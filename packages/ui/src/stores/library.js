@@ -185,20 +185,17 @@ export const useLibraryStore = create((set, get) => ({
   },
 
   /**
-   * Descarga al disco local (desktop) o a IndexedDB (PWA).
-   * En desktop pasamos también la fila completa como fallback al IPC, así
-   * el handler puede insertarla en SQLite si aún no estaba (típico tras
-   * importar de Spotify).
+   * Encola la descarga a través de `useDownloadsStore`. Esto unifica el
+   * comportamiento desktop/PWA y SIEMPRE muestra la barra de progreso
+   * (DownloadProgress) y el spinner por fila — clave en PWA donde la
+   * descarga es lenta porque pasa por IndexedDB.
    */
   async download(trackId) {
-    if (isDesktop) {
-      const t = get().tracks.find((x) => x.id === trackId);
-      await api.libraryDownload(t ? { trackId, fallback: t } : trackId);
-      await get().load();
-      return;
-    }
-    await api.libraryDownload(trackId);
-    await get().load();
+    const t = get().tracks.find((x) => x.id === trackId);
+    if (!t) return;
+    // import dinámico para evitar ciclo library ↔ downloads.
+    const { useDownloadsStore } = await import('./downloads.js');
+    useDownloadsStore.getState().enqueue([t]);
   },
 
   /** Borra el archivo local (desktop) o el blob de IndexedDB (PWA). */

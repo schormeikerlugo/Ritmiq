@@ -5,6 +5,7 @@ import { usePlaylistsStore } from '../../stores/playlists.js';
 import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
 import { TrackInfoDialog } from '../TrackInfoDialog/TrackInfoDialog.jsx';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
+import { DownloadIndicator } from '../DownloadIndicator/DownloadIndicator.jsx';
 import { isDesktop } from '../../lib/api.js';
 import styles from './Library.module.css';
 
@@ -137,9 +138,7 @@ export function Library() {
                   <span className={styles.rowArtist}>{t.artist ?? '—'}</span>
                 </div>
               </button>
-              <span className={styles.dlIndicator}>
-                {t.isDownloaded ? <span className={styles.dlOk} title="Descargada">●</span> : null}
-              </span>
+              <DownloadIndicator trackId={t.id} isDownloaded={t.isDownloaded} className={styles.dlIndicator} />
               <span className={styles.dur}>{fmtDur(t.durationSeconds)}</span>
               <DropdownMenu trigger="⋯" items={trackMenu} align="right" label="Opciones" />
             </li>
