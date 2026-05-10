@@ -12,24 +12,34 @@
  * resuelve ese problema.
  */
 import { supabase } from './supabase.js';
-import { setTunnelUrl, getTunnelUrlSync } from './lan-client.js';
+import {
+  setTunnelUrl, getTunnelUrlSync,
+  setAccessToken, getAccessTokenSync,
+} from './lan-client.js';
 
 /**
- * Desktop: publica (upsert) la URL del tunnel para el usuario actual.
+ * Desktop: publica (upsert) la URL del tunnel + access token para el usuario
+ * actual. Permite a la PWA del mismo usuario reconectarse sin pegar nada.
  * No falla si no hay sesión (silencia errores).
+ *
  * @param {string} userId
  * @param {string} url
  * @param {'quick'|'named'|'custom'} [source]
+ * @param {string|null} [accessToken]
  */
-export async function publishTunnelUrl(userId, url, source = 'quick') {
+export async function publishTunnelUrl(userId, url, source = 'quick', accessToken = null) {
   if (!userId || !url) return;
   try {
+    const payload = {
+      user_id: userId,
+      url,
+      source,
+      updated_at: new Date().toISOString(),
+    };
+    if (accessToken) payload.access_token = accessToken;
     const { error } = await supabase
       .from('tunnel_endpoints')
-      .upsert(
-        { user_id: userId, url, source, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' }
-      );
+      .upsert(payload, { onConflict: 'user_id' });
     if (error) console.warn('[tunnel-registry] publish:', error.message);
   } catch (e) {
     console.warn('[tunnel-registry] publish failed:', e?.message ?? e);
@@ -48,46 +58,60 @@ export async function clearTunnelUrl(userId) {
 }
 
 /**
- * PWA: suscribe la URL del tunnel del usuario.
+ * PWA: suscribe la URL + token del tunnel del usuario.
  * - Pull inicial + Realtime para actualizaciones.
- * - Escribe a localStorage (`setTunnelUrl`) cada vez que cambia.
+ * - Escribe a localStorage (`setTunnelUrl` / `setAccessToken`) en cada cambio.
+ *
+ * Esto resuelve dos problemas:
+ *  1. Quick Tunnels que cambian de URL en cada arranque del desktop.
+ *  2. iOS Safari/PWA evictando localStorage tras ~7 días: el siguiente
+ *     login rehidrata URL + token desde Supabase sin intervención del usuario.
+ *
  * @param {string} userId
- * @param {(url:string|null) => void} [onChange]
+ * @param {(p:{url:string|null,token:string|null}) => void} [onChange]
  * @returns {() => void} unsubscribe
  */
 export function subscribeTunnelUrl(userId, onChange) {
   if (!userId) return () => {};
 
-  const apply = (url) => {
-    const prev = getTunnelUrlSync();
-    if (url && url !== prev) {
+  const apply = ({ url, token }) => {
+    const prevUrl = getTunnelUrlSync();
+    if (url && url !== prevUrl) {
       setTunnelUrl(url);
       console.info('[tunnel-registry] tunnel URL actualizada:', url);
-    } else if (!url && prev) {
+    } else if (!url && prevUrl) {
       setTunnelUrl(null);
       console.info('[tunnel-registry] tunnel URL eliminada');
     }
-    onChange?.(url ?? null);
+    const prevTok = getAccessTokenSync();
+    if (token && token !== prevTok) {
+      setAccessToken(token);
+      console.info('[tunnel-registry] access token rehidratado desde Supabase');
+    }
+    onChange?.({ url: url ?? null, token: token ?? null });
   };
 
-  // Pull inicial
+  // Pull inicial — rehidrata inmediatamente URL + token al iniciar la PWA.
   supabase
     .from('tunnel_endpoints')
-    .select('url')
+    .select('url, access_token')
     .eq('user_id', userId)
     .maybeSingle()
-    .then(({ data }) => apply(data?.url ?? null))
+    .then(({ data }) => apply({ url: data?.url ?? null, token: data?.access_token ?? null }))
     .catch(() => {});
 
-  // Realtime
+  // Realtime: si el desktop publica un nuevo URL o regenera el token, llega aquí.
   const channel = supabase
     .channel(`tunnel:${userId}`)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'tunnel_endpoints', filter: `user_id=eq.${userId}` },
       (payload) => {
-        if (payload.eventType === 'DELETE') apply(null);
-        else apply(payload.new?.url ?? null);
+        if (payload.eventType === 'DELETE') apply({ url: null, token: null });
+        else apply({
+          url: payload.new?.url ?? null,
+          token: payload.new?.access_token ?? null,
+        });
       }
     )
     .subscribe();

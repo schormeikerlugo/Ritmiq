@@ -116,21 +116,25 @@ export function App() {
     return unsub;
   }, [user]);
 
-  // Desktop: publica/borra la URL del tunnel en Supabase para que la PWA
-  // del mismo usuario pueda encontrarla sin pasos manuales.
+  // Desktop: publica/borra la URL del tunnel + access token en Supabase
+  // para que la PWA del mismo usuario reconecte sin pasos manuales,
+  // incluso si su localStorage fue evictado por el navegador.
   useEffect(() => {
     if (!user || !isDesktop) return;
     /** @type {string|null} */
     let lastPublished = null;
+    let cachedToken = null;
+    // Obtenemos el access token del main process una sola vez.
+    api.appInfo().then((info) => { cachedToken = info?.accessToken ?? null; }).catch(() => {});
+
     const unsub = api.tunnelOnState?.((st) => {
       const url = st?.url ?? null;
       if (st?.status === 'connected' && url && url !== lastPublished) {
         lastPublished = url;
-        // Detectar quick vs named por el dominio.
         const source = /\.trycloudflare\.com$/.test(url) ? 'quick'
                      : /\.cfargotunnel\.com$/.test(url) ? 'named'
                      : 'custom';
-        publishTunnelUrl(user.id, url, source);
+        publishTunnelUrl(user.id, url, source, cachedToken);
       } else if (st?.status === 'idle' && lastPublished) {
         lastPublished = null;
         clearTunnelUrl(user.id);

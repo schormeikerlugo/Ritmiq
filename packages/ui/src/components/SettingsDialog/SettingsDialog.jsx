@@ -5,6 +5,9 @@ import {
   getAccessTokenSync, setAccessToken,
 } from '../../lib/lan-client.js';
 import { api, isDesktop } from '../../lib/api.js';
+import { publishTunnelUrl, clearTunnelUrl } from '../../lib/tunnel-registry.js';
+import { supabase } from '../../lib/supabase.js';
+import { forceRecheck } from '../../lib/connectivity.js';
 import styles from './SettingsDialog.module.css';
 
 /**
@@ -494,6 +497,7 @@ function PwaRemoteSection() {
     setMsg('Probando conexión…');
     try {
       const url = (tunnel ?? '').trim().replace(/\/$/, '');
+      const tok = (token ?? '').trim();
       if (url) {
         // Test el tunnel respondiendo /health (no requiere token).
         const ok = await pingLan(url, 4000);
@@ -503,9 +507,35 @@ function PwaRemoteSection() {
           return;
         }
       }
+      // 1) localStorage (acceso síncrono inmediato).
       setTunnelUrl(url || null);
-      setAccessToken(token.trim() || null);
-      setMsg(url ? `✓ Tunnel guardado` : 'Tunnel borrado');
+      setAccessToken(tok || null);
+
+      // 2) Respaldo en Supabase ligado al usuario: sobrevive a evicción de
+      //    localStorage (iOS Safari, modo incógnito, reinstalación de la
+      //    PWA) y sincroniza el acceso a otros dispositivos del mismo user.
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        if (userId) {
+          if (url) {
+            const source = /\.trycloudflare\.com$/.test(url) ? 'quick'
+                         : /\.cfargotunnel\.com$/.test(url) ? 'named'
+                         : 'custom';
+            await publishTunnelUrl(userId, url, source, tok || null);
+          } else {
+            await clearTunnelUrl(userId);
+          }
+        }
+      } catch (e) {
+        console.warn('[settings] respaldo en Supabase falló:', e?.message ?? e);
+      }
+
+      // 3) Forzar re-sondeo del detector para que el indicador refleje
+      //    inmediatamente que el tunnel está disponible.
+      try { forceRecheck(); } catch {}
+
+      setMsg(url ? `✓ Tunnel guardado y respaldado` : 'Tunnel borrado');
       setMsgOk(true);
     } finally { setTesting(false); }
   };
