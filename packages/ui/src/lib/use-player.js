@@ -138,18 +138,19 @@ export function usePlayerEngine() {
     ms.setActionHandler('pause', () => store().patch({ isPlaying: false }));
     ms.setActionHandler('previoustrack', () => store().prev());
     ms.setActionHandler('nexttrack',     () => store().next());
-    ms.setActionHandler('seekto', (d) => {
-      if (d && typeof d.seekTime === 'number') backend.seek(d.seekTime);
-    });
     try { ms.setActionHandler('stop', () => { backend.pause(); store().patch({ isPlaying: false }); }); } catch {}
 
-    // Aseguramos que seek±10 NO estén registrados (por si el navegador los
-    // dejó de una sesión previa).
+    // CRÍTICO para iOS: NO registrar NINGÚN handler de seek (ni seekto, ni
+    // seekbackward, ni seekforward). iOS decide el layout en función de qué
+    // handlers están registrados: si hay seek, muestra ±10s; si solo hay
+    // prev/next, muestra los botones de pista. Limpiamos cualquier registro
+    // previo por si quedó de la sesión anterior.
     try { ms.setActionHandler('seekbackward', null); } catch {}
     try { ms.setActionHandler('seekforward',  null); } catch {}
+    try { ms.setActionHandler('seekto',       null); } catch {}
 
     return () => {
-      for (const a of ['play','pause','previoustrack','nexttrack','seekto','stop']) {
+      for (const a of ['play','pause','previoustrack','nexttrack','stop']) {
         try { ms.setActionHandler(a, null); } catch {}
       }
     };
@@ -364,7 +365,11 @@ export function usePlayerEngine() {
 }
 
 /**
- * Registra la metadata visible en lockscreen / Centro de control / AirPods.
+ * Registra la metadata visible en lockscreen / Centro de control / AirPods,
+ * y establece un positionState inicial usando la duración del METADATA del
+ * track (no del <audio>, que puede ser Infinity al stremear). iOS decide el
+ * layout del lockscreen en función de este positionState.
+ *
  * @param {import('@ritmiq/core/types').Track} track
  */
 function applyMediaSessionMetadata(track) {
@@ -385,4 +390,17 @@ function applyMediaSessionMetadata(track) {
     album: track.album ?? '',
     artwork,
   });
+  // Position state inmediato con duración finita conocida del metadata.
+  // Sin esto, iOS lee audio.duration (que suele ser Infinity al stremear) y
+  // dibuja el layout de podcast con ±10s en vez del de música con prev/next.
+  try {
+    const dur = Number(track.durationSeconds);
+    if (Number.isFinite(dur) && dur > 0 && navigator.mediaSession.setPositionState) {
+      navigator.mediaSession.setPositionState({
+        duration: dur,
+        position: 0,
+        playbackRate: 1,
+      });
+    }
+  } catch {}
 }
