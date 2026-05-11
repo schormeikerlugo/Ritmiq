@@ -5,6 +5,7 @@ import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useViewStore } from '../../stores/view.js';
 import { isEphemeralTrack } from '../../lib/track-helpers.js';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './Player.module.css';
 
 function fmt(sec) {
@@ -26,6 +27,7 @@ export function Player() {
   const isFavorite = usePlaylistsStore((s) => s.isFavorite);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
   const addTrack = usePlaylistsStore((s) => s.addTrack);
+  const openNowPlaying = useViewStore((s) => s.openNowPlaying);
 
   const [saveOpen, setSaveOpen] = useState(false);
 
@@ -35,7 +37,8 @@ export function Player() {
                     tracks.some((t) => t.id === currentTrack.id);
   const fav = !!currentTrack && !ephemeral && isFavorite(currentTrack.id);
 
-  const onHeart = async () => {
+  const onHeart = async (e) => {
+    e?.stopPropagation();
     if (!currentTrack) return;
     let id = currentTrack.id;
     if (ephemeral) {
@@ -49,27 +52,48 @@ export function Player() {
     }
   };
 
-  const onPlus = () => {
+  const onPlus = (e) => {
+    e?.stopPropagation();
     if (!currentTrack) return;
     setSaveOpen(true);
   };
 
+  // Tap en la zona del cover/meta en mobile → abrir NowPlaying.
+  const onExpand = () => {
+    if (!currentTrack) return;
+    openNowPlaying();
+  };
+
   return (
     <div className={styles.player}>
-      <div className={styles.now}>
-        <div className={styles.cover} aria-hidden="true">
-          {currentTrack?.coverUrl
-            ? <img src={currentTrack.coverUrl} alt="" />
-            : <div className={styles.coverPlaceholder}>♫</div>}
-        </div>
-        <div className={styles.meta}>
-          <div className={styles.title}>
-            {currentTrack?.title ?? 'Nada en reproducción'}
+      {/* Barra fina superior de progreso, visible solo en mobile (CSS). */}
+      <div className={styles.miniProgress} aria-hidden="true">
+        <div className={styles.miniProgressFill} style={{ width: `${progress}%` }} />
+      </div>
+
+      <div className={styles.left}>
+        <button
+          type="button"
+          className={styles.now}
+          onClick={onExpand}
+          aria-label={currentTrack ? `Ver ${currentTrack.title} a pantalla completa` : 'Reproductor'}
+          disabled={!currentTrack}
+        >
+          <div className={styles.cover} aria-hidden="true">
+            {currentTrack?.coverUrl
+              ? <img src={currentTrack.coverUrl} alt="" />
+              : <div className={styles.coverPlaceholder}><Icon name="Music" size={20} /></div>}
           </div>
-          <div className={styles.artist}>
-            {currentTrack?.artist ?? '—'}
+          <div className={styles.meta}>
+            <div className={styles.title}>
+              {currentTrack?.title ?? 'Nada en reproducción'}
+            </div>
+            <div className={styles.artist}>
+              {currentTrack?.artist ?? '—'}
+            </div>
           </div>
-        </div>
+        </button>
+
         {currentTrack && (
           <div className={styles.trackActions}>
             <button
@@ -79,13 +103,17 @@ export function Player() {
               onClick={onHeart}
               aria-label={fav ? 'Quitar de favoritos' : 'Añadir a favoritos'}
               title={fav ? 'En favoritos' : 'Favoritar'}
-            >{fav ? '♥' : '♡'}</button>
+            >
+              <Icon name="Heart" filled={fav} size={18} />
+            </button>
             <button
               className={styles.iconBtn}
               onClick={onPlus}
               aria-label="Guardar en biblioteca o playlist"
               title={inLibrary ? 'Añadir a playlist…' : 'Guardar…'}
-            >＋</button>
+            >
+              <Icon name="Plus" size={18} />
+            </button>
           </div>
         )}
       </div>
@@ -97,20 +125,26 @@ export function Player() {
             data-active={shuffle}
             onClick={toggleShuffle}
             aria-label="Aleatorio"
-          >⇄</button>
-          <button className={styles.iconBtn} onClick={prev} aria-label="Anterior">⏮</button>
+          ><Icon name="Shuffle" size={18} /></button>
+          <button className={styles.iconBtn} onClick={prev} aria-label="Anterior">
+            <Icon name="SkipBack" size={20} filled />
+          </button>
           <button
             className={styles.playBtn}
             onClick={togglePlay}
             aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
-          >{isPlaying ? '❚❚' : '▶'}</button>
-          <button className={styles.iconBtn} onClick={next} aria-label="Siguiente">⏭</button>
+          >
+            <Icon name={isPlaying ? 'Pause' : 'Play'} size={18} filled />
+          </button>
+          <button className={styles.iconBtn} onClick={next} aria-label="Siguiente">
+            <Icon name="SkipForward" size={20} filled />
+          </button>
           <button
             className={styles.iconBtn}
             data-active={repeat !== 'off'}
             onClick={cycleRepeat}
             aria-label="Repetir"
-          >{repeat === 'one' ? '↻¹' : '↻'}</button>
+          ><Icon name={repeat === 'one' ? 'Repeat1' : 'Repeat'} size={18} /></button>
         </div>
         <div className={styles.progress}>
           <span className={styles.time}>{fmt(positionSeconds)}</span>
@@ -123,7 +157,9 @@ export function Player() {
 
       <div className={styles.right}>
         <QueueToggle />
-        <span className={styles.volIcon} aria-hidden="true">🔊</span>
+        <span className={styles.volIcon} aria-hidden="true">
+          <Icon name={volume === 0 ? 'VolumeX' : 'Volume2'} size={16} />
+        </span>
         <input
           type="range"
           min="0"
@@ -136,13 +172,22 @@ export function Player() {
         />
       </div>
 
+      {/* En mobile, único botón visible junto al meta: play/pause grande */}
+      <button
+        className={styles.mobilePlay}
+        onClick={togglePlay}
+        aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
+      >
+        <Icon name={isPlaying ? 'Pause' : 'Play'} size={22} filled />
+      </button>
+
       {error && (
         <div
           className={styles.errorToast}
           onClick={() => usePlayerStore.setState({ error: null })}
           role="alert"
         >
-          ⚠ No se pudo reproducir: {error}
+          <Icon name="AlertTriangle" size={14} /> No se pudo reproducir: {error}
         </div>
       )}
 
@@ -168,7 +213,7 @@ function QueueToggle() {
       aria-label={queueOpen ? 'Cerrar cola' : 'Abrir cola'}
       title="Cola de reproducción"
     >
-      <span aria-hidden="true">☰</span>
+      <Icon name="ListMusic" size={18} />
       {queueLength > 0 && <span className={styles.queueBadge}>{queueLength}</span>}
     </button>
   );

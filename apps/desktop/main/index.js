@@ -26,7 +26,20 @@ async function createWindow() {
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
+      zoomFactor: 1,
     },
+  });
+
+  // Bloquear zoom en desktop (atajos teclado y rueda Ctrl).
+  mainWindow.webContents.setVisualZoomLevelLimits(1, 1);
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    if ((input.control || input.meta) && ['=', '-', '+', '0'].includes(input.key)) {
+      event.preventDefault();
+    }
+  });
+  mainWindow.webContents.on('zoom-changed', () => {
+    mainWindow.webContents.setZoomFactor(1);
   });
 
   if (isDev) {

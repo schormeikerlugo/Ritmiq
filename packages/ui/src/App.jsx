@@ -9,6 +9,7 @@ import { TopBar } from './components/TopBar/TopBar.jsx';
 import { AuthScreen } from './components/Auth/AuthScreen.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
+import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
 import { useAuthStore } from './stores/auth.js';
 import { useLibraryStore } from './stores/library.js';
 import { usePlaylistsStore } from './stores/playlists.js';
@@ -177,6 +178,7 @@ export function App() {
         <Player />
       </footer>
       <DownloadProgress />
+      <NowPlaying />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useImportStore } from '../../stores/import.js';
 import { useViewStore } from '../../stores/view.js';
 import { getLanBaseUrlSync } from '../../lib/lan-client.js';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './SpotifyImportDialog.module.css';
 
 function fmtDur(ms) {
@@ -63,7 +64,7 @@ export function SpotifyImportDialog({ onClose }) {
             onClick={closeAll}
             disabled={importing}
             aria-label="Cerrar"
-          >×</button>
+          ><Icon name="X" size={18} /></button>
         </header>
 
         {!lanReady && (

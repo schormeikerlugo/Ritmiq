@@ -22,6 +22,7 @@ import { CoverUploadDialog } from '../CoverUploadDialog/CoverUploadDialog.jsx';
 import { exportPlaylistJson, exportPlaylistCsv } from '../../lib/export.js';
 import { isDesktop } from '../../lib/api.js';
 import { DownloadIndicator } from '../DownloadIndicator/DownloadIndicator.jsx';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './PlaylistView.module.css';
 
 function fmtDur(s) {
@@ -168,26 +169,26 @@ export function PlaylistView({ playlistId }) {
     {
       id: 'rename',
       label: 'Renombrar',
-      icon: '✎',
+      icon: <Icon name="Pencil" size={16} />,
       disabled: isFavs,
       onClick: () => setRenameOpen(true),
     },
     {
       id: 'cover',
       label: playlist.coverUrl ? 'Cambiar portada' : 'Añadir portada',
-      icon: '🖼',
+      icon: <Icon name="Upload" size={16} />,
       onClick: () => setCoverOpen(true),
     },
     {
       id: 'offline',
       label: playlist.isOffline ? 'Quitar disponible offline' : 'Hacer disponible offline',
-      icon: playlist.isOffline ? '✓' : '↓',
+      icon: <Icon name={playlist.isOffline ? 'Check' : 'ArrowDownToLine'} size={16} />,
       onClick: onToggleOffline,
     },
     {
       id: 'undlAll',
       label: 'Quitar todas las descargas',
-      icon: '✕',
+      icon: <Icon name="X" size={16} />,
       disabled: !isDesktop || !someDownloaded,
       onClick: undownloadAll,
     },
@@ -195,14 +196,14 @@ export function PlaylistView({ playlistId }) {
     {
       id: 'expJson',
       label: 'Exportar como JSON',
-      icon: '↗',
+      icon: <Icon name="Share2" size={16} />,
       disabled: tracks.length === 0,
       onClick: () => exportPlaylistJson(playlist, tracks),
     },
     {
       id: 'expCsv',
       label: 'Exportar como CSV',
-      icon: '↗',
+      icon: <Icon name="Share2" size={16} />,
       disabled: tracks.length === 0,
       onClick: () => exportPlaylistCsv(playlist, tracks),
     },
@@ -210,7 +211,7 @@ export function PlaylistView({ playlistId }) {
     {
       id: 'remove',
       label: 'Eliminar playlist',
-      icon: '🗑',
+      icon: <Icon name="Trash2" size={16} />,
       danger: true,
       disabled: isFavs,
       onClick: onRemovePlaylist,
@@ -231,7 +232,7 @@ export function PlaylistView({ playlistId }) {
           {playlist.coverUrl ? (
             <img src={playlist.coverUrl} alt="" />
           ) : (
-            <span>{isFavs ? '♥' : '♪'}</span>
+            <Icon name={isFavs ? 'Heart' : 'Music'} size={56} filled={isFavs} />
           )}
         </button>
         <div className={styles.head}>
@@ -257,7 +258,7 @@ export function PlaylistView({ playlistId }) {
           onClick={playAll}
           disabled={filteredTracks.length === 0}
           aria-label="Reproducir"
-        >▶</button>
+        ><Icon name="Play" size={24} filled /></button>
         <button
           className={styles.iconAction}
           onClick={playShuffle}
@@ -265,16 +266,16 @@ export function PlaylistView({ playlistId }) {
           aria-label="Reproducir aleatorio"
           title="Reproducir aleatorio"
           data-active={playerShuffle}
-        >🔀</button>
+        ><Icon name="Shuffle" size={20} /></button>
         <button
           className={styles.iconAction}
           onClick={downloadAll}
           disabled={tracks.length === 0 || allDownloaded}
           aria-label="Descargar toda la playlist"
           title={allDownloaded ? 'Todo descargado' : 'Descargar toda la playlist'}
-        >↓</button>
+        ><Icon name="ArrowDownToLine" size={20} /></button>
         <DropdownMenu
-          trigger="⋯"
+          trigger={<Icon name="MoreHorizontal" size={20} />}
           items={headerMenuItems}
           align="left"
           label="Más opciones de la playlist"
@@ -404,32 +405,32 @@ function PlaylistRow({
   } : undefined;
 
   const trackMenu = [
-    { id: 'next',  label: 'Reproducir a continuación', icon: '⤵', onClick: () => actions.playNext(track) },
-    { id: 'q',     label: 'Añadir a la cola',           icon: '☰', onClick: () => actions.enqueue(track) },
+    { id: 'next',  label: 'Reproducir a continuación', icon: <Icon name="CornerDownRight" size={16} />, onClick: () => actions.playNext(track) },
+    { id: 'q',     label: 'Añadir a la cola',           icon: <Icon name="ListMusic" size={16} />, onClick: () => actions.enqueue(track) },
     { separator: true },
     {
       id: 'fav',
       label: fav ? 'Quitar de favoritos' : 'Añadir a favoritos',
-      icon: fav ? '♥' : '♡',
+      icon: <Icon name="Heart" size={16} filled={fav} />,
       onClick: () => actions.toggleFavorite(track.id),
     },
     {
-      id: 'addto', label: 'Añadir a otra playlist…', icon: '＋',
+      id: 'addto', label: 'Añadir a otra playlist…', icon: <Icon name="Plus" size={16} />,
       onClick: () => actions.setSaveDialogTrack(track),
     },
     { separator: true },
     {
       id: 'dl',
       label: track.isDownloaded ? 'Quitar descarga' : 'Descargar',
-      icon: track.isDownloaded ? '✕' : '↓',
+      icon: <Icon name={track.isDownloaded ? 'X' : 'ArrowDownToLine'} size={16} />,
       onClick: () => track.isDownloaded
         ? actions.undownloadOne(track.id)
         : actions.downloadOne(track.id),
     },
-    { id: 'info', label: 'Mostrar info', icon: 'ⓘ', onClick: () => actions.setInfoTrack(track) },
+    { id: 'info', label: 'Mostrar info', icon: <Icon name="Info" size={16} />, onClick: () => actions.setInfoTrack(track) },
     { separator: true },
     {
-      id: 'remove', label: 'Quitar de esta playlist', icon: '×', danger: true,
+      id: 'remove', label: 'Quitar de esta playlist', icon: <Icon name="Trash2" size={16} />, danger: true,
       onClick: () => actions.removeTrack(playlist.id, track.id),
     },
   ];
@@ -448,7 +449,7 @@ function PlaylistRow({
         {...(draggable ? sortable.listeners : {})}
         title={draggable ? 'Arrastrar para reordenar' : ''}
       >
-        {playing ? '♪' : (draggable ? '⋮⋮' : displayIndex + 1)}
+        {playing ? <Icon name="Disc3" size={14} /> : (draggable ? <Icon name="MoreVertical" size={14} /> : displayIndex + 1)}
       </span>
       <button
         className={styles.cell}
@@ -458,7 +459,7 @@ function PlaylistRow({
         <div className={styles.thumb}>
           {track.coverUrl
             ? <img src={track.coverUrl} alt="" />
-            : <span aria-hidden="true">♫</span>}
+            : <Icon name="Music" size={18} />}
         </div>
         <div className={styles.meta}>
           <span className={styles.rowTitle}>{track.title}</span>
@@ -467,7 +468,7 @@ function PlaylistRow({
       </button>
       <DownloadIndicator trackId={track.id} isDownloaded={track.isDownloaded} className={styles.dlIndicator} />
       <span className={styles.dur}>{fmtDur(track.durationSeconds)}</span>
-      <DropdownMenu trigger="⋯" items={trackMenu} align="right" label="Opciones de la canción" />
+      <DropdownMenu trigger={<Icon name="MoreHorizontal" size={18} />} items={trackMenu} align="right" label="Opciones de la canción" />
     </li>
   );
 }

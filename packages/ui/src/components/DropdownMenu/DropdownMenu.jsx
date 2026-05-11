@@ -48,7 +48,7 @@ export function DropdownMenu({ trigger, items, align = 'right', label }) {
         aria-expanded={open}
       >{trigger}</button>
       {open && (
-        <ul className={styles.menu} data-align={align} role="menu">
+        <ul className={styles.menu} data-align={align} role="menu" style={{ animation: 'ritmiq-fade-in-up var(--dur-fast) var(--ease-standard)' }}>
           {items.map((it, i) => {
             if (it.separator) {
               return <li key={`sep-${i}`} className={styles.sep} role="separator" />;

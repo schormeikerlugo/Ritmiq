@@ -1,4 +1,5 @@
 .player {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr 2fr 1fr;
   align-items: center;
@@ -8,26 +9,52 @@
   gap: var(--space-5);
 }
 
+/* Barra fina de progreso superior — solo visible en mobile. */
+.miniProgress {
+  display: none;
+}
+.miniProgressFill {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 80ms linear;
+}
+
+/* Columna izquierda: cover+meta + acciones del track (heart, plus). */
+.left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
 .now {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  flex: 1 1 auto;
 }
+
+.now:disabled { cursor: default; }
 
 .trackActions {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  margin-left: var(--space-2);
+  flex-shrink: 0;
 }
 
 .iconBtn[data-heart='true'] {
-  font-size: var(--fs-lg);
+  color: var(--color-text-2);
 }
-
 .iconBtn[data-heart='true'][data-active='true'] {
-  color: var(--color-danger);
+  color: var(--color-accent);
 }
 
 .cover {
@@ -37,6 +64,8 @@
   overflow: hidden;
   background: var(--color-bg-2);
   flex-shrink: 0;
+  display: grid;
+  place-items: center;
 }
 
 .cover img {
@@ -46,12 +75,11 @@
 }
 
 .coverPlaceholder {
-  width: 100%;
-  height: 100%;
+  color: var(--color-text-3);
   display: grid;
   place-items: center;
-  color: var(--color-text-3);
-  font-size: 1.5rem;
+  width: 100%;
+  height: 100%;
 }
 
 .meta {
@@ -98,15 +126,17 @@
   color: var(--color-text-2);
   display: grid;
   place-items: center;
-  font-size: var(--fs-md);
+  position: relative;
   transition: color var(--dur-fast) var(--ease-standard),
-              background var(--dur-fast) var(--ease-standard);
+              background var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard);
 }
 
 .iconBtn:hover {
   color: var(--color-text-1);
   background: var(--color-bg-2);
 }
+.iconBtn:active { transform: scale(0.92); }
 
 .iconBtn[data-active='true'] {
   color: var(--color-accent);
@@ -120,13 +150,17 @@
   color: var(--color-bg-0);
   display: grid;
   place-items: center;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-bold);
-  transition: transform var(--dur-fast) var(--ease-standard);
+  transition: transform var(--dur-fast) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard);
 }
-
 .playBtn:hover {
-  transform: scale(1.05);
+  transform: scale(1.06);
+  box-shadow: var(--shadow-md);
+}
+.playBtn:active { transform: scale(0.96); }
+
+.mobilePlay {
+  display: none;
 }
 
 .progress {
@@ -188,6 +222,9 @@
   cursor: pointer;
   box-shadow: var(--shadow-md);
   z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .queueBadge {
@@ -206,11 +243,10 @@
   place-items: center;
 }
 
-.right .iconBtn { position: relative; }
-
 .volIcon {
   color: var(--color-text-3);
-  font-size: var(--fs-sm);
+  display: grid;
+  place-items: center;
 }
 
 .volume {
@@ -218,39 +254,60 @@
   accent-color: var(--color-accent);
 }
 
+/* ── Mobile: minibar limpia tipo Spotify ──────────────────────────────── */
 @media (max-width: 768px) {
   .player {
-    grid-template-columns: 1fr auto auto;
-    gap: var(--space-2);
+    grid-template-columns: 1fr auto;
+    grid-template-rows: 2px 1fr;
+    grid-template-areas:
+      "progress progress"
+      "now play";
+    gap: 0;
     padding: var(--space-2) var(--space-3);
+    align-items: center;
+  }
+  .miniProgress {
+    grid-area: progress;
+    display: block;
+    height: 2px;
+    background: var(--color-bg-3);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: var(--space-2);
+  }
+  .left {
+    grid-area: now;
+    gap: var(--space-2);
+    min-width: 0;
   }
   .now {
-    grid-column: 1 / 2;
     gap: var(--space-2);
+    min-width: 0;
   }
   .cover {
     width: 44px;
     height: 44px;
   }
-  .trackActions { gap: 0; margin-left: 0; }
-  .trackActions .iconBtn { width: 36px; height: 36px; font-size: var(--fs-md); }
+  .trackActions { display: none; }
 
-  .controls {
-    grid-column: 2 / 3;
-    flex-direction: row;
-    gap: var(--space-1);
-  }
-  .controls .progress { display: none; }
-  .buttons .iconBtn:not([data-heart='true']) { display: none; }
-  .buttons {
-    gap: var(--space-1);
-  }
-  .playBtn { width: 44px; height: 44px; font-size: var(--fs-md); }
+  /* Ocultar controles desktop completos en mobile */
+  .controls { display: none; }
+  .right    { display: none; }
 
-  .right {
-    grid-column: 3 / 4;
-    gap: var(--space-1);
+  /* Botón play/pause grande mobile */
+  .mobilePlay {
+    grid-area: play;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    color: var(--color-text-1);
+    background: none;
+    border: none;
   }
-  .right .volIcon, .volume { display: none; }
-  .right .iconBtn { width: 36px; height: 36px; }
+  .mobilePlay:active { transform: scale(0.92); }
+}
+
+@media (min-width: 769px) {
+  .mobilePlay { display: none; }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, isDesktop } from '../../lib/api.js';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './TrackInfoDialog.module.css';
 
 function fmtBytes(n) {
@@ -52,13 +53,13 @@ export function TrackInfoDialog({ track, onClose }) {
             className={styles.close}
             onClick={onClose}
             aria-label="Cerrar"
-          >×</button>
+          ><Icon name="X" size={18} /></button>
         </header>
 
         <div className={styles.cover}>
           {track.coverUrl
             ? <img src={track.coverUrl} alt="" />
-            : <span aria-hidden="true">♫</span>}
+            : <Icon name="Music" size={32} />}
         </div>
 
         <div className={styles.song}>

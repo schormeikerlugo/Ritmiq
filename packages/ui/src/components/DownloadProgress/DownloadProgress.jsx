@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDownloadsStore } from '../../stores/downloads.js';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './DownloadProgress.module.css';
 
 export function DownloadProgress() {
@@ -42,12 +43,12 @@ export function DownloadProgress() {
             className={styles.iconBtn}
             onClick={() => setCollapsed((v) => !v)}
             aria-label={collapsed ? 'Expandir' : 'Contraer'}
-          >{collapsed ? '▴' : '▾'}</button>
+          ><Icon name={collapsed ? 'ChevronUp' : 'ChevronDown'} size={16} /></button>
           <button
             className={styles.iconBtn}
             onClick={() => { clearFinished(); hide(); }}
             aria-label="Cerrar"
-          >×</button>
+          ><Icon name="X" size={16} /></button>
         </div>
       </header>
 
@@ -75,7 +76,7 @@ export function DownloadProgress() {
             ))}
             {errored.map((e) => (
               <li key={`err-${e.trackId}`} className={styles.errorRow} title={e.error}>
-                <span className={styles.errorTitle}>✕ {e.title}</span>
+                <span className={styles.errorTitle}><Icon name="X" size={12} /> {e.title}</span>
                 {e.error && <span className={styles.errorMsg}>{e.error}</span>}
               </li>
             ))}

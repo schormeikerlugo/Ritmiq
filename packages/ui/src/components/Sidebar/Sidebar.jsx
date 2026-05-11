@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useViewStore } from '../../stores/view.js';
 import { SpotifyImportDialog } from '../SpotifyImportDialog/SpotifyImportDialog.jsx';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './Sidebar.module.css';
 
 export function Sidebar() {
@@ -27,7 +28,7 @@ export function Sidebar() {
             data-active={view.kind === 'home'}
             onClick={goHome}
           >
-            <span className={styles.icon}>⌂</span>
+            <span className={styles.icon}><Icon name="Home" size={20} /></span>
             <span>Inicio</span>
           </button>
         </li>
@@ -37,7 +38,7 @@ export function Sidebar() {
             data-active={view.kind === 'library'}
             onClick={goLibrary}
           >
-            <span className={styles.icon}>☰</span>
+            <span className={styles.icon}><Icon name="Library" size={20} /></span>
             <span>Biblioteca</span>
           </button>
         </li>
@@ -47,7 +48,7 @@ export function Sidebar() {
             data-active={view.kind === 'downloads'}
             onClick={goDownloads}
           >
-            <span className={styles.icon}>↓</span>
+            <span className={styles.icon}><Icon name="ArrowDownToLine" size={20} /></span>
             <span>Descargas</span>
           </button>
         </li>
@@ -58,7 +59,7 @@ export function Sidebar() {
           className={styles.importBtn}
           onClick={() => setImportOpen(true)}
         >
-          <span className={styles.importIcon} aria-hidden="true">⇣</span>
+          <span className={styles.importIcon} aria-hidden="true"><Icon name="Music2" size={18} /></span>
           <div className={styles.importMeta}>
             <span className={styles.importTitle}>Importar de Spotify</span>
             <span className={styles.importSub}>Pega un link público</span>
@@ -86,9 +87,7 @@ export function Sidebar() {
                     {pl.coverUrl ? (
                       <img src={pl.coverUrl} alt="" />
                     ) : (
-                      <span aria-hidden="true">
-                        {pl.id === favoritesId ? '♥' : '♪'}
-                      </span>
+                      <Icon name={pl.id === favoritesId ? 'Heart' : 'Music'} size={16} filled={pl.id === favoritesId} />
                     )}
                   </span>
                   <span className={styles.linkText}>{pl.name}</span>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../../stores/auth.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { resizeImage, uploadPlaylistCover } from '../../lib/storage.js';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './CoverUploadDialog.module.css';
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -84,7 +85,7 @@ export function CoverUploadDialog({ playlist, onClose }) {
             className={styles.close}
             onClick={onClose}
             aria-label="Cerrar"
-          >×</button>
+          ><Icon name="X" size={18} /></button>
         </header>
 
         <div
@@ -100,7 +101,7 @@ export function CoverUploadDialog({ playlist, onClose }) {
             <img src={playlist.coverUrl} alt="" className={styles.preview} />
           ) : (
             <div className={styles.placeholder}>
-              <div className={styles.placeholderIcon}>＋</div>
+              <div className={styles.placeholderIcon}><Icon name="Upload" size={32} /></div>
               <p>Click para seleccionar imagen</p>
               <p className={styles.hint}>PNG, JPG, WebP — máx 5 MB</p>
             </div>

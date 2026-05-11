@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { isEphemeralTrack } from '../../lib/track-helpers.js';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './SaveDialog.module.css';
 
 /**
@@ -82,7 +83,7 @@ export function SaveDialog({ track, onClose }) {
       <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
         <header className={styles.header}>
           <h2 className={styles.title}>Guardar canción</h2>
-          <button className={styles.close} onClick={onClose} aria-label="Cerrar">×</button>
+          <button className={styles.close} onClick={onClose} aria-label="Cerrar"><Icon name="X" size={18} /></button>
         </header>
 
         <p className={styles.song}>
@@ -96,7 +97,7 @@ export function SaveDialog({ track, onClose }) {
             onClick={onSaveLibrary}
             disabled={busy || isInLibrary}
           >
-            <span className={styles.actionIcon}>☰</span>
+            <span className={styles.actionIcon}><Icon name="Library" size={16} /></span>
             <span className={styles.actionLabel}>
               {isInLibrary ? 'Ya está en tu biblioteca' : 'Solo añadir a biblioteca'}
             </span>
@@ -119,7 +120,7 @@ export function SaveDialog({ track, onClose }) {
                     className={styles.checkbox}
                     data-checked={checked}
                     aria-hidden="true"
-                  >{checked ? '✓' : ''}</span>
+                  >{checked && <Icon name="Check" size={14} />}</span>
                   <span className={styles.rowName}>{pl.name}</span>
                 </button>
               </li>
@@ -160,7 +161,7 @@ export function SaveDialog({ track, onClose }) {
             className={styles.createBtn}
             onClick={() => setCreating(true)}
             disabled={busy}
-          >＋ Nueva playlist</button>
+          ><Icon name="Plus" size={16} /> Nueva playlist</button>
         )}
       </div>
     </div>

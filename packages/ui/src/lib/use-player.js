@@ -289,6 +289,16 @@ export function usePlayerEngine() {
   /* ── Aplicar volumen ────────────────────────────────────────────────── */
   useEffect(() => { backend.setVolume(volume); }, [backend, volume]);
 
+  /* ── Listener para seek desde NowPlaying scrubber ───────────────────── */
+  useEffect(() => {
+    const onSeek = (ev) => {
+      const sec = ev?.detail?.seconds;
+      if (typeof sec === 'number') backend.seek(sec);
+    };
+    window.addEventListener('ritmiq:seek', onSeek);
+    return () => window.removeEventListener('ritmiq:seek', onSeek);
+  }, [backend]);
+
   /* ── Track actual: cargar y reproducir ──────────────────────────────── */
   useEffect(() => {
     if (!currentTrack) return;

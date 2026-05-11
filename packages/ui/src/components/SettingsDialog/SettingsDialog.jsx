@@ -8,6 +8,7 @@ import { api, isDesktop } from '../../lib/api.js';
 import { publishTunnelUrl, clearTunnelUrl } from '../../lib/tunnel-registry.js';
 import { supabase } from '../../lib/supabase.js';
 import { forceRecheck } from '../../lib/connectivity.js';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './SettingsDialog.module.css';
 
 /**
@@ -129,7 +130,7 @@ export function SettingsDialog({ onClose }) {
             className={styles.close}
             onClick={onClose}
             aria-label="Cerrar"
-          >×</button>
+          ><Icon name="X" size={18} /></button>
         </header>
 
         <p className={styles.intro}>

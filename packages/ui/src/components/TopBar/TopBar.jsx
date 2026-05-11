@@ -9,6 +9,7 @@ import { onConnectivityChange } from '../../lib/connectivity.js';
 import { onQueueSizeChange } from '../../lib/sync-queue.js';
 import { prewarmStream } from '../../lib/lan-client.js';
 import { SettingsDialog } from '../SettingsDialog/SettingsDialog.jsx';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './TopBar.module.css';
 
 const URL_OR_ID_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})|^[\w-]{11}$/;
@@ -132,7 +133,7 @@ export function TopBar() {
         className={styles.menuBtn}
         onClick={toggleSidebar}
         aria-label="Menú"
-      >☰</button>
+      ><Icon name="Menu" size={22} /></button>
       <form className={styles.search} onSubmit={onSubmit}>
         <input
           className={styles.input}
@@ -158,7 +159,7 @@ export function TopBar() {
                   <div className={styles.thumb}>
                     {r.thumbnail
                       ? <img src={r.thumbnail} alt="" />
-                      : <span aria-hidden="true">♫</span>}
+                      : <Icon name="Music" size={16} />}
                   </div>
                   <div className={styles.itemMeta}>
                     <span className={styles.itemTitle}>{r.title}</span>

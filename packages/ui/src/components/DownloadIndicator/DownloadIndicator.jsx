@@ -10,6 +10,7 @@
  * Library como en PlaylistView; tiene tamaño fijo para no causar layout shift.
  */
 import { useDownloadStatus, useDownloadProgress } from '../../lib/use-download-status.js';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './DownloadIndicator.module.css';
 
 /**
@@ -28,7 +29,7 @@ export function DownloadIndicator({ trackId, isDownloaded, className }) {
   if (status === 'done') {
     return (
       <span className={wrap} title="Descargada y disponible offline">
-        <span className={styles.ok}>●</span>
+        <span className={styles.ok}><Icon name="CheckCircle2" size={14} filled /></span>
       </span>
     );
   }
@@ -36,7 +37,7 @@ export function DownloadIndicator({ trackId, isDownloaded, className }) {
   if (status === 'queued') {
     return (
       <span className={wrap} title="En cola para descargar">
-        <span className={styles.queued}>⋯</span>
+        <span className={styles.queued}><Icon name="MoreHorizontal" size={14} /></span>
       </span>
     );
   }

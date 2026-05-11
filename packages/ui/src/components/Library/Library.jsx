@@ -6,6 +6,7 @@ import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
 import { TrackInfoDialog } from '../TrackInfoDialog/TrackInfoDialog.jsx';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { DownloadIndicator } from '../DownloadIndicator/DownloadIndicator.jsx';
+import { Icon } from '../Icon/Icon.jsx';
 import { isDesktop } from '../../lib/api.js';
 import styles from './Library.module.css';
 
@@ -49,7 +50,7 @@ export function Library() {
         </header>
         {error && <p className={styles.error}>{error}</p>}
         <div className={styles.empty}>
-          <div className={styles.emptyIcon}>♫</div>
+          <div className={styles.emptyIcon}><Icon name="Music" size={48} /></div>
           <p>Tu música aparecerá aquí.</p>
         </div>
       </section>
@@ -88,32 +89,32 @@ export function Library() {
           const playing = currentTrack?.id === t.id;
           const fav = isFavorite(t.id);
           const trackMenu = [
-            { id: 'next', label: 'Reproducir a continuación', icon: '⤵', onClick: () => playNext(t) },
-            { id: 'q', label: 'Añadir a la cola', icon: '☰', onClick: () => enqueue(t) },
+            { id: 'next', label: 'Reproducir a continuación', icon: <Icon name="CornerDownRight" size={16} />, onClick: () => playNext(t) },
+            { id: 'q', label: 'Añadir a la cola', icon: <Icon name="ListMusic" size={16} />, onClick: () => enqueue(t) },
             { separator: true },
             {
               id: 'fav',
               label: fav ? 'Quitar de favoritos' : 'Añadir a favoritos',
-              icon: fav ? '♥' : '♡',
+              icon: <Icon name="Heart" size={16} filled={fav} />,
               onClick: () => toggleFavorite(t.id),
             },
             {
-              id: 'addto', label: 'Añadir a otra playlist…', icon: '＋',
+              id: 'addto', label: 'Añadir a otra playlist…', icon: <Icon name="Plus" size={16} />,
               onClick: () => setSaveTrack(t),
             },
             { separator: true },
             {
               id: 'dl',
               label: t.isDownloaded ? 'Quitar descarga' : 'Descargar',
-              icon: t.isDownloaded ? '✕' : '↓',
+              icon: <Icon name={t.isDownloaded ? 'X' : 'ArrowDownToLine'} size={16} />,
               onClick: () => t.isDownloaded ? undownload(t.id) : download(t.id),
             },
-            { id: 'info', label: 'Mostrar info', icon: 'ⓘ', onClick: () => setInfoTrack(t) },
+            { id: 'info', label: 'Mostrar info', icon: <Icon name="Info" size={16} />, onClick: () => setInfoTrack(t) },
             { separator: true },
             {
               id: 'remove',
               label: 'Quitar de biblioteca',
-              icon: '🗑',
+              icon: <Icon name="Trash2" size={16} />,
               danger: true,
               onClick: () => {
                 if (confirm(`¿Quitar "${t.title}" de la biblioteca?`)) remove(t.id);
@@ -131,7 +132,7 @@ export function Library() {
                 <div className={styles.cover}>
                   {t.coverUrl
                     ? <img src={t.coverUrl} alt="" />
-                    : <span aria-hidden="true">♫</span>}
+                    : <Icon name="Music" size={18} />}
                 </div>
                 <div className={styles.meta}>
                   <span className={styles.rowTitle}>{t.title}</span>
@@ -140,7 +141,7 @@ export function Library() {
               </button>
               <DownloadIndicator trackId={t.id} isDownloaded={t.isDownloaded} className={styles.dlIndicator} />
               <span className={styles.dur}>{fmtDur(t.durationSeconds)}</span>
-              <DropdownMenu trigger="⋯" items={trackMenu} align="right" label="Opciones" />
+              <DropdownMenu trigger={<Icon name="MoreHorizontal" size={18} />} items={trackMenu} align="right" label="Opciones" />
             </li>
           );
         })}

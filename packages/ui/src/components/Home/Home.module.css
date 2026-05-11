@@ -34,32 +34,39 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3);
-  background: var(--color-bg-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   text-align: left;
+  overflow: hidden;
   transition: background var(--dur-fast) var(--ease-standard),
-              border-color var(--dur-fast) var(--ease-standard),
               transform var(--dur-fast) var(--ease-standard);
 }
 
 .tile:hover {
-  background: var(--color-bg-3);
-  border-color: var(--color-border);
+  background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
 }
 
+.tile:active { transform: translateY(0); }
+
 .tileIcon {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   border-radius: var(--radius-sm);
   background: linear-gradient(135deg, var(--color-accent), #5cd0ff);
   color: #fff;
   display: grid;
   place-items: center;
-  font-size: var(--fs-xl);
   flex-shrink: 0;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.tileIcon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .tileMeta {

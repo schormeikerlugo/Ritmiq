@@ -1,4 +1,5 @@
 import { usePlayerStore } from '../../stores/player.js';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './QueuePanel.module.css';
 
 function fmtDur(s) {
@@ -27,14 +28,14 @@ export function QueuePanel({ onClose }) {
           className={styles.closeBtn}
           onClick={onClose}
           aria-label="Cerrar panel"
-        >×</button>
+        ><Icon name="X" size={20} /></button>
       </header>
 
       {queue.length === 0 ? (
         <div className={styles.empty}>
           <p>La cola está vacía.</p>
           <p className={styles.emptyHint}>
-            Reproduce una playlist o añade canciones desde el menú ⋯.
+            Reproduce una playlist o añade canciones desde el menú.
           </p>
         </div>
       ) : (
@@ -66,14 +67,12 @@ export function QueuePanel({ onClose }) {
             ) : (
               <ul className={styles.list}>
                 {upcoming.map((t, i) => {
-                  // Índice real en la queue completa
                   const realIdx = index + 1 + i;
                   return (
                     <li key={`${t.id}-${realIdx}`} className={styles.li}>
                       <Row
                         track={t}
                         onClick={() => {
-                          // Saltar al track manteniendo la cola
                           usePlayerStore.setState({
                             index: realIdx,
                             currentTrack: t,
@@ -106,7 +105,7 @@ function Row({ track, playing, onClick, onRemove }) {
         <div className={styles.thumb}>
           {track.coverUrl
             ? <img src={track.coverUrl} alt="" />
-            : <span aria-hidden="true">♫</span>}
+            : <Icon name="Music" size={18} />}
         </div>
         <div className={styles.meta}>
           <span className={styles.rowTitle}>{track.title}</span>
@@ -120,7 +119,7 @@ function Row({ track, playing, onClick, onRemove }) {
           onClick={onRemove}
           aria-label="Quitar de la cola"
           title="Quitar"
-        >×</button>
+        ><Icon name="X" size={16} /></button>
       )}
     </div>
   );

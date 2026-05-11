@@ -3,6 +3,7 @@ import { useLibraryStore } from '../../stores/library.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { listLocalDownloads, storageEstimate, clearAllLocal } from '../../lib/local-downloads.js';
 import { isDesktop } from '../../lib/api.js';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './Downloads.module.css';
 
 function fmtBytes(n) {
@@ -118,7 +119,7 @@ export function Downloads() {
                   <div className={styles.thumb}>
                     {t.coverUrl
                       ? <img src={t.coverUrl} alt="" />
-                      : <span aria-hidden="true">♫</span>}
+                      : <Icon name="Music" size={18} />}
                   </div>
                   <div className={styles.meta}>
                     <span className={styles.rowTitle}>{t.title}</span>
@@ -134,7 +135,7 @@ export function Downloads() {
                   onClick={() => undownload(t.id)}
                   aria-label="Quitar descarga"
                   title="Quitar descarga"
-                >×</button>
+                ><Icon name="X" size={16} /></button>
               </li>
             );
           })}

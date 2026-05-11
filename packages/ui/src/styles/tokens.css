@@ -16,6 +16,9 @@
   --color-accent: #7c5cff;
   --color-accent-hover: #9277ff;
   --color-accent-soft: rgba(124, 92, 255, 0.15);
+  --color-accent-glow: rgba(124, 92, 255, 0.45);
+  --color-accent-shadow: rgba(124, 92, 255, 0.25);
+  --color-overlay: rgba(10, 10, 12, 0.85);
 
   --color-danger: #ff5d6c;
   --color-success: #3ddc97;
@@ -73,9 +76,43 @@
 
   /* Transiciones */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 120ms;
   --dur-normal: 200ms;
   --dur-slow: 320ms;
+}
+
+/* ── Bloqueo de zoom y comportamientos táctiles indeseados ────────────── */
+html, body {
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+* { touch-action: manipulation; }
+/* iOS hace zoom-on-focus si el input es < 16px. Forzamos 16px en inputs */
+input, textarea, select { font-size: 16px; }
+
+/* ── Animaciones globales reutilizables ───────────────────────────────── */
+@keyframes ritmiq-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes ritmiq-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes ritmiq-slide-down {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+@keyframes ritmiq-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes ritmiq-fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-color-scheme: light) {

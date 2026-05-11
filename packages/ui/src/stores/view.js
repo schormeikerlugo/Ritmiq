@@ -14,6 +14,7 @@ export const useViewStore = create((set) => ({
   view: { kind: 'home' },
   queueOpen: false,
   sidebarOpen: false, // móvil: overlay
+  nowPlayingOpen: false, // mobile fullscreen player
 
   goHome:      () => set({ view: { kind: 'home' }, sidebarOpen: false }),
   goLibrary:   () => set({ view: { kind: 'library' }, sidebarOpen: false }),
@@ -26,4 +27,6 @@ export const useViewStore = create((set) => ({
   closeQueue:  () => set({ queueOpen: false }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   closeSidebar:  () => set({ sidebarOpen: false }),
+  openNowPlaying:  () => set({ nowPlayingOpen: true }),
+  closeNowPlaying: () => set({ nowPlayingOpen: false }),
 }));

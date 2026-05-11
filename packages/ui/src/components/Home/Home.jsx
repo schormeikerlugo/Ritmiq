@@ -2,6 +2,7 @@ import { useAuthStore } from '../../stores/auth.js';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useViewStore } from '../../stores/view.js';
+import { Icon } from '../Icon/Icon.jsx';
 import styles from './Home.module.css';
 
 function getGreeting() {
@@ -35,7 +36,7 @@ export function Home() {
 
       <div className={styles.grid}>
         <button className={styles.tile} onClick={goLibrary}>
-          <div className={styles.tileIcon} aria-hidden="true">☰</div>
+          <div className={styles.tileIcon} aria-hidden="true"><Icon name="Library" size={24} /></div>
           <div className={styles.tileMeta}>
             <span className={styles.tileTitle}>Tu biblioteca</span>
             <span className={styles.tileSub}>{tracks.length} canciones</span>
@@ -49,7 +50,9 @@ export function Home() {
             onClick={() => goPlaylist(pl.id)}
           >
             <div className={styles.tileIcon} aria-hidden="true">
-              {pl.id === favoritesId ? '♥' : '♪'}
+              {pl.coverUrl
+                ? <img src={pl.coverUrl} alt="" />
+                : <Icon name={pl.id === favoritesId ? 'Heart' : 'Music'} size={24} filled={pl.id === favoritesId} />}
             </div>
             <div className={styles.tileMeta}>
               <span className={styles.tileTitle}>{pl.name}</span>
@@ -57,13 +60,6 @@ export function Home() {
             </div>
           </button>
         ))}
-      </div>
-
-      <div className={styles.notice}>
-        <span className={styles.noticeBadge}>Próximamente</span>
-        <p className={styles.noticeText}>
-          Recomendaciones personalizadas según tu historial de reproducción.
-        </p>
       </div>
     </section>
   );
