@@ -321,15 +321,17 @@ export function usePlayerEngine() {
     return () => { cancelled = true; };
   }, [currentTrack, backend, setState]);
 
-  /* ── PRECARGA de la URL del siguiente track ─────────────────────────── */
-  // Cuando cambia el track actual o la cola, resolvemos la URL del siguiente
-  // en background y la dejamos lista en nextUrlRef para el swap síncrono.
+  /* ── PRECARGA del siguiente track como BLOB URL ─────────────────────── */
+  // Resolver la URL y descargar el audio completo a memoria → blob URL.
+  // Es necesario que sea blob para que iOS muestre prev/next en lockscreen
+  // (los streams HTTP con duration=Infinity disparan layout de podcast).
+  // El swap luego es síncrono e instantáneo.
   useEffect(() => {
     nextUrlRef.current = null;
     nextTrackRef.current = null;
     if (!currentTrack) return;
     const store = usePlayerStore.getState();
-    if (store.shuffle) return; // shuffle no es predecible
+    if (store.shuffle) return;
     const nextIdx = index + 1;
     const nextTrack = queue[nextIdx];
     if (!nextTrack) return;
@@ -339,16 +341,18 @@ export function usePlayerEngine() {
       try {
         const { url } = await resolveAudioSource(nextTrack, buildResolveDeps(nextTrack));
         if (cancelled) return;
-        nextUrlRef.current = url;
+        // Convertir a blob URL EN BACKGROUND mientras suena la actual.
+        const blobUrl = await backend.prepare(url);
+        if (cancelled) return;
+        nextUrlRef.current = blobUrl;
         nextTrackRef.current = nextTrack;
       } catch (e) {
-        // Falló pre-resolución → caeremos al camino lento en `ended`.
         nextUrlRef.current = null;
         nextTrackRef.current = null;
       }
     })();
     return () => { cancelled = true; };
-  }, [currentTrack, queue, index]);
+  }, [currentTrack, queue, index, backend]);
 
   /* ── play/pause sync + playbackState ────────────────────────────────── */
   useEffect(() => {
