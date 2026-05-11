@@ -134,23 +134,27 @@ export function usePlayerEngine() {
     const ms = navigator.mediaSession;
     const store = () => usePlayerStore.getState();
 
-    ms.setActionHandler('play',  () => store().patch({ isPlaying: true }));
-    ms.setActionHandler('pause', () => store().patch({ isPlaying: false }));
+    // Registrar prev/next ANTES que play/pause — algunos reportes indican
+    // que iOS lee el conjunto de handlers en orden de registro y necesita
+    // que prev/next existan al asociar la sesión.
     ms.setActionHandler('previoustrack', () => store().prev());
     ms.setActionHandler('nexttrack',     () => store().next());
+    ms.setActionHandler('play',  () => store().patch({ isPlaying: true }));
+    ms.setActionHandler('pause', () => store().patch({ isPlaying: false }));
+    // seekto es necesario para que el scrubber del lockscreen funcione.
+    // iOS muestra prev/next + scrubber juntos si la duración es finita;
+    // solo cae a ±10s si decide que es contenido "podcast".
+    ms.setActionHandler('seekto', (d) => {
+      if (d && typeof d.seekTime === 'number') backend.seek(d.seekTime);
+    });
     try { ms.setActionHandler('stop', () => { backend.pause(); store().patch({ isPlaying: false }); }); } catch {}
 
-    // CRÍTICO para iOS: NO registrar NINGÚN handler de seek (ni seekto, ni
-    // seekbackward, ni seekforward). iOS decide el layout en función de qué
-    // handlers están registrados: si hay seek, muestra ±10s; si solo hay
-    // prev/next, muestra los botones de pista. Limpiamos cualquier registro
-    // previo por si quedó de la sesión anterior.
+    // Limpiar seek ±10s — esos sí compiten con prev/next por el espacio.
     try { ms.setActionHandler('seekbackward', null); } catch {}
     try { ms.setActionHandler('seekforward',  null); } catch {}
-    try { ms.setActionHandler('seekto',       null); } catch {}
 
     return () => {
-      for (const a of ['play','pause','previoustrack','nexttrack','stop']) {
+      for (const a of ['play','pause','previoustrack','nexttrack','seekto','stop']) {
         try { ms.setActionHandler(a, null); } catch {}
       }
     };
@@ -388,10 +392,12 @@ function applyMediaSessionMetadata(track) {
         { src: cover, sizes: '512x512', type: 'image/jpeg' },
       ]
     : [];
+  // CRÍTICO: iOS usa la presencia de `album` para diferenciar música de
+  // podcast. Si está vacío, asume podcast → muestra ±10s. Siempre poner algo.
   navigator.mediaSession.metadata = new MediaMetadata({
     title: track.title || 'Ritmiq',
-    artist: track.artist ?? '',
-    album: track.album ?? '',
+    artist: track.artist || 'Ritmiq',
+    album: track.album || track.artist || 'Mi música',
     artwork,
   });
   // Position state inmediato con duración finita conocida del metadata.

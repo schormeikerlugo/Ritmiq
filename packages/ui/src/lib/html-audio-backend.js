@@ -78,12 +78,17 @@ export function createHtmlAudioBackend() {
   /** Activador del audioSession iOS 17+ y atributos críticos para background. */
   function ensureAudio() {
     if (audio) return audio;
-    audio = document.createElement('audio');
+    // Usar el constructor `new Audio()` en vez de createElement: iOS Safari
+    // distingue ambos y `new Audio()` lo trata como reproductor de música.
+    audio = new Audio();
     audio.preload = 'auto';
     audio.setAttribute('playsinline', '');
     audio.setAttribute('webkit-playsinline', '');
-    audio.crossOrigin = 'anonymous';
-    audio.style.display = 'none';
+    // crossOrigin solo se aplica si el server manda CORS — para blob URLs
+    // no aplica y puede causar problemas si se setea.
+    // NO usamos display:none — iOS puede tratar audio oculto como background
+    // loop / ambient. Lo dejamos en el DOM con tamaño cero pero visible.
+    audio.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;';
     document.body.appendChild(audio);
 
     audio.addEventListener('timeupdate', () => {
