@@ -40,16 +40,17 @@
   border-radius: var(--radius-md);
   text-align: left;
   overflow: hidden;
-  transition: background var(--dur-fast) var(--ease-standard),
-              transform var(--dur-fast) var(--ease-standard);
+  transition: background 220ms var(--ease-emphasized),
+              transform 220ms var(--ease-emphasized);
+  will-change: transform;
 }
 
 .tile:hover {
   background: rgba(255, 255, 255, 0.1);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
-.tile:active { transform: translateY(0); }
+.tile:active { transform: scale(0.97); }
 
 .tileIcon {
   width: 56px;

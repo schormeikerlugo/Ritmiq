@@ -192,9 +192,14 @@ function QueueOutlet() {
 
 function MainView() {
   const view = useViewStore((s) => s.view);
-  if (view.kind === 'home') return <Home />;
-  if (view.kind === 'library') return <Library />;
-  if (view.kind === 'downloads') return <Downloads />;
-  if (view.kind === 'playlist') return <PlaylistView playlistId={view.playlistId} />;
-  return null;
+  // Una `key` única por vista hace que React remonte y dispare la animación
+  // CSS de entrada (`ritmiq-fade-in-up` en `.main > *`) en cada navegación.
+  const key = view.kind === 'playlist' ? `playlist:${view.playlistId}` : view.kind;
+  let content;
+  if (view.kind === 'home') content = <Home />;
+  else if (view.kind === 'library') content = <Library />;
+  else if (view.kind === 'downloads') content = <Downloads />;
+  else if (view.kind === 'playlist') content = <PlaylistView playlistId={view.playlistId} />;
+  else return null;
+  return <div key={key} className={styles.viewSlot}>{content}</div>;
 }

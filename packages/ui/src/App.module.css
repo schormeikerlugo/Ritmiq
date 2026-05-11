@@ -58,6 +58,14 @@
   background: var(--color-bg-0);
   overflow-y: auto;
   padding: var(--space-5);
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Transición suave al cambiar de vista (Home → Library → Playlist…) */
+.viewSlot {
+  animation: ritmiq-fade-in-up 280ms var(--ease-emphasized);
+  will-change: transform, opacity;
 }
 
 .player {
@@ -79,7 +87,8 @@
   z-index: 89;
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--dur-normal) var(--ease-standard);
+  transition: opacity 280ms var(--ease-emphasized);
+  will-change: opacity;
 }
 
 .scrim[data-visible='true'] {
@@ -108,8 +117,10 @@
     max-width: 320px;
     z-index: 90;
     transform: translateX(-100%);
-    transition: transform var(--dur-normal) var(--ease-standard);
+    transition: transform 320ms var(--ease-emphasized),
+                box-shadow 320ms var(--ease-emphasized);
     padding-top: var(--safe-top);
+    will-change: transform;
   }
   .sidebar[data-mobile-open='true'] {
     transform: translateX(0);
@@ -127,7 +138,10 @@
     display: none;
     padding-top: var(--safe-top);
   }
-  .shell[data-queue-open='true'] .queue { display: block; }
+  .shell[data-queue-open='true'] .queue {
+    display: block;
+    animation: ritmiq-slide-up 280ms var(--ease-emphasized);
+  }
 
   .main { padding: var(--space-3) !important; }
 }

@@ -126,11 +126,10 @@ export async function startLanServer({ port, db, accessToken }) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ items }));
 
-        // Pre-resolver el stream URL del primer resultado en background.
-        // Cuando el usuario lo seleccione, ya estará cacheado y la
-        // reproducción comenzará casi al instante.
-        if (items[0]?.id) {
-          resolveCached(items[0].id).catch(() => {});
+        // Pre-resolver los stream URLs de los 3 primeros resultados en
+        // background. Cuando el usuario elija cualquiera, ya estará cacheado.
+        for (const it of items.slice(0, 3)) {
+          if (it?.id) resolveCached(it.id).catch(() => {});
         }
         return;
       }

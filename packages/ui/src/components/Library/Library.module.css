@@ -108,6 +108,12 @@
   color: var(--color-accent);
 }
 
+.row {
+  transition: background 180ms var(--ease-standard),
+              transform 120ms var(--ease-standard);
+}
+.row:active { transform: scale(0.99); }
+
 .dlIndicator {
   display: grid;
   place-items: center;

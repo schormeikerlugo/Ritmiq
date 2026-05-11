@@ -114,6 +114,23 @@ input, textarea, select { font-size: 16px; }
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes ritmiq-fade-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes ritmiq-row-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Aplicar feedback táctil a TODOS los botones por defecto en mobile.
+   Hace que cada interacción se sienta física y fluida.                  */
+@media (max-width: 768px) {
+  button:not(:disabled):active {
+    transform: scale(0.96);
+    transition: transform 80ms var(--ease-standard);
+  }
+}
 
 @media (prefers-color-scheme: light) {
   :root[data-theme='auto'] {

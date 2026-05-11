@@ -10,12 +10,13 @@
     calc(var(--safe-bottom) + var(--space-5))
     calc(var(--safe-left) + var(--space-5));
   color: var(--color-text-1);
-  animation: ritmiq-slide-up var(--dur-slow) var(--ease-emphasized);
+  animation: ritmiq-slide-up 360ms var(--ease-emphasized);
   will-change: transform, opacity;
   overflow: hidden;
+  transition: background 400ms var(--ease-standard);
 }
 .root[data-closing='true'] {
-  animation: ritmiq-slide-down 240ms var(--ease-standard) forwards;
+  animation: ritmiq-slide-down 260ms var(--ease-emphasized) forwards;
 }
 
 /* ── Header ──────────────────────────────────────────────────────────── */
@@ -83,12 +84,14 @@
   display: grid;
   place-items: center;
   animation: ritmiq-fade-in var(--dur-slow) var(--ease-standard);
+  transition: transform 300ms var(--ease-emphasized);
 }
 .cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: opacity 200ms var(--ease-standard);
 }
 .coverPlaceholder {
   color: var(--color-text-3);

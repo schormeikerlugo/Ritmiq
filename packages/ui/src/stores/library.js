@@ -131,11 +131,16 @@ export const useLibraryStore = create((set, get) => ({
 
     set((s) => mergeTrack(s, persisted));
 
-    // Si era el track sonando, swap del currentTrack para que el player muestre
-    // los botones en estado correcto (el id pasa de efímero a UUID).
-    const cur = usePlayerStore.getState().currentTrack;
+    // Si era el track sonando, hacemos un swap de identidad SIN reiniciar
+    // la reproducción: patch directo en currentTrack + reemplazo en la cola
+    // si está presente. `setCurrent` (= playNow) resetearía isPlaying y
+    // positionSeconds — eso causaba que la canción "se pausara y se
+    // volviera a repetir" al guardar en playlist.
+    const playerState = usePlayerStore.getState();
+    const cur = playerState.currentTrack;
     if (cur && cur.id === track.id) {
-      usePlayerStore.getState().setCurrent(persisted);
+      const newQueue = playerState.queue.map((t) => (t.id === track.id ? persisted : t));
+      playerState.patch({ currentTrack: persisted, queue: newQueue });
     }
 
     return persisted;

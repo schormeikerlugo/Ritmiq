@@ -24,6 +24,42 @@ import {
 } from './lan-client.js';
 import { getLocalBlobUrl } from './local-downloads.js';
 
+/* ── Cache de reachability LAN/Tunnel para no martillar pings ─────────── */
+/** @type {{value:string|null, until:number}} */
+let cachedReachable = { value: null, until: 0 };
+const REACHABLE_TTL = 30_000;
+
+async function getReachableCached() {
+  const now = Date.now();
+  if (cachedReachable.until > now) return cachedReachable.value;
+  const lan = getLanBaseUrlSync();
+  const tunnel = getTunnelUrlSync();
+  // Pings en paralelo; gana el primero que responda OK.
+  const pLan = lan ? pingLan(lan, 1200).then((ok) => ok ? lan : null) : Promise.resolve(null);
+  const pTun = tunnel ? pingLan(tunnel, 2500).then((ok) => ok ? tunnel : null) : Promise.resolve(null);
+  // Promise.any-like: el primero que devuelva truthy gana.
+  const result = await new Promise((resolve) => {
+    let remaining = 2;
+    let resolved = false;
+    const handle = (v) => {
+      if (resolved) return;
+      if (v) { resolved = true; resolve(v); return; }
+      remaining--;
+      if (remaining === 0) resolve(null);
+    };
+    pLan.then(handle).catch(() => handle(null));
+    pTun.then(handle).catch(() => handle(null));
+  });
+  cachedReachable = { value: result, until: now + REACHABLE_TTL };
+  return result;
+}
+
+/** Invalidar la cache cuando cambia conectividad. */
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => { cachedReachable.until = 0; });
+  window.addEventListener('offline', () => { cachedReachable = { value: null, until: Date.now() + 5_000 }; });
+}
+
 /* ── Resolver de URL compartido entre track actual y precarga ─────────── */
 function buildResolveDeps(track) {
   const ephemeral = isEphemeralTrack(track);
@@ -41,11 +77,7 @@ function buildResolveDeps(track) {
         const info = await api.appInfo();
         return info?.lanPort ? `http://127.0.0.1:${info.lanPort}` : null;
       }
-      const lan = getLanBaseUrlSync();
-      if (lan && (await pingLan(lan))) return lan;
-      const tunnel = getTunnelUrlSync();
-      if (tunnel && (await pingLan(tunnel, 3000))) return tunnel;
-      return null;
+      return getReachableCached();
     },
     buildLanStreamUrl: (trackId, base) =>
       withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}`),
@@ -81,6 +113,13 @@ export function usePlayerEngine() {
   const nextTrackRef = useRef(null);
   /** Id del track actualmente cargado en el <audio>. Evita doble load tras swap. */
   const loadedTrackIdRef = useRef(null);
+  /**
+   * Fingerprint del media actualmente cargado: `ytId` cuando existe, sino `id`.
+   * Se mantiene estable cuando un track efímero (yt:<id>) se persiste y obtiene
+   * un UUID nuevo — en ese caso el ytId NO cambia, así evitamos recargar el
+   * audio (que reiniciaría la canción) tras "Guardar en biblioteca/playlist".
+   */
+  const loadedFingerprintRef = useRef(null);
 
   const setState = usePlayerStore((s) => s.patch);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
@@ -302,16 +341,31 @@ export function usePlayerEngine() {
   /* ── Track actual: cargar y reproducir ──────────────────────────────── */
   useEffect(() => {
     if (!currentTrack) return;
-    // Si el track ya fue cargado por el pre-end swap, no recargamos: solo
-    // sincronizamos metadata y duración. Esto evita un gap audible al
-    // cambiar de canción dentro de la cola.
+    const fp = currentTrack.ytId || currentTrack.id;
+
+    // ATAJO 1: el track ya fue cargado por el pre-end swap (timeupdate).
     if (loadedTrackIdRef.current === currentTrack.id) {
+      loadedFingerprintRef.current = fp;
       applyMediaSessionMetadata(currentTrack);
       setState({ durationSeconds: backend.duration() });
       return;
     }
 
+    // ATAJO 2: el track tiene el MISMO ytId que el cargado (solo cambió su
+    // identidad lógica — típicamente porque un track efímero `yt:<id>` se
+    // acaba de persistir y obtuvo un UUID nuevo). Mantenemos el audio
+    // exactamente como está; solo sincronizamos el id y la metadata visual.
+    // Sin esto, "Guardar en playlist" pausaría y reiniciaría la canción.
+    if (fp && loadedFingerprintRef.current === fp) {
+      loadedTrackIdRef.current = currentTrack.id;
+      applyMediaSessionMetadata(currentTrack);
+      return;
+    }
+
     let cancelled = false;
+    // Pausar inmediatamente el track anterior — evita la race condition con
+    // el useEffect[isPlaying] que correría play() sobre el src viejo.
+    backend.pause();
     applyMediaSessionMetadata(currentTrack);
 
     (async () => {
@@ -322,6 +376,7 @@ export function usePlayerEngine() {
         await backend.load(url);
         if (cancelled) return;
         loadedTrackIdRef.current = currentTrack.id;
+        loadedFingerprintRef.current = fp;
         await backend.play();
         setState({ isPlaying: true, durationSeconds: backend.duration() });
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
@@ -335,11 +390,10 @@ export function usePlayerEngine() {
     return () => { cancelled = true; };
   }, [currentTrack, backend, setState]);
 
-  /* ── PRECARGA del siguiente track como BLOB URL ─────────────────────── */
-  // Resolver la URL y descargar el audio completo a memoria → blob URL.
-  // Es necesario que sea blob para que iOS muestre prev/next en lockscreen
-  // (los streams HTTP con duration=Infinity disparan layout de podcast).
-  // El swap luego es síncrono e instantáneo.
+  /* ── PRECARGA del siguiente track (solo resolver URL) ───────────────── */
+  // Solo resolvemos la URL en background — no descargamos el archivo. Eso
+  // mantiene el inicio de la canción ACTUAL rápido y el swap al siguiente
+  // sigue siendo instantáneo: `audio.src = url` empieza a stremear al instante.
   useEffect(() => {
     nextUrlRef.current = null;
     nextTrackRef.current = null;
@@ -351,25 +405,29 @@ export function usePlayerEngine() {
     if (!nextTrack) return;
 
     let cancelled = false;
-    (async () => {
+    // Pequeño delay para no competir con la resolución del track actual.
+    const timer = setTimeout(async () => {
       try {
         const { url } = await resolveAudioSource(nextTrack, buildResolveDeps(nextTrack));
         if (cancelled) return;
-        // Convertir a blob URL EN BACKGROUND mientras suena la actual.
-        const blobUrl = await backend.prepare(url);
-        if (cancelled) return;
-        nextUrlRef.current = blobUrl;
+        nextUrlRef.current = url;
         nextTrackRef.current = nextTrack;
       } catch (e) {
         nextUrlRef.current = null;
         nextTrackRef.current = null;
       }
-    })();
-    return () => { cancelled = true; };
+    }, 1200);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [currentTrack, queue, index, backend]);
 
   /* ── play/pause sync + playbackState ────────────────────────────────── */
+  // CRÍTICO: solo actuar cuando el <audio> ya tiene cargado el track actual.
+  // De otro modo, este effect podría llamar play() sobre el src VIEJO
+  // mientras el useEffect[currentTrack] aún está async-cargando el nuevo —
+  // causa de "elijo otra canción pero sigue sonando la anterior".
   useEffect(() => {
+    if (!currentTrack) return;
+    if (loadedTrackIdRef.current !== currentTrack.id) return;
     if (isPlaying) {
       backend.play().catch(() => setState({ isPlaying: false }));
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
@@ -377,7 +435,7 @@ export function usePlayerEngine() {
       backend.pause();
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     }
-  }, [isPlaying, backend, setState]);
+  }, [isPlaying, currentTrack, backend, setState]);
 
   return backend;
 }

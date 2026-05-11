@@ -209,6 +209,11 @@
 }
 
 .row:hover { background: var(--color-bg-2); }
+.row {
+  transition: background 180ms var(--ease-standard),
+              transform 120ms var(--ease-standard);
+}
+.row:active { transform: scale(0.99); }
 
 .row[data-playing='true'] {
   background: var(--color-accent-soft);
