@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useImportStore } from '../../stores/import.js';
 import { useViewStore } from '../../stores/view.js';
-import { getLanBaseUrlSync } from '../../lib/lan-client.js';
+import { getLanBaseUrlSync, getTunnelUrlSync } from '../../lib/lan-client.js';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './SpotifyImportDialog.module.css';
 
@@ -33,7 +33,12 @@ export function SpotifyImportDialog({ onClose }) {
     onClose();
   };
 
-  const lanReady = !!getLanBaseUrlSync() || typeof window === 'undefined' || /* desktop ignora LAN config */ Boolean(window.ritmiq);
+  // Desktop siempre lista (yt-dlp + scraper local). PWA: necesita LAN local
+  // O tunnel remoto configurado — cualquiera sirve, porque el cliente
+  // `lanSpotifyPlaylist` ya prueba ambos vía `preferredBase()`.
+  const lanReady = (typeof window !== 'undefined' && Boolean(window.ritmiq))
+    || !!getLanBaseUrlSync()
+    || !!getTunnelUrlSync();
 
   const matched = items.filter((i) => i.status === 'persisted').length;
   const errored = items.filter((i) => i.status === 'error').length;
