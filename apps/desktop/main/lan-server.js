@@ -298,45 +298,20 @@ async function proxyAudio(req, res, upstreamUrl) {
     if (v) res.setHeader(h, v);
   }
 
-  // CRÍTICO para iOS lockscreen UI:
-  // Si upstream NO mandó Content-Length (chunked), <audio>.duration queda como
-  // Infinity → iOS muestra layout de podcast con botones ±10s en vez de
-  // flechas de pista. YouTube codifica el byte length del stream en el
-  // parámetro `clen` de la URL de googlevideo — lo extraemos y lo enviamos.
-  let injectedLen = null;
-  if (!upstream.headers.get('content-length')) {
-    try {
-      const u = new URL(upstreamUrl);
-      const clen = u.searchParams.get('clen');
-      if (clen && /^\d+$/.test(clen)) {
-        if (!req.headers.range) {
-          // Respuesta completa (200): Content-Length = clen.
-          res.setHeader('Content-Length', clen);
-          injectedLen = clen;
-        } else {
-          // Range parcial (206): Content-Range/Content-Length basado en clen.
-          if (!upstream.headers.get('content-range')) {
-            const total = Number(clen);
-            const m = /bytes=(\d+)-(\d*)/.exec(String(req.headers.range));
-            if (m) {
-              const start = parseInt(m[1], 10);
-              const end = m[2] ? parseInt(m[2], 10) : total - 1;
-              res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
-              res.setHeader('Content-Length', String(end - start + 1));
-              injectedLen = `${start}-${end}/${total}`;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[lan-server] parse clen failed:', e.message);
-    }
-  }
+  // NOTA: anteriormente inyectábamos Content-Length/Content-Range derivados
+  // del parámetro `clen` de la URL de googlevideo para que iOS lockscreen
+  // mostrase el layout "música" con prev/next en lugar de podcast ±10s.
+  // Esto producía duraciones infladas en PWA (tunnel): cuando googlevideo
+  // respondía chunked con un segmento DASH parcial, declarábamos `clen`
+  // como total → Safari computaba `duration ≈ clen / bitrate` y arrojaba
+  // valores 2–3x los reales, con minutos de silencio audible al final.
+  // Decisión: aceptar el layout ±10s en lockscreen a cambio de que la
+  // duración sea siempre la real (leída del moov del MP4 por el cliente).
   console.log(
     `[lan-server] proxy ${req.method} status=${upstream.status} ` +
     `clientRange=${req.headers.range ?? '-'} ` +
     `upstreamCL=${upstream.headers.get('content-length') ?? '-'} ` +
-    `injectedCL=${injectedLen ?? '-'}`
+    `upstreamCR=${upstream.headers.get('content-range') ?? '-'}`
   );
 
   if (!upstream.headers.get('accept-ranges')) {

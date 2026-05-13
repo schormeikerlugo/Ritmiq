@@ -24,6 +24,35 @@ import {
 } from './lan-client.js';
 import { getLocalBlobUrl } from './local-downloads.js';
 
+/**
+ * Devuelve la duración "real" a usar para barra de progreso y pre-end swap.
+ *
+ * Algunas respuestas de googlevideo vía Cloudflare Tunnel reportan a Safari
+ * una duración inflada (típicamente 2-3x la real) — el `<audio>` recibe el
+ * stream chunked y computa duration por bitrate ~= bytes/seg, con fragmentos
+ * DASH que confunden el cálculo. En esos casos `audio.duration` es finito
+ * pero MAYOR que `track.durationSeconds` (que viene de yt-dlp y es la
+ * duración real del video). Tomamos la metadata como ground truth cuando
+ * `audio.duration` la excede por más de 10%.
+ *
+ * @param {number} audioDur  audio.duration del elemento HTMLAudioElement
+ * @param {number} metaDur   track.durationSeconds desde metadata
+ * @returns {number} duración efectiva (segundos) o 0 si no determinable
+ */
+function effectiveDuration(audioDur, metaDur) {
+  const m = Number.isFinite(metaDur) && metaDur > 0 ? metaDur : 0;
+  const a = Number.isFinite(audioDur) && audioDur > 0 ? audioDur : 0;
+  if (m > 0 && a > 0) {
+    // Si audio.duration excede metadata por más de 10%, asumimos que es
+    // un cálculo inflado del proxy/Range y usamos la metadata como verdad.
+    if (a > m * 1.10) return m;
+    // Si audio.duration es notablemente MENOR (ej. la metadata era estimada),
+    // confiamos en el audio que ya empezó a decodificar.
+    return a;
+  }
+  return m || a || 0;
+}
+
 /* ── Cache de reachability LAN/Tunnel para no martillar pings ─────────── */
 /** @type {{value:string|null, until:number}} */
 let cachedReachable = { value: null, until: 0 };
@@ -203,23 +232,24 @@ export function usePlayerEngine() {
   useEffect(() => {
     let lastPosUpdate = 0;
     return backend.onPosition((positionSeconds) => {
-      setState({ positionSeconds });
+      const meta = usePlayerStore.getState().currentTrack;
+      const metaDur = Number(meta?.durationSeconds) || 0;
+      const audioDur = backend.duration();
+      const dur = effectiveDuration(audioDur, metaDur);
+      // Sincronizar también durationSeconds en el store — la UI dibuja la
+      // barra de progreso a partir de aquí, así nunca verá la duración
+      // inflada del <audio>.
+      const clampedPos = dur > 0 ? Math.min(positionSeconds, dur) : positionSeconds;
+      setState({ positionSeconds: clampedPos, durationSeconds: dur });
       const now = performance.now();
       if (now - lastPosUpdate < 900) return;
       lastPosUpdate = now;
       try {
         if ('mediaSession' in navigator && navigator.mediaSession.setPositionState) {
-          // CLAVE: usar la duración del METADATA del track. audio.duration
-          // puede ser Infinity con streaming Range → iOS interpreta como
-          // live y deshabilita prev/next.
-          const meta = usePlayerStore.getState().currentTrack;
-          const metaDur = Number(meta?.durationSeconds) || 0;
-          const audioDur = backend.duration();
-          const dur = (Number.isFinite(audioDur) && audioDur > 0) ? audioDur : metaDur;
-          if (Number.isFinite(dur) && dur > 0) {
+          if (dur > 0) {
             navigator.mediaSession.setPositionState({
               duration: dur,
-              position: Math.min(positionSeconds, dur),
+              position: Math.min(clampedPos, dur),
               playbackRate: 1,
             });
           }
@@ -243,11 +273,13 @@ export function usePlayerEngine() {
 
       const audioDur = backend.duration();
       const metaDur = Number(cur.durationSeconds) || 0;
-      const dur = (Number.isFinite(audioDur) && audioDur > 0) ? audioDur : metaDur;
+      const dur = effectiveDuration(audioDur, metaDur);
       if (!dur || dur < 2) return;
 
       const remaining = dur - pos;
       // Margen 0.4s — suficiente para que iOS lo trate como continuación.
+      // Si audioDur estaba inflado pero metaDur es la verdad, este chequeo
+      // dispara al final REAL de la canción y evita los minutos de silencio.
       if (remaining > 0.4) return;
 
       // Repeat one: reseek dentro del mismo elemento, NO swap.
@@ -270,9 +302,16 @@ export function usePlayerEngine() {
       const preUrl = (nextTrackRef.current?.id === nextTrack.id) ? nextUrlRef.current : null;
 
       if (!preUrl) {
-        // Precarga no lista: NO hacemos swap (no podemos resolver async sin
-        // perder el contexto). Dejamos que `ended` dispare el camino lento;
-        // en foreground funcionará, en lockscreen no — limitación conocida.
+        // Precarga no lista. Si la duración EFECTIVA ya se alcanzó (la
+        // canción real terminó, aunque el <audio> aún tenga "tail" con
+        // silencio inflado), saltamos al siguiente en foreground para que
+        // el usuario no oiga los minutos de silencio. En lockscreen iOS
+        // bloqueará el play() async — limitación conocida del camino sin
+        // precarga.
+        if (remaining <= 0.05 && swapDoneRef.current !== cur.id + ':fallback') {
+          swapDoneRef.current = cur.id + ':fallback';
+          store.next();
+        }
         return;
       }
 
