@@ -54,6 +54,10 @@
       {
         "from": "bin/cloudflared",
         "to": "bin/cloudflared"
+      },
+      {
+        "from": "build-resources/icon.png",
+        "to": "build-resources/icon.png"
       }
     ],
     "directories": {

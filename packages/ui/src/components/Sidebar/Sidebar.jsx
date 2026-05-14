@@ -20,7 +20,9 @@ export function Sidebar() {
 
   return (
     <nav className={styles.nav}>
-      <div className={styles.brand}>Ritmiq</div>
+      <div className={styles.brand}>
+        <img src="/logotipo.png" alt="Ritmiq" className={styles.brandLogo} />
+      </div>
       <ul className={styles.list}>
         <li>
           <button

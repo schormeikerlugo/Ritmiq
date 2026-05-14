@@ -14,6 +14,12 @@ const isDev = !app.isPackaged;
 let mainWindow = null;
 
 async function createWindow() {
+  // Icono de ventana — en Linux y Windows aplica al titlebar/taskbar;
+  // en macOS lo define el .icns generado por electron-builder.
+  const iconPath = isDev
+    ? join(__dirname, '../build-resources/icon.png')
+    : join(process.resourcesPath, 'build-resources/icon.png');
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -21,6 +27,7 @@ async function createWindow() {
     minHeight: 560,
     backgroundColor: '#0a0a0c',
     titleBarStyle: 'hiddenInset',
+    icon: iconPath,
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       sandbox: false,
