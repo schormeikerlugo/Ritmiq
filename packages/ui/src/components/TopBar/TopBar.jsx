@@ -116,6 +116,12 @@ export function TopBar() {
 
   // Click en resultado → reproducir SIN guardar.
   const pickResult = (item) => {
+    // Prewarm explícito en PWA: aunque el server haya prewarmeado los top-3
+    // tras el search, el usuario puede pulsar uno fuera de ese top o haber
+    // hecho clic antes de que el prewarm en background terminara. Disparar
+    // /yt/prewarm en paralelo a la transición de UI nos asegura que cuando
+    // <audio> haga el primer Range request la URL ya esté cacheada.
+    if (!isDesktop && item?.id) prewarmStream(item.id);
     const candidate = metaToCandidate(item);
     setValue('');
     setResults([]);

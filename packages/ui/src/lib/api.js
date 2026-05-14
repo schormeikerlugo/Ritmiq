@@ -6,7 +6,7 @@
  */
 
 import { supabase } from './supabase.js';
-import { lanSearch, lanMetadata, getLanBaseUrlSync } from './lan-client.js';
+import { lanSearch, lanMetadata, getLanBaseUrlSync, getTunnelUrlSync } from './lan-client.js';
 import { randomId } from './id.js';
 import { rewriteHost } from './url-rewrite.js';
 import {
@@ -76,10 +76,14 @@ const webApi = {
   appInfo: async () => ({ lanPort: null, audioDir: null }),
 
   ytSearch: async (q) => {
-    // 1) Si hay LAN configurado, usarlo (más rápido, sin gastar bandwidth cloud).
-    if (getLanBaseUrlSync()) {
+    // 1) Si hay LAN o Tunnel configurado, usar el lan-server del PC. Esto
+    //    es CRÍTICO en PWA móvil: el server hace prewarm de yt-dlp para los
+    //    3 primeros resultados, así el play() empieza al instante. Si solo
+    //    miramos LAN local, el móvil fuera de casa cae a Edge sin prewarm
+    //    y la primera reproducción tarda 5-10s extra.
+    if (getLanBaseUrlSync() || getTunnelUrlSync()) {
       try { return await lanSearch(q); } catch (err) {
-        console.warn('[api.ytSearch] LAN falló, intentando Edge Function', err);
+        console.warn('[api.ytSearch] LAN/Tunnel falló, intentando Edge Function', err);
       }
     }
     // 2) Fallback a Edge Function search-youtube.
@@ -87,9 +91,9 @@ const webApi = {
   },
 
   ytMetadata: async (q) => {
-    if (getLanBaseUrlSync()) {
+    if (getLanBaseUrlSync() || getTunnelUrlSync()) {
       try { return await lanMetadata(q); } catch (err) {
-        console.warn('[api.ytMetadata] LAN falló, intentando Edge Function', err);
+        console.warn('[api.ytMetadata] LAN/Tunnel falló, intentando Edge Function', err);
       }
     }
     // Fallback: usar el primer resultado de search como metadata aproximada.
