@@ -22,6 +22,11 @@
  *           Opcional: permite al consumidor construir la URL de stream LAN
  *           (por ejemplo añadiendo token Bearer como query string). Si no
  *           se pasa, se usa una construcción simple sin auth.
+ * @property {() => Promise<string|null>} [getDirectStreamUrl]
+ *           Opcional: intenta resolver la URL DIRECTA de googlevideo. Si
+ *           devuelve una URL, se prefiere sobre buildLanStreamUrl y se
+ *           incluye `fallbackUrl` (la del proxy) en el resultado para que
+ *           el reproductor pueda caer al proxy si googlevideo rechaza con 403.
  */
 
 /**
@@ -44,10 +49,21 @@ export async function resolveAudioSource(track, deps) {
   // 2. ¿Hay servidor LAN accesible?
   const lanBase = await deps.getLanBaseUrl();
   if (lanBase) {
-    const url = deps.buildLanStreamUrl
+    const proxyUrl = deps.buildLanStreamUrl
       ? deps.buildLanStreamUrl(track.id, lanBase)
       : `${lanBase}/stream/${encodeURIComponent(track.id)}`;
-    return { url, origin: 'lan' };
+    // Intentar URL directa de googlevideo (bypass Tunnel/proxy). Si
+    // funciona, las Range requests del <audio> van directo y son mucho
+    // más rápidas. Si no (sin ytId, error de red), seguimos con el proxy.
+    if (deps.getDirectStreamUrl) {
+      try {
+        const direct = await deps.getDirectStreamUrl();
+        if (direct) {
+          return { url: direct, fallbackUrl: proxyUrl, origin: 'direct' };
+        }
+      } catch { /* ignorar, caemos al proxy */ }
+    }
+    return { url: proxyUrl, origin: 'lan' };
   }
 
   // 3. Fallback: cloud edge function

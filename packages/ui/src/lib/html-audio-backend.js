@@ -96,10 +96,19 @@ export function createHtmlAudioBackend() {
     /**
      * Carga una URL en el `<audio>` reusando el mismo elemento.
      * Resuelve apenas el elemento puede empezar a reproducir (canplay).
+     *
+     * Si se pasa `fallbackUrl` y la URL principal falla con error de carga
+     * (típicamente 403 de googlevideo IP-locked), reintenta automáticamente
+     * con la URL de respaldo (el proxy LAN). Esto permite usar URLs directas
+     * de googlevideo cuando funcionan y caer transparentemente al proxy
+     * cuando no.
+     *
+     * @param {string} url
+     * @param {{ fallbackUrl?: string }} [opts]
      */
-    load(url) {
+    load(url, opts = {}) {
       const el = ensureAudio();
-      return new Promise((resolve, reject) => {
+      const tryLoad = (srcUrl, isRetry) => new Promise((resolve, reject) => {
         const onCanPlay = () => { cleanup(); resolve(); };
         const onError = () => {
           cleanup();
@@ -111,16 +120,21 @@ export function createHtmlAudioBackend() {
           el.removeEventListener('canplay', onCanPlay);
           el.removeEventListener('error', onError);
         };
-        // Resolver tan pronto como haya datos suficientes para empezar.
-        // `loadeddata` dispara antes que `canplay` y suele bastar para play().
         el.addEventListener('loadeddata', onCanPlay, { once: true });
         el.addEventListener('canplay', onCanPlay, { once: true });
         el.addEventListener('error', onError, { once: true });
-        el.src = url;
-        // No llamamos a `el.load()` explícitamente — Safari iOS lo hace solo
-        // y llamarlo manualmente puede romper el unlock del primer gesto.
-        revokeAllExcept(url);
-        currentSrc = url;
+        el.src = srcUrl;
+        revokeAllExcept(srcUrl);
+        currentSrc = srcUrl;
+        if (isRetry) console.info('[html-audio] fallback URL');
+      });
+
+      return tryLoad(url, false).catch((err) => {
+        if (opts.fallbackUrl && opts.fallbackUrl !== url) {
+          console.warn('[html-audio] direct URL falló, probando fallback:', err.message);
+          return tryLoad(opts.fallbackUrl, true);
+        }
+        throw err;
       });
     },
 

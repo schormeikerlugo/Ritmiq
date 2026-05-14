@@ -274,6 +274,31 @@ export async function startLanServer({ port, db, accessToken }) {
         return;
       }
 
+      // Devuelve la URL DIRECTA de googlevideo resuelta para un ytId. El
+      // cliente la usa como `audio.src` para que las Range requests del
+      // <audio> vayan directo a googlevideo, sin pasar por Tunnel/proxy.
+      // Esto elimina ~150-400ms de TTFB por request × decenas de requests
+      // que hace Safari iOS. Si googlevideo rechaza la IP del cliente con
+      // 403 (URLs IP-locked), el cliente cae al endpoint /stream/yt:<id>
+      // como fallback.
+      // Prioridad MÁXIMA: el cliente solo pide esto cuando va a reproducir.
+      if (url.pathname === '/yt/streamurl') {
+        const ytId = url.searchParams.get('q');
+        if (!ytId) { res.writeHead(400).end('q required'); return; }
+        console.log(`[lan-server] /yt/streamurl?q=${ytId}`);
+        try {
+          const streamUrl = await resolveCached(ytId, 10);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ url: streamUrl }));
+          console.log(`[lan-server] /yt/streamurl?q=${ytId} → 200 (url enviada al cliente)`);
+        } catch (err) {
+          console.warn(`[lan-server] /yt/streamurl?q=${ytId} FAIL`, err.message);
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: String(err?.message ?? err) }));
+        }
+        return;
+      }
+
       if (url.pathname === '/yt/metadata') {
         const idOrUrl = url.searchParams.get('q');
         if (!idOrUrl) { res.writeHead(400).end('q required'); return; }

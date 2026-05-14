@@ -211,6 +211,44 @@ export function prewarmStream(ytId) {
 }
 
 /**
+ * Resuelve la URL DIRECTA de googlevideo para un ytId vía LAN/Tunnel.
+ * El cliente puede usarla como audio.src y las Range requests irán
+ * directamente a googlevideo (sin pasar por Tunnel/proxy) — elimina la
+ * latencia acumulada de muchos Range requests sobre Tunnel.
+ *
+ * Devuelve null si no hay LAN/Tunnel o si el server falla. El llamador
+ * debe caer al endpoint /stream/yt:<id> como fallback.
+ *
+ * @param {string} ytId
+ * @returns {Promise<string|null>}
+ */
+export async function fetchDirectStreamUrl(ytId) {
+  const base = preferredBase();
+  if (!base || !ytId) {
+    console.info('[direct] sin base, skip', ytId);
+    return null;
+  }
+  console.info('[direct] pidiendo URL directa para', ytId);
+  try {
+    const t0 = performance.now();
+    const r = await fetch(`${base}/yt/streamurl?q=${encodeURIComponent(ytId)}`, {
+      headers: authHeaders(),
+    });
+    const dt = Math.round(performance.now() - t0);
+    if (!r.ok) {
+      console.warn('[direct] server respondió', r.status, 'en', dt, 'ms');
+      return null;
+    }
+    const j = await r.json();
+    console.info('[direct] URL recibida en', dt, 'ms, host=', j?.url ? new URL(j.url).host : '?');
+    return typeof j?.url === 'string' ? j.url : null;
+  } catch (e) {
+    console.warn('[direct] error de red:', e.message);
+    return null;
+  }
+}
+
+/**
  * Keep-alive del Cloudflare Tunnel para evitar el cold start (~1-3s) que
  * sufre el primer request cuando el túnel ha estado idle. Hace un ping a
  * /health cada 45s mientras la PWA esté abierta. Solo se activa cuando hay

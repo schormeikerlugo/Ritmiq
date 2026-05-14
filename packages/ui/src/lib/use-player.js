@@ -21,6 +21,7 @@ import { api, isDesktop } from './api.js';
 import { isEphemeralTrack } from './track-helpers.js';
 import {
   getLanBaseUrlSync, pingLan, getTunnelUrlSync, withTokenInUrl,
+  fetchDirectStreamUrl,
 } from './lan-client.js';
 import { getLocalBlobUrl } from './local-downloads.js';
 
@@ -90,8 +91,15 @@ if (typeof window !== 'undefined') {
 }
 
 /* ── Resolver de URL compartido entre track actual y precarga ─────────── */
-function buildResolveDeps(track) {
+/**
+ * @param {any} track
+ * @param {{ allowDirect?: boolean }} [opts]  `allowDirect=false` desactiva
+ *   la URL directa de googlevideo. Útil para la precarga del siguiente
+ *   track, donde el swap síncrono no tiene fallback si googlevideo rechaza.
+ */
+function buildResolveDeps(track, opts = {}) {
   const ephemeral = isEphemeralTrack(track);
+  const allowDirect = opts.allowDirect !== false;
   return {
     getLocalUrl: async () => {
       if (!isDesktop && !ephemeral) {
@@ -110,6 +118,20 @@ function buildResolveDeps(track) {
     },
     buildLanStreamUrl: (trackId, base) =>
       withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}`),
+    /**
+     * Hook opcional: si el track tiene ytId, intentar resolver la URL
+     * DIRECTA de googlevideo desde el lan-server. Las Range requests del
+     * <audio> irán directo a googlevideo (sin Tunnel) — mucho más rápido.
+     * Si falla (ej. googlevideo rechaza la IP del cliente con 403), el
+     * backend de audio caerá al fallback proxy automáticamente.
+     */
+    getDirectStreamUrl: async () => {
+      if (!allowDirect) return null;
+      if (!isDesktop && track.ytId) {
+        return fetchDirectStreamUrl(track.ytId);
+      }
+      return null;
+    },
     resolveCloudStream: async () => {
       if (isDesktop && track.ytId) {
         const url = await api.ytStreamUrl(track.ytId);
@@ -410,9 +432,9 @@ export function usePlayerEngine() {
     (async () => {
       try {
         setState({ error: null });
-        const { url } = await resolveAudioSource(currentTrack, buildResolveDeps(currentTrack));
+        const { url, fallbackUrl } = await resolveAudioSource(currentTrack, buildResolveDeps(currentTrack));
         if (cancelled) return;
-        await backend.load(url);
+        await backend.load(url, { fallbackUrl });
         if (cancelled) return;
         loadedTrackIdRef.current = currentTrack.id;
         loadedFingerprintRef.current = fp;
@@ -447,7 +469,9 @@ export function usePlayerEngine() {
     // Pequeño delay para no competir con la resolución del track actual.
     const timer = setTimeout(async () => {
       try {
-        const { url } = await resolveAudioSource(nextTrack, buildResolveDeps(nextTrack));
+        // Precarga del siguiente: usar SIEMPRE proxy URL. El swap síncrono
+        // (swapAndPlay) no tiene fallback si googlevideo rechaza con 403.
+        const { url } = await resolveAudioSource(nextTrack, buildResolveDeps(nextTrack, { allowDirect: false }));
         if (cancelled) return;
         nextUrlRef.current = url;
         nextTrackRef.current = nextTrack;
