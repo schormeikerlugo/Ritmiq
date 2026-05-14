@@ -122,6 +122,11 @@ input, textarea, select { font-size: 16px; }
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+/* Shimmer para skeletons: gradiente que recorre de izquierda a derecha. */
+@keyframes ritmiq-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
 
 /* Aplicar feedback táctil a TODOS los botones por defecto en mobile.
    Hace que cada interacción se sienta física y fluida.                  */

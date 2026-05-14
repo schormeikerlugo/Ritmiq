@@ -41,7 +41,7 @@ const LASTFM_BASE = 'https://ws.audioscrobbler.com/2.0/';
 const INNERTUBE_URL = 'https://www.youtube.com/youtubei/v1/search?prettyPrint=false';
 const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 
-type Kind = 'similar-artist' | 'mix-by-track' | 'genre-mix' | 'discover';
+type Kind = 'similar-artist' | 'mix-by-track' | 'genre-mix' | 'discover' | 'auto-genre-mix';
 
 interface RecTrack {
   ytId: string;
@@ -108,10 +108,77 @@ async function topTagsByArtist(artist: string): Promise<string[]> {
   try {
     const j = await lfm('artist.getTopTags', { artist, autocorrect: '1' });
     const items = j?.toptags?.tag ?? [];
-    return items.slice(0, 5).map((x: any) => String(x.name).toLowerCase());
+    return items.slice(0, 10).map((x: any) => String(x.name).toLowerCase());
   } catch {
     return [];
   }
+}
+
+/**
+ * Lista negra de tags que nunca queremos usar como "género":
+ *  - genéricos / no descriptivos
+ *  - décadas (00s, 10s, 20s) — son periodo, no género
+ *  - meta-listas del usuario en Last.fm
+ *  - vocales (no son género real)
+ */
+const TAG_BLACKLIST = new Set<string>([
+  'seen live', 'awesome', 'favorite', 'favourite', 'favorites', 'favourites',
+  'all', 'albums i own', 'tracks i own', 'love at first listen',
+  'male vocalists', 'female vocalists', 'male vocalist', 'female vocalist',
+  'cool', 'great', 'amazing', 'best', 'good', 'beautiful', 'epic',
+  'classic', 'masterpiece', 'spotify',
+]);
+
+function isAllowedTag(tag: string): boolean {
+  const t = tag.toLowerCase().trim();
+  if (TAG_BLACKLIST.has(t)) return false;
+  // Décadas tipo "00s", "10s", "70s", "1990s", etc.
+  if (/^\d{2,4}s?$/.test(t)) return false;
+  // Años puros.
+  if (/^(19|20)\d{2}$/.test(t)) return false;
+  // Muy corto.
+  if (t.length < 3) return false;
+  return true;
+}
+
+/**
+ * Obtiene tags de un artista usando la tabla `artist_tags` como cache.
+ * Si la tabla no tiene entrada fresca (< 30 días), llama Last.fm y
+ * persiste antes de retornar.
+ *
+ * @param admin   Cliente Supabase con service role (para escribir el cache).
+ * @param artist  Nombre del artista.
+ */
+async function ensureArtistTags(admin: any, artist: string): Promise<string[]> {
+  const norm = artist.trim().toLowerCase();
+  if (!norm) return [];
+  // Lookup cache.
+  try {
+    const { data: row } = await admin
+      .from('artist_tags')
+      .select('tags, refreshed_at')
+      .eq('artist', norm)
+      .maybeSingle();
+    if (row && row.refreshed_at) {
+      const t = new Date(row.refreshed_at).getTime();
+      const fresh = Date.now() - t < 30 * 86400_000;
+      if (fresh) return (row.tags ?? []).filter(isAllowedTag);
+    }
+  } catch (e) {
+    console.warn('[recommendations] artist_tags read failed', (e as Error).message);
+  }
+  // Fetch from Last.fm + persistir.
+  const tags = (await topTagsByArtist(artist)).filter(isAllowedTag).slice(0, 5);
+  try {
+    await admin.from('artist_tags').upsert({
+      artist: norm,
+      tags,
+      refreshed_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn('[recommendations] artist_tags write failed', (e as Error).message);
+  }
+  return tags;
 }
 
 /* ────────────────────────────────────────────────────────────────────── */
@@ -306,10 +373,11 @@ serve(async (req) => {
   const kind = url.searchParams.get('kind') as Kind | null;
   const seed = (url.searchParams.get('seed') ?? '').trim();
 
-  if (!kind || !['similar-artist', 'mix-by-track', 'genre-mix', 'discover'].includes(kind)) {
+  if (!kind || !['similar-artist', 'mix-by-track', 'genre-mix', 'discover', 'auto-genre-mix'].includes(kind)) {
     return json({ error: 'kind inválido' }, 400);
   }
-  if (kind !== 'discover' && !seed) {
+  const seedlessKinds = new Set(['discover', 'auto-genre-mix']);
+  if (!seedlessKinds.has(kind) && !seed) {
     return json({ error: 'seed requerido para este kind' }, 400);
   }
 
@@ -356,6 +424,63 @@ serve(async (req) => {
       tracks = await genMixByTrack(seedArtist, seedTitle);
     } else if (kind === 'genre-mix') {
       tracks = await genGenreMix(seed);
+    } else if (kind === 'auto-genre-mix') {
+      // Deriva el género dominante del usuario:
+      //  1. Lee top artistas de play_history (últimos 30 días).
+      //  2. Para cada uno trae sus top-tags (cache `artist_tags`).
+      //  3. Pondera tags por play count y elige el más frecuente.
+      //  4. Genera mix con genre-mix(topTag).
+      const { data: hist } = await adminClient
+        .from('play_history')
+        .select('artist')
+        .eq('user_id', user.id)
+        .not('artist', 'is', null)
+        .gte('played_at', new Date(Date.now() - 30 * 86400_000).toISOString());
+      const counts = new Map<string, number>();
+      for (const r of hist ?? []) {
+        const a = (r.artist ?? '').trim();
+        if (!a) continue;
+        counts.set(a, (counts.get(a) ?? 0) + 1);
+      }
+      const topArtists = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+      if (topArtists.length === 0) {
+        const empty: Payload = { kind, seed: null, tracks: [], generatedAt: new Date().toISOString() };
+        return json(empty);
+      }
+      const tagScore = new Map<string, number>();
+      for (const [artist, plays] of topArtists) {
+        const tags = await ensureArtistTags(adminClient, artist);
+        for (let i = 0; i < tags.length; i++) {
+          // Peso por posición (rank inverso) × plays del artista.
+          const w = (tags.length - i) * plays;
+          tagScore.set(tags[i], (tagScore.get(tags[i]) ?? 0) + w);
+        }
+      }
+      const ranked = [...tagScore.entries()].sort((a, b) => b[1] - a[1]);
+      if (ranked.length === 0) {
+        const empty: Payload = { kind, seed: null, tracks: [], generatedAt: new Date().toISOString() };
+        return json(empty);
+      }
+      const topTag = ranked[0][0];
+      tracks = await genGenreMix(topTag);
+      const payload: Payload = {
+        kind,
+        seed: topTag,
+        tracks,
+        generatedAt: new Date().toISOString(),
+      };
+      // Persistir cache con seed normalizado.
+      try {
+        await adminClient.from('recommendation_cache').upsert({
+          cache_key: key,
+          user_id: user.id,
+          kind,
+          seed: topTag,
+          payload,
+          refreshed_at: new Date().toISOString(),
+        });
+      } catch {}
+      return json(payload);
     } else if (kind === 'discover') {
       // Leer top artistas y biblioteca del usuario.
       const { data: hist } = await adminClient

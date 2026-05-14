@@ -7,12 +7,17 @@
  *  - items:     array a renderizar
  *  - renderItem (item, index) => JSX
  *  - onPlayAll: opcional, callback del botón "Reproducir todo"
+ *  - loading:   si true Y items.length===0 muestra skeleton en vez de null.
+ *               Si items ya tiene contenido se ignora (no parpadeamos).
  */
 import { Icon } from '../Icon/Icon.jsx';
+import { RowSkeleton } from './RowSkeleton.jsx';
 import styles from './HomeRow.module.css';
 
-export function HomeRow({ title, subtitle, items, renderItem, onPlayAll }) {
-  if (!items || items.length === 0) return null;
+export function HomeRow({ title, subtitle, items, renderItem, onPlayAll, loading }) {
+  const empty = !items || items.length === 0;
+  if (empty && loading) return <RowSkeleton title={title} count={5} />;
+  if (empty) return null;
   return (
     <section className={styles.row}>
       <header className={styles.head}>

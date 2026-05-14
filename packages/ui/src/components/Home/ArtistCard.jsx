@@ -23,7 +23,7 @@ export function ArtistCard({ entry, onClick }) {
       </div>
       <div className={styles.meta}>
         <span className={styles.title}>{entry.artist}</span>
-        <span className={styles.sub}>Artista · {entry.playCount} plays</span>
+        <span className={styles.sub}>Artista · {entry.playCount} {entry.playCount === 1 ? 'play' : 'plays'}</span>
       </div>
     </button>
   );

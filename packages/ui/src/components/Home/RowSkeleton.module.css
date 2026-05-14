@@ -1,0 +1,73 @@
+/* Mismo layout que HomeRow para evitar saltos cuando llegan los datos. */
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.head {
+  padding: 0 var(--space-1);
+}
+
+.title {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--color-text-1);
+}
+
+.scroll {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 180px;
+  gap: var(--space-3);
+  overflow: hidden;
+  padding: 4px var(--space-1) var(--space-2);
+  margin: 0 calc(var(--space-1) * -1);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-2);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-md);
+}
+
+.cover {
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: ritmiq-shimmer 1.6s linear infinite;
+}
+
+.line {
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: ritmiq-shimmer 1.6s linear infinite;
+}
+
+@media (max-width: 640px) {
+  .scroll {
+    grid-auto-columns: 150px;
+  }
+  .title {
+    font-size: var(--fs-lg);
+  }
+}

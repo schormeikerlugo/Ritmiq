@@ -210,43 +210,14 @@ export function prewarmStream(ytId) {
   }).catch(() => {});
 }
 
-/**
- * Resuelve la URL DIRECTA de googlevideo para un ytId vía LAN/Tunnel.
- * El cliente puede usarla como audio.src y las Range requests irán
- * directamente a googlevideo (sin pasar por Tunnel/proxy) — elimina la
- * latencia acumulada de muchos Range requests sobre Tunnel.
- *
- * Devuelve null si no hay LAN/Tunnel o si el server falla. El llamador
- * debe caer al endpoint /stream/yt:<id> como fallback.
- *
- * @param {string} ytId
- * @returns {Promise<string|null>}
- */
-export async function fetchDirectStreamUrl(ytId) {
-  const base = preferredBase();
-  if (!base || !ytId) {
-    console.info('[direct] sin base, skip', ytId);
-    return null;
-  }
-  console.info('[direct] pidiendo URL directa para', ytId);
-  try {
-    const t0 = performance.now();
-    const r = await fetch(`${base}/yt/streamurl?q=${encodeURIComponent(ytId)}`, {
-      headers: authHeaders(),
-    });
-    const dt = Math.round(performance.now() - t0);
-    if (!r.ok) {
-      console.warn('[direct] server respondió', r.status, 'en', dt, 'ms');
-      return null;
-    }
-    const j = await r.json();
-    console.info('[direct] URL recibida en', dt, 'ms, host=', j?.url ? new URL(j.url).host : '?');
-    return typeof j?.url === 'string' ? j.url : null;
-  } catch (e) {
-    console.warn('[direct] error de red:', e.message);
-    return null;
-  }
-}
+// ─── CONTEXTO HISTÓRICO: fetchDirectStreamUrl ───────────────────────────
+// Helper que pedía al lan-server la URL firmada directa de googlevideo
+// para pasarla a `<audio>.src` y bypassear el proxy del Tunnel.
+// Eliminado tras confirmar que googlevideo IP-locked rechaza la IP del
+// iPhone con 403. El fallback al proxy duplica round-trips → peor latencia.
+// Si en el futuro hay un mecanismo de re-firma de URL o se conecta por
+// el mismo IP-mesh (Tailscale), reintroducir desde git history.
+// ────────────────────────────────────────────────────────────────────────
 
 /**
  * Keep-alive del Cloudflare Tunnel para evitar el cold start (~1-3s) que

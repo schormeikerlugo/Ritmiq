@@ -70,17 +70,15 @@ export function Home() {
   const topArtistSeed = topArtists[0]?.artist ?? null;
   // Seed para "Porque escuchaste X" — el track #1 reproducido recientemente.
   const trackSeed = recent[0] ?? null;
-  // Seed para "Mix de [Género]" — el género del artista #1 (vendrá del server).
-  // Por ahora usamos el nombre del artista como tag — no es perfecto, pero
-  // funciona para géneros que coinciden con artistas (ej. "Bad Bunny" → tag
-  // "reggaeton" si Last.fm lo conoce). Mejora futura: tabla artist_tags.
-  const genreSeed = topArtists[1]?.artist ?? null;
 
   useEffect(() => {
     if (topArtistSeed) fetchRec('similar-artist', topArtistSeed).catch(() => {});
     if (trackSeed?.artist && trackSeed?.title) {
       fetchRec('mix-by-track', `${trackSeed.artist}::${trackSeed.title}`).catch(() => {});
     }
+    // Mix de género automático — el server deriva el tag dominante del
+    // historial del usuario vía artist_tags. No necesita seed cliente.
+    if (topArtists.length >= 1) fetchRec('auto-genre-mix', '').catch(() => {});
     // Discover solo si tenemos historial suficiente.
     if (topArtists.length >= 2) fetchRec('discover', '').catch(() => {});
   }, [topArtistSeed, trackSeed?.ytId, trackSeed?.artist, topArtists.length, fetchRec]);
@@ -89,6 +87,7 @@ export function Home() {
   const byTrackRec       = trackSeed?.artist && trackSeed?.title
     ? recStore[`mix-by-track:${trackSeed.artist}::${trackSeed.title}`]
     : null;
+  const genreRec         = recStore['auto-genre-mix:'];
   const discoverRec      = recStore['discover:'];
 
   /* ── Lanzar cola completa empezando en `startIdx` ───────────────────── */
@@ -166,19 +165,20 @@ export function Home() {
         renderItem={(t, i) => (
           <TrackCard
             track={t}
-            subtitle={`${t.artist ?? ''}${t.playCount ? ` · ${t.playCount} plays` : ''}`}
+            subtitle={`${t.artist ?? ''}${t.playCount ? ` · ${t.playCount} ${t.playCount === 1 ? 'play' : 'plays'}` : ''}`}
             onClick={() => playRow(top, i)}
           />
         )}
       />
 
       {/* ─── Porque escuchaste [Track] (Fase 2) ─── */}
-      {byTrackRec?.tracks?.length > 0 && (
+      {trackSeed?.title && (
         <HomeRow
           title={`Porque escuchaste ${trackSeed.title}`}
-          subtitle={`Canciones similares a ${trackSeed.artist}`}
-          items={byTrackRec.tracks}
-          onPlayAll={() => playRow(byTrackRec.tracks)}
+          subtitle={`Canciones similares a ${trackSeed.artist ?? ''}`}
+          items={byTrackRec?.tracks ?? []}
+          loading={byTrackRec?.loading}
+          onPlayAll={byTrackRec?.tracks?.length ? () => playRow(byTrackRec.tracks) : undefined}
           renderItem={(t, i) => (
             <TrackCard track={t} onClick={() => playRow(byTrackRec.tracks, i)} />
           )}
@@ -186,12 +186,13 @@ export function Home() {
       )}
 
       {/* ─── Mix de [Artista] (Fase 2) ─── */}
-      {similarArtistRec?.tracks?.length > 0 && (
+      {topArtistSeed && (
         <HomeRow
           title={`Mix de ${topArtistSeed}`}
           subtitle="Artistas similares a los que más escuchas"
-          items={similarArtistRec.tracks}
-          onPlayAll={() => playRow(similarArtistRec.tracks)}
+          items={similarArtistRec?.tracks ?? []}
+          loading={similarArtistRec?.loading}
+          onPlayAll={similarArtistRec?.tracks?.length ? () => playRow(similarArtistRec.tracks) : undefined}
           renderItem={(t, i) => (
             <TrackCard
               track={t}
@@ -202,13 +203,32 @@ export function Home() {
         />
       )}
 
+      {/* ─── Mix por género real (Fase 3 — auto-genre-mix) ─── */}
+      {topArtists.length >= 1 && (
+        <HomeRow
+          title={genreRec?.seed ? `Mix de ${genreRec.seed}` : 'Mix por género'}
+          subtitle="Tu género más escuchado"
+          items={genreRec?.tracks ?? []}
+          loading={genreRec?.loading}
+          onPlayAll={genreRec?.tracks?.length ? () => playRow(genreRec.tracks) : undefined}
+          renderItem={(t, i) => (
+            <TrackCard
+              track={t}
+              subtitle={t.artist ?? ''}
+              onClick={() => playRow(genreRec.tracks, i)}
+            />
+          )}
+        />
+      )}
+
       {/* ─── Para descubrir (Fase 2) ─── */}
-      {discoverRec?.tracks?.length > 0 && (
+      {topArtists.length >= 2 && (
         <HomeRow
           title="Para descubrir"
           subtitle="Artistas nuevos que podrían gustarte"
-          items={discoverRec.tracks}
-          onPlayAll={() => playRow(discoverRec.tracks)}
+          items={discoverRec?.tracks ?? []}
+          loading={discoverRec?.loading}
+          onPlayAll={discoverRec?.tracks?.length ? () => playRow(discoverRec.tracks) : undefined}
           renderItem={(t, i) => (
             <TrackCard
               track={t}

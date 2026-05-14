@@ -22,11 +22,11 @@
  *           Opcional: permite al consumidor construir la URL de stream LAN
  *           (por ejemplo añadiendo token Bearer como query string). Si no
  *           se pasa, se usa una construcción simple sin auth.
- * @property {() => Promise<string|null>} [getDirectStreamUrl]
- *           Opcional: intenta resolver la URL DIRECTA de googlevideo. Si
- *           devuelve una URL, se prefiere sobre buildLanStreamUrl y se
- *           incluye `fallbackUrl` (la del proxy) en el resultado para que
- *           el reproductor pueda caer al proxy si googlevideo rechaza con 403.
+ *
+ * CONTEXTO HISTÓRICO: existió aquí una prop `getDirectStreamUrl` que
+ * intentaba servir la URL firmada de googlevideo directamente al `<audio>`
+ * para bypassear el proxy. Se removió por IP-lock de googlevideo. Ver
+ * `lan-client.js` y `html-audio-backend.js` para más detalle.
  */
 
 /**
@@ -49,21 +49,10 @@ export async function resolveAudioSource(track, deps) {
   // 2. ¿Hay servidor LAN accesible?
   const lanBase = await deps.getLanBaseUrl();
   if (lanBase) {
-    const proxyUrl = deps.buildLanStreamUrl
+    const url = deps.buildLanStreamUrl
       ? deps.buildLanStreamUrl(track.id, lanBase)
       : `${lanBase}/stream/${encodeURIComponent(track.id)}`;
-    // Intentar URL directa de googlevideo (bypass Tunnel/proxy). Si
-    // funciona, las Range requests del <audio> van directo y son mucho
-    // más rápidas. Si no (sin ytId, error de red), seguimos con el proxy.
-    if (deps.getDirectStreamUrl) {
-      try {
-        const direct = await deps.getDirectStreamUrl();
-        if (direct) {
-          return { url: direct, fallbackUrl: proxyUrl, origin: 'direct' };
-        }
-      } catch { /* ignorar, caemos al proxy */ }
-    }
-    return { url: proxyUrl, origin: 'lan' };
+    return { url, origin: 'lan' };
   }
 
   // 3. Fallback: cloud edge function
