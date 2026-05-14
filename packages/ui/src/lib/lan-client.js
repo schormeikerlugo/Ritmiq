@@ -191,15 +191,60 @@ export function lanStreamUrl(trackId) {
 }
 
 /**
- * Pre-calienta el cache de stream URL.
+ * Pre-calienta el cache de stream URL. Dedupe en cliente: cada ytId se
+ * prewarmea como máximo una vez por sesión (5 min) para no encolar yt-dlp
+ * múltiples veces si el usuario toca el mismo resultado varias veces.
  * @param {string} ytId
  */
+const prewarmedAt = new Map();
+const PREWARM_DEDUP_MS = 5 * 60 * 1000;
 export function prewarmStream(ytId) {
   const base = preferredBase();
   if (!base || !ytId) return;
+  const now = Date.now();
+  const last = prewarmedAt.get(ytId);
+  if (last && now - last < PREWARM_DEDUP_MS) return;
+  prewarmedAt.set(ytId, now);
   fetch(`${base}/yt/prewarm?q=${encodeURIComponent(ytId)}`, {
     headers: authHeaders(),
   }).catch(() => {});
+}
+
+/**
+ * Keep-alive del Cloudflare Tunnel para evitar el cold start (~1-3s) que
+ * sufre el primer request cuando el túnel ha estado idle. Hace un ping a
+ * /health cada 45s mientras la PWA esté abierta. Solo se activa cuando hay
+ * Tunnel configurado (no LAN local, que no necesita keep-alive).
+ *
+ * @returns {() => void} función para detener el keep-alive.
+ */
+export function startTunnelKeepalive() {
+  if (typeof window === 'undefined') return () => {};
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    const tunnel = getTunnelUrlSync();
+    // Solo si tunnel existe Y no estamos en LAN local (LAN ya es rápida).
+    if (tunnel && !getLanBaseUrlSync()) {
+      try {
+        await fetch(`${tunnel.replace(/\/$/, '')}/health`, {
+          headers: authHeaders(),
+          cache: 'no-store',
+        });
+      } catch { /* ignorar — solo es keep-alive */ }
+    }
+  };
+  // Primer ping inmediato para calentar el túnel al arrancar la PWA.
+  tick();
+  const id = setInterval(tick, 45_000);
+  // También un ping al recuperar foco — iOS pausa timers en background.
+  const onVisible = () => { if (document.visibilityState === 'visible') tick(); };
+  document.addEventListener('visibilitychange', onVisible);
+  return () => {
+    stopped = true;
+    clearInterval(id);
+    document.removeEventListener('visibilitychange', onVisible);
+  };
 }
 
 /**

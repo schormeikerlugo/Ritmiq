@@ -17,6 +17,7 @@ import { useViewStore } from './stores/view.js';
 import { usePlayerEngine } from './lib/use-player.js';
 import {
   autoDetectLanFromHost, setLanBaseUrl, getLanBaseUrlSync, setAccessToken,
+  startTunnelKeepalive,
 } from './lib/lan-client.js';
 import { api, isDesktop } from './lib/api.js';
 import { realtime } from './lib/realtime.js';
@@ -54,6 +55,14 @@ export function App() {
         if (url) console.info('[lan] auto-conectado:', url);
       });
     }
+  }, []);
+
+  // PWA: mantener vivo el Cloudflare Tunnel para que el primer request no
+  // pague cold start (~1-3s extra de TTFB cuando cloudflared estuvo idle).
+  // Desktop no lo necesita (todo localhost).
+  useEffect(() => {
+    if (isDesktop) return;
+    return startTunnelKeepalive();
   }, []);
 
   // Recargar biblioteca y playlists al cambiar el usuario

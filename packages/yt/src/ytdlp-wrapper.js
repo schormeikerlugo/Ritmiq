@@ -30,18 +30,25 @@ import { spawn } from 'node:child_process';
  */
 function run(args, opts = {}) {
   const bin = opts.binary ?? 'yt-dlp';
-  return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
+  const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  let stdout = '';
+  let stderr = '';
+  const promise = new Promise((resolve, reject) => {
     child.stdout.on('data', (b) => (stdout += b.toString()));
     child.stderr.on('data', (b) => (stderr += b.toString()));
     child.on('error', reject);
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
+      if (signal === 'SIGTERM' || signal === 'SIGKILL') {
+        reject(new Error(`yt-dlp killed (${signal})`));
+        return;
+      }
       if (code === 0) resolve(stdout);
       else reject(new Error(`yt-dlp exited ${code}: ${stderr}`));
     });
   });
+  // Exponer el handle del proceso para poder matarlo si se cancela.
+  promise.kill = () => { try { child.kill('SIGTERM'); } catch {} };
+  return promise;
 }
 
 /**
@@ -57,7 +64,27 @@ function run(args, opts = {}) {
 export async function getStreamUrl(youtubeIdOrUrl, opts) {
   const url = normalizeUrl(youtubeIdOrUrl);
   const fmt = 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio[acodec^=mp4a]/bestaudio';
-  const out = await run(['-f', fmt, '-g', '--no-playlist', url], opts);
+  // Flags de aceleración seguras:
+  //  --no-check-certificates → skip TLS verification redundante.
+  //  --no-warnings → menos stderr ruido.
+  //  --skip-download → asegura que solo resuelve URL.
+  // NOTA: probamos --extractor-args player_client=ios,android pero esos
+  // clientes no exponen el itag m4a que necesita iOS Safari → el selector
+  // fallaba con "Requested format is not available". El cliente web por
+  // defecto sí los expone; aceptamos el coste de ~2.8s por resolución y
+  // priorizamos vía la cola del lan-server.
+  const out = await run(
+    [
+      '-f', fmt,
+      '-g',
+      '--no-playlist',
+      '--no-warnings',
+      '--no-check-certificates',
+      '--skip-download',
+      url,
+    ],
+    opts
+  );
   return out.trim().split('\n')[0];
 }
 

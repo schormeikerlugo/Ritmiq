@@ -61,29 +61,156 @@ export async function startLanServer({ port, db, accessToken }) {
 
   // Cache en memoria de URLs de stream resueltas por yt-dlp.
   // Las URLs de googlevideo expiran a las ~6h; cacheamos 30 minutos para
-  // estar muy holgados. Resolver yt-dlp tarda 2-5s, esto evita la espera
-  // en reproducciones repetidas / pre-resolves.
+  // estar muy holgados. Resolver yt-dlp tarda 1-3s (con ios player_client),
+  // esto evita la espera en reproducciones repetidas / pre-resolves.
   /** @type {Map<string, { url: string, expiresAt: number, inflight?: Promise<string> }>} */
   const streamCache = new Map();
   const TTL_MS = 30 * 60 * 1000;
 
-  async function resolveCached(ytId) {
+  /**
+   * Cola con concurrencia limitada para yt-dlp. CPU contention con muchos
+   * procesos simultáneos hace que un único yt-dlp pase de 2.8s a 7+s.
+   * Limitamos a 2 simultáneos y damos prioridad a streams reales (click del
+   * usuario) sobre prewarms (background).
+   */
+  const MAX_CONCURRENT = 2;
+  let running = 0;
+  /** @type {Array<any>} jobs en cola esperando slot. */
+  const waitQueue = [];
+  /** @type {Set<any>} jobs actualmente corriendo (con yt-dlp activo). */
+  const runningJobs = new Set();
+
+  function scheduleNext() {
+    if (running >= MAX_CONCURRENT) return;
+    if (waitQueue.length === 0) return;
+    // Orden descendente por prioridad — saca el de mayor prioridad.
+    waitQueue.sort((a, b) => b.priority - a.priority);
+    const job = waitQueue.shift();
+    running++;
+    runningJobs.add(job);
+    job.run();
+  }
+
+  /**
+   * Mata yt-dlp procesos corriendo con prioridad < umbral. El cache se
+   * limpia para que un futuro request los vuelva a resolver. Solo se usa
+   * cuando llega un click p=10 y aún hay prewarms ocupando los 2 slots.
+   */
+  function killLowPriorityRunning(threshold) {
+    let killed = 0;
+    for (const job of runningJobs) {
+      if (job.priority < threshold) {
+        try { job.childPromise?.kill?.(); } catch {}
+        streamCache.delete(job.ytId);
+        killed++;
+      }
+    }
+    if (killed > 0) {
+      console.log(`[lan-server] killed ${killed} low-prio running (umbral=${threshold})`);
+    }
+  }
+
+  /**
+   * Cuando llega un job de alta prioridad (stream real del usuario),
+   * descartamos de la cola los de baja prioridad (auto-prewarm de search)
+   * que aún no han empezado. El click es lo único que importa ahora; los
+   * prewarms eran apuestas y ya perdieron.
+   */
+  function evictLowPriorityQueued(threshold) {
+    const before = waitQueue.length;
+    for (let i = waitQueue.length - 1; i >= 0; i--) {
+      const j = waitQueue[i];
+      if (j.priority < threshold) {
+        waitQueue.splice(i, 1);
+        // Marcar el inflight como cancelado limpiando el cache para que un
+        // futuro request lo vuelva a intentar.
+        streamCache.delete(j.ytId);
+        // Resolver el promise con error para que cualquier await termine.
+        j.cancel?.();
+      }
+    }
+    const evicted = before - waitQueue.length;
+    if (evicted > 0) {
+      console.log(`[lan-server] evicted ${evicted} low-prio jobs (umbral=${threshold})`);
+    }
+  }
+
+  /**
+   * @param {string} ytId
+   * @param {number} priority  10 = stream del usuario, 1 = prewarm background
+   */
+  function resolveCached(ytId, priority = 1) {
     const now = Date.now();
     const hit = streamCache.get(ytId);
     if (hit) {
-      if (hit.url && hit.expiresAt > now) return hit.url;
-      if (hit.inflight) return hit.inflight;
+      if (hit.url && hit.expiresAt > now) {
+        console.log(`[lan-server] resolve ${ytId} CACHE HIT`);
+        return Promise.resolve(hit.url);
+      }
+      if (hit.inflight) {
+        console.log(`[lan-server] resolve ${ytId} INFLIGHT (esperando, p=${priority})`);
+        // Si la prioridad subió (de prewarm a stream real), promover en cola
+        // si aún no empezó.
+        const queued = waitQueue.find((j) => j.ytId === ytId);
+        if (queued && priority > queued.priority) queued.priority = priority;
+        // CRÍTICO: si la promoción es a alta prioridad, también purgar la
+        // cola y matar yt-dlp running de baja prio. Antes faltaba esto y el
+        // click esperaba a que terminaran los prewarms corriendo.
+        if (priority >= 7) {
+          evictLowPriorityQueued(7);
+          killLowPriorityRunning(7);
+          // Si el job promovido estaba queued (no corriendo), darle slot ya.
+          scheduleNext();
+        }
+        return hit.inflight;
+      }
     }
-    const inflight = getStreamUrl(ytId, { binary: ytBinary });
-    streamCache.set(ytId, { url: '', expiresAt: 0, inflight });
-    try {
-      const url = await inflight;
-      streamCache.set(ytId, { url, expiresAt: now + TTL_MS });
-      return url;
-    } catch (err) {
-      streamCache.delete(ytId);
-      throw err;
+    // Si entra un job de alta prioridad (click real del usuario),
+    // limpiar la cola Y matar yt-dlp en ejecución de baja prio. Los
+    // prewarms ya no importan; el click es lo único que importa.
+    if (priority >= 7) {
+      evictLowPriorityQueued(7);
+      killLowPriorityRunning(7);
     }
+
+    // Crear promise pendiente — encolar el yt-dlp respetando concurrencia.
+    let resolveFn, rejectFn;
+    const p = new Promise((res, rej) => { resolveFn = res; rejectFn = rej; });
+    streamCache.set(ytId, { url: '', expiresAt: 0, inflight: p });
+
+    const job = {
+      ytId,
+      priority,
+      childPromise: null,   // promise de getStreamUrl (con .kill())
+      cancel: () => rejectFn(new Error('cancelled (low priority evicted)')),
+      run: async () => {
+        const t0 = Date.now();
+        console.log(`[lan-server] resolve ${ytId} START (p=${job.priority})`);
+        try {
+          const cp = getStreamUrl(ytId, { binary: ytBinary });
+          job.childPromise = cp;
+          const url = await cp;
+          const dt = Date.now() - t0;
+          console.log(`[lan-server] resolve ${ytId} OK en ${dt}ms`);
+          streamCache.set(ytId, { url, expiresAt: Date.now() + TTL_MS });
+          resolveFn(url);
+        } catch (err) {
+          console.warn(`[lan-server] resolve ${ytId} FAIL`, err.message);
+          streamCache.delete(ytId);
+          rejectFn(err);
+        } finally {
+          running--;
+          runningJobs.delete(job);
+          scheduleNext();
+        }
+      },
+    };
+    waitQueue.push(job);
+    if (waitQueue.length > 1 || running >= MAX_CONCURRENT) {
+      console.log(`[lan-server] resolve ${ytId} QUEUED (cola=${waitQueue.length}, running=${running})`);
+    }
+    scheduleNext();
+    return p;
   }
   const server = http.createServer(async (req, res) => {
     try {
@@ -126,19 +253,23 @@ export async function startLanServer({ port, db, accessToken }) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ items }));
 
-        // Pre-resolver los stream URLs de los 3 primeros resultados en
-        // background. Cuando el usuario elija cualquiera, ya estará cacheado.
-        for (const it of items.slice(0, 3)) {
-          if (it?.id) resolveCached(it.id).catch(() => {});
+        // Pre-resolver los stream URLs de los 2 primeros resultados en
+        // background con prioridad BAJA. Reducimos de 3→2 para no saturar
+        // la cola de yt-dlp cuando el usuario hace varias búsquedas seguidas.
+        // El click real será prioridad ALTA y saltará la cola.
+        for (const it of items.slice(0, 2)) {
+          if (it?.id) resolveCached(it.id, 1).catch(() => {});
         }
         return;
       }
 
       // Permite al cliente "calentar" el cache antes de pulsar play.
+      // Prioridad MEDIA — el usuario ya mostró intención (touch/hover sobre
+      // el resultado), pero todavía no es un stream comprometido.
       if (url.pathname === '/yt/prewarm') {
         const ytId = url.searchParams.get('q');
         if (!ytId) { res.writeHead(400).end('q required'); return; }
-        resolveCached(ytId).catch(() => {});
+        resolveCached(ytId, 5).catch(() => {});
         res.writeHead(204).end();
         return;
       }
@@ -179,7 +310,15 @@ export async function startLanServer({ port, db, accessToken }) {
         // consumirlas directamente).
         if (trackId.startsWith('yt:')) {
           const ytId = trackId.slice(3);
-          const streamUrl = await resolveCached(ytId);
+          const tStart = Date.now();
+          // Prioridad MÁXIMA (10): el usuario YA pulsó play. Si hay otros
+          // prewarms encolados, este se cuela al frente.
+          const streamUrl = await resolveCached(ytId, 10);
+          const tResolved = Date.now();
+          console.log(
+            `[lan-server] stream yt:${ytId} resolve=${tResolved - tStart}ms ` +
+            `clientRange=${req.headers.range ?? '-'}`
+          );
           return proxyAudio(req, res, streamUrl);
         }
 

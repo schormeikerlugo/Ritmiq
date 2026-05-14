@@ -161,6 +161,12 @@ export function TopBar() {
                   type="button"
                   className={styles.item}
                   onClick={() => pickResult(r)}
+                  // Adelantar el prewarm a "intención de click": apenas el
+                  // usuario toca/pasa por encima del resultado disparamos
+                  // /yt/prewarm para que cuando finalmente suelte el dedo
+                  // (~150-300ms después en táctil), yt-dlp ya esté resuelto.
+                  onPointerDown={() => { if (!isDesktop && r?.id) prewarmStream(r.id); }}
+                  onTouchStart={() => { if (!isDesktop && r?.id) prewarmStream(r.id); }}
                 >
                   <div className={styles.thumb}>
                     {r.thumbnail
