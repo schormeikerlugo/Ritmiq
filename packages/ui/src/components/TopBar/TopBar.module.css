@@ -115,6 +115,28 @@
   background: var(--color-bg-2);
 }
 
+.viewAll {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-accent);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+
+.viewAll:hover {
+  background: rgba(124, 92, 255, 0.08);
+}
+
 .thumb {
   width: 56px;
   height: 40px;

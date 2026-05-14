@@ -1,0 +1,281 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 1400px;
+  margin: 0 auto;
+  padding-bottom: var(--space-6);
+}
+
+/* ── Back button ────────────────────────────────────────────────────── */
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  color: var(--color-text-1);
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  width: fit-content;
+  transition: background 180ms;
+}
+.back:hover { background: rgba(255, 255, 255, 0.14); }
+
+/* ── Hero ───────────────────────────────────────────────────────────── */
+.hero {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: var(--space-4);
+  align-items: flex-end;
+  padding: var(--space-2) 0;
+}
+
+.cover {
+  width: 220px;
+  height: 220px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #2a2438, #1a1626);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-3);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+}
+.cover img { width: 100%; height: 100%; object-fit: cover; }
+
+.heroMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.kind {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-2);
+  font-weight: var(--fw-semibold);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.byline {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--fs-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.artistLink {
+  background: transparent;
+  border: none;
+  color: var(--color-text-1);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+.artistLink:hover { text-decoration: underline; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: 8px;
+}
+
+.playBtn,
+.saveBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  border: none;
+  cursor: pointer;
+  transition: transform 180ms, background 180ms;
+}
+.playBtn {
+  background: var(--color-accent);
+  color: #fff;
+}
+.playBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px var(--color-accent-shadow);
+}
+.playBtn:disabled, .saveBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.saveBtn {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-1);
+}
+.saveBtn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+
+.errorMsg {
+  margin: 4px 0 0 0;
+  font-size: var(--fs-xs);
+  color: var(--color-danger, #ff5555);
+}
+
+@media (max-width: 640px) {
+  .hero {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+  .cover {
+    width: 60vw;
+    height: 60vw;
+    max-width: 240px;
+    max-height: 240px;
+  }
+}
+
+/* ── Sections ───────────────────────────────────────────────────────── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.02em;
+  padding: 0 var(--space-1);
+}
+
+.status {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--color-text-3);
+  font-size: var(--fs-sm);
+}
+
+/* ── Tracklist ──────────────────────────────────────────────────────── */
+.trackList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.trackRow {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: var(--space-2);
+  align-items: center;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  width: 100%;
+  color: var(--color-text-1);
+  transition: background 150ms;
+}
+.trackRow:hover { background: rgba(255, 255, 255, 0.06); }
+
+.trackIdx {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-3);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.trackTitle {
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trackDur {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Otros álbumes grid ─────────────────────────────────────────────── */
+.albumGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .albumGrid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
+}
+
+.albumThumb {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--space-2);
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: background 220ms var(--ease-emphasized),
+              transform 220ms var(--ease-emphasized);
+}
+.albumThumb:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+.albumThumb:active { transform: scale(0.97); }
+
+.thumbCover {
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, #2a2438, #1a1626);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-3);
+  box-shadow: var(--shadow-sm);
+}
+.thumbCover img { width: 100%; height: 100%; object-fit: cover; }
+
+.thumbMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.thumbTitle {
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thumbSub {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+}

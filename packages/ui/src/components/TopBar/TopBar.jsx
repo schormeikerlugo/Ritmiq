@@ -32,6 +32,7 @@ export function TopBar() {
 
   const setCurrent     = usePlayerStore((s) => s.setCurrent);
   const patch          = usePlayerStore((s) => s.patch);
+  const goSearch       = useViewStore((s) => s.goSearch);
 
   // Cerrar dropdown al hacer click fuera
   useEffect(() => {
@@ -183,6 +184,25 @@ export function TopBar() {
                 </button>
               </li>
             ))}
+            {/* Estilo Spotify: enlace al final del dropdown para abrir la
+                vista de búsqueda avanzada (canciones + artistas + playlists). */}
+            <li>
+              <button
+                type="button"
+                className={styles.viewAll}
+                onClick={() => {
+                  const q = value.trim();
+                  if (!q) return;
+                  setOpen(false);
+                  setResults([]);
+                  setValue('');
+                  goSearch(q);
+                }}
+              >
+                <Icon name="Search" size={14} />
+                <span>Ver todos los resultados de “{value.trim()}”</span>
+              </button>
+            </li>
           </ul>
         )}
 

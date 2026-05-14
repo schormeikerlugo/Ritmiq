@@ -4,6 +4,9 @@ import { Library } from './components/Library/Library.jsx';
 import { Home } from './components/Home/Home.jsx';
 import { Downloads } from './components/Downloads/Downloads.jsx';
 import { PlaylistView } from './components/PlaylistView/PlaylistView.jsx';
+import { SearchView } from './components/SearchView/SearchView.jsx';
+import { ArtistView } from './components/ArtistView/ArtistView.jsx';
+import { AlbumView } from './components/AlbumView/AlbumView.jsx';
 import { Player } from './components/Player/Player.jsx';
 import { TopBar } from './components/TopBar/TopBar.jsx';
 import { AuthScreen } from './components/Auth/AuthScreen.jsx';
@@ -15,6 +18,8 @@ import { useLibraryStore } from './stores/library.js';
 import { usePlaylistsStore } from './stores/playlists.js';
 import { useHistoryStore } from './stores/history.js';
 import { useRecommendationsStore } from './stores/recommendations.js';
+import { useArtistStore } from './stores/artist.js';
+import { useSearchStore } from './stores/search.js';
 import { useViewStore } from './stores/view.js';
 import { usePlayerEngine } from './lib/use-player.js';
 import {
@@ -78,6 +83,8 @@ export function App() {
       resetPlaylists();
       useHistoryStore.getState().reset();
       useRecommendationsStore.getState().reset();
+      useArtistStore.getState().reset();
+      useSearchStore.getState().reset();
     }
   }, [user, loadLibrary, resetLibrary, loadPlaylists, resetPlaylists]);
 
@@ -210,12 +217,19 @@ function MainView() {
   const view = useViewStore((s) => s.view);
   // Una `key` única por vista hace que React remonte y dispare la animación
   // CSS de entrada (`ritmiq-fade-in-up` en `.main > *`) en cada navegación.
-  const key = view.kind === 'playlist' ? `playlist:${view.playlistId}` : view.kind;
+  let key = view.kind;
+  if (view.kind === 'playlist') key = `playlist:${view.playlistId}`;
+  else if (view.kind === 'search') key = `search:${view.query}`;
+  else if (view.kind === 'artist') key = `artist:${view.name}`;
+  else if (view.kind === 'album') key = `album:${view.artist}::${view.album}`;
   let content;
   if (view.kind === 'home') content = <Home />;
   else if (view.kind === 'library') content = <Library />;
   else if (view.kind === 'downloads') content = <Downloads />;
   else if (view.kind === 'playlist') content = <PlaylistView playlistId={view.playlistId} />;
+  else if (view.kind === 'search') content = <SearchView query={view.query} />;
+  else if (view.kind === 'artist') content = <ArtistView name={view.name} />;
+  else if (view.kind === 'album') content = <AlbumView artist={view.artist} album={view.album} />;
   else return null;
   return <div key={key} className={styles.viewSlot}>{content}</div>;
 }

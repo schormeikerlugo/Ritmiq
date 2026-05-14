@@ -35,6 +35,10 @@ const electronApi = isElectron
       ytMetadata:              (q) => window.ritmiq.yt.metadata(q),
       ytStreamUrl:             (q) => window.ritmiq.yt.streamUrl(q),
       ytSearch:                (q) => window.ritmiq.yt.search(q),
+      // Multi-tipo y por-tipo: pegamos directo a la Edge Function ya que el
+      // yt-dlp embebido del desktop solo retorna videos.
+      ytSearchAll:             (q) => edgeSearchAll(q),
+      ytSearchByType:          (q, type, max = 20) => edgeSearchByType(q, type, max),
       ytdlpInfo:               () => window.ritmiq.ytdlp.info(),
       ytdlpUpdate:             () => window.ritmiq.ytdlp.update(),
 
@@ -89,6 +93,9 @@ const webApi = {
     // 2) Fallback a Edge Function search-youtube.
     return edgeSearch(q);
   },
+
+  ytSearchAll: (q) => edgeSearchAll(q),
+  ytSearchByType: (q, type, max = 20) => edgeSearchByType(q, type, max),
 
   ytMetadata: async (q) => {
     if (getLanBaseUrlSync() || getTunnelUrlSync()) {
@@ -178,6 +185,23 @@ const webApi = {
 };
 
 /**
+ * Construye los headers de autenticación para llamar a una Edge Function.
+ * Usa el access_token del usuario logueado (real JWT) en `Authorization` y
+ * la `anon publishable key` en `apikey`. Con las keys nuevas
+ * (`sb_publishable_*`) NO podemos usar la anon key como Bearer porque la
+ * gateway la valida como JWT y rechaza el formato — falla con 401.
+ */
+async function edgeAuthHeaders() {
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? anonKey;
+  return {
+    Authorization: `Bearer ${token}`,
+    apikey: anonKey,
+  };
+}
+
+/**
  * Llama a la Edge Function `search-youtube` (Supabase Cloud) y normaliza
  * la respuesta al mismo shape que devuelve el LAN server.
  *
@@ -186,19 +210,49 @@ const webApi = {
  */
 async function edgeSearch(q) {
   const base = import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   if (!base) throw new Error('Sin Supabase configurado');
   const url = `${base}/functions/v1/search-youtube?q=${encodeURIComponent(q)}&max=12`;
-  const headers = anonKey
-    ? { apikey: anonKey, Authorization: `Bearer ${anonKey}` }
-    : {};
-  const r = await fetch(url, { headers });
+  const r = await fetch(url, { headers: await edgeAuthHeaders() });
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
     throw new Error(j.error ?? `Edge search ${r.status}`);
   }
   const j = await r.json();
   return j.items ?? [];
+}
+
+/**
+ * Búsqueda multi-tipo: { videos, channels, playlists } — 5 de cada.
+ * @param {string} q
+ */
+async function edgeSearchAll(q) {
+  const base = import.meta.env.VITE_SUPABASE_URL;
+  if (!base) throw new Error('Sin Supabase configurado');
+  const url = `${base}/functions/v1/search-youtube?q=${encodeURIComponent(q)}&type=all`;
+  const r = await fetch(url, { headers: await edgeAuthHeaders() });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.error ?? `Edge search ${r.status}`);
+  }
+  return r.json();
+}
+
+/**
+ * Búsqueda paginada por tipo específico.
+ * @param {string} q
+ * @param {'videos'|'channels'|'playlists'} type
+ * @param {number} [max=20]
+ */
+async function edgeSearchByType(q, type, max = 20) {
+  const base = import.meta.env.VITE_SUPABASE_URL;
+  if (!base) throw new Error('Sin Supabase configurado');
+  const url = `${base}/functions/v1/search-youtube?q=${encodeURIComponent(q)}&type=${type}&max=${max}`;
+  const r = await fetch(url, { headers: await edgeAuthHeaders() });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.error ?? `Edge search ${r.status}`);
+  }
+  return r.json();
 }
 
 /**
@@ -218,7 +272,11 @@ function extractYtId(input) {
  * Persiste un track desde metadata en Supabase. Devuelve el Track con
  * formato del cliente. Si ya existe (mismo yt_id), reusa la fila.
  *
- * @param {{id:string,title:string,uploader?:string|null,duration?:number|null,thumbnail?:string|null}} meta
+ * `meta.album` y `meta.artist` (explícitos) tienen prioridad sobre
+ * `meta.uploader` — útil cuando se importa desde Last.fm donde sabemos
+ * el artista y el álbum reales, no solo el "canal" de YouTube.
+ *
+ * @param {{id:string,title:string,uploader?:string|null,artist?:string|null,album?:string|null,duration?:number|null,thumbnail?:string|null}} meta
  * @param {string} userId
  */
 async function persistFromMeta(meta, userId) {
@@ -229,7 +287,22 @@ async function persistFromMeta(meta, userId) {
     .eq('user_id', userId)
     .eq('yt_id', meta.id)
     .maybeSingle();
-  if (existing) return rowToTrack(existing);
+  if (existing) {
+    // Si el track ya existe pero le falta artista/álbum, los enriquecemos.
+    const updates = {};
+    if (!existing.artist && (meta.artist || meta.uploader)) updates.artist = meta.artist ?? meta.uploader;
+    if (!existing.album && meta.album) updates.album = meta.album;
+    if (Object.keys(updates).length > 0) {
+      const { data } = await supabase
+        .from('tracks')
+        .update(updates)
+        .eq('id', existing.id)
+        .select()
+        .single();
+      if (data) return rowToTrack(data);
+    }
+    return rowToTrack(existing);
+  }
 
   const row = {
     id: randomId(),
@@ -237,8 +310,8 @@ async function persistFromMeta(meta, userId) {
     source: 'youtube',
     yt_id: meta.id,
     title: meta.title,
-    artist: meta.uploader ?? null,
-    album: null,
+    artist: meta.artist ?? meta.uploader ?? null,
+    album: meta.album ?? null,
     duration_seconds: meta.duration ?? null,
     cover_url: meta.thumbnail ?? null,
     is_downloaded: false,
