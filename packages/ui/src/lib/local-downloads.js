@@ -33,10 +33,21 @@ class RitmiqLocalDB extends Dexie {
       playlistTracks: '[playlistId+trackId], playlistId, trackId, position',
       meta: 'key',
     });
+    // v3 — cola offline de reproducciones (Fase 1 recomendaciones).
+    //   pendingPlays   → eventos de play que no pudieron subirse aún a
+    //                    Supabase. Se reintenta al recuperar red.
+    this.version(3).stores({
+      audioBlobs: 'trackId, downloadedAt',
+      tracks: 'id, userId, ytId, createdAt',
+      playlists: 'id, userId, updatedAt',
+      playlistTracks: '[playlistId+trackId], playlistId, trackId, position',
+      meta: 'key',
+      pendingPlays: '++id, queuedAt',
+    });
   }
 }
 
-const db = new RitmiqLocalDB();
+export const db = new RitmiqLocalDB();
 
 /** Cache de object URLs vivos para revocarlos al limpiar. */
 const objectUrls = new Map();

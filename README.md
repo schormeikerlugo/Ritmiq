@@ -56,4 +56,12 @@ pnpm dev:pwa       # PWA en navegador
 - `.env.development` → apunta a Supabase local (`http://127.0.0.1:54321`)
 - `.env.production` → apunta a Supabase Cloud (rellenar con tu proyecto)
 
-Ver `docs/arquitectura.md` para más detalles.
+## Documentación
+
+- [`docs/INSTALL.md`](docs/INSTALL.md) — Guía completa de instalación
+  paso a paso (Supabase + Last.fm + Cloudflare Tunnel + desktop + PWA).
+- [`docs/RECOMMENDATIONS.md`](docs/RECOMMENDATIONS.md) — Sistema de
+  recomendaciones tipo Spotify (historial, Last.fm, cache, escalabilidad).
+- [`docs/arquitectura.md`](docs/arquitectura.md) — Arquitectura general.
+- [`docs/Especificaciones-Técnicas.md`](docs/Especificaciones-Técnicas.md)
+  — Especificaciones técnicas iniciales.

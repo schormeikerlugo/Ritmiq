@@ -2,8 +2,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
+  padding-bottom: var(--space-6);
 }
 
 .header {
@@ -24,72 +25,54 @@
   margin: 0;
 }
 
-.grid {
+/* ── Hero compacto ─────────────────────────────────────────────────── */
+.heroGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-2);
 }
 
-.tile {
+.heroTile {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
-  background: rgba(255, 255, 255, 0.05);
+  gap: var(--space-2);
+  padding: 8px 14px 8px 8px;
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   text-align: left;
-  overflow: hidden;
+  cursor: pointer;
   transition: background 220ms var(--ease-emphasized),
               transform 220ms var(--ease-emphasized);
-  will-change: transform;
+  overflow: hidden;
 }
+.heroTile:hover { background: rgba(255, 255, 255, 0.12); }
+.heroTile:active { transform: scale(0.97); }
 
-.tile:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: translateY(-2px);
-}
-
-.tile:active { transform: scale(0.97); }
-
-.tileIcon {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-sm);
+.heroIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-xs, 4px);
   background: linear-gradient(135deg, var(--color-accent), #5cd0ff);
   color: #fff;
   display: grid;
   place-items: center;
   flex-shrink: 0;
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
 }
-.tileIcon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+.heroIcon img { width: 100%; height: 100%; object-fit: cover; }
 
-.tileMeta {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.tileTitle {
+.heroLabel {
   font-weight: var(--fw-semibold);
   color: var(--color-text-1);
+  font-size: var(--fs-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tileSub {
-  font-size: var(--fs-xs);
-  color: var(--color-text-3);
-}
-
-.notice {
+/* ── Empty state ────────────────────────────────────────────────────── */
+.empty {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -97,22 +80,16 @@
   background: var(--color-accent-soft);
   border: 1px dashed var(--color-accent);
   border-radius: var(--radius-md);
-  margin-top: var(--space-3);
-}
-
-.noticeBadge {
-  background: var(--color-accent);
-  color: #fff;
-  padding: 2px 10px;
-  border-radius: var(--radius-pill);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.noticeText {
-  margin: 0;
   color: var(--color-text-2);
+}
+
+.emptyTitle {
+  margin: 0 0 4px 0;
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-1);
+}
+
+.emptyText {
+  margin: 0;
   font-size: var(--fs-sm);
 }

@@ -13,6 +13,8 @@ import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
 import { useAuthStore } from './stores/auth.js';
 import { useLibraryStore } from './stores/library.js';
 import { usePlaylistsStore } from './stores/playlists.js';
+import { useHistoryStore } from './stores/history.js';
+import { useRecommendationsStore } from './stores/recommendations.js';
 import { useViewStore } from './stores/view.js';
 import { usePlayerEngine } from './lib/use-player.js';
 import {
@@ -70,9 +72,12 @@ export function App() {
     if (user) {
       loadLibrary();
       loadPlaylists();
+      useHistoryStore.getState().load();
     } else {
       resetLibrary();
       resetPlaylists();
+      useHistoryStore.getState().reset();
+      useRecommendationsStore.getState().reset();
     }
   }, [user, loadLibrary, resetLibrary, loadPlaylists, resetPlaylists]);
 
@@ -105,6 +110,8 @@ export function App() {
         // 2) re-pull playlists/library para alinearse con el servidor
         loadPlaylists();
         loadLibrary();
+        // 3) flush historial pendiente de plays offline
+        useHistoryStore.getState().flushOffline().catch(() => {});
       }
       if (recoveredDesktop) {
         console.info(`[connectivity] desktop alcanzable (source=${s.source})`);

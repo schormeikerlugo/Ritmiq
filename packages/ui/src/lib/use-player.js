@@ -17,6 +17,7 @@ import { useEffect, useRef } from 'react';
 import { resolveAudioSource } from '@ritmiq/core';
 import { createHtmlAudioBackend } from './html-audio-backend.js';
 import { usePlayerStore } from '../stores/player.js';
+import { useHistoryStore } from '../stores/history.js';
 import { api, isDesktop } from './api.js';
 import { isEphemeralTrack } from './track-helpers.js';
 import {
@@ -247,6 +248,11 @@ export function usePlayerEngine() {
   }, [backend]);
 
   /* ── Posición → store + MediaSession.setPositionState ───────────────── */
+  // Tracking de "play consumido" para recomendaciones. Marcamos un track
+  // como reproducido cuando el usuario lleva >= 30 segundos efectivos O
+  // >= 30% de la duración (lo que ocurra antes). Esto evita inflar el
+  // historial con skips rápidos. Resetea cuando cambia currentTrack.
+  const playConsumedRef = useRef({ trackFp: null, recorded: false });
   useEffect(() => {
     let lastPosUpdate = 0;
     return backend.onPosition((positionSeconds) => {
@@ -254,6 +260,24 @@ export function usePlayerEngine() {
       const metaDur = Number(meta?.durationSeconds) || 0;
       const audioDur = backend.duration();
       const dur = effectiveDuration(audioDur, metaDur);
+
+      // Registrar en historial si supera el umbral. Solo una vez por track.
+      if (meta) {
+        const fp = meta.ytId || meta.id;
+        const state = playConsumedRef.current;
+        if (state.trackFp !== fp) {
+          playConsumedRef.current = { trackFp: fp, recorded: false };
+        }
+        const threshold = Math.min(30, dur > 0 ? dur * 0.3 : 30);
+        if (!playConsumedRef.current.recorded && positionSeconds >= threshold) {
+          playConsumedRef.current.recorded = true;
+          try {
+            useHistoryStore.getState().record(meta, positionSeconds);
+          } catch (e) {
+            console.warn('[player] record play failed', e?.message);
+          }
+        }
+      }
       // Sincronizar también durationSeconds en el store — la UI dibuja la
       // barra de progreso a partir de aquí, así nunca verá la duración
       // inflada del <audio>.
