@@ -119,19 +119,15 @@ function buildResolveDeps(track, opts = {}) {
     buildLanStreamUrl: (trackId, base) =>
       withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}`),
     /**
-     * Hook opcional: si el track tiene ytId, intentar resolver la URL
-     * DIRECTA de googlevideo desde el lan-server. Las Range requests del
-     * <audio> irán directo a googlevideo (sin Tunnel) — mucho más rápido.
-     * Si falla (ej. googlevideo rechaza la IP del cliente con 403), el
-     * backend de audio caerá al fallback proxy automáticamente.
+     * Desactivado: probamos servir la URL DIRECTA de googlevideo al
+     * <audio> para evitar las Range requests vía Tunnel. Resultado: las
+     * URLs de googlevideo son IP-locked, el iPhone recibía 403 y caíamos
+     * al fallback del proxy con doble round-trip → peor latencia que el
+     * camino directo al proxy.
+     * Dejamos el endpoint /yt/streamurl en el server y este hook por si
+     * se reintenta con otra estrategia (URLs cross-IP, signed URLs, etc.).
      */
-    getDirectStreamUrl: async () => {
-      if (!allowDirect) return null;
-      if (!isDesktop && track.ytId) {
-        return fetchDirectStreamUrl(track.ytId);
-      }
-      return null;
-    },
+    getDirectStreamUrl: async () => null,
     resolveCloudStream: async () => {
       if (isDesktop && track.ytId) {
         const url = await api.ytStreamUrl(track.ytId);
