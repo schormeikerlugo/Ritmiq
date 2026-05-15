@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors,
@@ -21,6 +21,7 @@ import { TrackInfoDialog } from '../TrackInfoDialog/TrackInfoDialog.jsx';
 import { CoverUploadDialog } from '../CoverUploadDialog/CoverUploadDialog.jsx';
 import { exportPlaylistJson, exportPlaylistCsv } from '../../lib/export.js';
 import { isDesktop } from '../../lib/api.js';
+import { prewarmStream } from '../../lib/lan-client.js';
 import { DownloadIndicator } from '../DownloadIndicator/DownloadIndicator.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './PlaylistView.module.css';
@@ -90,6 +91,15 @@ export function PlaylistView({ playlistId }) {
     const byId = new Map(allTracks.map((t) => [t.id, t]));
     return ids.map((id) => byId.get(id)).filter(Boolean);
   }, [contents, playlistId, allTracks]);
+
+  // Prewarm de los primeros 3 tracks de la playlist al abrirla. yt-dlp +
+  // signature solving tarda ~4s en frío; calentar el cache antes de que el
+  // usuario pulse play reduce la latencia percibida a ~0. Dedup por ytId
+  // dentro de `prewarmStream` (5 min) → no spamea.
+  useEffect(() => {
+    const ytIds = tracks.slice(0, 3).map((t) => t.ytId).filter(Boolean);
+    for (const id of ytIds) prewarmStream(id);
+  }, [tracks]);
 
   const filteredTracks = useMemo(() => {
     const q = normalize(filter.trim());

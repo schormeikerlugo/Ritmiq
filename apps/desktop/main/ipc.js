@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { getYtDlpPath, getYtDlpUserDataPath } from './ytdlp-path.js';
 import { cloudflared, getStoredToken, setStoredToken, getCustomUrl, setCustomUrl } from './cloudflared.js';
 import { getOrCreateAccessToken, regenerateAccessToken } from './access-token.js';
+import { detectCookiesBrowser, detectJsRuntime, exportCookiesToFile } from './cookies-detect.js';
 
 const YT_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/;
 const ID_RE = /^[\w-]{11}$/;
@@ -91,7 +92,30 @@ function syncRemoteTrack(db, track) {
  */
 export function registerIpc({ db, lan, accessToken }) {
   const binary = getYtDlpPath();
-  const ytOpts = { binary };
+  // Cookies + JS runtime + cache para yt-dlp.
+  // Ver `cookies-detect.js` y `ytdlp-wrapper.js` para el "por qué".
+  const cookiesFromBrowser = detectCookiesBrowser();
+  const jsRuntime = detectJsRuntime();
+  const cacheDir = join(app.getPath('userData'), 'yt-dlp-cache');
+  try { mkdirSync(cacheDir, { recursive: true }); } catch {}
+  const ytOpts = {
+    binary,
+    cookiesFromBrowser: cookiesFromBrowser ?? undefined,
+    cookiesFile: undefined,
+    jsRuntime: jsRuntime ?? undefined,
+    cacheDir,
+  };
+  if (cookiesFromBrowser) {
+    console.log(`[ipc] yt-dlp cookies: ${cookiesFromBrowser}`);
+    // Reusar el cookie file que cachea lan-server (mismo path en tmpdir).
+    // Lo intentamos resolver una sola vez; si no existe aún, dejamos
+    // cookiesFromBrowser como fallback.
+    exportCookiesToFile(binary, cookiesFromBrowser).then((file) => {
+      if (file) ytOpts.cookiesFile = file;
+    });
+  }
+  if (jsRuntime) console.log(`[ipc] yt-dlp js-runtime: ${jsRuntime}`);
+  else console.log('[ipc] yt-dlp SIN runtime JS — instala Deno o Node para reproducción fiable');
 
   ipcMain.handle('app:info', () => ({
     lanPort: lan.port,

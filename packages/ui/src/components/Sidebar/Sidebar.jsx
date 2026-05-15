@@ -3,6 +3,11 @@ import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useViewStore } from '../../stores/view.js';
 import { SpotifyImportDialog } from '../SpotifyImportDialog/SpotifyImportDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
+// Import como módulo (no path absoluto): Vite genera la URL correcta en
+// ambos targets. En Electron `file://` un path absoluto `/logotipo.png`
+// se resuelve respecto al root del filesystem y rompe; importándolo
+// queda como relativo al bundle y funciona en PWA + desktop.
+import logotipoUrl from '../../assets/logotipo.png';
 import styles from './Sidebar.module.css';
 
 export function Sidebar() {
@@ -21,7 +26,7 @@ export function Sidebar() {
   return (
     <nav className={styles.nav}>
       <div className={styles.brand}>
-        <img src="/logotipo.png" alt="Ritmiq" className={styles.brandLogo} />
+        <img src={logotipoUrl} alt="Ritmiq" className={styles.brandLogo} />
       </div>
       <ul className={styles.list}>
         <li>

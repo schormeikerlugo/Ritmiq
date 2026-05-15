@@ -16,6 +16,7 @@ import { useEffect } from 'react';
 import { useArtistStore } from '../../stores/artist.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
+import { prewarmStream } from '../../lib/lan-client.js';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './AlbumView.module.css';
 
@@ -66,6 +67,18 @@ export function AlbumView({ artist, album }) {
     isDownloaded: false,
     createdAt: new Date().toISOString(),
   }));
+
+  // Prewarm de los primeros 3 tracks: yt-dlp + signature solving tarda
+  // ~4s en frío. Disparándolo apenas el álbum aparece, cuando el usuario
+  // pulse play en cualquiera de los primeros tracks la URL ya está cacheada
+  // en el LAN server. Latencia percibida ≈ 0.
+  useEffect(() => {
+    const ytIds = tracks.slice(0, 3).map((t) => t.ytId).filter(Boolean);
+    for (const id of ytIds) prewarmStream(id);
+    // tracks viene de map() — recalculado en cada render. Dependemos del
+    // identificador estable de los primeros tracks para evitar re-prewarms.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracks[0]?.ytId, tracks[1]?.ytId, tracks[2]?.ytId]);
 
   const playAlbum = (startIdx = 0) => {
     if (tracks.length === 0) return;

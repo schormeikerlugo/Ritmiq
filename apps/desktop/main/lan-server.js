@@ -11,10 +11,13 @@
 
 import http from 'node:http';
 import { Readable } from 'node:stream';
-import { createReadStream, statSync, existsSync } from 'node:fs';
+import { createReadStream, statSync, existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { app } from 'electron';
 import { Bonjour } from 'bonjour-service';
 import { getStreamUrl, getMetadata, search } from '@ritmiq/yt/ytdlp';
 import { getYtDlpPath } from './ytdlp-path.js';
+import { detectCookiesBrowser, detectJsRuntime, exportCookiesToFile } from './cookies-detect.js';
 
 /**
  * Orígenes permitidos para CORS. Se refleja el `Origin` del request si
@@ -40,6 +43,56 @@ const ALLOWED_ORIGINS = [
  */
 export async function startLanServer({ port, db, accessToken }) {
   const ytBinary = getYtDlpPath();
+  const cookiesFromBrowser = detectCookiesBrowser();
+  const jsRuntime = detectJsRuntime();
+  // Cache persistente para yt-dlp (player.js, JS solvers, etc.). Sin esto
+  // el AppImage monta en /tmp distinto cada arranque → yt-dlp re-descarga
+  // 3-5MB de player.js cada vez. Pinneamos en userData.
+  const cacheDir = join(app.getPath('userData'), 'yt-dlp-cache');
+  try { mkdirSync(cacheDir, { recursive: true }); } catch {}
+  console.log(
+    cookiesFromBrowser
+      ? `[lan-server] yt-dlp cookies: ${cookiesFromBrowser} (override RITMIQ_YTDLP_COOKIES_BROWSER)`
+      : '[lan-server] yt-dlp sin cookies — instala Firefox/Chrome y loguéate a YouTube'
+  );
+  console.log(
+    jsRuntime
+      ? `[lan-server] yt-dlp js-runtime: ${jsRuntime} (override RITMIQ_YTDLP_JS_RUNTIME)`
+      : '[lan-server] yt-dlp SIN runtime JS — algunos vídeos sólo darán storyboards. ' +
+        'Instala Deno (sudo pacman -S deno) o Node (sudo pacman -S nodejs) para reproducción fiable'
+  );
+  // `ytOpts` se mutará una vez `cookiesFile` esté listo (async). Mientras
+  // tanto las primeras llamadas usan `cookiesFromBrowser` (más lento pero
+  // funcional). El refresh periódico mantiene el archivo fresco para que
+  // YouTube no rote las cookies.
+  const ytOpts = {
+    binary: ytBinary,
+    cookiesFromBrowser: cookiesFromBrowser ?? undefined,
+    cookiesFile: undefined,
+    jsRuntime: jsRuntime ?? undefined,
+    cacheDir,
+  };
+  if (cookiesFromBrowser) {
+    // Background — no bloquear el arranque del LAN server. Cuando termine,
+    // mutamos `ytOpts` para que los próximos plays vayan por la vía rápida.
+    const t0 = Date.now();
+    exportCookiesToFile(ytBinary, cookiesFromBrowser).then((file) => {
+      if (file) {
+        ytOpts.cookiesFile = file;
+        console.log(`[lan-server] cookies file cacheado en ${file} (${Date.now() - t0}ms) — los próximos plays serán más rápidos`);
+      }
+    });
+    // Refresh periódico cada 50 min (TTL pragmático: YouTube suele rotar
+    // cookies cada ~1h; nos adelantamos un poco).
+    setInterval(() => {
+      exportCookiesToFile(ytBinary, cookiesFromBrowser, 0).then((file) => {
+        if (file) {
+          ytOpts.cookiesFile = file;
+          console.log('[lan-server] cookies file refrescado');
+        }
+      });
+    }, 50 * 60 * 1000).unref();
+  }
 
   /**
    * Verifica si el request está autenticado. Acepta:
@@ -70,10 +123,11 @@ export async function startLanServer({ port, db, accessToken }) {
   /**
    * Cola con concurrencia limitada para yt-dlp. CPU contention con muchos
    * procesos simultáneos hace que un único yt-dlp pase de 2.8s a 7+s.
-   * Limitamos a 2 simultáneos y damos prioridad a streams reales (click del
-   * usuario) sobre prewarms (background).
+   * Subimos a 3 (antes 2): con `cookiesFile` cacheado yt-dlp es más ligero
+   * y permite procesar prewarms en paralelo al click sin contención. Damos
+   * prioridad a streams reales sobre prewarms.
    */
-  const MAX_CONCURRENT = 2;
+  const MAX_CONCURRENT = 3;
   let running = 0;
   /** @type {Array<any>} jobs en cola esperando slot. */
   const waitQueue = [];
@@ -187,7 +241,7 @@ export async function startLanServer({ port, db, accessToken }) {
         const t0 = Date.now();
         console.log(`[lan-server] resolve ${ytId} START (p=${job.priority})`);
         try {
-          const cp = getStreamUrl(ytId, { binary: ytBinary });
+          const cp = getStreamUrl(ytId, ytOpts);
           job.childPromise = cp;
           const url = await cp;
           const dt = Date.now() - t0;
@@ -249,7 +303,7 @@ export async function startLanServer({ port, db, accessToken }) {
       if (url.pathname === '/yt/search') {
         const q = url.searchParams.get('q');
         if (!q) { res.writeHead(400).end('q required'); return; }
-        const items = await search(q, { binary: ytBinary, max: 12 });
+        const items = await search(q, { ...ytOpts, max: 12 });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ items }));
 
@@ -292,7 +346,7 @@ export async function startLanServer({ port, db, accessToken }) {
       if (url.pathname === '/yt/metadata') {
         const idOrUrl = url.searchParams.get('q');
         if (!idOrUrl) { res.writeHead(400).end('q required'); return; }
-        const meta = await getMetadata(idOrUrl, { binary: ytBinary });
+        const meta = await getMetadata(idOrUrl, ytOpts);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(meta));
         return;

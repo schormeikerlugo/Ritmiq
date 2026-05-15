@@ -475,7 +475,10 @@ export function usePlayerEngine() {
     if (!nextTrack) return;
 
     let cancelled = false;
-    // Pequeño delay para no competir con la resolución del track actual.
+    // Delay reducido a 200ms (antes 1200ms): con `cookiesFile` cacheado y
+    // MAX_CONCURRENT=3 en el LAN server, la resolución del siguiente NO
+    // compite con la del track actual. Lanzarlo casi inmediatamente
+    // multiplica las probabilidades de que el swap final sea instantáneo.
     const timer = setTimeout(async () => {
       try {
         // Precarga del siguiente: usar SIEMPRE proxy URL. El swap síncrono
@@ -488,7 +491,7 @@ export function usePlayerEngine() {
         nextUrlRef.current = null;
         nextTrackRef.current = null;
       }
-    }, 1200);
+    }, 200);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [currentTrack, queue, index, backend]);
 
