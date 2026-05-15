@@ -71,6 +71,12 @@ export async function startLanServer({ port, db, accessToken }) {
     cookiesFile: undefined,
     jsRuntime: jsRuntime ?? undefined,
     cacheDir,
+    // m4a/AAC obligatorio: el LAN server sirve también al PWA (iOS Safari)
+    // que NO decodifica opus/webm. Síntoma característico: la barra avanza
+    // pero NO se escucha audio. Selector cae a `bestaudio` puro si m4a no
+    // está disponible para ese vídeo concreto. Electron/Chromium reproduce
+    // m4a sin problema, así que lo dejamos global.
+    preferM4a: true,
   };
   if (cookiesFromBrowser) {
     // Background — no bloquear el arranque del LAN server. Cuando termine,
@@ -529,6 +535,11 @@ async function proxyAudio(req, res, upstreamUrl) {
   if (!upstream.headers.get('content-type')) {
     res.setHeader('Content-Type', 'audio/mp4');
   }
+  // Evitar que cachés intermedias guarden respuestas parciales (Range).
+  // En PWA iOS, una respuesta 206 cacheada puede confundir al <audio>
+  // cuando hace el siguiente Range request — síntoma: la barra avanza
+  // pero el audio se queda mudo.
+  res.setHeader('Cache-Control', 'no-store, no-transform');
 
   res.writeHead(upstream.status);
 

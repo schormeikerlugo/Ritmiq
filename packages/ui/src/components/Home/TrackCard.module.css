@@ -10,7 +10,15 @@
   cursor: pointer;
   transition: background 220ms var(--ease-emphasized),
               transform 220ms var(--ease-emphasized);
+  /* Fijar el ancho exacto del grid track. `width: 100%` por sí solo no
+   * basta en Electron/Chromium: el <button> nativo conserva un
+   * `min-width: auto` implícito que lo expande al ancho del título.
+   * `min-width: 0` + `overflow: hidden` recortan a la fuerza. */
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 .card:hover {
   background: rgba(255, 255, 255, 0.08);
@@ -78,9 +86,18 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  /* width 100% sobre flex-direction column garantiza que los <span>
+   * hijos hereden el ancho del padre y no expandan. */
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .title {
+  /* `display: block` requerido para que text-overflow: ellipsis funcione
+   * en <span> dentro de un <button> (inline por defecto no recorta). */
+  display: block;
+  width: 100%;
   font-weight: var(--fw-semibold);
   font-size: var(--fs-sm);
   color: var(--color-text-1);
@@ -90,6 +107,8 @@
 }
 
 .sub {
+  display: block;
+  width: 100%;
   font-size: var(--fs-xs);
   color: var(--color-text-3);
   white-space: nowrap;

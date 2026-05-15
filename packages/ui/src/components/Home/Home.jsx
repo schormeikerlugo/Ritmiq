@@ -4,12 +4,13 @@
  * Estructura:
  *   1. Hero: saludo + tiles compactos de accesos rápidos.
  *   2. Continúa escuchando — tracks empezados pero no terminados (heurística
- *      basada en duration_played_seconds / duration_seconds).
- *   3. Reproducidos recientemente — últimos N únicos del historial.
- *   4. Tus más escuchados — top tracks últimos 30 días.
- *   5. Tus artistas — top artistas últimos 30 días (cards circulares).
- *   6. Tus playlists — carrusel.
- *   7. Descargados para offline — solo si hay.
+ *      basada en duration_played_seconds / duration_seconds). En la práctica
+ *      cubre también el rol que tenía "Reproducidos recientemente", así que
+ *      esta segunda fila se eliminó para evitar duplicación.
+ *   3. Tus más escuchados — top tracks últimos 30 días.
+ *   4. Tus artistas — top artistas últimos 30 días (cards circulares).
+ *   5. Tus playlists — carrusel.
+ *   6. Descargados para offline — solo si hay.
  *
  * Click en card → reproduce ese track + carga la fila completa como cola
  * (comportamiento Spotify). Botón "Reproducir todo" inicia desde el primero.
@@ -143,16 +144,6 @@ export function Home() {
         onPlayAll={() => playRow(continueLi)}
         renderItem={(t, i) => (
           <TrackCard track={t} onClick={() => playRow(continueLi, i)} />
-        )}
-      />
-
-      {/* ─── Reproducidos recientemente ─── */}
-      <HomeRow
-        title="Reproducidos recientemente"
-        items={recent}
-        onPlayAll={() => playRow(recent)}
-        renderItem={(t, i) => (
-          <TrackCard track={t} onClick={() => playRow(recent, i)} />
         )}
       />
 

@@ -11,6 +11,11 @@
   transition: background 220ms var(--ease-emphasized),
               transform 220ms var(--ease-emphasized);
   width: 100%;
+  /* Ver TrackCard.module.css — mismo motivo (overflow en Electron). */
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 .card:hover {
   background: rgba(255, 255, 255, 0.05);
@@ -83,6 +88,7 @@
 }
 
 .title {
+  display: block;
   font-weight: var(--fw-semibold);
   font-size: var(--fs-sm);
   color: var(--color-text-1);
@@ -93,6 +99,9 @@
 }
 
 .sub {
+  display: block;
+  width: 100%;
   font-size: var(--fs-xs);
   color: var(--color-text-3);
+  text-align: center;
 }
