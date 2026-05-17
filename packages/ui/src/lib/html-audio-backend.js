@@ -120,6 +120,24 @@ export function createHtmlAudioBackend() {
           el.removeEventListener('canplay', onCanPlay);
           el.removeEventListener('error', onError);
         };
+        // CRITICO antes de cambiar src: pausar + reset.
+        //
+        // Safari (iOS y macOS) tiene un bug clasico: si cambias `src`
+        // mientras una fetch anterior aun esta en vuelo, bytes de la
+        // request anterior contaminan el media decoder de la nueva src
+        // y disparan MEDIA_ERR_DECODE (code 3) — sintoma: "no puedo
+        // cambiar de cancion despues de varias veces".
+        //
+        // pause() + removeAttribute('src') + load() fuerza el cierre de
+        // cualquier connection pendiente y resetea el media engine antes
+        // de asignar la URL nueva. Sin esto, switches rapidos rompen.
+        try {
+          if (!el.paused) el.pause();
+          if (el.src) {
+            el.removeAttribute('src');
+            el.load();
+          }
+        } catch {}
         // Resolver tan pronto como haya datos suficientes para empezar.
         // `loadeddata` dispara antes que `canplay` y suele bastar para play().
         el.addEventListener('loadeddata', onCanPlay, { once: true });

@@ -73,7 +73,11 @@ export function AlbumView({ artist, album }) {
   // pulse play en cualquiera de los primeros tracks la URL ya está cacheada
   // en el LAN server. Latencia percibida ≈ 0.
   useEffect(() => {
-    const ytIds = tracks.slice(0, 3).map((t) => t.ytId).filter(Boolean);
+    // Reducido de 3 -> 1: con MAX_CONCURRENT=3 en el desktop, prewarmear
+    // 3 tracks dejaba 0 slots para el click real, bloqueando ~6s. Con 1,
+    // el slot mas probable (la 1a cancion) calienta y los otros 2 quedan
+    // libres para click o background download.
+    const ytIds = tracks.slice(0, 1).map((t) => t.ytId).filter(Boolean);
     for (const id of ytIds) prewarmStream(id);
     // tracks viene de map() — recalculado en cada render. Dependemos del
     // identificador estable de los primeros tracks para evitar re-prewarms.

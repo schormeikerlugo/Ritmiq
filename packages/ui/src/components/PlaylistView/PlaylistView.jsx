@@ -97,7 +97,8 @@ export function PlaylistView({ playlistId }) {
   // usuario pulse play reduce la latencia percibida a ~0. Dedup por ytId
   // dentro de `prewarmStream` (5 min) → no spamea.
   useEffect(() => {
-    const ytIds = tracks.slice(0, 3).map((t) => t.ytId).filter(Boolean);
+    // Reducido de 3 -> 1: ver comentario en AlbumView.
+    const ytIds = tracks.slice(0, 1).map((t) => t.ytId).filter(Boolean);
     for (const id of ytIds) prewarmStream(id);
   }, [tracks]);
 

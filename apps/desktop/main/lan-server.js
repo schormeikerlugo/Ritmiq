@@ -11,7 +11,7 @@
 
 import http from 'node:http';
 import { Readable } from 'node:stream';
-import { createReadStream, statSync, existsSync, mkdirSync } from 'node:fs';
+import { createReadStream, createWriteStream, statSync, existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
 import { Bonjour } from 'bonjour-service';
@@ -221,6 +221,15 @@ export async function startLanServer({ port, db, accessToken }) {
    * @type {Map<string, Promise<string>>}
    */
   const inflightDownloads = new Map();
+
+  /**
+   * Coalesce de tees activos en /stream/. Cuando un cliente esta haciendo
+   * un fetch bytes=0- que se esta teando a disco, otros clientes con la
+   * misma ytId saltan el tee (proxy plano) para evitar contencion en el
+   * mismo archivo.
+   * @type {Set<string>}
+   */
+  const inflightTeeDownloads = new Set();
 
   /**
    * Descarga el audio (m4a) a `sharedAudioDir`, registra en SQLite, y
@@ -757,18 +766,23 @@ export async function startLanServer({ port, db, accessToken }) {
         if (principalForStream && principalForStream.owner !== true) {
           logActivity(db, { deviceId: principalForStream.device_id, action: 'stream', trackId, ytId });
         }
-        // OPTIMIZACION: arranca descarga en background. Safari abre 6+
-        // range requests paralelos para un mismo archivo; mientras la
-        // primera se proxia desde googlevideo, yt-dlp baja el m4a
-        // entero al disco (paralelo HTTP, ~2-5s). Las range requests
-        // subsiguientes encuentran SHARED HIT y se sirven desde disco
-        // a velocidad LAN — orden de magnitud mas rapido y sin riesgo
-        // de ConnectTimeout a googlevideo.
-        downloadSharedAudio(ytId, ytOptsFor(principalForStream)).catch((err) => {
-          // No es fatal — el proxy en vivo sigue funcionando. Solo
-          // perdemos la optimizacion de cache.
-          console.warn(`[lan-server] background download ${ytId} failed:`, err.message);
-        });
+        // OPTIMIZACION: si la request EMPIEZA en byte 0 (sin Range, o
+        // Range "bytes=0-..."), intentamos hacer tee del stream del
+        // proxy directamente a disco. Una sola descarga desde
+        // googlevideo cubre tanto la reproduccion como el cacheado;
+        // sin esto haciamos doble fetch que competia por CPU/red.
+        //
+        // `proxyAudioWithTee` decide internamente si REALMENTE el
+        // upstream devuelve contenido completo (status 200, o 206
+        // cubriendo el rango entero). Si no, cae a proxy plano sin
+        // escribir nada al disco.
+        //
+        // Para Range requests parciales (bytes=N-...), proxy plano.
+        const startsAtZero = !req.headers.range ||
+          /^bytes=0-/i.test(String(req.headers.range));
+        if (startsAtZero) {
+          return proxyAudioWithTee(req, res, streamUrl, ytId, sharedAudioDir, db, inflightTeeDownloads);
+        }
         return proxyAudio(req, res, streamUrl);
       }
 
@@ -989,6 +1003,182 @@ async function proxyAudio(req, res, upstreamUrl) {
  * @param {Record<string,string>} headers
  * @returns {Promise<Response>}
  */
+/**
+ * Como `proxyAudio` pero ADEMAS escribe el upstream a disco. Cuando el
+ * stream termina con exito, mueve el .partial al path final y registra
+ * en shared_audio. Si el cliente cierra o el upstream falla, borra el
+ * .partial para no dejar bytes corruptos.
+ *
+ * Solo se invoca cuando la request es de contenido completo (bytes=0-
+ * o sin Range). Para parciales no tiene sentido tear porque no podemos
+ * reconstruir el archivo entero.
+ *
+ * @param {http.IncomingMessage} req
+ * @param {http.ServerResponse} res
+ * @param {string} upstreamUrl
+ * @param {string} ytId
+ * @param {string} sharedAudioDir
+ * @param {import('better-sqlite3').Database} db
+ * @param {Set<string>} inflightTeeDownloads
+ */
+async function proxyAudioWithTee(req, res, upstreamUrl, ytId, sharedAudioDir, db, inflightTeeDownloads) {
+  /** @type {Record<string,string>} */
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 ' +
+                  '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  };
+  if (req.headers.range) headers['Range'] = String(req.headers.range);
+
+  let upstream;
+  try {
+    upstream = await fetchWithRetry(upstreamUrl, headers);
+  } catch (err) {
+    console.warn(`[lan-server] tee fetch failed: ${err.message ?? err}`);
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'upstream fetch failed' }));
+    } else {
+      res.end();
+    }
+    return;
+  }
+
+  // Headers passthrough — mismo set que proxyAudio.
+  const passthrough = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
+  for (const h of passthrough) {
+    const v = upstream.headers.get(h);
+    if (v) res.setHeader(h, v);
+  }
+  if (!upstream.headers.get('accept-ranges')) res.setHeader('Accept-Ranges', 'bytes');
+  if (!upstream.headers.get('content-type')) res.setHeader('Content-Type', 'audio/mp4');
+  res.setHeader('Cache-Control', 'no-store, no-transform');
+
+  const upstreamSize = parseInt(upstream.headers.get('content-length') ?? '0', 10) || null;
+
+  // Decision de tee: solo si el upstream nos devuelve el archivo
+  // ENTERO. Casos:
+  //   - status 200 + content-length              -> file completo
+  //   - status 206 + Content-Range: bytes 0-N/T  donde N+1 === T
+  //
+  // Si el upstream solo entrega un fragmento (probe de 2 bytes,
+  // range parcial, etc.), no podemos reconstruir el archivo a
+  // partir de aqui, asi que proxiamos sin escribir nada.
+  const cr = upstream.headers.get('content-range');
+  let isComplete = false;
+  if (upstream.status === 200 && upstreamSize && upstreamSize > 1024) {
+    isComplete = true;
+  } else if (upstream.status === 206 && cr) {
+    const m = cr.match(/^bytes\s+0-(\d+)\/(\d+)$/i);
+    if (m && Number(m[1]) + 1 === Number(m[2]) && Number(m[2]) > 1024) {
+      isComplete = true;
+    }
+  }
+  // Coalesce: si ya hay un tee del mismo ytId en curso, no abrimos
+  // otro write — proxy plano para este.
+  const canTee = isComplete && !inflightTeeDownloads.has(ytId);
+
+  console.log(
+    `[lan-server] ${canTee ? 'tee' : 'proxy'} ytId=${ytId} status=${upstream.status} ` +
+    `upstreamCL=${upstreamSize ?? '-'} clientRange=${req.headers.range ?? '-'}`
+  );
+
+  res.writeHead(upstream.status);
+
+  if (!upstream.body) {
+    res.end();
+    return;
+  }
+
+  const nodeStream = Readable.fromWeb(upstream.body);
+
+  if (!canTee) {
+    nodeStream.on('error', (err) => {
+      console.warn('[lan-server] proxy stream error', err.message);
+      if (!res.headersSent) res.writeHead(502);
+      res.end();
+    });
+    res.on('close', () => nodeStream.destroy());
+    nodeStream.pipe(res);
+    return;
+  }
+
+  // ── PATH TEE ───────────────────────────────────────────────────────
+  // Pipe el mismo Readable a DOS destinos (res + ws). Node maneja la
+  // backpressure de cada destino independientemente y pausa el source
+  // cuando alguno se satura. Antes lo hacia a mano con `on('data')` +
+  // `once('drain')`, lo cual fugaba listeners (MaxListenersExceeded).
+  inflightTeeDownloads.add(ytId);
+  const tmpPath = join(sharedAudioDir, `${ytId}.m4a.partial`);
+  const finalPath = join(sharedAudioDir, `${ytId}.m4a`);
+  try { if (existsSync(tmpPath)) unlinkSync(tmpPath); } catch {}
+
+  const ws = createWriteStream(tmpPath);
+  let cleanedUp = false;
+  let nodeEnded = false;
+
+  const cleanup = (success) => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    inflightTeeDownloads.delete(ytId);
+    const wsBytes = ws.bytesWritten;
+    if (!success) {
+      try { if (existsSync(tmpPath)) unlinkSync(tmpPath); } catch {}
+      return;
+    }
+    if (upstreamSize && wsBytes !== upstreamSize) {
+      console.warn(`[lan-server] tee ${ytId} size mismatch (${wsBytes} vs ${upstreamSize}) — descartado`);
+      try { unlinkSync(tmpPath); } catch {}
+      return;
+    }
+    try {
+      renameSync(tmpPath, finalPath);
+      registerSharedAudio(db, {
+        ytId, filePath: finalPath, mime: 'audio/mp4', size: wsBytes,
+      });
+      console.log(`[lan-server] tee ${ytId} OK (${wsBytes} bytes)`);
+    } catch (err) {
+      console.warn(`[lan-server] tee ${ytId} finalize failed:`, err.message);
+      try { unlinkSync(tmpPath); } catch {}
+    }
+  };
+
+  nodeStream.on('end', () => {
+    nodeEnded = true;
+    // ws emite 'finish' un tick despues; lo manejamos ahi.
+  });
+  nodeStream.on('error', (err) => {
+    console.warn(`[lan-server] tee ${ytId} upstream error:`, err.message);
+    if (!res.headersSent) { try { res.writeHead(502); } catch {} }
+    try { res.end(); } catch {}
+    try { ws.destroy(err); } catch {}
+    cleanup(false);
+  });
+  ws.on('finish', () => {
+    // ws termina solo si el pipe llegó al final sin cierre del cliente.
+    if (nodeEnded) cleanup(true);
+  });
+  ws.on('error', (err) => {
+    console.warn(`[lan-server] tee ${ytId} write error:`, err.message);
+    cleanup(false);
+  });
+  // Cierre del cliente -> abortamos tanto el fetch upstream como el
+  // write a disco. Sin esto el upstream sigue consumiendo banda.
+  res.on('close', () => {
+    if (!cleanedUp && !nodeEnded) {
+      const wsBytes = ws.bytesWritten;
+      console.log(`[lan-server] tee ${ytId} cliente cerro a ${wsBytes}/${upstreamSize ?? '-'} — descartado`);
+      try { nodeStream.destroy(); } catch {}
+      try { ws.destroy(); } catch {}
+      cleanup(false);
+    }
+  });
+
+  // Pipe a ambos destinos. `{ end: true }` (default) cierra cada destino
+  // cuando el source termina.
+  nodeStream.pipe(ws);
+  nodeStream.pipe(res);
+}
+
 async function fetchWithRetry(url, headers) {
   for (let attempt = 0; attempt < 2; attempt++) {
     const ctrl = new AbortController();
