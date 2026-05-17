@@ -192,6 +192,20 @@ export function revokeDevice(db, deviceId) {
   `).run(new Date().toISOString(), deviceId);
 }
 
+/**
+ * Borra DEFINITIVAMENTE un device (incluyendo su activity log). Util
+ * para limpiar registros de devices revocados que ya no nos interesa
+ * conservar. Si el device estaba 'approved' lo revoca + borra de paso.
+ */
+export function forgetDevice(db, deviceId) {
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM device_activity WHERE device_id = ?').run(deviceId);
+    db.prepare('DELETE FROM devices WHERE device_id = ?').run(deviceId);
+    db.prepare('DELETE FROM pair_requests WHERE device_id = ?').run(deviceId);
+  });
+  tx();
+}
+
 /** Renombra un device aprobado. */
 export function renameDevice(db, deviceId, newName) {
   if (!newName || newName.length > 80) throw new Error('invalid name');

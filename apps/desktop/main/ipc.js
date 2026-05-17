@@ -21,7 +21,7 @@ import { getOrCreateAccessToken, regenerateAccessToken } from './access-token.js
 import { detectCookiesBrowser, detectJsRuntime, exportCookiesToFile } from './cookies-detect.js';
 import {
   approveDevice, rejectPairRequest, revokeDevice, renameDevice,
-  listDevices, listPairRequests, getDeviceActivity,
+  listDevices, listPairRequests, getDeviceActivity, forgetDevice,
 } from './devices.js';
 import { invalidateDeviceCookies } from './device-cookies.js';
 
@@ -422,6 +422,11 @@ export function registerIpc({ db, lan, accessToken }) {
   });
   ipcMain.handle('devices:revoke', (_e, deviceId) => {
     revokeDevice(db, deviceId);
+    invalidateDeviceCookies(deviceId);
+    return { ok: true };
+  });
+  ipcMain.handle('devices:forget', (_e, deviceId) => {
+    forgetDevice(db, deviceId);
     invalidateDeviceCookies(deviceId);
     return { ok: true };
   });

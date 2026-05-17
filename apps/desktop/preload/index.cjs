@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('ritmiq', {
     approve: (deviceId) => ipcRenderer.invoke('devices:approve', deviceId),
     reject: (deviceId) => ipcRenderer.invoke('devices:reject', deviceId),
     revoke: (deviceId) => ipcRenderer.invoke('devices:revoke', deviceId),
+    forget: (deviceId) => ipcRenderer.invoke('devices:forget', deviceId),
     rename: (deviceId, name) => ipcRenderer.invoke('devices:rename', { deviceId, name }),
     activity: (deviceId, limit) => ipcRenderer.invoke('devices:activity', { deviceId, limit }),
     onPairRequest: (cb) => {

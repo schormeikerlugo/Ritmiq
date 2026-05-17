@@ -684,7 +684,9 @@ function DevicesSection() {
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 5000);
+    // Polling 2s para reflejar rapido devices nuevos (incluyendo
+    // auto-approve idempotente que no dispara pair-request event).
+    const id = setInterval(refresh, 2000);
     const unsub = api.devicesOnPairRequest?.(() => refresh());
     return () => { clearInterval(id); try { unsub?.(); } catch {} };
   }, []);
@@ -710,11 +712,32 @@ function DevicesSection() {
 
   const onRevoke = async (deviceId) => {
     if (!confirm('Revocar este dispositivo? Tendra que volver a pareear.')) return;
+    // Optimistic UI: marcar como revocado al instante para que el user
+    // vea el cambio antes del round-trip al main process + refresh.
+    setDevices((prev) => prev.map((d) =>
+      d.device_id === deviceId
+        ? { ...d, status: 'revoked', revoked_at: new Date().toISOString() }
+        : d
+    ));
     try {
       await api.devicesRevoke(deviceId);
+      setMsg({ ok: true, text: 'Dispositivo revocado.' });
       refresh();
     } catch (err) {
       setMsg({ ok: false, text: String(err?.message ?? err) });
+      refresh(); // re-sincronizar si fallo
+    }
+  };
+
+  const onForget = async (deviceId) => {
+    if (!confirm('Borrar definitivamente este registro? Se pierde la actividad asociada.')) return;
+    setDevices((prev) => prev.filter((d) => d.device_id !== deviceId));
+    try {
+      await api.devicesForget(deviceId);
+      refresh();
+    } catch (err) {
+      setMsg({ ok: false, text: String(err?.message ?? err) });
+      refresh();
     }
   };
 
@@ -741,7 +764,12 @@ function DevicesSection() {
 
   return (
     <div className={styles.section}>
-      <h3>Dispositivos conectados</h3>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <h3 style={{ margin: 0 }}>Dispositivos conectados</h3>
+        <button className={styles.btnSecondary} style={{ fontSize: 12, padding: '4px 10px' }} onClick={refresh}>
+          Refrescar
+        </button>
+      </div>
       <p className={styles.muted}>
         Aprueba aqui los dispositivos que se conectan a este desktop. El
         PIN aparece en la pantalla del dispositivo — compaaralo con el de
@@ -770,26 +798,58 @@ function DevicesSection() {
         </div>
       )}
 
-      <div className={styles.subBlock}>
-        <h4>Aprobados</h4>
-        {devices.length === 0 && <div className={styles.muted}>Sin dispositivos aprobados.</div>}
-        {devices.map((d) => (
-          <div key={d.device_id} className={styles.deviceRow}>
-            <div>
-              <strong>{d.display_name}</strong>
-              <div className={styles.muted}>
-                {d.last_seen_at ? `Visto ${new Date(d.last_seen_at).toLocaleString()}` : 'Sin uso aun'}
-                {d.cookies_updated_at ? ' · cookies subidas' : ' · cookies del owner'}
-              </div>
+      {/* SEPARAR aprobados de revocados. listDevices() devuelve ambos
+          ordenados; los filtramos aqui para que la UI sea clara. */}
+      {(() => {
+        const approved = devices.filter((d) => d.status === 'approved');
+        const revoked = devices.filter((d) => d.status === 'revoked');
+        return (
+          <>
+            <div className={styles.subBlock}>
+              <h4>Aprobados ({approved.length})</h4>
+              {approved.length === 0 && <div className={styles.muted}>Sin dispositivos aprobados.</div>}
+              {approved.map((d) => (
+                <div key={d.device_id} className={styles.deviceRow}>
+                  <div>
+                    <strong>{d.display_name}</strong>
+                    <div className={styles.muted}>
+                      {d.last_seen_at ? `Visto ${new Date(d.last_seen_at).toLocaleString()}` : 'Sin uso aun'}
+                      {d.cookies_updated_at ? ' · cookies subidas' : ' · cookies del owner'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className={styles.btnSecondary} onClick={() => onViewActivity(d.device_id)}>Actividad</button>
+                    <button className={styles.btnSecondary} onClick={() => onRename(d.device_id, d.display_name)}>Renombrar</button>
+                    <button className={styles.btnSecondary} onClick={() => onRevoke(d.device_id)}>Revocar</button>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className={styles.btnSecondary} onClick={() => onViewActivity(d.device_id)}>Actividad</button>
-              <button className={styles.btnSecondary} onClick={() => onRename(d.device_id, d.display_name)}>Renombrar</button>
-              <button className={styles.btnSecondary} onClick={() => onRevoke(d.device_id)}>Revocar</button>
-            </div>
-          </div>
-        ))}
-      </div>
+
+            {revoked.length > 0 && (
+              <details className={styles.subBlock} style={{ opacity: 0.7 }}>
+                <summary style={{ cursor: 'pointer', fontSize: 13, marginBottom: 6 }}>
+                  Revocados ({revoked.length}) — click para ver
+                </summary>
+                {revoked.map((d) => (
+                  <div key={d.device_id} className={styles.deviceRow}>
+                    <div>
+                      <strong style={{ textDecoration: 'line-through' }}>{d.display_name}</strong>
+                      <div className={styles.muted}>
+                        Revocado {d.revoked_at ? new Date(d.revoked_at).toLocaleString() : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className={styles.btnSecondary} onClick={() => onViewActivity(d.device_id)}>Actividad</button>
+                      <button className={styles.btnSecondary} onClick={() => onForget(d.device_id)}>Borrar registro</button>
+                    </div>
+                  </div>
+                ))}
+              </details>
+            )}
+          </>
+        );
+      })()}
 
       {activityFor && (
         <div className={styles.subBlock}>
