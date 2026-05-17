@@ -241,20 +241,20 @@ export async function startLanServer({ port, db, accessToken }) {
       const outBase = join(sharedAudioDir, ytId);
       const t0 = Date.now();
       console.log(`[lan-server] download ${ytId} START`);
-      await downloadAudio(ytId, outBase, {
+      const finalPath = await downloadAudio(ytId, outBase, {
         ...dlOpts,
         // m4a obligatorio: la PWA en iOS Safari no decodifica opus/webm.
-        // El mismo archivo se sirve después al elemento <audio> sin
-        // conversión, así que tiene que ser un contenedor compatible.
+        // El nuevo path (sin -x) descarga el m4a directo de googlevideo
+        // sin transcoding: rapido + bytes consistentes con el proxy.
         format: 'm4a',
       });
-      const finalPath = `${outBase}.m4a`;
       let size = 0;
       try { size = statSync(finalPath).size; } catch {}
-      registerSharedAudio(db, {
-        ytId, filePath: finalPath, mime: 'audio/mp4', size,
-      });
-      console.log(`[lan-server] download ${ytId} OK en ${Date.now() - t0}ms (${size} bytes)`);
+      const mime = finalPath.endsWith('.opus') ? 'audio/ogg'
+                 : finalPath.endsWith('.mp3')  ? 'audio/mpeg'
+                 : 'audio/mp4';
+      registerSharedAudio(db, { ytId, filePath: finalPath, mime, size });
+      console.log(`[lan-server] download ${ytId} OK en ${Date.now() - t0}ms (${size} bytes, ${finalPath.split('.').pop()})`);
       return finalPath;
     })().finally(() => {
       inflightDownloads.delete(ytId);
@@ -353,7 +353,9 @@ export async function startLanServer({ port, db, accessToken }) {
     const hit = streamCache.get(ytId);
     if (hit) {
       if (hit.url && hit.expiresAt > now) {
-        console.log(`[lan-server] resolve ${ytId} CACHE HIT`);
+        // Cache hits son muy frecuentes (Safari hace ~6 range requests
+        // por track). No logueamos cada uno para no inundar la consola;
+        // un log unico se imprime cuando MISS (yt-dlp arranca).
         return Promise.resolve(hit.url);
       }
       if (hit.inflight) {
@@ -755,6 +757,18 @@ export async function startLanServer({ port, db, accessToken }) {
         if (principalForStream && principalForStream.owner !== true) {
           logActivity(db, { deviceId: principalForStream.device_id, action: 'stream', trackId, ytId });
         }
+        // OPTIMIZACION: arranca descarga en background. Safari abre 6+
+        // range requests paralelos para un mismo archivo; mientras la
+        // primera se proxia desde googlevideo, yt-dlp baja el m4a
+        // entero al disco (paralelo HTTP, ~2-5s). Las range requests
+        // subsiguientes encuentran SHARED HIT y se sirven desde disco
+        // a velocidad LAN — orden de magnitud mas rapido y sin riesgo
+        // de ConnectTimeout a googlevideo.
+        downloadSharedAudio(ytId, ytOptsFor(principalForStream)).catch((err) => {
+          // No es fatal — el proxy en vivo sigue funcionando. Solo
+          // perdemos la optimizacion de cache.
+          console.warn(`[lan-server] background download ${ytId} failed:`, err.message);
+        });
         return proxyAudio(req, res, streamUrl);
       }
 
@@ -893,7 +907,23 @@ async function proxyAudio(req, res, upstreamUrl) {
   };
   if (req.headers.range) headers['Range'] = String(req.headers.range);
 
-  const upstream = await fetch(upstreamUrl, { headers });
+  // Fetch con retry: googlevideo a veces da ConnectTimeoutError (10s
+  // default de undici) cuando hay muchas conexiones paralelas a un
+  // mismo CDN node. Reintentamos una vez con timeout extendido (20s)
+  // y un small backoff. Si tambien falla el retry, devolvemos 502.
+  let upstream;
+  try {
+    upstream = await fetchWithRetry(upstreamUrl, headers);
+  } catch (err) {
+    console.warn(`[lan-server] proxy fetch failed: ${err.message ?? err}`);
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'upstream fetch failed' }));
+    } else {
+      res.end();
+    }
+    return;
+  }
 
   // Pasamos los headers relevantes
   const passthrough = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
@@ -947,6 +977,43 @@ async function proxyAudio(req, res, upstreamUrl) {
   // Si el cliente cierra, abortamos el upstream
   res.on('close', () => nodeStream.destroy());
   nodeStream.pipe(res);
+}
+
+/**
+ * fetch con un solo reintento ante ConnectTimeoutError o ECONNRESET.
+ * undici tiene connect timeout default 10s — googlevideo a veces tarda
+ * mas cuando esta saturado por muchas conexiones paralelas. Subimos el
+ * timeout a 20s y reintentamos una vez antes de devolver 502.
+ *
+ * @param {string} url
+ * @param {Record<string,string>} headers
+ * @returns {Promise<Response>}
+ */
+async function fetchWithRetry(url, headers) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20_000);
+    try {
+      const res = await fetch(url, { headers, signal: ctrl.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      const transient =
+        err?.name === 'AbortError' ||
+        err?.code === 'UND_ERR_CONNECT_TIMEOUT' ||
+        err?.code === 'ECONNRESET' ||
+        err?.cause?.code === 'UND_ERR_CONNECT_TIMEOUT' ||
+        err?.cause?.code === 'ECONNRESET';
+      if (attempt === 0 && transient) {
+        console.warn(`[lan-server] fetch retry (${err?.cause?.code ?? err?.code ?? err?.name})`);
+        await new Promise((r) => setTimeout(r, 300));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('fetchWithRetry: unreachable');
 }
 
 /**

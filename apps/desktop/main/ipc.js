@@ -273,14 +273,13 @@ export function registerIpc({ db, lan, accessToken }) {
     }
     const dir = getAudioDir();
     const out = join(dir, `${row.id}`);
-    await downloadAudio(row.yt_id, out, {
+    const finalPath = await downloadAudio(row.yt_id, out, {
       ...ytOpts,
       format: 'opus',
       onProgress: (pct) => {
         try { e.sender.send('library:download:progress', { trackId, pct }); } catch {}
       },
     });
-    const finalPath = `${out}.opus`;
     db.prepare(/* sql */ `
       UPDATE tracks SET is_downloaded = 1, file_path = ?, updated_at = ?
       WHERE id = ?
@@ -289,10 +288,14 @@ export function registerIpc({ db, lan, accessToken }) {
     // tengan este mismo ytId reciban el archivo sin re-descargar.
     try {
       const size = statSync(finalPath).size;
+      const mime = finalPath.endsWith('.opus') ? 'audio/ogg'
+                 : finalPath.endsWith('.m4a')  ? 'audio/mp4'
+                 : finalPath.endsWith('.mp3')  ? 'audio/mpeg'
+                 : 'application/octet-stream';
       registerSharedAudio(db, {
         ytId: row.yt_id,
         filePath: finalPath,
-        mime: 'audio/ogg', // opus en contenedor ogg
+        mime,
         size,
       });
     } catch (err) {

@@ -77,11 +77,30 @@ function run(args, opts = {}) {
  * Prefiere m4a/AAC porque iOS Safari NO puede decodificar opus/webm.
  * Selector: m4a → mp4 → cualquier audio AAC → fallback a bestaudio.
  *
+ * El promise retornado expone `.kill()` que termina el yt-dlp en curso.
+ * Necesario para que el LAN server pueda matar prewarms cuando llega un
+ * click de alta prioridad (sin esto los 3 slots se mantienen ocupados
+ * por los prewarms hasta que terminan ~6s, bloqueando el click).
+ *
  * @param {string} youtubeIdOrUrl
  * @param {YtDlpOpts} [opts]
- * @returns {Promise<string>}
+ * @returns {Promise<string> & { kill?: () => void }}
  */
-export async function getStreamUrl(youtubeIdOrUrl, opts) {
+export function getStreamUrl(youtubeIdOrUrl, opts) {
+  let currentRun = null;
+  let cancelled = false;
+  const main = _getStreamUrlImpl(youtubeIdOrUrl, opts, {
+    setCurrent: (r) => { currentRun = r; },
+    isCancelled: () => cancelled,
+  });
+  main.kill = () => {
+    cancelled = true;
+    try { currentRun?.kill?.(); } catch {}
+  };
+  return main;
+}
+
+async function _getStreamUrlImpl(youtubeIdOrUrl, opts, ctx) {
   const url = normalizeUrl(youtubeIdOrUrl);
   // Selector m4a-first (para PWA iOS) o bestaudio puro (Electron/Chromium).
   // En Electron usamos `bestaudio` porque Chromium decodifica opus/webm
@@ -218,11 +237,15 @@ export async function getStreamUrl(youtubeIdOrUrl, opts) {
 
   let lastErr;
   for (const a of attempts) {
+    if (ctx?.isCancelled?.()) throw new Error('cancelled');
     try {
-      const out = await run(build(a.fmt, a.client, a.useCookies ?? true), opts);
+      const r = run(build(a.fmt, a.client, a.useCookies ?? true), opts);
+      ctx?.setCurrent?.(r);
+      const out = await r;
       return out.trim().split('\n')[0];
     } catch (err) {
       lastErr = err;
+      if (ctx?.isCancelled?.()) throw new Error('cancelled');
       const msg = err?.message ?? '';
       const retryable =
         /Requested format is not available/i.test(msg) ||
@@ -324,28 +347,62 @@ function pickThumb(j) {
 }
 
 /**
- * Descarga el audio a un archivo (usa ffmpeg internamente para extraer).
+ * Descarga el audio a un archivo.
+ *
+ * Para `format='m4a'` (usado por el LAN server compartido) usamos un
+ * format selector DIRECTO (`ba[ext=m4a]`) sin `-x`. Esto evita pasar
+ * por ffmpeg para transcodificar:
+ *   - Velocidad: 22s -> ~3-5s para 4MB porque no hay transcoding.
+ *   - Bytes consistentes con el proxy: googlevideo sirve el m4a tal cual,
+ *     y nosotros guardamos el MISMO archivo. Sin esto, los bytes del
+ *     proxy (m4a original) NO coinciden con los del archivo en disco
+ *     (m4a transcodificado por ffmpeg) y Safari falla a decodificar
+ *     cuando una range request salta del proxy al archivo cacheado:
+ *     sintoma observable = la cancion arranca en silencio y solo suena
+ *     tras pause+play (que fuerza re-fetch desde 0 contra el archivo).
+ *
+ * Para `opus`/`mp3` mantenemos `-x` porque siempre requieren conversion
+ * (la web no sirve mp3 puro, y el opus en YouTube viene en webm que no
+ * siempre tiene tags utiles).
+ *
  * @param {string} youtubeIdOrUrl
  * @param {string} outputPath  Ruta sin extensión (yt-dlp añade .opus/.m4a)
  * @param {YtDlpOpts & { format?: 'opus'|'m4a'|'mp3', onProgress?: (pct: number) => void }} [opts]
- * @returns {Promise<void>}
+ * @returns {Promise<string>}  Path real escrito (con extension real).
  */
 export function downloadAudio(youtubeIdOrUrl, outputPath, opts = {}) {
   const url = normalizeUrl(youtubeIdOrUrl);
   const fmt = opts.format ?? 'opus';
   const bin = opts.binary ?? 'yt-dlp';
   return new Promise((resolve, reject) => {
-    const dlArgs = [
-      '-x',
-      '--audio-format', fmt,
-      '--no-playlist',
-      '-o', `${outputPath}.%(ext)s`,
+    /** @type {string[]} */
+    const dlArgs = [];
+    if (fmt === 'm4a') {
+      // Path rapido: descarga directa del stream m4a SIN transcoding ni
+      // remux. Usamos EL MISMO selector que `getStreamUrl(preferM4a=true)`
+      // para asegurar que ambos eligen el mismo `format_id` y los bytes
+      // coinciden — critico para que las range requests del proxy live
+      // y del archivo cacheado entreguen contenido identico a Safari.
+      dlArgs.push(
+        '-f', 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio[acodec^=mp4a]/bestaudio',
+        '--no-playlist',
+        '-o', `${outputPath}.%(ext)s`,
+      );
+    } else {
+      // opus/mp3: extraccion via ffmpeg (transcoding inevitable).
+      dlArgs.push(
+        '-x',
+        '--audio-format', fmt,
+        '--no-playlist',
+        '-o', `${outputPath}.%(ext)s`,
+      );
+    }
+    dlArgs.push(
       '--newline',
       '--no-mark-watched',
       '--no-call-home',
-      // Mismo orden que la cascada de getStreamUrl — ver comentario allí.
       '--extractor-args', 'youtube:player_client=default,web_safari,mweb,tv_embedded,android_vr,ios_music',
-    ];
+    );
     if (opts.cacheDir) dlArgs.push('--cache-dir', opts.cacheDir);
     if (opts.jsRuntime) dlArgs.push('--js-runtimes', opts.jsRuntime);
     if (opts.cookiesFile) dlArgs.push('--cookies', opts.cookiesFile);
@@ -353,15 +410,29 @@ export function downloadAudio(youtubeIdOrUrl, outputPath, opts = {}) {
     dlArgs.push(url);
     const child = spawn(bin, dlArgs);
     let stderr = '';
+    let stdout = '';
+    /** @type {string|null} */
+    let destination = null;
     child.stderr.on('data', (b) => (stderr += b.toString()));
     child.stdout.on('data', (b) => {
-      const m = /\[download\]\s+(\d+(?:\.\d+)?)%/.exec(b.toString());
+      const s = b.toString();
+      stdout += s;
+      const m = /\[download\]\s+(\d+(?:\.\d+)?)%/.exec(s);
       if (m && opts.onProgress) opts.onProgress(parseFloat(m[1]));
+      // yt-dlp imprime "[download] Destination: <path>" — capturamos para
+      // saber la ruta final real (la extension depende del format elegido).
+      const dm = /\[(?:download|ExtractAudio)\]\s+(?:Destination|Adding metadata to):\s*(.+)$/m.exec(s);
+      if (dm) destination = dm[1].trim();
     });
     child.on('error', reject);
     child.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`yt-dlp exited ${code}: ${stderr}`));
+      if (code !== 0) {
+        reject(new Error(`yt-dlp exited ${code}: ${stderr}`));
+        return;
+      }
+      if (destination) { resolve(destination); return; }
+      // Fallback: heuristica — si quedo `.<algo>`, lo encontramos via fs.
+      resolve(`${outputPath}.${fmt}`);
     });
   });
 }
