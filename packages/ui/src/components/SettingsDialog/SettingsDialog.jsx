@@ -197,6 +197,7 @@ export function SettingsDialog({ onClose }) {
         {isDesktop && <DevicesSection />}
         {!isDesktop && <PwaRemoteSection />}
         {!isDesktop && <PwaPairingSection />}
+        {!isDesktop && <PwaDiagnosticsSection />}
       </div>
     </div>
   );
@@ -993,6 +994,142 @@ function PwaPairingSection() {
       {status === 'error' && error && (
         <div className={styles.error}>{error}</div>
       )}
+    </div>
+  );
+}
+
+/**
+ * PWA: panel de diagnostico. Muestra el estado actual de la conexion
+ * (device_token, tunnel URL, legacy access token) y permite limpiar
+ * residuos del modelo viejo. Util cuando algo falla y el user no tiene
+ * DevTools.
+ */
+function PwaDiagnosticsSection() {
+  const [state, setState] = useState(null);
+  const [testing, setTesting] = useState(false);
+  const [pingResult, setPingResult] = useState(null);
+
+  const refresh = () => {
+    try {
+      const deviceToken = localStorage.getItem('ritmiq:device:token');
+      const deviceId = localStorage.getItem('ritmiq:device:id');
+      const tunnelUrl = localStorage.getItem('ritmiq:lan:tunnelUrl');
+      const lanUrl = localStorage.getItem('ritmiq:lan:baseUrl');
+      const legacyAccessToken = localStorage.getItem('ritmiq:lan:accessToken');
+      setState({
+        deviceToken: deviceToken ? `${deviceToken.slice(0, 8)}…${deviceToken.slice(-4)}` : null,
+        deviceTokenLen: deviceToken?.length ?? 0,
+        deviceId,
+        tunnelUrl,
+        lanUrl,
+        legacyAccessToken: legacyAccessToken ? `${legacyAccessToken.slice(0, 8)}…` : null,
+      });
+    } catch (e) {
+      setState({ error: String(e?.message ?? e) });
+    }
+  };
+
+  useEffect(() => { refresh(); }, []);
+
+  const onClearLegacy = () => {
+    if (!confirm('Limpiar token de acceso legacy? Esto solo afecta al modelo viejo, NO al pareo actual.')) return;
+    try {
+      localStorage.removeItem('ritmiq:lan:accessToken');
+    } catch {}
+    refresh();
+  };
+
+  const onClearAll = () => {
+    if (!confirm('Borrar TODA la configuracion de pareo? Vas a tener que re-parear.')) return;
+    try {
+      localStorage.removeItem('ritmiq:device:token');
+      localStorage.removeItem('ritmiq:device:id');
+      localStorage.removeItem('ritmiq:device:displayName');
+      localStorage.removeItem('ritmiq:lan:tunnelUrl');
+      localStorage.removeItem('ritmiq:lan:accessToken');
+    } catch {}
+    refresh();
+  };
+
+  const onTestPing = async () => {
+    setTesting(true);
+    setPingResult(null);
+    try {
+      const base = state?.tunnelUrl?.replace(/\/$/, '') ?? '';
+      if (!base) throw new Error('Sin tunnel URL configurada');
+      // Test /health (no auth)
+      const t0 = performance.now();
+      const r1 = await fetch(`${base}/health`);
+      const dtHealth = Math.round(performance.now() - t0);
+      const healthOk = r1.ok;
+
+      // Test que el device_token este aceptado: /yt/prewarm es barato.
+      let authStatus = 'sin device_token';
+      if (state?.deviceToken) {
+        const tok = localStorage.getItem('ritmiq:device:token');
+        const r2 = await fetch(`${base}/yt/prewarm?q=dQw4w9WgXcQ&token=${encodeURIComponent(tok)}`);
+        authStatus = `HTTP ${r2.status}${r2.status === 204 ? ' (OK)' : ''}`;
+      }
+      setPingResult({
+        ok: healthOk && authStatus.includes('OK'),
+        text: `Health: ${healthOk ? 'OK' : 'FALLO'} (${dtHealth}ms) · Auth: ${authStatus}`,
+      });
+    } catch (err) {
+      setPingResult({ ok: false, text: String(err?.message ?? err) });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  if (!state) return null;
+
+  return (
+    <div className={styles.section}>
+      <h3>Diagnostico de conexion</h3>
+      <p className={styles.muted}>
+        Estado actual de tu pareo con el desktop. Util si algo no funciona.
+      </p>
+
+      <div className={styles.subBlock} style={{ fontFamily: 'monospace', fontSize: 12, lineHeight: 1.7 }}>
+        <div>device_id: <strong>{state.deviceId || '(no generado)'}</strong></div>
+        <div>device_token: <strong>{state.deviceToken ? `${state.deviceToken} (${state.deviceTokenLen} chars)` : '(no pareado)'}</strong></div>
+        <div>tunnel URL: <strong>{state.tunnelUrl || '(no configurada)'}</strong></div>
+        <div>LAN local: <strong>{state.lanUrl || '(no configurada)'}</strong></div>
+        <div style={{ color: state.legacyAccessToken ? 'orange' : undefined }}>
+          legacy access-token: <strong>{state.legacyAccessToken || '(no presente — bien)'}</strong>
+        </div>
+      </div>
+
+      {state.legacyAccessToken && (
+        <div className={styles.subBlock}>
+          <div className={styles.muted} style={{ color: 'orange' }}>
+            Tenes un token legacy guardado. Si pareaste con Modelo Y, este token NO se usa
+            (prioriza device_token) pero puede confundir el flow. Recomendado: limpiarlo.
+          </div>
+          <button className={styles.btnSecondary} onClick={onClearLegacy}>Limpiar legacy token</button>
+        </div>
+      )}
+
+      <div className={styles.subBlock}>
+        <button
+          className={styles.btnPrimary}
+          onClick={onTestPing}
+          disabled={testing || !state.tunnelUrl}
+        >
+          {testing ? 'Probando…' : 'Probar conexion'}
+        </button>
+        {pingResult && (
+          <div className={pingResult.ok ? styles.success : styles.error}>
+            {pingResult.text}
+          </div>
+        )}
+      </div>
+
+      <div className={styles.subBlock}>
+        <button className={styles.btnSecondary} onClick={onClearAll}>
+          Borrar todo el pareo (re-parear)
+        </button>
+      </div>
     </div>
   );
 }

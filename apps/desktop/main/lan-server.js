@@ -763,6 +763,14 @@ export async function startLanServer({ port, db, accessToken }) {
         // Modelo Y: device autorizado puede pedir descarga indicando ytId
         // por query string (su track no esta en la SQLite del owner).
         const ytFromQs = url.searchParams.get('yt');
+        // DIAGNOSTIC
+        console.log(
+          `[lan-server] /download/${trackId} ` +
+          `principal=${principal ? (principal.owner ? 'owner' : `device:${principal.device_id?.slice(0, 8)}`) : 'none'} ` +
+          `sigOk=${sigCheck.ok} ` +
+          `ytFromQs=${ytFromQs ? ytFromQs : '-'} ` +
+          `localRow=${localRow ? `yt=${localRow.yt_id ?? '-'}/dl=${!!localRow.is_downloaded}` : '-'}`
+        );
         if (sigCheck.ok) {
           ytId = sigCheck.ytId || localRow?.yt_id || null;
         } else if (principal && principal.owner !== true) {
@@ -848,6 +856,15 @@ export async function startLanServer({ port, db, accessToken }) {
         // Path B: device_token aprobado → principal != null
         // Path C: ACCEPT_UNSIGNED y track en SQLite local
         const ytFromQs = url.searchParams.get('yt');
+        // DIAGNOSTIC: facilita ver por que un /stream fallo (4xx) cuando
+        // hay nuevos devices reportando "code 4" en la PWA.
+        console.log(
+          `[lan-server] /stream/${trackId} ` +
+          `principal=${principal ? (principal.owner ? 'owner' : `device:${principal.device_id?.slice(0, 8)}`) : 'none'} ` +
+          `sigOk=${sigCheck.ok} ` +
+          `ytFromQs=${ytFromQs ? ytFromQs : '-'} ` +
+          `localRow=${localRow ? `yt=${localRow.yt_id ?? '-'}/dl=${!!localRow.is_downloaded}` : '-'}`
+        );
 
         // Path A: firma HMAC
         if (sigCheck.ok) {
