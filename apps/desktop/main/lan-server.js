@@ -18,6 +18,7 @@ import { Bonjour } from 'bonjour-service';
 import { getStreamUrl, getMetadata, search } from '@ritmiq/yt/ytdlp';
 import { getYtDlpPath } from './ytdlp-path.js';
 import { detectCookiesBrowser, detectJsRuntime, exportCookiesToFile } from './cookies-detect.js';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
  * Orígenes permitidos para CORS. Se refleja el `Origin` del request si
@@ -45,6 +46,18 @@ export async function startLanServer({ port, db, accessToken }) {
   const ytBinary = getYtDlpPath();
   const cookiesFromBrowser = detectCookiesBrowser();
   const jsRuntime = detectJsRuntime();
+  // Secret compartido con la Edge Function `sign-stream`. Sin esto el LAN
+  // server no puede validar firmas y rechaza requests `/stream/` salvo
+  // que ACCEPT_UNSIGNED esté activo (modo de compatibilidad temporal).
+  const STREAM_SIGNING_SECRET = process.env.RITMIQ_STREAM_SIGNING_SECRET ?? null;
+  const ACCEPT_UNSIGNED =
+    String(process.env.RITMIQ_ACCEPT_UNSIGNED_STREAMS ?? '').toLowerCase() === 'true';
+  if (!STREAM_SIGNING_SECRET) {
+    console.warn('[lan-server] sin RITMIQ_STREAM_SIGNING_SECRET — firmas DESHABILITADAS');
+  }
+  if (ACCEPT_UNSIGNED) {
+    console.warn('[lan-server] ACCEPT_UNSIGNED activo — se aceptan requests sin firma (modo compat)');
+  }
   // Cache persistente para yt-dlp (player.js, JS solvers, etc.). Sin esto
   // el AppImage monta en /tmp distinto cada arranque → yt-dlp re-descarga
   // 3-5MB de player.js cada vez. Pinneamos en userData.
@@ -272,6 +285,48 @@ export async function startLanServer({ port, db, accessToken }) {
     scheduleNext();
     return p;
   }
+
+  /**
+   * Valida una firma HMAC emitida por la Edge Function `sign-stream`.
+   * Centraliza autorización en Supabase: si Supabase aceptó al usuario
+   * para este trackId (vía RLS), nos firmó la URL → reproducimos.
+   *
+   * Payload firmado: `${trackId}|${ytId}|${exp}`
+   * Validez: 5 min (TTL en la Edge), permite Range requests largos sin
+   *   re-firmar. Si caduca mid-stream, el siguiente Range falla y la PWA
+   *   pedirá nueva firma.
+   *
+   * @param {string} trackId
+   * @param {URLSearchParams} qs
+   * @returns {{ ok: true, ytId: string|null } | { ok: false, reason: string }}
+   */
+  function validateStreamSignature(trackId, qs) {
+    const sig = qs.get('sig');
+    const exp = qs.get('exp');
+    const yt  = qs.get('yt') ?? '';
+    if (!sig || !exp) return { ok: false, reason: 'missing sig/exp' };
+
+    const expN = parseInt(exp, 10);
+    if (!Number.isFinite(expN)) return { ok: false, reason: 'bad exp' };
+    if (Date.now() / 1000 > expN) return { ok: false, reason: 'expired' };
+
+    if (!STREAM_SIGNING_SECRET) {
+      return { ok: false, reason: 'server not configured' };
+    }
+    const payload = `${trackId}|${yt}|${expN}`;
+    const expected = createHmac('sha256', STREAM_SIGNING_SECRET)
+      .update(payload).digest('base64')
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+    // Comparación constant-time.
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length) return { ok: false, reason: 'bad signature' };
+    if (!timingSafeEqual(a, b)) return { ok: false, reason: 'bad signature' };
+
+    return { ok: true, ytId: yt || null };
+  }
+
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? '/', `http://localhost:${port}`);
@@ -397,24 +452,53 @@ export async function startLanServer({ port, db, accessToken }) {
           return proxyAudio(req, res, streamUrl);
         }
 
-        const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
-        if (!row) {
-          res.writeHead(404).end('not found');
+        // ── Autorización: firma HMAC emitida por Edge `sign-stream` ───────
+        //
+        // Path principal: la PWA llamó a `/functions/v1/sign-stream` con su
+        // JWT (RLS validó que el track es del user) y recibió URL firmada.
+        // Aquí solo validamos la firma — autorización ya hecha en Supabase.
+        //
+        // El payload firmado incluye `ytId`, así podemos resolver yt-dlp
+        // SIN consultar nuestra SQLite ni Supabase. Multi-tenant gratis.
+        const sigCheck = validateStreamSignature(trackId, url.searchParams);
+
+        // SQLite local (path rápido — owner del desktop). Útil tanto para
+        // tracks descargados como cuando la firma falta y ACCEPT_UNSIGNED
+        // está activo.
+        const localRow = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
+
+        if (sigCheck.ok) {
+          // Si está descargado localmente, servirlo desde disco (rapidísimo).
+          if (localRow?.is_downloaded && localRow.file_path && existsSync(localRow.file_path)) {
+            return serveLocalFile(req, res, localRow.file_path);
+          }
+          // YouTube no descargado: usar ytId firmado (si vino) o el de SQLite.
+          const ytId = sigCheck.ytId || localRow?.yt_id;
+          if (ytId) {
+            const streamUrl = await resolveCached(ytId);
+            return proxyAudio(req, res, streamUrl);
+          }
+          res.writeHead(404).end('source unavailable');
           return;
         }
 
-        // Descargado en disco → streaming con Range desde el archivo.
-        if (row.is_downloaded && row.file_path && existsSync(row.file_path)) {
-          return serveLocalFile(req, res, row.file_path);
+        // Compatibilidad: clientes viejos sin firma. Solo si owner habilitó
+        // ACCEPT_UNSIGNED y el track está en SQLite local (single-tenant).
+        if (ACCEPT_UNSIGNED && localRow) {
+          if (localRow.is_downloaded && localRow.file_path && existsSync(localRow.file_path)) {
+            return serveLocalFile(req, res, localRow.file_path);
+          }
+          if (localRow.source === 'youtube' && localRow.yt_id) {
+            const streamUrl = await resolveCached(localRow.yt_id);
+            return proxyAudio(req, res, streamUrl);
+          }
         }
 
-        // YouTube no descargado → proxy del stream resuelto.
-        if (row.source === 'youtube' && row.yt_id) {
-          const streamUrl = await resolveCached(row.yt_id);
-          return proxyAudio(req, res, streamUrl);
-        }
-
-        res.writeHead(404).end('source unavailable');
+        // Rechazo: firma inválida y no hay fallback.
+        const status = sigCheck.reason === 'expired' ? 401 : 403;
+        console.warn(`[lan-server] /stream/${trackId} rechazado: ${sigCheck.reason}`);
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: sigCheck.reason }));
         return;
       }
 

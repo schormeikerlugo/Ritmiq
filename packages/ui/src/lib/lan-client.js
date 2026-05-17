@@ -6,10 +6,92 @@
  * El base URL se cachea en localStorage tras una verificación con /health.
  */
 
+import { supabase } from './supabase.js';
+
 const STORAGE_KEY = 'ritmiq:lan:baseUrl';
 const TUNNEL_KEY = 'ritmiq:lan:tunnelUrl';
 const TOKEN_KEY  = 'ritmiq:lan:accessToken';
 const HEALTH = '/health';
+
+const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL ?? '';
+const SUPABASE_ANON = import.meta.env?.VITE_SUPABASE_ANON_KEY ?? '';
+
+/**
+ * Cache de URLs firmadas por la Edge `sign-stream`. Las firmas tienen TTL
+ * 5 min; mantenemos en cache `expiresAt - 30s` para no servir URLs que
+ * podrían caducar mid-stream. Refresca solo cuando faltan <30s.
+ *
+ * @type {Map<string, { url: string, expiresAt: number }>}
+ */
+const signedCache = new Map();
+const REFRESH_BUFFER_SEC = 30;
+
+/**
+ * Pide a la Edge Function `sign-stream` una URL firmada para `/stream/<trackId>`.
+ * Centraliza autorización: Supabase valida el JWT y RLS verifica que el
+ * track pertenezca al usuario. El LAN server solo valida la firma HMAC.
+ *
+ * Devuelve la URL completa lista para asignar a `<audio>.src`. Si la Edge
+ * Function falla (Supabase caído, JWT caducado), devuelve null — el caller
+ * debe manejar el error con UX apropiada.
+ *
+ * @param {string} trackId
+ * @param {string} lanBaseUrl  Base URL del LAN server (LAN o Tunnel).
+ * @returns {Promise<string|null>}
+ */
+export async function getSignedStreamUrl(trackId, lanBaseUrl) {
+  if (!trackId || !lanBaseUrl) return null;
+
+  // Cache hit (si queda margen razonable).
+  const cached = signedCache.get(trackId);
+  const now = Math.floor(Date.now() / 1000);
+  if (cached && cached.expiresAt - now > REFRESH_BUFFER_SEC) {
+    return cached.url;
+  }
+
+  if (!SUPABASE_URL) {
+    console.warn('[lan-client] sign-stream: VITE_SUPABASE_URL no configurado');
+    return null;
+  }
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    console.warn('[lan-client] sign-stream: sin sesión Supabase');
+    return null;
+  }
+
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/sign-stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: SUPABASE_ANON,
+      },
+      body: JSON.stringify({
+        trackId,
+        lanBaseUrl,
+        lanBearer: getAccessTokenSync() ?? undefined,
+      }),
+    });
+    if (!r.ok) {
+      // 404: RLS bloqueó (track no es del user) o no existe.
+      // 401: JWT inválido/caducado.
+      console.warn(`[lan-client] sign-stream falló ${r.status} para ${trackId}`);
+      return null;
+    }
+    const { url, expiresAt } = await r.json();
+    signedCache.set(trackId, { url, expiresAt });
+    return url;
+  } catch (err) {
+    console.warn('[lan-client] sign-stream error:', err?.message);
+    return null;
+  }
+}
+
+/** Limpia el cache de firmas (al cambiar de sesión). */
+export function clearSignedStreamCache() {
+  signedCache.clear();
+}
 
 /** @returns {string|null} */
 export function getLanBaseUrlSync() {

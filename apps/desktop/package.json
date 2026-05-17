@@ -58,6 +58,10 @@
       {
         "from": "build-resources/icon.png",
         "to": "build-resources/icon.png"
+      },
+      {
+        "from": "../../.env.production",
+        "to": ".env.production"
       }
     ],
     "directories": {

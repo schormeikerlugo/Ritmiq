@@ -1,6 +1,10 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { loadEnv } from './env.js';
+// Cargar .env.production / .env.development ANTES que cualquier otro módulo
+// que dependa de process.env (supabase-server, etc.).
+loadEnv();
 import { startLanServer } from './lan-server.js';
 import { initDb } from './db.js';
 import { registerIpc } from './ipc.js';

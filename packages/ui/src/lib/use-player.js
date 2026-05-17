@@ -22,6 +22,7 @@ import { api, isDesktop } from './api.js';
 import { isEphemeralTrack } from './track-helpers.js';
 import {
   getLanBaseUrlSync, pingLan, getTunnelUrlSync, withTokenInUrl,
+  getSignedStreamUrl,
 } from './lan-client.js';
 import { getLocalBlobUrl } from './local-downloads.js';
 
@@ -112,8 +113,24 @@ function buildResolveDeps(track) {
       }
       return getReachableCached();
     },
-    buildLanStreamUrl: (trackId, base) =>
-      withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}`),
+    buildLanStreamUrl: (trackId, base) => {
+      // Devuelve una promesa: en desktop usamos el token Bearer directo
+      // (track propio, siempre en SQLite local). En PWA pedimos firma a
+      // la Edge `sign-stream` que valida vía RLS — autorización
+      // centralizada en Supabase, sin service role en el LAN server.
+      if (isDesktop) {
+        return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}`);
+      }
+      // En PWA devolvemos una Promise; resolveAudioSource debe await.
+      // La firma se cachea 5 min y se reusa entre Range requests.
+      return getSignedStreamUrl(trackId, base).then((signed) => {
+        if (signed) return signed;
+        // Fallback (modo compat): si el LAN server tiene ACCEPT_UNSIGNED
+        // y el track está en SU SQLite, sirve sin firma con solo Bearer.
+        // Si no, devolverá 403 y el `<audio>` lo reportará como error 4.
+        return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}`);
+      });
+    },
     // CONTEXTO HISTÓRICO: aquí vivía `getDirectStreamUrl` que pedía la URL
     // firmada directa de googlevideo al lan-server. Se removió porque
     // googlevideo IP-locked rechaza al iPhone con 403 → fallback doblaba

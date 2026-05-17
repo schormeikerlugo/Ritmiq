@@ -13,6 +13,7 @@ import Dexie from 'dexie';
 import {
   lanStreamUrl, getLanBaseUrlSync, pingLan,
   getTunnelUrlSync, withTokenInUrl, getReachableLanBaseUrl,
+  getSignedStreamUrl,
 } from './lan-client.js';
 
 class RitmiqLocalDB extends Dexie {
@@ -168,7 +169,12 @@ export async function downloadTrackToLocal(trackId, onProgress, opts = {}) {
 
   let url;
   if (reachable) {
-    url = withTokenInUrl(`${reachable.replace(/\/$/, '')}/stream/${encodeURIComponent(trackId)}`);
+    // Pedimos URL firmada a la Edge `sign-stream`: Supabase valida JWT +
+    // RLS, devuelve URL con HMAC. El LAN server NO consulta Supabase ni
+    // tiene service role — solo verifica firma localmente. Si la firma
+    // falla, fallback a URL con Bearer (modo compat ACCEPT_UNSIGNED).
+    const signed = await getSignedStreamUrl(trackId, reachable.replace(/\/$/, ''));
+    url = signed ?? withTokenInUrl(`${reachable.replace(/\/$/, '')}/stream/${encodeURIComponent(trackId)}`);
   } else if (ytId) {
     const sup = import.meta.env.VITE_SUPABASE_URL;
     if (!sup) throw new Error('Conecta tu PC para descargar canciones.');

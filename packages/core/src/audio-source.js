@@ -49,9 +49,11 @@ export async function resolveAudioSource(track, deps) {
   // 2. ¿Hay servidor LAN accesible?
   const lanBase = await deps.getLanBaseUrl();
   if (lanBase) {
-    const url = deps.buildLanStreamUrl
+    // `buildLanStreamUrl` puede ser síncrono (desktop) o Promise (PWA con
+    // sign-stream). `await` sirve para ambos casos.
+    const url = await (deps.buildLanStreamUrl
       ? deps.buildLanStreamUrl(track.id, lanBase)
-      : `${lanBase}/stream/${encodeURIComponent(track.id)}`;
+      : `${lanBase}/stream/${encodeURIComponent(track.id)}`);
     return { url, origin: 'lan' };
   }
 
