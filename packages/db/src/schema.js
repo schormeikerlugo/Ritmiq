@@ -80,4 +80,57 @@ CREATE TABLE IF NOT EXISTS shared_audio (
   size          INTEGER NOT NULL,
   downloaded_at TEXT NOT NULL
 );
+
+-- Device pairing (Modelo Y): cada PWA (iPhone/iPad/PC navegador) se parea
+-- explicitamente con este desktop una vez. El owner ve un PIN en su UI,
+-- compara con el que muestra la PWA, y aprueba. La PWA recibe un
+-- device_token unico que persiste en localStorage y envia como Bearer en
+-- cada request. Cookies por device para que cada user use sus propias
+-- credenciales de YouTube (fallback a las del owner si no las subio).
+CREATE TABLE IF NOT EXISTS devices (
+  device_id          TEXT PRIMARY KEY,
+  device_token       TEXT NOT NULL UNIQUE,
+  display_name       TEXT NOT NULL,
+  supabase_user_id   TEXT,
+  status             TEXT NOT NULL DEFAULT 'approved',
+  cookies_blob       BLOB,
+  cookies_updated_at TEXT,
+  approved_at        TEXT NOT NULL,
+  last_seen_at       TEXT,
+  revoked_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_devices_user   ON devices(supabase_user_id);
+CREATE INDEX IF NOT EXISTS idx_devices_token  ON devices(device_token);
+CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
+
+-- Solicitudes de pareo pendientes. La PWA envia POST /pair con un PIN
+-- mostrado en pantalla; el owner ve la solicitud en la UI del desktop y
+-- aprueba (mueve la fila a devices, emite device_token). TTL 10 min,
+-- prune automatico al crear nuevas requests.
+CREATE TABLE IF NOT EXISTS pair_requests (
+  device_id        TEXT PRIMARY KEY,
+  display_name     TEXT NOT NULL,
+  supabase_user_id TEXT,
+  pin              TEXT NOT NULL,
+  cookies_blob     BLOB,
+  requested_at     TEXT NOT NULL,
+  expires_at       TEXT NOT NULL,
+  client_ip        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pair_requests_expires ON pair_requests(expires_at);
+
+-- Log de actividad por device. Util para auditar abuso y mostrar
+-- "Ultimo uso" en la UI. Rotacion automatica a 5 dias (prune al arrancar
+-- + setInterval cada 12h).
+CREATE TABLE IF NOT EXISTS device_activity (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_id   TEXT NOT NULL,
+  action      TEXT NOT NULL,
+  track_id    TEXT,
+  yt_id       TEXT,
+  meta        TEXT,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_activity_device  ON device_activity(device_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_created ON device_activity(created_at);
 `;

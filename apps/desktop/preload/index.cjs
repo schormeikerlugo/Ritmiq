@@ -48,6 +48,20 @@ contextBridge.exposeInMainWorld('ritmiq', {
       return () => ipcRenderer.removeListener('library:download:progress', handler);
     },
   },
+  devices: {
+    list: () => ipcRenderer.invoke('devices:list'),
+    pending: () => ipcRenderer.invoke('devices:pending'),
+    approve: (deviceId) => ipcRenderer.invoke('devices:approve', deviceId),
+    reject: (deviceId) => ipcRenderer.invoke('devices:reject', deviceId),
+    revoke: (deviceId) => ipcRenderer.invoke('devices:revoke', deviceId),
+    rename: (deviceId, name) => ipcRenderer.invoke('devices:rename', { deviceId, name }),
+    activity: (deviceId, limit) => ipcRenderer.invoke('devices:activity', { deviceId, limit }),
+    onPairRequest: (cb) => {
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on('devices:pair-request', handler);
+      return () => ipcRenderer.removeListener('devices:pair-request', handler);
+    },
+  },
   playlists: {
     list: (userId) => ipcRenderer.invoke('playlists:list', userId),
     upsert: (playlist) => ipcRenderer.invoke('playlists:upsert', playlist),

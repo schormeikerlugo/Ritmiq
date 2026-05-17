@@ -194,7 +194,9 @@ export function SettingsDialog({ onClose }) {
         {isDesktop && <SharedCacheSection />}
         {isDesktop && <DesktopTunnelSection />}
         {isDesktop && <DesktopAccessTokenSection />}
+        {isDesktop && <DevicesSection />}
         {!isDesktop && <PwaRemoteSection />}
+        {!isDesktop && <PwaPairingSection />}
       </div>
     </div>
   );
@@ -654,6 +656,343 @@ function PwaRemoteSection() {
           disabled={testing}
         >{testing ? 'Probando…' : 'Guardar'}</button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Desktop: gestion de devices pareados. Listado de devices aprobados,
+ * solicitudes pendientes con PIN para aprobar/rechazar, y activity log.
+ */
+function DevicesSection() {
+  const [devices, setDevices] = useState([]);
+  const [pending, setPending] = useState([]);
+  const [activityFor, setActivityFor] = useState(null);
+  const [activity, setActivity] = useState([]);
+  const [msg, setMsg] = useState(null);
+
+  const refresh = async () => {
+    try {
+      const [d, p] = await Promise.all([api.devicesList(), api.devicesPending()]);
+      setDevices(d ?? []);
+      setPending(p ?? []);
+    } catch (err) {
+      console.warn('[DevicesSection] refresh failed', err);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, 5000);
+    const unsub = api.devicesOnPairRequest?.(() => refresh());
+    return () => { clearInterval(id); try { unsub?.(); } catch {} };
+  }, []);
+
+  const onApprove = async (deviceId) => {
+    try {
+      await api.devicesApprove(deviceId);
+      setMsg({ ok: true, text: 'Dispositivo aprobado.' });
+      refresh();
+    } catch (err) {
+      setMsg({ ok: false, text: String(err?.message ?? err) });
+    }
+  };
+
+  const onReject = async (deviceId) => {
+    try {
+      await api.devicesReject(deviceId);
+      refresh();
+    } catch (err) {
+      setMsg({ ok: false, text: String(err?.message ?? err) });
+    }
+  };
+
+  const onRevoke = async (deviceId) => {
+    if (!confirm('Revocar este dispositivo? Tendra que volver a pareear.')) return;
+    try {
+      await api.devicesRevoke(deviceId);
+      refresh();
+    } catch (err) {
+      setMsg({ ok: false, text: String(err?.message ?? err) });
+    }
+  };
+
+  const onRename = async (deviceId, currentName) => {
+    const next = prompt('Nuevo nombre:', currentName);
+    if (!next || next === currentName) return;
+    try {
+      await api.devicesRename(deviceId, next);
+      refresh();
+    } catch (err) {
+      setMsg({ ok: false, text: String(err?.message ?? err) });
+    }
+  };
+
+  const onViewActivity = async (deviceId) => {
+    setActivityFor(deviceId);
+    try {
+      const log = await api.devicesActivity(deviceId, 50);
+      setActivity(log ?? []);
+    } catch {
+      setActivity([]);
+    }
+  };
+
+  return (
+    <div className={styles.section}>
+      <h3>Dispositivos conectados</h3>
+      <p className={styles.muted}>
+        Aprueba aqui los dispositivos que se conectan a este desktop. El
+        PIN aparece en la pantalla del dispositivo — compaaralo con el de
+        abajo antes de aprobar.
+      </p>
+
+      {pending.length > 0 && (
+        <div className={styles.subBlock}>
+          <h4>Solicitudes pendientes</h4>
+          {pending.map((p) => (
+            <div key={p.device_id} className={styles.deviceRow}>
+              <div>
+                <strong>{p.display_name}</strong>
+                <div className={styles.muted}>
+                  PIN: <code style={{ fontSize: 18 }}>{p.pin}</code>
+                  {' · '}
+                  {new Date(p.requested_at).toLocaleString()}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className={styles.btnPrimary} onClick={() => onApprove(p.device_id)}>Aprobar</button>
+                <button className={styles.btnSecondary} onClick={() => onReject(p.device_id)}>Rechazar</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className={styles.subBlock}>
+        <h4>Aprobados</h4>
+        {devices.length === 0 && <div className={styles.muted}>Sin dispositivos aprobados.</div>}
+        {devices.map((d) => (
+          <div key={d.device_id} className={styles.deviceRow}>
+            <div>
+              <strong>{d.display_name}</strong>
+              <div className={styles.muted}>
+                {d.last_seen_at ? `Visto ${new Date(d.last_seen_at).toLocaleString()}` : 'Sin uso aun'}
+                {d.cookies_updated_at ? ' · cookies subidas' : ' · cookies del owner'}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className={styles.btnSecondary} onClick={() => onViewActivity(d.device_id)}>Actividad</button>
+              <button className={styles.btnSecondary} onClick={() => onRename(d.device_id, d.display_name)}>Renombrar</button>
+              <button className={styles.btnSecondary} onClick={() => onRevoke(d.device_id)}>Revocar</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {activityFor && (
+        <div className={styles.subBlock}>
+          <h4>Actividad del dispositivo</h4>
+          <div style={{ maxHeight: 240, overflow: 'auto', fontSize: 12 }}>
+            {activity.length === 0 && <div className={styles.muted}>Sin eventos.</div>}
+            {activity.map((a) => (
+              <div key={a.id} className={styles.muted}>
+                {new Date(a.created_at).toLocaleString()} — {a.action}
+                {a.yt_id ? ` (${a.yt_id})` : ''}
+              </div>
+            ))}
+          </div>
+          <button className={styles.btnSecondary} onClick={() => { setActivityFor(null); setActivity([]); }}>
+            Cerrar
+          </button>
+        </div>
+      )}
+
+      {msg && (
+        <div className={msg.ok ? styles.success : styles.error}>{msg.text}</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * PWA: pareo con un desktop. Genera device_id + PIN, hace POST /pair y
+ * polling /pair/status hasta aprobacion o rechazo. Guarda el
+ * device_token resultante en localStorage.
+ */
+function PwaPairingSection() {
+  const [tunnelInput, setTunnelInput] = useState(getTunnelUrlSync() ?? '');
+  const [displayName, setDisplayName] = useState(() => {
+    try {
+      const stored = localStorage.getItem('ritmiq:device:displayName');
+      if (stored) return stored;
+    } catch {}
+    return navigator.userAgent.includes('iPhone') ? 'iPhone'
+         : navigator.userAgent.includes('iPad') ? 'iPad'
+         : navigator.userAgent.includes('Android') ? 'Android'
+         : 'PWA navegador';
+  });
+  const [pin, setPin] = useState(null);
+  const [status, setStatus] = useState('idle'); // idle | requesting | pending | approved | rejected | error
+  const [error, setError] = useState(null);
+
+  const deviceId = (() => {
+    try {
+      let id = localStorage.getItem('ritmiq:device:id');
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem('ritmiq:device:id', id);
+      }
+      return id;
+    } catch {
+      return null;
+    }
+  })();
+
+  const existingToken = (() => {
+    try { return localStorage.getItem('ritmiq:device:token'); } catch { return null; }
+  })();
+
+  const onStartPair = async () => {
+    setError(null);
+    setStatus('requesting');
+    try {
+      const baseUrl = tunnelInput.trim().replace(/\/$/, '');
+      if (!baseUrl) throw new Error('Indica la URL del tunnel');
+      // Generar PIN nuevo cada intento.
+      const newPin = String(Math.floor(1000 + Math.random() * 9000));
+      setPin(newPin);
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseUserId = session?.user?.id ?? null;
+      try { localStorage.setItem('ritmiq:device:displayName', displayName); } catch {}
+      const r = await fetch(`${baseUrl}/pair`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          device_id: deviceId,
+          display_name: displayName,
+          supabase_user_id: supabaseUserId,
+          pin: newPin,
+        }),
+      });
+      if (!r.ok) throw new Error(`POST /pair fallo ${r.status}`);
+      const body = await r.json();
+      if (body.status === 'approved' && body.deviceToken) {
+        try {
+          localStorage.setItem('ritmiq:device:token', body.deviceToken);
+          localStorage.setItem('ritmiq:lan:tunnelUrl', baseUrl);
+        } catch {}
+        setStatus('approved');
+        return;
+      }
+      // Polling.
+      setStatus('pending');
+      const start = Date.now();
+      const poll = async () => {
+        if (Date.now() - start > 10 * 60 * 1000) {
+          setStatus('error'); setError('Tiempo agotado'); return;
+        }
+        try {
+          const s = await fetch(`${baseUrl}/pair/status?device_id=${encodeURIComponent(deviceId)}`);
+          const sb = await s.json();
+          if (sb.status === 'approved' && sb.deviceToken) {
+            try {
+              localStorage.setItem('ritmiq:device:token', sb.deviceToken);
+              localStorage.setItem('ritmiq:lan:tunnelUrl', baseUrl);
+            } catch {}
+            setStatus('approved');
+            return;
+          }
+          if (sb.status === 'rejected') { setStatus('rejected'); return; }
+          setTimeout(poll, 2500);
+        } catch (err) {
+          setTimeout(poll, 5000);
+        }
+      };
+      setTimeout(poll, 2500);
+    } catch (err) {
+      setStatus('error');
+      setError(String(err?.message ?? err));
+    }
+  };
+
+  const onUnpair = () => {
+    if (!confirm('Desconectar este dispositivo del desktop?')) return;
+    try {
+      localStorage.removeItem('ritmiq:device:token');
+    } catch {}
+    setStatus('idle');
+    setPin(null);
+  };
+
+  return (
+    <div className={styles.section}>
+      <h3>Parear con un desktop</h3>
+      <p className={styles.muted}>
+        Para reproducir tu biblioteca, parea esta PWA con un desktop que
+        este corriendo Ritmiq. Solo el dueno del desktop tiene que aprobar
+        una vez por dispositivo.
+      </p>
+
+      {existingToken && status !== 'requesting' && status !== 'pending' && (
+        <div className={styles.subBlock}>
+          <div className={styles.success}>
+            Ya estas pareado con un desktop. Si querer cambiar de desktop o
+            re-parear, desconectate primero.
+          </div>
+          <button className={styles.btnSecondary} onClick={onUnpair}>Desconectar</button>
+        </div>
+      )}
+
+      {!existingToken && (
+        <>
+          <label className={styles.field}>
+            <span>Nombre visible</span>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Mi iPhone"
+            />
+          </label>
+          <label className={styles.field}>
+            <span>URL del tunnel del desktop</span>
+            <input
+              type="url"
+              value={tunnelInput}
+              onChange={(e) => setTunnelInput(e.target.value)}
+              placeholder="https://ritmiq.org"
+            />
+          </label>
+          <button
+            className={styles.btnPrimary}
+            disabled={status === 'requesting' || status === 'pending' || !tunnelInput.trim()}
+            onClick={onStartPair}
+          >
+            {status === 'pending' ? 'Esperando aprobacion...' : 'Solicitar pareo'}
+          </button>
+        </>
+      )}
+
+      {pin && status === 'pending' && (
+        <div className={styles.subBlock}>
+          <div>Mostralre al duenod del desktop:</div>
+          <div style={{ fontSize: 36, fontWeight: 600, letterSpacing: 4, fontFamily: 'monospace' }}>
+            {pin}
+          </div>
+          <div className={styles.muted}>Caduca en 10 minutos.</div>
+        </div>
+      )}
+
+      {status === 'approved' && (
+        <div className={styles.success}>Pareo aprobado. Ya podes reproducir.</div>
+      )}
+      {status === 'rejected' && (
+        <div className={styles.error}>El dueno del desktop rechazo la solicitud.</div>
+      )}
+      {status === 'error' && error && (
+        <div className={styles.error}>{error}</div>
+      )}
     </div>
   );
 }

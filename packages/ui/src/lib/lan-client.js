@@ -120,9 +120,20 @@ export function setTunnelUrl(url) {
   } catch {}
 }
 
-/** Token Bearer para autenticarse contra el LAN server. */
+/**
+ * Token Bearer para autenticarse contra el LAN server.
+ *
+ * Modelo Y: PRIORIZA device_token (clave `ritmiq:device:token`, emitido
+ * tras pareo). Solo cae al access_token legacy (clave `ritmiq:lan:accessToken`)
+ * cuando NO hay device_token — tipico de PWAs pre-pareo o herramientas
+ * internas que copian-pegan el access-token del owner.
+ */
 export function getAccessTokenSync() {
-  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+  try {
+    const deviceToken = localStorage.getItem('ritmiq:device:token');
+    if (deviceToken) return deviceToken;
+    return localStorage.getItem(TOKEN_KEY);
+  } catch { return null; }
 }
 
 /** @param {string|null} token */

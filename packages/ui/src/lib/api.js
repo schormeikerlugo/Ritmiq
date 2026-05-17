@@ -65,6 +65,15 @@ const electronApi = isElectron
       libraryDeleteRemote:     optionalCall(window.ritmiq.library.deleteRemote),
       libraryOnDownloadProgress: (cb) => window.ritmiq.library.onDownloadProgress(cb),
 
+      devicesList:             () => window.ritmiq.devices.list(),
+      devicesPending:          () => window.ritmiq.devices.pending(),
+      devicesApprove:          (id) => window.ritmiq.devices.approve(id),
+      devicesReject:           (id) => window.ritmiq.devices.reject(id),
+      devicesRevoke:           (id) => window.ritmiq.devices.revoke(id),
+      devicesRename:           (id, name) => window.ritmiq.devices.rename(id, name),
+      devicesActivity:         (id, limit) => window.ritmiq.devices.activity(id, limit),
+      devicesOnPairRequest:    (cb) => window.ritmiq.devices.onPairRequest(cb),
+
       playlistsList:           (uid) => window.ritmiq.playlists.list(uid),
       playlistsUpsert:         (p) => window.ritmiq.playlists.upsert(p),
       playlistsDelete:         (id) => window.ritmiq.playlists.delete(id),
@@ -174,6 +183,16 @@ const webApi = {
     pwaProgressListeners.add(cb);
     return () => pwaProgressListeners.delete(cb);
   },
+
+  // En PWA, los handlers de devices solo aplican al lado desktop.
+  devicesList: async () => [],
+  devicesPending: async () => [],
+  devicesApprove: async () => { throw new Error('Solo desktop'); },
+  devicesReject: async () => { throw new Error('Solo desktop'); },
+  devicesRevoke: async () => { throw new Error('Solo desktop'); },
+  devicesRename: async () => { throw new Error('Solo desktop'); },
+  devicesActivity: async () => [],
+  devicesOnPairRequest: () => () => {},
 
   // Las playlists viven 100% en Supabase para PWA (no hay SQLite local).
   // Los stores ya leen/escriben directamente vía supabase-js,

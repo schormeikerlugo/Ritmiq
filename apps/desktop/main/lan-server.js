@@ -23,6 +23,14 @@ import {
 import { getYtDlpPath } from './ytdlp-path.js';
 import { detectCookiesBrowser, detectJsRuntime, exportCookiesToFile } from './cookies-detect.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import {
+  createPairRequest, approveDevice, rejectPairRequest,
+  revokeDevice, renameDevice, getPairStatus,
+  findDeviceByToken, listDevices, listPairRequests,
+  logActivity, pruneOldActivity, updateDeviceCookies,
+  getDeviceActivity,
+} from './devices.js';
+import { getCookieFileForDevice, invalidateDeviceCookies } from './device-cookies.js';
 
 /**
  * Orígenes permitidos para CORS. Se refleja el `Origin` del request si
@@ -134,6 +142,84 @@ export async function startLanServer({ port, db, accessToken }) {
     if (qsToken && qsToken === accessToken) return true;
     return false;
   }
+
+  // ── Modelo Y: device_token auth ────────────────────────────────────
+  /** Extrae el Bearer token (o ?token=) del request. */
+  function extractBearer(req, url) {
+    const auth = req.headers['authorization'];
+    if (auth && auth.toLowerCase().startsWith('bearer ')) {
+      return auth.slice(7).trim();
+    }
+    const qsToken = url.searchParams.get('token');
+    return qsToken || null;
+  }
+
+  /** Owner-only auth. */
+  function isOwner(req, url) {
+    if (!accessToken) return true;
+    return extractBearer(req, url) === accessToken;
+  }
+
+  /**
+   * Device-or-owner auth. Devuelve sentinel { owner: true } o DeviceRow.
+   * @returns {{ owner: true } | import('./devices.js').DeviceRow | null}
+   */
+  function authorizeDeviceOrOwner(req, url) {
+    const token = extractBearer(req, url);
+    if (!token) return null;
+    if (accessToken && token === accessToken) return { owner: true };
+    const dev = findDeviceByToken(db, token);
+    return dev ?? null;
+  }
+
+  /**
+   * Devuelve opciones de yt-dlp para un request. Si el caller autorizo
+   * con device_token y el device tiene cookies subidas, las usamos. Si
+   * no, fallback a las cookies del owner (Firefox export).
+   */
+  function ytOptsFor(principal) {
+    if (principal && principal.owner !== true) {
+      try {
+        const file = getCookieFileForDevice(principal);
+        if (file) return { ...ytOpts, cookiesFile: file, cookiesFromBrowser: undefined };
+      } catch (e) {
+        console.warn('[lan-server] device cookies failed, fallback to owner:', e?.message ?? e);
+      }
+    }
+    return ytOpts;
+  }
+
+  // ── Rate limit en pareo (5/min/IP) ─────────────────────────────────
+  /** @type {Map<string, number[]>} */
+  const pairRateMap = new Map();
+  const PAIR_RATE_WINDOW_MS = 60 * 1000;
+  const PAIR_RATE_MAX = 5;
+  function pairRateLimit(ip) {
+    if (!ip) return true;
+    const now = Date.now();
+    const arr = (pairRateMap.get(ip) ?? []).filter((t) => now - t < PAIR_RATE_WINDOW_MS);
+    if (arr.length >= PAIR_RATE_MAX) return false;
+    arr.push(now);
+    pairRateMap.set(ip, arr);
+    return true;
+  }
+
+  // ── Listeners para que el renderer del desktop reciba pair requests
+  /** @type {Set<(req: { deviceId:string, displayName:string, pin:string }) => void>} */
+  const pairListeners = new Set();
+  function notifyOwnerNewPairRequest(payload) {
+    for (const cb of pairListeners) { try { cb(payload); } catch {} }
+  }
+  function onPairRequest(cb) {
+    pairListeners.add(cb);
+    return () => pairListeners.delete(cb);
+  }
+
+  // Activity log rotation: prune al arrancar + cada 12h.
+  try { pruneOldActivity(db, 5); } catch {}
+  setInterval(() => {
+    try { pruneOldActivity(db, 5); } catch {}
+  }, 12 * 3600 * 1000).unref();
 
   // Cache compartido: directorio donde guardamos los m4a descargados a
   // demanda desde el endpoint /download. Distinto de userData/audio (que
@@ -426,6 +512,65 @@ export async function startLanServer({ port, db, accessToken }) {
         return;
       }
 
+      // ── Pareo: endpoints publicos con rate-limit ─────────────────────
+      // Permiten a una PWA solicitar pareo y consultar el estado sin
+      // necesidad de token (no lo tienen todavia). Rate-limit por IP.
+      if (url.pathname === '/pair' && req.method === 'POST') {
+        const clientIp = String(
+          req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+          req.socket.remoteAddress || ''
+        );
+        if (!pairRateLimit(clientIp)) {
+          res.writeHead(429, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'rate limited' }));
+          return;
+        }
+        const chunks = [];
+        req.on('data', (c) => chunks.push(c));
+        req.on('end', () => {
+          try {
+            const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+            const { device_id, display_name, supabase_user_id, pin, cookies_b64 } = body;
+            if (!device_id || !display_name || !pin) {
+              res.writeHead(400).end('device_id, display_name, pin required');
+              return;
+            }
+            const cookiesBlob = cookies_b64
+              ? Buffer.from(String(cookies_b64), 'base64')
+              : null;
+            const out = createPairRequest(db, {
+              deviceId: String(device_id),
+              displayName: String(display_name),
+              supabaseUserId: supabase_user_id ? String(supabase_user_id) : null,
+              pin: String(pin),
+              cookiesBlob,
+              clientIp,
+            });
+            if (out.status === 'pending') {
+              notifyOwnerNewPairRequest({
+                deviceId: String(device_id),
+                displayName: String(display_name),
+                pin: String(pin),
+              });
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(out));
+          } catch (err) {
+            console.error('[lan-server] /pair error', err);
+            res.writeHead(500).end('internal error');
+          }
+        });
+        return;
+      }
+      if (url.pathname === '/pair/status' && req.method === 'GET') {
+        const deviceId = url.searchParams.get('device_id');
+        if (!deviceId) { res.writeHead(400).end('device_id required'); return; }
+        const st = getPairStatus(db, deviceId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(st));
+        return;
+      }
+
       // Resto de rutas: requieren autenticación si hay accessToken configurado.
       //
       // EXCEPCIONES (no requieren token Bearer):
@@ -449,7 +594,18 @@ export async function startLanServer({ port, db, accessToken }) {
           url.pathname.startsWith('/stream/') ||
           url.pathname.startsWith('/download/')
         );
-      if (!isSignedStreamRequest && !isCompatExempt && !isAuthorized(req, url)) {
+      // Modelo Y: ademas del owner token, aceptamos device_token aprobado
+      // para todos los endpoints de musica (/yt/*, /stream/*, /download/*,
+      // /cookies/upload). La fila del device la usan los handlers para
+      // decidir cookies y registrar activity.
+      const isMusicEndpoint =
+        url.pathname.startsWith('/yt/') ||
+        url.pathname.startsWith('/stream/') ||
+        url.pathname.startsWith('/download/') ||
+        url.pathname === '/cookies/upload';
+      const principal = isMusicEndpoint ? authorizeDeviceOrOwner(req, url) : null;
+      const isDeviceAuth = isMusicEndpoint && principal != null;
+      if (!isSignedStreamRequest && !isCompatExempt && !isDeviceAuth && !isAuthorized(req, url)) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'unauthorized' }));
         return;
@@ -458,9 +614,14 @@ export async function startLanServer({ port, db, accessToken }) {
       if (url.pathname === '/yt/search') {
         const q = url.searchParams.get('q');
         if (!q) { res.writeHead(400).end('q required'); return; }
-        const items = await search(q, { ...ytOpts, max: 12 });
+        const opts = ytOptsFor(principal);
+        const items = await search(q, { ...opts, max: 12 });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ items }));
+
+        if (principal && principal.owner !== true) {
+          try { logActivity(db, { deviceId: principal.device_id, action: 'search', meta: { q } }); } catch {}
+        }
 
         // Pre-resolver los stream URLs de los 2 primeros resultados en
         // background con prioridad BAJA. Reducimos de 3→2 para no saturar
@@ -483,6 +644,43 @@ export async function startLanServer({ port, db, accessToken }) {
         return;
       }
 
+      // Subida de cookies por device. Requiere device_token (no acepta owner
+      // porque el owner ya tiene cookiesFromBrowser activas).
+      if (url.pathname === '/cookies/upload' && req.method === 'POST') {
+        if (!principal || principal.owner === true) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'device_token required' }));
+          return;
+        }
+        const chunks = [];
+        req.on('data', (c) => chunks.push(c));
+        req.on('end', () => {
+          try {
+            const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+            const b64 = body.cookies_b64;
+            if (!b64) { res.writeHead(400).end('cookies_b64 required'); return; }
+            const blob = Buffer.from(String(b64), 'base64');
+            const text = blob.toString('utf8');
+            if (text.length > 1024 * 1024) {
+              res.writeHead(413).end('cookies too large');
+              return;
+            }
+            updateDeviceCookies(db, principal.device_id, blob);
+            invalidateDeviceCookies(principal.device_id);
+            logActivity(db, {
+              deviceId: principal.device_id, action: 'cookies_upload',
+              meta: { size: text.length },
+            });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true }));
+          } catch (err) {
+            console.error('[lan-server] /cookies/upload error', err);
+            res.writeHead(500).end('internal error');
+          }
+        });
+        return;
+      }
+
       // ─── CONTEXTO HISTÓRICO: endpoint /yt/streamurl ────────────────────
       // Diseñamos este endpoint para que el cliente pudiera asignar la URL
       // DIRECTA de googlevideo a `audio.src` y bypassear el proxy (mucho
@@ -501,7 +699,7 @@ export async function startLanServer({ port, db, accessToken }) {
       if (url.pathname === '/yt/metadata') {
         const idOrUrl = url.searchParams.get('q');
         if (!idOrUrl) { res.writeHead(400).end('q required'); return; }
-        const meta = await getMetadata(idOrUrl, ytOpts);
+        const meta = await getMetadata(idOrUrl, ytOptsFor(principal));
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(meta));
         return;
@@ -562,10 +760,17 @@ export async function startLanServer({ port, db, accessToken }) {
         const localRow = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
 
         let ytId = null;
+        // Modelo Y: device autorizado puede pedir descarga indicando ytId
+        // por query string (su track no esta en la SQLite del owner).
+        const ytFromQs = url.searchParams.get('yt');
         if (sigCheck.ok) {
           ytId = sigCheck.ytId || localRow?.yt_id || null;
-        } else if (ACCEPT_UNSIGNED && localRow?.source === 'youtube' && localRow.yt_id) {
+        } else if (principal && principal.owner !== true) {
+          ytId = ytFromQs || localRow?.yt_id || null;
+        } else if (ACCEPT_UNSIGNED && (localRow?.source === 'youtube' && localRow.yt_id)) {
           ytId = localRow.yt_id;
+        } else if (ACCEPT_UNSIGNED && ytFromQs) {
+          ytId = ytFromQs;
         } else {
           const status = sigCheck.reason === 'expired' ? 401 : 403;
           res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -581,13 +786,19 @@ export async function startLanServer({ port, db, accessToken }) {
         const cached = findSharedAudio(db, ytId);
         if (cached) {
           console.log(`[lan-server] download ${ytId} CACHE HIT`);
+          if (principal && principal.owner !== true) {
+            try { logActivity(db, { deviceId: principal.device_id, action: 'download_cached', trackId, ytId }); } catch {}
+          }
           return serveLocalFile(req, res, cached.filePath);
         }
 
         // Miss → descargar con yt-dlp. Coalesce: si otro cliente pide el
         // mismo ytId al mismo tiempo, esperan ambos al mismo trabajo.
         try {
-          const filePath = await downloadSharedAudio(ytId, ytOpts);
+          const filePath = await downloadSharedAudio(ytId, ytOptsFor(principal));
+          if (principal && principal.owner !== true) {
+            try { logActivity(db, { deviceId: principal.device_id, action: 'download', trackId, ytId }); } catch {}
+          }
           return serveLocalFile(req, res, filePath);
         } catch (err) {
           console.warn(`[lan-server] download ${ytId} FAIL`, err.message);
@@ -633,33 +844,54 @@ export async function startLanServer({ port, db, accessToken }) {
         // está activo.
         const localRow = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
 
+        // Path A: firma HMAC valida → sigCheck.ok = true
+        // Path B: device_token aprobado → principal != null
+        // Path C: ACCEPT_UNSIGNED y track en SQLite local
+        const ytFromQs = url.searchParams.get('yt');
+
+        // Path A: firma HMAC
         if (sigCheck.ok) {
-          // 1. Track descargado en SQLite local (owner del desktop).
+          const ytId = sigCheck.ytId || localRow?.yt_id;
           if (localRow?.is_downloaded && localRow.file_path && existsSync(localRow.file_path)) {
             return serveLocalFile(req, res, localRow.file_path);
           }
-          // 2. Cache compartido entre cuentas indexado por ytId. Permite
-          //    que un track descargado por user A en este desktop sea
-          //    servido también a user B desde disco — sin re-resolver ni
-          //    re-descargar desde YouTube. La autorización ya está
-          //    garantizada por la firma HMAC (Supabase RLS validó que el
-          //    track pertenece a B en sign-stream).
-          const ytId = sigCheck.ytId || localRow?.yt_id;
           if (ytId) {
             const shared = findSharedAudio(db, ytId);
             if (shared) {
               console.log(`[lan-server] stream ${trackId} SHARED HIT ytId=${ytId}`);
               return serveLocalFile(req, res, shared.filePath);
             }
-            const streamUrl = await resolveCached(ytId);
+            const streamUrl = await resolveCached(ytId, 10);
             return proxyAudio(req, res, streamUrl);
           }
           res.writeHead(404).end('source unavailable');
           return;
         }
 
-        // Compatibilidad: clientes viejos sin firma. Solo si owner habilitó
-        // ACCEPT_UNSIGNED y el track está en SQLite local (single-tenant).
+        // Path B: device pareado (Modelo Y). El device conoce el ytId.
+        if (principal && principal.owner !== true) {
+          const ytId = ytFromQs || localRow?.yt_id || null;
+          if (!ytId) {
+            res.writeHead(404).end('source unavailable (no ytId)');
+            return;
+          }
+          // Cache hit cross-account: lo que el user pidio.
+          const shared = findSharedAudio(db, ytId);
+          if (shared) {
+            console.log(`[lan-server] stream ${trackId} SHARED HIT (device) ytId=${ytId}`);
+            try { logActivity(db, { deviceId: principal.device_id, action: 'stream_shared', trackId, ytId }); } catch {}
+            return serveLocalFile(req, res, shared.filePath);
+          }
+          // SQLite local (track del owner descargado).
+          if (localRow?.is_downloaded && localRow.file_path && existsSync(localRow.file_path)) {
+            return serveLocalFile(req, res, localRow.file_path);
+          }
+          const streamUrl = await resolveCached(ytId, 10, ytOptsFor(principal));
+          try { logActivity(db, { deviceId: principal.device_id, action: 'stream', trackId, ytId }); } catch {}
+          return proxyAudio(req, res, streamUrl);
+        }
+
+        // Path C: compat ACCEPT_UNSIGNED (legacy PWA sin firma ni device).
         if (ACCEPT_UNSIGNED && localRow) {
           if (localRow.is_downloaded && localRow.file_path && existsSync(localRow.file_path)) {
             return serveLocalFile(req, res, localRow.file_path);
@@ -667,9 +899,17 @@ export async function startLanServer({ port, db, accessToken }) {
           if (localRow.source === 'youtube' && localRow.yt_id) {
             const shared = findSharedAudio(db, localRow.yt_id);
             if (shared) return serveLocalFile(req, res, shared.filePath);
-            const streamUrl = await resolveCached(localRow.yt_id);
+            const streamUrl = await resolveCached(localRow.yt_id, 10);
             return proxyAudio(req, res, streamUrl);
           }
+        }
+        // ACCEPT_UNSIGNED + ytId por query (sin localRow): util cuando un
+        // device legacy sin pairing trae el ytId en la URL.
+        if (ACCEPT_UNSIGNED && ytFromQs) {
+          const shared = findSharedAudio(db, ytFromQs);
+          if (shared) return serveLocalFile(req, res, shared.filePath);
+          const streamUrl = await resolveCached(ytFromQs, 10);
+          return proxyAudio(req, res, streamUrl);
         }
 
         // Rechazo: firma inválida y no hay fallback.
@@ -710,6 +950,8 @@ export async function startLanServer({ port, db, accessToken }) {
 
   return {
     port: actualPort,
+    /** Suscribe al renderer a nuevos pair requests (para notificacion + UI). */
+    onPairRequest,
     stop: async () => {
       try { advert?.stop?.(); } catch {}
       try { bonjour?.destroy(); } catch {}

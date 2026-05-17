@@ -114,21 +114,34 @@ function buildResolveDeps(track) {
       return getReachableCached();
     },
     buildLanStreamUrl: (trackId, base) => {
-      // Devuelve una promesa: en desktop usamos el token Bearer directo
-      // (track propio, siempre en SQLite local). En PWA pedimos firma a
-      // la Edge `sign-stream` que valida vía RLS — autorización
-      // centralizada en Supabase, sin service role en el LAN server.
+      // Modelo Y: si esta PWA esta pareada, getAccessTokenSync devuelve
+      // device_token y construimos URL directa con ?yt=<ytId> para que el
+      // desktop encuentre shared_audio aunque el track no este en su
+      // SQLite local. Si NO esta pareada, intentamos sign-stream (HMAC)
+      // y caemos a Bearer-token compat.
+      const ytQs = track.ytId ? `?yt=${encodeURIComponent(track.ytId)}` : '';
       if (isDesktop) {
-        return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}`);
+        return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}${ytQs}`);
       }
-      // En PWA devolvemos una Promise; resolveAudioSource debe await.
-      // La firma se cachea 5 min y se reusa entre Range requests.
+      // PWA: si hay device_token o access_token en localStorage, ir directo.
+      // El desktop usa authorizeDeviceOrOwner para validar.
+      let hasLocalToken = false;
+      try { hasLocalToken = !!(localStorage.getItem('ritmiq:device:token') || localStorage.getItem('ritmiq:lan:accessToken')); } catch {}
+      if (hasLocalToken) {
+        return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}${ytQs}`);
+      }
+      // Sin token local: pedimos firma HMAC al Edge sign-stream.
       return getSignedStreamUrl(trackId, base).then((signed) => {
-        if (signed) return signed;
-        // Fallback (modo compat): si el LAN server tiene ACCEPT_UNSIGNED
-        // y el track está en SU SQLite, sirve sin firma con solo Bearer.
-        // Si no, devolverá 403 y el `<audio>` lo reportará como error 4.
-        return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}`);
+        if (signed) {
+          // Conservamos ?yt=<ytId> incluso con firma para que el desktop
+          // pueda hacer cache HIT por ytId sin ir a Supabase.
+          if (track.ytId && !signed.includes('yt=')) {
+            const sep = signed.includes('?') ? '&' : '?';
+            return `${signed}${sep}yt=${encodeURIComponent(track.ytId)}`;
+          }
+          return signed;
+        }
+        return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}${ytQs}`);
       });
     },
     // CONTEXTO HISTÓRICO: aquí vivía `getDirectStreamUrl` que pedía la URL

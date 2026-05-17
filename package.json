@@ -15,7 +15,9 @@
     "supabase:stop": "supabase stop",
     "supabase:reset": "supabase db reset",
     "supabase:push": "supabase db push",
-    "supabase:fn:serve": "supabase functions serve"
+    "supabase:fn:serve": "supabase functions serve",
+    "test": "node --test apps/desktop/main/devices.test.js",
+    "test:rebuild": "pnpm rebuild better-sqlite3 && node --test apps/desktop/main/devices.test.js && pnpm --filter @ritmiq/desktop run rebuild:native"
   },
   "devDependencies": {
     "turbo": "^2.3.3",

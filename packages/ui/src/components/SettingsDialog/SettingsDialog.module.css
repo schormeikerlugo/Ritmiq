@@ -160,3 +160,25 @@
 }
 .btnSecondary:hover:not(:disabled) { background: var(--color-bg-3); color: var(--color-text-1); }
 .btnSecondary:disabled { opacity: 0.5; }
+
+/* Modelo Y: secciones para devices + pairing. */
+.section {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border, rgba(255,255,255,0.08));
+}
+.section h3 { margin: 0 0 8px 0; font-size: 16px; }
+.section h4 { margin: 12px 0 6px 0; font-size: 13px; opacity: 0.85; }
+.subBlock { margin-top: 12px; }
+.muted { color: var(--color-text-2, #888); font-size: 12px; }
+.success { color: var(--color-success, #38c172); font-size: 13px; padding: 6px 0; }
+.error { color: var(--color-error, #e3342f); font-size: 13px; padding: 6px 0; }
+.deviceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.05));
+}
+.deviceRow:last-child { border-bottom: none; }

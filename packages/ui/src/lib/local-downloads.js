@@ -180,7 +180,13 @@ export async function downloadTrackToLocal(trackId, onProgress, opts = {}) {
     // tardaría minutos). La firma HMAC es la misma — el payload no se
     // ata al endpoint, solo a (trackId, ytId, exp).
     const signed = await getSignedStreamUrl(trackId, reachable.replace(/\/$/, ''));
-    const base = signed ?? withTokenInUrl(`${reachable.replace(/\/$/, '')}/stream/${encodeURIComponent(trackId)}`);
+    // Adjuntamos ?yt=<ytId> para que el desktop pueda servir desde shared_audio
+    // aunque el track no este en su SQLite local (caso device pareado de
+    // otra cuenta — Modelo Y).
+    const ytQs = ytId ? `?yt=${encodeURIComponent(ytId)}` : '';
+    const base = signed ?? withTokenInUrl(
+      `${reachable.replace(/\/$/, '')}/stream/${encodeURIComponent(trackId)}${ytQs}`
+    );
     url = base.replace('/stream/', '/download/');
   } else if (ytId) {
     const sup = import.meta.env.VITE_SUPABASE_URL;

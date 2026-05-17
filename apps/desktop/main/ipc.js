@@ -19,6 +19,11 @@ import { getYtDlpPath, getYtDlpUserDataPath } from './ytdlp-path.js';
 import { cloudflared, getStoredToken, setStoredToken, getCustomUrl, setCustomUrl } from './cloudflared.js';
 import { getOrCreateAccessToken, regenerateAccessToken } from './access-token.js';
 import { detectCookiesBrowser, detectJsRuntime, exportCookiesToFile } from './cookies-detect.js';
+import {
+  approveDevice, rejectPairRequest, revokeDevice, renameDevice,
+  listDevices, listPairRequests, getDeviceActivity,
+} from './devices.js';
+import { invalidateDeviceCookies } from './device-cookies.js';
 
 const YT_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/;
 const ID_RE = /^[\w-]{11}$/;
@@ -392,6 +397,62 @@ export function registerIpc({ db, lan, accessToken }) {
     tx(orderedTrackIds);
     return true;
   });
+
+  // ─── Devices (Modelo Y: pareo de PWAs) ──────────────────────────────
+  ipcMain.handle('devices:list', () => listDevices(db));
+  ipcMain.handle('devices:pending', () => listPairRequests(db));
+  ipcMain.handle('devices:approve', (_e, deviceId) => {
+    // Mueve la pair_request -> devices y emite device_token. Lee la fila
+    // pendiente para obtener display_name + supabase_user_id + cookies.
+    const pending = db.prepare(
+      'SELECT display_name, supabase_user_id, cookies_blob FROM pair_requests WHERE device_id = ?'
+    ).get(deviceId);
+    if (!pending) throw new Error('pair_request not found or expired');
+    const token = approveDevice(db, {
+      deviceId,
+      displayName: pending.display_name,
+      supabaseUserId: pending.supabase_user_id,
+      cookiesBlob: pending.cookies_blob,
+    });
+    return { ok: true, deviceToken: token };
+  });
+  ipcMain.handle('devices:reject', (_e, deviceId) => {
+    rejectPairRequest(db, deviceId);
+    return { ok: true };
+  });
+  ipcMain.handle('devices:revoke', (_e, deviceId) => {
+    revokeDevice(db, deviceId);
+    invalidateDeviceCookies(deviceId);
+    return { ok: true };
+  });
+  ipcMain.handle('devices:rename', (_e, { deviceId, name }) => {
+    renameDevice(db, deviceId, String(name));
+    return { ok: true };
+  });
+  ipcMain.handle('devices:activity', (_e, { deviceId, limit }) =>
+    getDeviceActivity(db, deviceId, Number(limit) || 50)
+  );
+
+  // Notificacion en vivo cuando llega un pair_request: subscribe al
+  // hook expuesto por lan-server y reenvia al renderer + notification.
+  try {
+    lan.onPairRequest?.((pairReq) => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        try { win.webContents.send('devices:pair-request', pairReq); } catch {}
+      }
+      try {
+        const { Notification } = require('electron');
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'Ritmiq · Nueva solicitud de pareo',
+            body: `${pairReq.displayName} pide acceso · PIN ${pairReq.pin}`,
+          }).show();
+        }
+      } catch {}
+    });
+  } catch (err) {
+    console.warn('[ipc] could not subscribe to pair-request events:', err?.message);
+  }
 
   ipcMain.handle('playlists:contents', (_e, userId) => {
     // Devuelve mapa { playlistId: [trackId,…] } para todas las playlists del usuario.
