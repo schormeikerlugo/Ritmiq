@@ -453,6 +453,12 @@ export function usePlayerEngine() {
     // Pausar inmediatamente el track anterior — evita la race condition con
     // el useEffect[isPlaying] que correría play() sobre el src viejo.
     backend.pause();
+    // FIX BUG 3: limpiar refs ANTES del await. Sin esto, durante los 5-8s
+    // del resolve+load del nuevo track, useEffect[isPlaying] ve el ref del
+    // track ANTERIOR y puede llamar backend.play() sobre el src viejo —
+    // sintoma: "el audio anterior sigue sonando unos segundos al cambiar".
+    loadedTrackIdRef.current = null;
+    loadedFingerprintRef.current = null;
     applyMediaSessionMetadata(currentTrack);
 
     (async () => {

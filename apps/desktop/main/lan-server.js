@@ -289,6 +289,15 @@ export async function startLanServer({ port, db, accessToken }) {
         // si aún no empezó.
         const queued = waitQueue.find((j) => j.ytId === ytId);
         if (queued && priority > queued.priority) queued.priority = priority;
+        // FIX BUG 1: también promover prioridad en runningJobs. Sin esto,
+        // killLowPriorityRunning(7) mataba el job del CLICK porque seguia
+        // con p=5 (prewarm) en runningJobs, mientras waitQueue tenia p=10.
+        // Resultado: HTTP 500 "cancelled" y reintento desde cero.
+        for (const job of runningJobs) {
+          if (job.ytId === ytId && priority > job.priority) {
+            job.priority = priority;
+          }
+        }
         // CRÍTICO: si la promoción es a alta prioridad, también purgar la
         // cola y matar yt-dlp running de baja prio. Antes faltaba esto y el
         // click esperaba a que terminaran los prewarms corriendo.
@@ -418,7 +427,29 @@ export async function startLanServer({ port, db, accessToken }) {
       }
 
       // Resto de rutas: requieren autenticación si hay accessToken configurado.
-      if (!isAuthorized(req, url)) {
+      //
+      // EXCEPCIONES (no requieren token Bearer):
+      //   1. /stream/* y /download/* con `?sig=...&exp=...` — se autorizan
+      //      por firma HMAC validada despues contra STREAM_SIGNING_SECRET.
+      //      La PWA en navegador puede no tener token en localStorage pero
+      //      sí obtiene URLs firmadas via Edge sign-stream.
+      //   2. En modo ACCEPT_UNSIGNED (compat): se bypasea el token check
+      //      para /yt/*, /stream/*, /download/*. La autorización real se
+      //      hace mas adentro (sig HMAC o presencia en SQLite local).
+      //      Esto es necesario porque la PWA en PC carga desde Vercel y a
+      //      veces no tiene el token sincronizado en localStorage —
+      //      sintoma clasico: 401 en /yt/prewarm o /download/ aunque la
+      //      sesion Supabase sea valida.
+      const isSignedStreamRequest =
+        (url.pathname.startsWith('/stream/') || url.pathname.startsWith('/download/')) &&
+        url.searchParams.has('sig') && url.searchParams.has('exp');
+      const isCompatExempt =
+        ACCEPT_UNSIGNED && (
+          url.pathname.startsWith('/yt/') ||
+          url.pathname.startsWith('/stream/') ||
+          url.pathname.startsWith('/download/')
+        );
+      if (!isSignedStreamRequest && !isCompatExempt && !isAuthorized(req, url)) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'unauthorized' }));
         return;
@@ -780,13 +811,24 @@ async function proxyAudio(req, res, upstreamUrl) {
   }
 
   const nodeStream = Readable.fromWeb(upstream.body);
+  // Si el cliente cierra (Safari abortando rangos al cambiar de track),
+  // marcamos para suprimir el error de upstream que llega justo después
+  // del destroy() — son aborts normales, no fallos reales del stream.
+  let clientClosed = false;
   nodeStream.on('error', (err) => {
+    if (clientClosed) return; // abort intencional, ignorar
     console.warn('[lan-server] proxy stream error', err.message);
-    if (!res.headersSent) res.writeHead(502);
-    res.end();
+    if (!res.headersSent) {
+      try { res.writeHead(502); } catch {}
+    }
+    try { res.end(); } catch {}
   });
-  // Si el cliente cierra, abortamos el upstream
-  res.on('close', () => nodeStream.destroy());
+  res.on('close', () => {
+    clientClosed = true;
+    // Abortamos el upstream — el cliente ya no recibe bytes. Errores
+    // posteriores en nodeStream (ECONNRESET, AbortError) son esperados.
+    try { nodeStream.destroy(); } catch {}
+  });
   nodeStream.pipe(res);
 }
 

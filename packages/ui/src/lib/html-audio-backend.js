@@ -108,6 +108,18 @@ export function createHtmlAudioBackend() {
      */
     load(url) {
       const el = ensureAudio();
+      // CRITICO Safari/iOS: si asignamos `src` directamente mientras hay
+      // Range requests en vuelo del track anterior, el decoder de iOS puede
+      // entrar en estado corrupto y disparar code 3 (MEDIA_ERR_DECODE)
+      // intermitente — sintoma clasico: "escucho unos segundos de la
+      // anterior, hago click en otra y rompe". El reset (pause +
+      // removeAttribute + load) le indica al elemento "olvidate de todo,
+      // empezamos de cero" antes de asignar la nueva src.
+      try {
+        el.pause();
+        el.removeAttribute('src');
+        el.load();
+      } catch {}
       return new Promise((resolve, reject) => {
         const onCanPlay = () => { cleanup(); resolve(); };
         const onError = () => {

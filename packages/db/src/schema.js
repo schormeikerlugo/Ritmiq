@@ -68,9 +68,9 @@ CREATE INDEX IF NOT EXISTS idx_sync_queue_created ON sync_queue(created_at);
 -- Cache de audio compartido entre cuentas, indexado por ytId (no por
 -- trackId). Permite que cualquier usuario que reproduzca un ytId ya
 -- descargado por OTRO usuario en el mismo desktop reciba el archivo
--- desde disco. Independiente del schema `tracks` (que es per-owner).
+-- desde disco. Independiente del schema 'tracks' (que es per-owner).
 -- Autorización: el LAN server sólo sirve este archivo si el request
--- viene con firma HMAC válida emitida por la Edge `sign-stream`, que
+-- viene con firma HMAC válida emitida por la Edge 'sign-stream', que
 -- a su vez valida RLS — así seguimos respetando que cada user sólo
 -- accede a tracks que tiene en su biblioteca.
 CREATE TABLE IF NOT EXISTS shared_audio (
