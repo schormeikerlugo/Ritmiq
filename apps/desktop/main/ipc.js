@@ -10,7 +10,10 @@ import { spawnSync } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 import { createWriteStream } from 'node:fs';
 import { getMetadata, downloadAudio, getStreamUrl, search } from '@ritmiq/yt/ytdlp';
-import { upsertTrack, listTracks } from '@ritmiq/db/sqlite';
+import {
+  upsertTrack, listTracks,
+  registerSharedAudio, sharedAudioStats, clearSharedAudio,
+} from '@ritmiq/db/sqlite';
 import { randomUUID } from 'node:crypto';
 import { getYtDlpPath, getYtDlpUserDataPath } from './ytdlp-path.js';
 import { cloudflared, getStoredToken, setStoredToken, getCustomUrl, setCustomUrl } from './cloudflared.js';
@@ -273,12 +276,30 @@ export function registerIpc({ db, lan, accessToken }) {
         try { e.sender.send('library:download:progress', { trackId, pct }); } catch {}
       },
     });
+    const finalPath = `${out}.opus`;
     db.prepare(/* sql */ `
       UPDATE tracks SET is_downloaded = 1, file_path = ?, updated_at = ?
       WHERE id = ?
-    `).run(`${out}.opus`, new Date().toISOString(), row.id);
-    return `${out}.opus`;
+    `).run(finalPath, new Date().toISOString(), row.id);
+    // Indexar también en cache compartido para que otras cuentas que
+    // tengan este mismo ytId reciban el archivo sin re-descargar.
+    try {
+      const size = statSync(finalPath).size;
+      registerSharedAudio(db, {
+        ytId: row.yt_id,
+        filePath: finalPath,
+        mime: 'audio/ogg', // opus en contenedor ogg
+        size,
+      });
+    } catch (err) {
+      console.warn('[ipc] registerSharedAudio failed:', err.message);
+    }
+    return finalPath;
   });
+
+  // ─── Cache compartido (admin) ───────────────────────────────────────
+  ipcMain.handle('sharedCache:stats', () => sharedAudioStats(db));
+  ipcMain.handle('sharedCache:clear', () => clearSharedAudio(db));
 
   ipcMain.handle('library:undownload', async (_e, trackId) => {
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);

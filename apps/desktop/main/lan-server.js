@@ -15,7 +15,11 @@ import { createReadStream, statSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
 import { Bonjour } from 'bonjour-service';
-import { getStreamUrl, getMetadata, search } from '@ritmiq/yt/ytdlp';
+import { getStreamUrl, getMetadata, search, downloadAudio } from '@ritmiq/yt/ytdlp';
+import {
+  findSharedAudio, registerSharedAudio,
+  sharedAudioStats, clearSharedAudio,
+} from '@ritmiq/db/sqlite';
 import { getYtDlpPath } from './ytdlp-path.js';
 import { detectCookiesBrowser, detectJsRuntime, exportCookiesToFile } from './cookies-detect.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -129,6 +133,65 @@ export async function startLanServer({ port, db, accessToken }) {
     const qsToken = url.searchParams.get('token');
     if (qsToken && qsToken === accessToken) return true;
     return false;
+  }
+
+  // Cache compartido: directorio donde guardamos los m4a descargados a
+  // demanda desde el endpoint /download. Distinto de userData/audio (que
+  // es para descargas explícitas del usuario propietario del desktop):
+  // estos archivos los puede consumir cualquier cuenta autorizada por
+  // Supabase RLS vía firma HMAC. Persisten hasta que el user limpie con
+  // el botón "Limpiar caché compartido" en Ajustes.
+  const sharedAudioDir = join(app.getPath('userData'), 'shared-audio');
+  try { mkdirSync(sharedAudioDir, { recursive: true }); } catch {}
+
+  /**
+   * Coalescing de descargas: si llegan dos requests al mismo ytId, ambos
+   * esperan al mismo yt-dlp. Sin esto descargaríamos N veces el mismo
+   * archivo si varios clientes le dan play casi a la vez.
+   * @type {Map<string, Promise<string>>}
+   */
+  const inflightDownloads = new Map();
+
+  /**
+   * Descarga el audio (m4a) a `sharedAudioDir`, registra en SQLite, y
+   * devuelve la ruta absoluta. Si ya estaba en cache la devuelve directo.
+   *
+   * @param {string} ytId
+   * @param {object} dlOpts  Heredados del ytOpts del LAN (cookies, runtime).
+   * @returns {Promise<string>}
+   */
+  async function downloadSharedAudio(ytId, dlOpts) {
+    const existing = findSharedAudio(db, ytId);
+    if (existing) return existing.filePath;
+
+    const inflight = inflightDownloads.get(ytId);
+    if (inflight) return inflight;
+
+    const promise = (async () => {
+      const outBase = join(sharedAudioDir, ytId);
+      const t0 = Date.now();
+      console.log(`[lan-server] download ${ytId} START`);
+      await downloadAudio(ytId, outBase, {
+        ...dlOpts,
+        // m4a obligatorio: la PWA en iOS Safari no decodifica opus/webm.
+        // El mismo archivo se sirve después al elemento <audio> sin
+        // conversión, así que tiene que ser un contenedor compatible.
+        format: 'm4a',
+      });
+      const finalPath = `${outBase}.m4a`;
+      let size = 0;
+      try { size = statSync(finalPath).size; } catch {}
+      registerSharedAudio(db, {
+        ytId, filePath: finalPath, mime: 'audio/mp4', size,
+      });
+      console.log(`[lan-server] download ${ytId} OK en ${Date.now() - t0}ms (${size} bytes)`);
+      return finalPath;
+    })().finally(() => {
+      inflightDownloads.delete(ytId);
+    });
+
+    inflightDownloads.set(ytId, promise);
+    return promise;
   }
 
   // Cache en memoria de URLs de stream resueltas por yt-dlp.
@@ -431,6 +494,78 @@ export async function startLanServer({ port, db, accessToken }) {
         return;
       }
 
+      // ─── Cache compartido: stats + clear ───────────────────────────────
+      // Endpoints administrativos para la UI (botón "Limpiar caché
+      // compartido"). Requieren Bearer token (ya validado arriba); no
+      // requieren firma HMAC porque no exponen audio.
+      if (url.pathname === '/shared-cache') {
+        if (req.method === 'GET') {
+          const s = sharedAudioStats(db);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(s));
+          return;
+        }
+        if (req.method === 'DELETE') {
+          const r = clearSharedAudio(db);
+          console.log(`[lan-server] shared-cache clear: ${r.removed} files, ${r.freedBytes} bytes`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(r));
+          return;
+        }
+        res.writeHead(405).end('method not allowed');
+        return;
+      }
+
+      // ─── Descarga rápida vía yt-dlp ────────────────────────────────────
+      // La PWA pide aquí en lugar de /stream para obtener el archivo
+      // entero (paralelismo HTTP de yt-dlp) en lugar de un proxy en vivo
+      // limitado al bitrate del audio. Si el archivo ya está en cache
+      // compartido se sirve instantáneamente (cualquier user benefició).
+      // Bloqueante: la respuesta espera a que yt-dlp termine. Para la
+      // PWA equivale a un fetch que tarda 2-5s en empezar a recibir
+      // bytes y luego entrega el archivo a velocidad de transferencia
+      // local — mucho más rápido que el proxy actual.
+      if (url.pathname.startsWith('/download/')) {
+        const trackId = decodeURIComponent(url.pathname.slice('/download/'.length));
+        const sigCheck = validateStreamSignature(trackId, url.searchParams);
+        const localRow = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
+
+        let ytId = null;
+        if (sigCheck.ok) {
+          ytId = sigCheck.ytId || localRow?.yt_id || null;
+        } else if (ACCEPT_UNSIGNED && localRow?.source === 'youtube' && localRow.yt_id) {
+          ytId = localRow.yt_id;
+        } else {
+          const status = sigCheck.reason === 'expired' ? 401 : 403;
+          res.writeHead(status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: sigCheck.reason ?? 'unauthorized' }));
+          return;
+        }
+        if (!ytId) {
+          res.writeHead(404).end('source unavailable');
+          return;
+        }
+
+        // Hit en cache compartido — servimos archivo y listo.
+        const cached = findSharedAudio(db, ytId);
+        if (cached) {
+          console.log(`[lan-server] download ${ytId} CACHE HIT`);
+          return serveLocalFile(req, res, cached.filePath);
+        }
+
+        // Miss → descargar con yt-dlp. Coalesce: si otro cliente pide el
+        // mismo ytId al mismo tiempo, esperan ambos al mismo trabajo.
+        try {
+          const filePath = await downloadSharedAudio(ytId, ytOpts);
+          return serveLocalFile(req, res, filePath);
+        } catch (err) {
+          console.warn(`[lan-server] download ${ytId} FAIL`, err.message);
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message ?? 'download failed' }));
+          return;
+        }
+      }
+
       if (url.pathname.startsWith('/stream/')) {
         const trackId = decodeURIComponent(url.pathname.slice('/stream/'.length));
 
@@ -468,13 +603,23 @@ export async function startLanServer({ port, db, accessToken }) {
         const localRow = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
 
         if (sigCheck.ok) {
-          // Si está descargado localmente, servirlo desde disco (rapidísimo).
+          // 1. Track descargado en SQLite local (owner del desktop).
           if (localRow?.is_downloaded && localRow.file_path && existsSync(localRow.file_path)) {
             return serveLocalFile(req, res, localRow.file_path);
           }
-          // YouTube no descargado: usar ytId firmado (si vino) o el de SQLite.
+          // 2. Cache compartido entre cuentas indexado por ytId. Permite
+          //    que un track descargado por user A en este desktop sea
+          //    servido también a user B desde disco — sin re-resolver ni
+          //    re-descargar desde YouTube. La autorización ya está
+          //    garantizada por la firma HMAC (Supabase RLS validó que el
+          //    track pertenece a B en sign-stream).
           const ytId = sigCheck.ytId || localRow?.yt_id;
           if (ytId) {
+            const shared = findSharedAudio(db, ytId);
+            if (shared) {
+              console.log(`[lan-server] stream ${trackId} SHARED HIT ytId=${ytId}`);
+              return serveLocalFile(req, res, shared.filePath);
+            }
             const streamUrl = await resolveCached(ytId);
             return proxyAudio(req, res, streamUrl);
           }
@@ -489,6 +634,8 @@ export async function startLanServer({ port, db, accessToken }) {
             return serveLocalFile(req, res, localRow.file_path);
           }
           if (localRow.source === 'youtube' && localRow.yt_id) {
+            const shared = findSharedAudio(db, localRow.yt_id);
+            if (shared) return serveLocalFile(req, res, shared.filePath);
             const streamUrl = await resolveCached(localRow.yt_id);
             return proxyAudio(req, res, streamUrl);
           }

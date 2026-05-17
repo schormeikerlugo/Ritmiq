@@ -41,6 +41,8 @@ const electronApi = isElectron
       ytSearchByType:          (q, type, max = 20) => edgeSearchByType(q, type, max),
       ytdlpInfo:               () => window.ritmiq.ytdlp.info(),
       ytdlpUpdate:             () => window.ritmiq.ytdlp.update(),
+      sharedCacheStats:        () => window.ritmiq.sharedCache.stats(),
+      sharedCacheClear:        () => window.ritmiq.sharedCache.clear(),
 
       tunnelStatus:            () => window.ritmiq.tunnel.status(),
       tunnelSetToken:          (t) => window.ritmiq.tunnel.setToken(t),
@@ -121,6 +123,8 @@ const webApi = {
 
   ytdlpInfo: async () => ({ path: null, version: null }),
   ytdlpUpdate: async () => { throw new Error('Solo desktop'); },
+  sharedCacheStats: async () => ({ count: 0, totalBytes: 0 }),
+  sharedCacheClear: async () => ({ removed: 0, freedBytes: 0 }),
 
   tunnelStatus: async () => ({ status: 'idle', url: null, error: null, hasToken: false, customUrl: null }),
   tunnelSetToken: async () => { throw new Error('Solo desktop'); },

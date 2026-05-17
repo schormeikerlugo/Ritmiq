@@ -191,6 +191,7 @@ export function SettingsDialog({ onClose }) {
         </div>
 
         {isDesktop && <YtDlpSection />}
+        {isDesktop && <SharedCacheSection />}
         {isDesktop && <DesktopTunnelSection />}
         {isDesktop && <DesktopAccessTokenSection />}
         {!isDesktop && <PwaRemoteSection />}
@@ -253,6 +254,81 @@ function YtDlpSection() {
       </div>
     </div>
   );
+}
+
+/**
+ * Cache compartido entre cuentas. Cuando la PWA descarga un track
+ * vía /download/, el archivo queda en el PC indexado por ytId. Si otra
+ * cuenta reproduce el mismo ytId desde otro dispositivo, recibe el
+ * archivo desde disco sin re-descargar. Este panel muestra cuánto espacio
+ * ocupa y permite vaciarlo.
+ */
+function SharedCacheSection() {
+  const [stats, setStats] = useState({ count: 0, totalBytes: 0 });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [msgOk, setMsgOk] = useState(false);
+
+  const refresh = async () => {
+    try { setStats(await api.sharedCacheStats()); } catch {}
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const onClear = async () => {
+    if (!confirm(
+      'Esto borra los archivos de audio descargados que se reusan entre ' +
+      'cuentas. La próxima reproducción de cada canción volverá a descargar ' +
+      'desde YouTube. ¿Continuar?'
+    )) return;
+    setBusy(true);
+    setMsg('Borrando…');
+    try {
+      const r = await api.sharedCacheClear();
+      setMsg(`✓ Liberados ${formatBytes(r.freedBytes)} (${r.removed} archivos)`);
+      setMsgOk(true);
+      await refresh();
+    } catch (err) {
+      setMsg(`Error: ${String(err?.message ?? err)}`);
+      setMsgOk(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={styles.field} style={{ marginTop: '1.25rem' }}>
+      <label className={styles.label}>Caché compartido entre cuentas</label>
+      <p className={styles.hint}>
+        Archivos descargados que se reusan automáticamente cuando otra cuenta
+        en otro dispositivo reproduce la misma canción. Acelera la primera
+        reproducción y evita descargas duplicadas.
+      </p>
+      <p className={styles.hint}>
+        Actualmente: <code>{stats.count}</code> canciones · <code>{formatBytes(stats.totalBytes)}</code>
+      </p>
+      {msg && (
+        <p className={styles.status} data-ok={msgOk}>{msg}</p>
+      )}
+      <div className={styles.actions}>
+        <div className={styles.spacer} />
+        <button
+          type="button"
+          className={styles.btnSecondary}
+          onClick={onClear}
+          disabled={busy || stats.count === 0}
+        >{busy ? 'Borrando…' : 'Limpiar caché compartido'}</button>
+      </div>
+    </div>
+  );
+}
+
+function formatBytes(n) {
+  if (!n) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v >= 10 ? 0 : 1)} ${units[i]}`;
 }
 
 function normalize(s) {

@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('ritmiq', {
     info: () => ipcRenderer.invoke('ytdlp:info'),
     update: () => ipcRenderer.invoke('ytdlp:update'),
   },
+  sharedCache: {
+    stats: () => ipcRenderer.invoke('sharedCache:stats'),
+    clear: () => ipcRenderer.invoke('sharedCache:clear'),
+  },
   tunnel: {
     status: () => ipcRenderer.invoke('tunnel:status'),
     setToken: (token) => ipcRenderer.invoke('tunnel:setToken', token),
