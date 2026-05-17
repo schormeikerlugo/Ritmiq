@@ -878,12 +878,33 @@ function PwaPairingSection() {
       });
       if (!r.ok) throw new Error(`POST /pair fallo ${r.status}`);
       const body = await r.json();
-      if (body.status === 'approved' && body.deviceToken) {
+      const persistAndVerify = (token, url) => {
         try {
-          localStorage.setItem('ritmiq:device:token', body.deviceToken);
-          localStorage.setItem('ritmiq:lan:tunnelUrl', baseUrl);
-        } catch {}
-        setStatus('approved');
+          localStorage.setItem('ritmiq:device:token', token);
+          localStorage.setItem('ritmiq:lan:tunnelUrl', url);
+        } catch (err) {
+          setStatus('error');
+          setError('No se pudo guardar el pareo en localStorage: ' + (err?.message ?? err));
+          return false;
+        }
+        // Verificar inmediatamente que el setItem persistio (Safari/iOS
+        // strict mode o private browsing pueden descartar silenciosamente).
+        const checkToken = localStorage.getItem('ritmiq:device:token');
+        const checkUrl = localStorage.getItem('ritmiq:lan:tunnelUrl');
+        if (checkToken !== token || checkUrl !== url) {
+          setStatus('error');
+          setError(
+            'El navegador no esta persistiendo localStorage. ' +
+            'Si estas en modo privado/incognito, desactivalo. ' +
+            'En iOS Safari: Ajustes > Safari > Bloquear cookies = "Solo de terceros".'
+          );
+          return false;
+        }
+        return true;
+      };
+
+      if (body.status === 'approved' && body.deviceToken) {
+        if (persistAndVerify(body.deviceToken, baseUrl)) setStatus('approved');
         return;
       }
       // Polling.
@@ -897,11 +918,7 @@ function PwaPairingSection() {
           const s = await fetch(`${baseUrl}/pair/status?device_id=${encodeURIComponent(deviceId)}`);
           const sb = await s.json();
           if (sb.status === 'approved' && sb.deviceToken) {
-            try {
-              localStorage.setItem('ritmiq:device:token', sb.deviceToken);
-              localStorage.setItem('ritmiq:lan:tunnelUrl', baseUrl);
-            } catch {}
-            setStatus('approved');
+            if (persistAndVerify(sb.deviceToken, baseUrl)) setStatus('approved');
             return;
           }
           if (sb.status === 'rejected') { setStatus('rejected'); return; }
@@ -1005,31 +1022,44 @@ function PwaPairingSection() {
  * DevTools.
  */
 function PwaDiagnosticsSection() {
-  const [state, setState] = useState(null);
+  const [tick, setTick] = useState(0);
   const [testing, setTesting] = useState(false);
   const [pingResult, setPingResult] = useState(null);
 
-  const refresh = () => {
+  // Lee localStorage en CADA render — sin cache. Asi el pareo se refleja
+  // inmediato al cambiar de seccion o al pulsar "Refrescar".
+  const state = (() => {
     try {
       const deviceToken = localStorage.getItem('ritmiq:device:token');
       const deviceId = localStorage.getItem('ritmiq:device:id');
       const tunnelUrl = localStorage.getItem('ritmiq:lan:tunnelUrl');
       const lanUrl = localStorage.getItem('ritmiq:lan:baseUrl');
       const legacyAccessToken = localStorage.getItem('ritmiq:lan:accessToken');
-      setState({
+      return {
         deviceToken: deviceToken ? `${deviceToken.slice(0, 8)}…${deviceToken.slice(-4)}` : null,
         deviceTokenLen: deviceToken?.length ?? 0,
         deviceId,
         tunnelUrl,
         lanUrl,
         legacyAccessToken: legacyAccessToken ? `${legacyAccessToken.slice(0, 8)}…` : null,
-      });
+      };
     } catch (e) {
-      setState({ error: String(e?.message ?? e) });
+      return { error: String(e?.message ?? e) };
     }
-  };
+  })();
+  // tick no se usa pero su set forzara re-render. Lo silencio aqui.
+  void tick;
 
-  useEffect(() => { refresh(); }, []);
+  // Reescuchar storage cambios de OTRAS pestañas y cambios in-app cuando
+  // el componente sigue montado pero otra seccion escribio en localStorage
+  // (e.g. PwaPairingSection -> setStorage). Polling barato como fallback
+  // porque localStorage no dispara events en la misma pestaña.
+  useEffect(() => {
+    const onStorage = () => setTick((t) => t + 1);
+    window.addEventListener('storage', onStorage);
+    const id = setInterval(() => setTick((t) => t + 1), 2000);
+    return () => { window.removeEventListener('storage', onStorage); clearInterval(id); };
+  }, []);
 
   const onClearLegacy = () => {
     if (!confirm('Limpiar token de acceso legacy? Esto solo afecta al modelo viejo, NO al pareo actual.')) return;
@@ -1098,6 +1128,13 @@ function PwaDiagnosticsSection() {
         <div style={{ color: state.legacyAccessToken ? 'orange' : undefined }}>
           legacy access-token: <strong>{state.legacyAccessToken || '(no presente — bien)'}</strong>
         </div>
+        <button
+          className={styles.btnSecondary}
+          style={{ marginTop: 8 }}
+          onClick={() => setTick((t) => t + 1)}
+        >
+          Refrescar
+        </button>
       </div>
 
       {state.legacyAccessToken && (
