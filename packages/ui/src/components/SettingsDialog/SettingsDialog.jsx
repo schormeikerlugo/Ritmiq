@@ -3,12 +3,17 @@ import {
   getLanBaseUrlSync, setLanBaseUrl, pingLan,
   getTunnelUrlSync, setTunnelUrl,
   getAccessTokenSync, setAccessToken,
+  uploadCookies,
 } from '../../lib/lan-client.js';
 import { api, isDesktop } from '../../lib/api.js';
 import { publishTunnelUrl, clearTunnelUrl } from '../../lib/tunnel-registry.js';
 import { supabase } from '../../lib/supabase.js';
 import { forceRecheck } from '../../lib/connectivity.js';
+import {
+  getDeviceToken, getPairedBaseUrl, clearDevicePairing, getDisplayName,
+} from '../../lib/device.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { PairOnboarding } from '../PairOnboarding/PairOnboarding.jsx';
 import styles from './SettingsDialog.module.css';
 
 /**
@@ -191,9 +196,12 @@ export function SettingsDialog({ onClose }) {
         </div>
 
         {isDesktop && <YtDlpSection />}
+        {isDesktop && <DevicesSection />}
         {isDesktop && <SharedCacheSection />}
         {isDesktop && <DesktopTunnelSection />}
         {isDesktop && <DesktopAccessTokenSection />}
+        {!isDesktop && <PwaPairingSection />}
+        {!isDesktop && <PwaCookiesSection />}
         {!isDesktop && <PwaRemoteSection />}
       </div>
     </div>
@@ -257,6 +265,343 @@ function YtDlpSection() {
 }
 
 /**
+ * PWA: pareo con un Ritmiq Desktop. Cuando no hay device_token, ofrece
+ * abrir el onboarding. Cuando ya esta pareado, muestra info y boton de
+ * "desconectar".
+ */
+function PwaPairingSection() {
+  const [token, setToken] = useState(getDeviceToken());
+  const [baseUrl, setBaseUrl] = useState(getPairedBaseUrl());
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const name = getDisplayName();
+
+  const onDisconnect = () => {
+    if (!confirm('Desconectar este dispositivo del desktop?')) return;
+    clearDevicePairing();
+    setToken(null);
+    setBaseUrl(null);
+  };
+
+  return (
+    <div className={styles.field}>
+      <label className={styles.label}>Pareo con tu Ritmiq Desktop</label>
+      {token ? (
+        <>
+          <p className={styles.hint}>
+            ✓ Pareado como <strong>{name}</strong>
+            {baseUrl && <> con <code>{baseUrl}</code></>}
+          </p>
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={styles.btnSecondary}
+              onClick={() => setShowOnboarding(true)}
+            >Reparear / cambiar de desktop</button>
+            <div className={styles.spacer} />
+            <button
+              type="button"
+              className={styles.btnSecondary}
+              onClick={onDisconnect}
+            >Desconectar</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className={styles.hint}>
+            Para reproducir y descargar canciones necesitas parear este
+            dispositivo con un desktop Ritmiq. El dueño del desktop
+            verificara un PIN y te aprobara.
+          </p>
+          <div className={styles.actions}>
+            <div className={styles.spacer} />
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              onClick={() => setShowOnboarding(true)}
+            >Conectar un desktop</button>
+          </div>
+        </>
+      )}
+
+      {showOnboarding && (
+        <PairOnboarding
+          onClose={() => setShowOnboarding(false)}
+          onPaired={({ baseUrl: bu, deviceToken }) => {
+            setToken(deviceToken);
+            setBaseUrl(bu);
+            setShowOnboarding(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * PWA: subir cookies de YouTube. La PWA acepta drag&drop o file input
+ * de un .txt en formato Netscape (exportable con extension del browser
+ * "Get cookies.txt LOCALLY" en Chrome/Firefox desktop). iPhone Safari
+ * NO permite leer cookies de youtube.com — esos devices deben fallback
+ * a cookies del owner del desktop.
+ */
+function PwaCookiesSection() {
+  const [msg, setMsg] = useState(null);
+  const [msgOk, setMsgOk] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const onFile = async (file) => {
+    if (!file) return;
+    setBusy(true);
+    setMsg('Subiendo…');
+    setMsgOk(false);
+    try {
+      const text = await file.text();
+      await uploadCookies(text);
+      setMsg('✓ Cookies subidas. Ahora yt-dlp usara tu cuenta de YouTube.');
+      setMsgOk(true);
+    } catch (err) {
+      setMsg(`Error: ${err.message ?? err}`);
+      setMsgOk(false);
+    } finally { setBusy(false); }
+  };
+
+  const isMobile = typeof navigator !== 'undefined' &&
+    /iPhone|iPad|Android/.test(navigator.userAgent);
+
+  return (
+    <div className={styles.field} style={{ marginTop: '1.25rem' }}>
+      <label className={styles.label}>Cookies de YouTube (opcional)</label>
+      <p className={styles.hint}>
+        Para que yt-dlp use tu cuenta de YouTube (recomendaciones,
+        suscripciones, contenido restringido) sube tu archivo de cookies.
+        {isMobile ? (
+          <>
+            <br /><br />
+            <strong>iPhone/Android:</strong> el browser NO permite exportar
+            cookies de YouTube directamente. Usa un PC con Chrome/Firefox y
+            la extension "Get cookies.txt LOCALLY", luego envia el archivo
+            a este dispositivo y subelo aqui. Mientras tanto se usaran las
+            cookies del dueno del desktop (puede contaminar SU historial).
+          </>
+        ) : (
+          <>
+            <br /><br />
+            <strong>Como exportar:</strong>{' '}
+            instala la extension <code>Get cookies.txt LOCALLY</code> en
+            Chrome/Firefox, abre <code>youtube.com</code> logueado, click
+            en la extension &rarr; "Export" para descargar el archivo.
+            Luego subelo aqui.
+          </>
+        )}
+      </p>
+      <input
+        type="file"
+        accept=".txt,text/plain"
+        onChange={(e) => onFile(e.target.files?.[0])}
+        disabled={busy}
+        style={{ marginTop: '0.5rem' }}
+      />
+      {msg && <p className={styles.status} data-ok={msgOk}>{msg}</p>}
+    </div>
+  );
+}
+
+/**
+ * Gestion de devices pareados.
+ *
+ * Muestra dos listas:
+ *  - Solicitudes pendientes con su PIN (el owner las compara con lo que
+ *    el dispositivo muestra y aprueba/rechaza).
+ *  - Devices aprobados con estado de cookies, ultima conexion, revocar.
+ *
+ * Suscribe a eventos `pairRequest` para refrescar automaticamente sin
+ * polling.
+ */
+function DevicesSection() {
+  const [devices, setDevices] = useState([]);
+  const [pending, setPending] = useState([]);
+  const [activityFor, setActivityFor] = useState(null);
+  const [activity, setActivity] = useState([]);
+
+  const refresh = async () => {
+    try {
+      const [list, pendingList] = await Promise.all([
+        api.devicesList(),
+        api.devicesPending(),
+      ]);
+      setDevices(list);
+      setPending(pendingList);
+    } catch {}
+  };
+
+  useEffect(() => {
+    refresh();
+    const unsub = api.devicesOnPairRequest(() => { refresh(); });
+    const t = setInterval(refresh, 10_000); // refresh pasivo
+    return () => { unsub?.(); clearInterval(t); };
+  }, []);
+
+  const onApprove = async (deviceId, displayName, guestUserId) => {
+    if (!confirm(`Aprobar "${displayName}"?\n\nVerifica que el PIN coincide con el que muestra el dispositivo.`)) return;
+    try {
+      await api.devicesApprove(deviceId);
+      // Publicar en Supabase para que el guest descubra este desktop
+      // automaticamente en el futuro. Best effort: si la migracion no
+      // esta aplicada o no hay sesion, fallamos silenciosamente.
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id && guestUserId) {
+          await supabase.from('desktop_devices').upsert({
+            owner_user_id: session.user.id,
+            guest_user_id: guestUserId,
+            display_name: 'Mi Desktop',
+          }, { onConflict: 'owner_user_id,guest_user_id' });
+        }
+      } catch { /* migracion no aplicada o sin permisos */ }
+      await refresh();
+    }
+    catch (err) { alert(`Error: ${err.message ?? err}`); }
+  };
+  const onReject = async (deviceId) => {
+    try { await api.devicesReject(deviceId); await refresh(); } catch {}
+  };
+  const onRevoke = async (deviceId, displayName) => {
+    if (!confirm(`Revocar "${displayName}"? El dispositivo dejara de tener acceso.`)) return;
+    try { await api.devicesRevoke(deviceId); await refresh(); } catch {}
+  };
+  const onRename = async (deviceId, current) => {
+    const name = prompt('Nuevo nombre:', current);
+    if (!name || name === current) return;
+    try { await api.devicesRename(deviceId, name); await refresh(); } catch {}
+  };
+  const onShowActivity = async (deviceId) => {
+    if (activityFor === deviceId) {
+      setActivityFor(null); setActivity([]); return;
+    }
+    setActivityFor(deviceId);
+    try { setActivity(await api.devicesActivity(deviceId, 50)); }
+    catch { setActivity([]); }
+  };
+
+  return (
+    <div className={styles.field} style={{ marginTop: '1.25rem' }}>
+      <label className={styles.label}>Dispositivos conectados</label>
+      <p className={styles.hint}>
+        Otros dispositivos (iPhone, iPad, otro PC) pueden conectarse a este
+        desktop para reproducir y descargar. Solo los que apruebes aqui
+        tienen acceso.
+      </p>
+
+      {pending.length > 0 && (
+        <div style={{ marginTop: '0.75rem', padding: '0.5rem', background: 'var(--color-bg-2)', borderRadius: 6, border: '1px solid var(--color-accent)' }}>
+          <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem' }}>
+            Solicitudes pendientes ({pending.length})
+          </p>
+          {pending.map((p) => (
+            <div key={p.device_id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0', borderTop: '1px solid var(--color-border)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 500 }}>{p.display_name}</div>
+                <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                  PIN: <code style={{ fontSize: '1rem', fontWeight: 700 }}>{p.pin}</code>
+                  {' · '}IP: <code>{p.client_ip ?? '-'}</code>
+                  {p.has_cookies ? ' · 🍪 trae cookies' : ''}
+                </div>
+              </div>
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                style={{ height: 32, padding: '0 0.75rem' }}
+                onClick={() => onApprove(p.device_id, p.display_name, p.supabase_user_id)}
+              >Aprobar</button>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                style={{ height: 32, padding: '0 0.75rem' }}
+                onClick={() => onReject(p.device_id)}
+              >Rechazar</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: '0.75rem' }}>
+        {devices.length === 0 && pending.length === 0 && (
+          <p className={styles.hint}>Ningun dispositivo pareado todavia.</p>
+        )}
+        {devices.map((d) => (
+          <div key={d.device_id} style={{ padding: '0.5rem 0', borderTop: '1px solid var(--color-border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 500 }}>
+                  {d.display_name}
+                  {d.status === 'revoked' && (
+                    <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', opacity: 0.6 }}>(revocado)</span>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>
+                  Aprobado: {fmtDate(d.approved_at)}
+                  {d.last_seen_at && ` · Ultimo uso: ${fmtRelative(d.last_seen_at)}`}
+                  {d.cookies_updated_at ? ' · 🍪 cookies subidas' : ' · ⚠ sin cookies'}
+                </div>
+              </div>
+              {d.status === 'approved' && (
+                <>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    style={{ height: 28, padding: '0 0.5rem', fontSize: '0.75rem' }}
+                    onClick={() => onShowActivity(d.device_id)}
+                  >{activityFor === d.device_id ? 'Ocultar' : 'Actividad'}</button>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    style={{ height: 28, padding: '0 0.5rem', fontSize: '0.75rem' }}
+                    onClick={() => onRename(d.device_id, d.display_name)}
+                  >Renombrar</button>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    style={{ height: 28, padding: '0 0.5rem', fontSize: '0.75rem' }}
+                    onClick={() => onRevoke(d.device_id, d.display_name)}
+                  >Revocar</button>
+                </>
+              )}
+            </div>
+            {activityFor === d.device_id && (
+              <div style={{ marginTop: '0.5rem', maxHeight: 200, overflowY: 'auto', fontSize: '0.7rem', fontFamily: 'monospace' }}>
+                {activity.length === 0 && <div style={{ opacity: 0.5 }}>Sin actividad reciente.</div>}
+                {activity.map((a) => (
+                  <div key={a.id} style={{ padding: '2px 0', opacity: 0.85 }}>
+                    {fmtRelative(a.created_at)} · {a.action}
+                    {a.yt_id ? ` (yt:${a.yt_id})` : a.track_id ? ` (${a.track_id.slice(0, 8)})` : ''}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function fmtDate(iso) {
+  if (!iso) return '-';
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+function fmtRelative(iso) {
+  if (!iso) return '-';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.round(diff / 60000);
+  if (m < 1) return 'hace segundos';
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.round(h / 24);
+  return `hace ${d} d`;
+}
+
+/**
  * Cache compartido entre cuentas. Cuando la PWA descarga un track
  * vía /download/, el archivo queda en el PC indexado por ytId. Si otra
  * cuenta reproduce el mismo ytId desde otro dispositivo, recibe el
@@ -276,15 +621,18 @@ function SharedCacheSection() {
 
   const onClear = async () => {
     if (!confirm(
-      'Esto borra los archivos de audio descargados que se reusan entre ' +
-      'cuentas. La próxima reproducción de cada canción volverá a descargar ' +
-      'desde YouTube. ¿Continuar?'
+      'Esto borra los archivos de cache descargados a demanda para otras ' +
+      'cuentas. Tus descargas propias (las que hiciste desde la app de ' +
+      'escritorio) NO se tocan. ¿Continuar?'
     )) return;
     setBusy(true);
     setMsg('Borrando…');
     try {
       const r = await api.sharedCacheClear();
-      setMsg(`✓ Liberados ${formatBytes(r.freedBytes)} (${r.removed} archivos)`);
+      const preservedNote = r.preserved > 0
+        ? ` · ${r.preserved} descargas propias respetadas`
+        : '';
+      setMsg(`✓ Liberados ${formatBytes(r.freedBytes)} (${r.removed} archivos)${preservedNote}`);
       setMsgOk(true);
       await refresh();
     } catch (err) {

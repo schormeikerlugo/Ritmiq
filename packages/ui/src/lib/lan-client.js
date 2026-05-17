@@ -7,6 +7,7 @@
  */
 
 import { supabase } from './supabase.js';
+import { getDeviceToken } from './device.js';
 
 const STORAGE_KEY = 'ritmiq:lan:baseUrl';
 const TUNNEL_KEY = 'ritmiq:lan:tunnelUrl';
@@ -17,80 +18,84 @@ const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL ?? '';
 const SUPABASE_ANON = import.meta.env?.VITE_SUPABASE_ANON_KEY ?? '';
 
 /**
- * Cache de URLs firmadas por la Edge `sign-stream`. Las firmas tienen TTL
- * 5 min; mantenemos en cache `expiresAt - 30s` para no servir URLs que
- * podrían caducar mid-stream. Refresca solo cuando faltan <30s.
+ * @deprecated Modelo Y elimino la Edge `sign-stream`. Conservamos esta
+ * funcion como adaptador delgado: construye la URL directa con el
+ * device_token (Bearer en query string para <audio>) y opcionalmente
+ * `?yt=<ytId>` para que el LAN server resuelva sin consultar SQLite.
  *
- * @type {Map<string, { url: string, expiresAt: number }>}
- */
-const signedCache = new Map();
-const REFRESH_BUFFER_SEC = 30;
-
-/**
- * Pide a la Edge Function `sign-stream` una URL firmada para `/stream/<trackId>`.
- * Centraliza autorización: Supabase valida el JWT y RLS verifica que el
- * track pertenezca al usuario. El LAN server solo valida la firma HMAC.
- *
- * Devuelve la URL completa lista para asignar a `<audio>.src`. Si la Edge
- * Function falla (Supabase caído, JWT caducado), devuelve null — el caller
- * debe manejar el error con UX apropiada.
+ * El segundo argumento ahora puede ser una tupla `(baseUrl, ytId)` o un
+ * baseUrl si el caller no conoce el ytId.
  *
  * @param {string} trackId
- * @param {string} lanBaseUrl  Base URL del LAN server (LAN o Tunnel).
+ * @param {string} lanBaseUrl
+ * @param {{ ytId?: string|null }} [opts]
  * @returns {Promise<string|null>}
  */
-export async function getSignedStreamUrl(trackId, lanBaseUrl) {
+export async function getSignedStreamUrl(trackId, lanBaseUrl, opts = {}) {
   if (!trackId || !lanBaseUrl) return null;
+  const base = lanBaseUrl.replace(/\/$/, '');
+  let url = `${base}/stream/${encodeURIComponent(trackId)}`;
+  if (opts.ytId) url += `?yt=${encodeURIComponent(opts.ytId)}`;
+  return withTokenInUrl(url);
+}
 
-  // Cache hit (si queda margen razonable).
-  const cached = signedCache.get(trackId);
-  const now = Math.floor(Date.now() / 1000);
-  if (cached && cached.expiresAt - now > REFRESH_BUFFER_SEC) {
-    return cached.url;
-  }
+/** @deprecated cache de firmas ya no se usa. */
+export function clearSignedStreamCache() { /* no-op */ }
 
-  if (!SUPABASE_URL) {
-    console.warn('[lan-client] sign-stream: VITE_SUPABASE_URL no configurado');
-    return null;
-  }
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    console.warn('[lan-client] sign-stream: sin sesión Supabase');
-    return null;
-  }
-
+/**
+ * Discovery (Fase 7): consulta a Supabase la lista de desktops a los que
+ * el user actual ha sido invitado. Requiere que la migracion
+ * `20260517100000_desktop_devices.sql` este aplicada.
+ *
+ * @returns {Promise<Array<{ owner_user_id:string, display_name:string, tunnel_url:string, updated_at:string }>>}
+ */
+export async function listAvailableDesktops() {
   try {
-    const r = await fetch(`${SUPABASE_URL}/functions/v1/sign-stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-        apikey: SUPABASE_ANON,
-      },
-      body: JSON.stringify({
-        trackId,
-        lanBaseUrl,
-        lanBearer: getAccessTokenSync() ?? undefined,
-      }),
-    });
-    if (!r.ok) {
-      // 404: RLS bloqueó (track no es del user) o no existe.
-      // 401: JWT inválido/caducado.
-      console.warn(`[lan-client] sign-stream falló ${r.status} para ${trackId}`);
-      return null;
+    const { data, error } = await supabase.rpc('list_available_desktops');
+    if (error) {
+      // Migracion no aplicada o usuario sin invitaciones — no es fatal.
+      if (error.code === 'PGRST202' /* function not found */ ||
+          error.code === '42883' /* undefined function */) {
+        return [];
+      }
+      console.warn('[lan-client] list_available_desktops:', error.message);
+      return [];
     }
-    const { url, expiresAt } = await r.json();
-    signedCache.set(trackId, { url, expiresAt });
-    return url;
+    return data ?? [];
   } catch (err) {
-    console.warn('[lan-client] sign-stream error:', err?.message);
-    return null;
+    console.warn('[lan-client] discovery failed:', err.message);
+    return [];
   }
 }
 
-/** Limpia el cache de firmas (al cambiar de sesión). */
-export function clearSignedStreamCache() {
-  signedCache.clear();
+/**
+ * Sube cookies de YouTube (texto en formato Netscape) al desktop pareado.
+ * Requiere device_token configurado.
+ * @param {string} cookiesText
+ * @returns {Promise<{ ok: true }>}
+ */
+export async function uploadCookies(cookiesText) {
+  const base = preferredBase();
+  if (!base) throw new Error('No hay desktop pareado. Configura uno primero.');
+  if (!cookiesText || cookiesText.length < 50) {
+    throw new Error('Archivo de cookies vacio o invalido.');
+  }
+  const b64 = (typeof btoa === 'function')
+    ? btoa(unescape(encodeURIComponent(cookiesText)))
+    : Buffer.from(cookiesText, 'utf8').toString('base64');
+  const r = await fetch(`${base.replace(/\/$/, '')}/cookies/upload`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ cookies_b64: b64 }),
+  });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.error ?? `upload failed (${r.status})`);
+  }
+  return r.json();
 }
 
 /** @returns {string|null} */
@@ -120,8 +125,18 @@ export function setTunnelUrl(url) {
   } catch {}
 }
 
-/** Token Bearer para autenticarse contra el LAN server. */
+/**
+ * Token Bearer para autenticarse contra el LAN server.
+ *
+ * Prioridad:
+ *   1. device_token (Modelo Y, post-Fase 4): per-dispositivo, emitido
+ *      por el desktop tras aprobar el pareo.
+ *   2. access-token legacy (Modelo viejo): un solo token compartido por
+ *      todos los devices del owner. Solo se conserva por compat.
+ */
 export function getAccessTokenSync() {
+  const dev = getDeviceToken();
+  if (dev) return dev;
   try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
 }
 
@@ -264,12 +279,31 @@ export async function lanMetadata(idOrUrl) {
 /**
  * URL del stream de un track con el token incluido (para `<audio>`).
  * @param {string} trackId
+ * @param {string|null} [ytId]  Si se conoce, se anexa como `?yt=` para
+ *   que el LAN server pueda resolver sin consultar SQLite ni Supabase.
+ *   Critico para multi-tenant (track no esta en SQLite local del owner).
  * @returns {string|null}
  */
-export function lanStreamUrl(trackId) {
+export function lanStreamUrl(trackId, ytId = null) {
   const base = preferredBase();
   if (!base) return null;
-  return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}`);
+  let url = `${base}/stream/${encodeURIComponent(trackId)}`;
+  if (ytId) url += `?yt=${encodeURIComponent(ytId)}`;
+  return withTokenInUrl(url);
+}
+
+/**
+ * URL del endpoint /download (yt-dlp full download + serve). Equivalente
+ * a lanStreamUrl pero apunta al endpoint optimizado para descargas.
+ * @param {string} trackId
+ * @param {string|null} [ytId]
+ */
+export function lanDownloadUrl(trackId, ytId = null) {
+  const base = preferredBase();
+  if (!base) return null;
+  let url = `${base}/download/${encodeURIComponent(trackId)}`;
+  if (ytId) url += `?yt=${encodeURIComponent(ytId)}`;
+  return withTokenInUrl(url);
 }
 
 /**

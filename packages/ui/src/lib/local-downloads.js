@@ -13,7 +13,6 @@ import Dexie from 'dexie';
 import {
   lanStreamUrl, getLanBaseUrlSync, pingLan,
   getTunnelUrlSync, withTokenInUrl, getReachableLanBaseUrl,
-  getSignedStreamUrl,
 } from './lan-client.js';
 
 class RitmiqLocalDB extends Dexie {
@@ -169,19 +168,12 @@ export async function downloadTrackToLocal(trackId, onProgress, opts = {}) {
 
   let url;
   if (reachable) {
-    // Pedimos URL firmada a la Edge `sign-stream`: Supabase valida JWT +
-    // RLS, devuelve URL con HMAC. El LAN server NO consulta Supabase ni
-    // tiene service role — solo verifica firma localmente. Si la firma
-    // falla, fallback a URL con Bearer (modo compat ACCEPT_UNSIGNED).
-    //
-    // Para descargas usamos /download/ en lugar de /stream/: el LAN
-    // server invoca yt-dlp (paralelismo HTTP nativo, ~5s para un m4a)
-    // en lugar de proxiar bytes en vivo (limitado al bitrate del audio,
-    // tardaría minutos). La firma HMAC es la misma — el payload no se
-    // ata al endpoint, solo a (trackId, ytId, exp).
-    const signed = await getSignedStreamUrl(trackId, reachable.replace(/\/$/, ''));
-    const base = signed ?? withTokenInUrl(`${reachable.replace(/\/$/, '')}/stream/${encodeURIComponent(trackId)}`);
-    url = base.replace('/stream/', '/download/');
+    // Modelo Y: device_token + ?yt=<ytId> directo al endpoint /download/.
+    // El desktop autoriza por su tabla de devices (no necesita HMAC ni
+    // RLS de Supabase). El ?yt= permite resolver sin consultar nada.
+    let endpoint = `${reachable.replace(/\/$/, '')}/download/${encodeURIComponent(trackId)}`;
+    if (ytId) endpoint += `?yt=${encodeURIComponent(ytId)}`;
+    url = withTokenInUrl(endpoint);
   } else if (ytId) {
     const sup = import.meta.env.VITE_SUPABASE_URL;
     if (!sup) throw new Error('Conecta tu PC para descargar canciones.');

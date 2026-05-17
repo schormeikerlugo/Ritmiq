@@ -68,10 +68,10 @@ CREATE INDEX IF NOT EXISTS idx_sync_queue_created ON sync_queue(created_at);
 -- Cache de audio compartido entre cuentas, indexado por ytId (no por
 -- trackId). Permite que cualquier usuario que reproduzca un ytId ya
 -- descargado por OTRO usuario en el mismo desktop reciba el archivo
--- desde disco. Independiente del schema `tracks` (que es per-owner).
--- Autorización: el LAN server sólo sirve este archivo si el request
--- viene con firma HMAC válida emitida por la Edge `sign-stream`, que
--- a su vez valida RLS — así seguimos respetando que cada user sólo
+-- desde disco. Independiente del schema tracks (que es per-owner).
+-- Autorizacion: el LAN server solo sirve este archivo si el request
+-- viene con firma HMAC valida emitida por la Edge sign-stream, que
+-- a su vez valida RLS, asi seguimos respetando que cada user solo
 -- accede a tracks que tiene en su biblioteca.
 CREATE TABLE IF NOT EXISTS shared_audio (
   yt_id         TEXT PRIMARY KEY,
@@ -80,4 +80,53 @@ CREATE TABLE IF NOT EXISTS shared_audio (
   size          INTEGER NOT NULL,
   downloaded_at TEXT NOT NULL
 );
+
+-- Dispositivos aprobados para usar este desktop. Reemplaza el modelo de
+-- HMAC firmado por Supabase: la autoridad pasa a ser el owner del PC,
+-- que aprueba cada device. Cada device tiene un device_token unico que
+-- la PWA persiste en localStorage y envia como Bearer en cada request.
+CREATE TABLE IF NOT EXISTS devices (
+  device_id          TEXT PRIMARY KEY,
+  device_token       TEXT NOT NULL UNIQUE,
+  display_name       TEXT NOT NULL,
+  supabase_user_id   TEXT,
+  status             TEXT NOT NULL DEFAULT 'approved',
+  cookies_blob       BLOB,
+  cookies_updated_at TEXT,
+  approved_at        TEXT NOT NULL,
+  last_seen_at       TEXT,
+  revoked_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_devices_user  ON devices(supabase_user_id);
+CREATE INDEX IF NOT EXISTS idx_devices_token ON devices(device_token);
+CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
+
+-- Solicitudes de pareo pendientes. La PWA envia POST /pair con un PIN
+-- mostrado en pantalla; el owner ve la solicitud en la UI del desktop
+-- y aprueba (mueve la fila a devices). TTL 10 min.
+CREATE TABLE IF NOT EXISTS pair_requests (
+  device_id        TEXT PRIMARY KEY,
+  display_name     TEXT NOT NULL,
+  supabase_user_id TEXT,
+  pin              TEXT NOT NULL,
+  cookies_blob     BLOB,
+  requested_at     TEXT NOT NULL,
+  expires_at       TEXT NOT NULL,
+  client_ip        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pair_requests_expires ON pair_requests(expires_at);
+
+-- Log de actividad por device. Util para auditar abuso y ofrecer una
+-- vista "Ultimo uso" en la UI. Rotacion a 5 dias via cron al arrancar.
+CREATE TABLE IF NOT EXISTS device_activity (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_id   TEXT NOT NULL,
+  action      TEXT NOT NULL,
+  track_id    TEXT,
+  yt_id       TEXT,
+  meta        TEXT,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_activity_device ON device_activity(device_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_created ON device_activity(created_at);
 `;

@@ -16,6 +16,20 @@ contextBridge.exposeInMainWorld('ritmiq', {
     stats: () => ipcRenderer.invoke('sharedCache:stats'),
     clear: () => ipcRenderer.invoke('sharedCache:clear'),
   },
+  devices: {
+    list: () => ipcRenderer.invoke('devices:list'),
+    pending: () => ipcRenderer.invoke('devices:pending'),
+    approve: (deviceId) => ipcRenderer.invoke('devices:approve', { deviceId }),
+    reject: (deviceId) => ipcRenderer.invoke('devices:reject', { deviceId }),
+    revoke: (deviceId) => ipcRenderer.invoke('devices:revoke', { deviceId }),
+    rename: (deviceId, name) => ipcRenderer.invoke('devices:rename', { deviceId, name }),
+    activity: (deviceId, limit) => ipcRenderer.invoke('devices:activity', { deviceId, limit }),
+    onPairRequest: (cb) => {
+      const handler = (_e, data) => cb(data);
+      ipcRenderer.on('devices:pairRequest', handler);
+      return () => ipcRenderer.removeListener('devices:pairRequest', handler);
+    },
+  },
   tunnel: {
     status: () => ipcRenderer.invoke('tunnel:status'),
     setToken: (token) => ipcRenderer.invoke('tunnel:setToken', token),

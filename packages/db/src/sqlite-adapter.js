@@ -127,29 +127,53 @@ export function sharedAudioStats(db) {
 }
 
 /**
- * Borra todos los archivos del cache compartido (FS + tabla).
- * Tracks que apunten al mismo file_path en `tracks` quedan con
- * `is_downloaded=1` pero el archivo dejará de existir — se marcan también
- * como no descargados para mantener consistencia.
+ * Borra el cache compartido protegiendo las descargas explicitas del
+ * owner desktop.
+ *
+ * Politica:
+ *   - Solo se borra del FS lo que viva dentro de `sharedAudioDir`. Los
+ *     archivos del owner (descargados desde la app desktop via
+ *     library:download) viven en `<userData>/audio/` y NO se tocan.
+ *   - Se purgan TODAS las rows de `shared_audio` (el indice cross-cuenta
+ *     se reconstruye al arrancar via backfillSharedAudio).
+ *   - La tabla `tracks` NO se modifica: descargas del owner quedan
+ *     marcadas como is_downloaded=1 y siguen apuntando a sus archivos
+ *     reales en userData/audio/.
  *
  * @param {BetterDb} db
- * @returns {{ removed: number, freedBytes: number }}
+ * @param {string} sharedAudioDir  Path absoluto del directorio del cache
+ *   compartido. Solo archivos bajo este path se borran.
+ * @returns {{ removed: number, freedBytes: number, preserved: number }}
  */
-export function clearSharedAudio(db) {
+export function clearSharedAudio(db, sharedAudioDir) {
+  if (!sharedAudioDir) throw new Error('clearSharedAudio: sharedAudioDir required');
+  const dirNormalized = sharedAudioDir.endsWith('/') ? sharedAudioDir : sharedAudioDir + '/';
+
   const rows = db.prepare('SELECT yt_id, file_path, size FROM shared_audio').all();
   let removed = 0;
   let freed = 0;
+  let preserved = 0;
+
   for (const r of rows) {
-    if (r.file_path && existsSync(r.file_path)) {
-      try { unlinkSync(r.file_path); removed++; freed += (r.size ?? 0); } catch {}
+    if (!r.file_path) continue;
+    // Solo borramos archivos del directorio compartido; los de
+    // userData/audio/ (descargas explicitas del owner) se respetan.
+    if (!r.file_path.startsWith(dirNormalized)) {
+      preserved++;
+      continue;
+    }
+    if (existsSync(r.file_path)) {
+      try {
+        unlinkSync(r.file_path);
+        removed++;
+        freed += (r.size ?? 0);
+      } catch { /* skip */ }
     }
   }
-  db.exec(`
-    DELETE FROM shared_audio;
-    UPDATE tracks SET is_downloaded = 0, file_path = NULL
-      WHERE is_downloaded = 1;
-  `);
-  return { removed, freedBytes: freed };
+  // Purga total de la tabla — el backfill al proximo arranque reinserta
+  // los archivos del owner que aun existan.
+  db.exec('DELETE FROM shared_audio');
+  return { removed, freedBytes: freed, preserved };
 }
 
 /** @param {BetterDb} db @param {string} table @param {string} col @param {string} type */

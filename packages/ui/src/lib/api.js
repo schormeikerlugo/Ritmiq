@@ -44,6 +44,15 @@ const electronApi = isElectron
       sharedCacheStats:        () => window.ritmiq.sharedCache.stats(),
       sharedCacheClear:        () => window.ritmiq.sharedCache.clear(),
 
+      devicesList:             () => window.ritmiq.devices.list(),
+      devicesPending:          () => window.ritmiq.devices.pending(),
+      devicesApprove:          (deviceId) => window.ritmiq.devices.approve(deviceId),
+      devicesReject:           (deviceId) => window.ritmiq.devices.reject(deviceId),
+      devicesRevoke:           (deviceId) => window.ritmiq.devices.revoke(deviceId),
+      devicesRename:           (deviceId, name) => window.ritmiq.devices.rename(deviceId, name),
+      devicesActivity:         (deviceId, limit) => window.ritmiq.devices.activity(deviceId, limit),
+      devicesOnPairRequest:    (cb) => window.ritmiq.devices.onPairRequest(cb),
+
       tunnelStatus:            () => window.ritmiq.tunnel.status(),
       tunnelSetToken:          (t) => window.ritmiq.tunnel.setToken(t),
       tunnelSetCustomUrl:      (u) => window.ritmiq.tunnel.setCustomUrl(u),
@@ -125,6 +134,15 @@ const webApi = {
   ytdlpUpdate: async () => { throw new Error('Solo desktop'); },
   sharedCacheStats: async () => ({ count: 0, totalBytes: 0 }),
   sharedCacheClear: async () => ({ removed: 0, freedBytes: 0 }),
+
+  devicesList: async () => [],
+  devicesPending: async () => [],
+  devicesApprove: async () => { throw new Error('Solo desktop'); },
+  devicesReject: async () => { throw new Error('Solo desktop'); },
+  devicesRevoke: async () => { throw new Error('Solo desktop'); },
+  devicesRename: async () => { throw new Error('Solo desktop'); },
+  devicesActivity: async () => [],
+  devicesOnPairRequest: () => () => {},
 
   tunnelStatus: async () => ({ status: 'idle', url: null, error: null, hasToken: false, customUrl: null }),
   tunnelSetToken: async () => { throw new Error('Solo desktop'); },

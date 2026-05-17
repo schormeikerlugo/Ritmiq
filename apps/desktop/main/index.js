@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, Notification } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadEnv } from './env.js';
@@ -10,6 +10,7 @@ import { initDb } from './db.js';
 import { registerIpc } from './ipc.js';
 import { cloudflared, getStoredToken } from './cloudflared.js';
 import { getOrCreateAccessToken } from './access-token.js';
+import { getOrCreateSigningSecret } from './signing-secret.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -68,6 +69,12 @@ app.whenReady().then(async () => {
   // se autentiquen contra el LAN server. Se genera al primer arranque.
   const accessToken = getOrCreateAccessToken();
 
+  // Secret HMAC para validar firmas de la Edge `sign-stream`. Local al
+  // desktop, NO embebido en el AppImage. Si el secret cambia, todas las
+  // firmas vigentes invalidan (TTL 5 min) y la Edge debe actualizarse.
+  // Se inyecta a process.env para que lan-server (que lee la var) lo vea.
+  process.env.RITMIQ_STREAM_SIGNING_SECRET = getOrCreateSigningSecret();
+
   // El LAN server NO debe ser bloqueante. Si falla, seguimos cargando la app.
   let lan = { port: null, stop: () => {} };
   try {
@@ -77,6 +84,26 @@ app.whenReady().then(async () => {
   }
 
   registerIpc({ db, lan, accessToken });
+
+  // Notificacion nativa cuando llega una pair request — el owner ve
+  // un toast aunque la app no este en foco.
+  if (typeof lan?.onPairRequest === 'function') {
+    lan.onPairRequest(({ displayName, pin }) => {
+      try {
+        if (Notification.isSupported()) {
+          const n = new Notification({
+            title: 'Ritmiq · nuevo dispositivo',
+            body: `${displayName} quiere conectarse. PIN: ${pin}`,
+          });
+          n.on('click', () => {
+            const w = BrowserWindow.getAllWindows()[0];
+            if (w) { w.show(); w.focus(); }
+          });
+          n.show();
+        }
+      } catch (err) { console.warn('[main] notification failed', err.message); }
+    });
+  }
 
   // No autoarrancamos el tunnel sin elección explícita del usuario.
   // Si hay token guardado, asumimos que el user quiere modo Named.

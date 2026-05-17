@@ -12,7 +12,7 @@
 
 import { app } from 'electron';
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, chmodSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -58,7 +58,10 @@ export function setStoredToken(token) {
     try { unlinkSync(p); } catch {}
     return;
   }
-  writeFileSync(p, token.trim(), 'utf8');
+  // 0600: el token de Cloudflare permite levantar el tunnel; equivalente
+  // a credencial. Solo el owner del PC debe poder leerlo.
+  writeFileSync(p, token.trim(), { encoding: 'utf8', mode: 0o600 });
+  try { chmodSync(p, 0o600); } catch {}
 }
 
 /**

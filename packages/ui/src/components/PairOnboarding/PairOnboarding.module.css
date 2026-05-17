@@ -1,0 +1,170 @@
+/* Reusa el lenguaje visual de SettingsDialog; solo lo necesario para el PIN. */
+.backdrop {
+  animation: ritmiq-fade-in var(--dur-normal) var(--ease-standard);
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: var(--space-4);
+}
+
+.dialog {
+  animation: ritmiq-scale-in var(--dur-normal) var(--ease-emphasized);
+  width: 100%;
+  max-width: 480px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+
+.close {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--color-text);
+  opacity: 0.7;
+  padding: 4px;
+}
+
+.close:hover { opacity: 1; }
+
+.hint {
+  font-size: var(--fs-sm);
+  opacity: 0.75;
+  margin: 0;
+}
+
+.label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-2);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--fs-base);
+  margin-bottom: 6px;
+}
+
+.input:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  align-items: center;
+}
+
+.btnPrimary, .btnSecondary {
+  border: 0;
+  cursor: pointer;
+  padding: 0 14px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+}
+
+.btnPrimary {
+  background: var(--color-accent);
+  color: var(--color-on-accent, #fff);
+}
+
+.btnSecondary {
+  background: var(--color-bg-2);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.btnPrimary:disabled, .btnSecondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status {
+  font-size: var(--fs-sm);
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-2);
+}
+
+.status[data-ok="true"] {
+  color: var(--color-success, #4ade80);
+}
+
+.status[data-ok="false"] {
+  color: var(--color-danger, #f87171);
+}
+
+.pinBox {
+  margin: var(--space-3) 0;
+  padding: var(--space-4);
+  background: var(--color-bg-2);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  border: 2px solid var(--color-accent);
+}
+
+.pinLabel {
+  font-size: var(--fs-xs);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+
+.pin {
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-accent);
+}
+
+.scanBar {
+  margin-top: 8px;
+  height: 4px;
+  background: var(--color-bg-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.scanFill {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 0.2s linear;
+}

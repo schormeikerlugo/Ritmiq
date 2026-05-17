@@ -20,9 +20,13 @@ import {
   findSharedAudio, registerSharedAudio,
   sharedAudioStats, clearSharedAudio,
 } from '@ritmiq/db/sqlite';
+import {
+  createPairRequest, getPairStatus, findDeviceByToken,
+  updateDeviceCookies, logActivity, pruneOldActivity,
+} from './devices.js';
+import { encryptCookies, getCookieFileForDevice, invalidateDeviceCookies } from './device-cookies.js';
 import { getYtDlpPath } from './ytdlp-path.js';
 import { detectCookiesBrowser, detectJsRuntime, exportCookiesToFile } from './cookies-detect.js';
-import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
  * Orígenes permitidos para CORS. Se refleja el `Origin` del request si
@@ -50,17 +54,22 @@ export async function startLanServer({ port, db, accessToken }) {
   const ytBinary = getYtDlpPath();
   const cookiesFromBrowser = detectCookiesBrowser();
   const jsRuntime = detectJsRuntime();
-  // Secret compartido con la Edge Function `sign-stream`. Sin esto el LAN
-  // server no puede validar firmas y rechaza requests `/stream/` salvo
-  // que ACCEPT_UNSIGNED esté activo (modo de compatibilidad temporal).
-  const STREAM_SIGNING_SECRET = process.env.RITMIQ_STREAM_SIGNING_SECRET ?? null;
-  const ACCEPT_UNSIGNED =
-    String(process.env.RITMIQ_ACCEPT_UNSIGNED_STREAMS ?? '').toLowerCase() === 'true';
-  if (!STREAM_SIGNING_SECRET) {
-    console.warn('[lan-server] sin RITMIQ_STREAM_SIGNING_SECRET — firmas DESHABILITADAS');
-  }
-  if (ACCEPT_UNSIGNED) {
-    console.warn('[lan-server] ACCEPT_UNSIGNED activo — se aceptan requests sin firma (modo compat)');
+  // Modelo Y (Fase 4+): la autorizacion es device_token, no HMAC. El
+  // signing-secret y ACCEPT_UNSIGNED ya no se usan aqui.
+
+  /**
+   * Devuelve opciones de yt-dlp para un request concreto. Si el caller
+   * autorizo con device_token y el device tiene cookies subidas, las
+   * usamos. Si no, fallback a las cookies del owner.
+   *
+   * @param {{ owner: true } | import('./devices.js').DeviceRow | null} principal
+   */
+  function ytOptsFor(principal) {
+    if (principal && principal.owner !== true) {
+      const file = getCookieFileForDevice(principal);
+      if (file) return { ...ytOpts, cookiesFile: file, cookiesFromBrowser: undefined };
+    }
+    return ytOpts;
   }
   // Cache persistente para yt-dlp (player.js, JS solvers, etc.). Sin esto
   // el AppImage monta en /tmp distinto cada arranque → yt-dlp re-descarga
@@ -118,22 +127,83 @@ export async function startLanServer({ port, db, accessToken }) {
   }
 
   /**
-   * Verifica si el request está autenticado. Acepta:
-   *  - Header `Authorization: Bearer <token>`
-   *  - Query string `?token=<token>`
-   *  Útil porque <audio> no permite headers custom.
+   * Extrae el Bearer token (o ?token=) del request.
+   * @returns {string|null}
    */
-  function isAuthorized(req, url) {
-    if (!accessToken) return true; // server abierto si no hay token
+  function extractBearer(req, url) {
     const auth = req.headers['authorization'];
     if (auth && auth.toLowerCase().startsWith('bearer ')) {
-      const t = auth.slice(7).trim();
-      if (t === accessToken) return true;
+      return auth.slice(7).trim();
     }
     const qsToken = url.searchParams.get('token');
-    if (qsToken && qsToken === accessToken) return true;
-    return false;
+    return qsToken || null;
   }
+
+  /**
+   * Owner-only auth: el access-token unico del PC. Para endpoints
+   * administrativos (shared-cache clear, etc.). Si accessToken no esta
+   * configurado, deja pasar (modo dev abierto).
+   */
+  function isOwner(req, url) {
+    if (!accessToken) return true;
+    return extractBearer(req, url) === accessToken;
+  }
+
+  /**
+   * Device-or-owner auth: acepta tanto el access-token del owner (uso
+   * desde la app desktop misma o herramientas) como un device_token
+   * aprobado. Devuelve la fila del device si autorizo via token de
+   * device, o un objeto sentinel { owner: true } si fue el owner.
+   *
+   * @returns {{ owner: true } | import('./devices.js').DeviceRow | null}
+   */
+  function authorizeDeviceOrOwner(req, url) {
+    const token = extractBearer(req, url);
+    if (!token) return null;
+    if (accessToken && token === accessToken) return { owner: true };
+    const dev = findDeviceByToken(db, token);
+    return dev ?? null;
+  }
+
+  /**
+   * Compat: usado por endpoints viejos /yt/search etc. que aun no
+   * migraron al modelo device_token. Acepta access-token solo. En
+   * Fase 4 estos endpoints pasaran a usar `authorizeDeviceOrOwner`.
+   */
+  function isAuthorized(req, url) {
+    if (!accessToken) return true;
+    return extractBearer(req, url) === accessToken;
+  }
+
+  // ── Rate limit en pareo ─────────────────────────────────────────────
+  // Por IP: max 5 requests por minuto. Sin esto, alguien con la tunnel
+  // URL puede flood-ear /pair y llenar la cola de solicitudes.
+  /** @type {Map<string, number[]>} */
+  const pairRateMap = new Map();
+  const PAIR_RATE_WINDOW_MS = 60 * 1000;
+  const PAIR_RATE_MAX = 5;
+  function pairRateLimit(ip) {
+    if (!ip) return true;
+    const now = Date.now();
+    const arr = (pairRateMap.get(ip) ?? []).filter((t) => now - t < PAIR_RATE_WINDOW_MS);
+    if (arr.length >= PAIR_RATE_MAX) return false;
+    arr.push(now);
+    pairRateMap.set(ip, arr);
+    return true;
+  }
+
+  // ── Notificacion al owner de nuevas pair requests ──────────────────
+  // El renderer del desktop se suscribe via IPC para mostrar UI en vivo.
+  /** @type {Set<(req: { deviceId:string, displayName:string, pin:string }) => void>} */
+  const pairListeners = new Set();
+  function notifyOwnerNewPairRequest(payload) {
+    for (const cb of pairListeners) { try { cb(payload); } catch {} }
+  }
+  // Activity log rotation al arrancar y cada 12h.
+  try { pruneOldActivity(db, 5); } catch {}
+  setInterval(() => {
+    try { pruneOldActivity(db, 5); } catch {}
+  }, 12 * 3600 * 1000).unref();
 
   // Cache compartido: directorio donde guardamos los m4a descargados a
   // demanda desde el endpoint /download. Distinto de userData/audio (que
@@ -160,7 +230,7 @@ export async function startLanServer({ port, db, accessToken }) {
    * @param {object} dlOpts  Heredados del ytOpts del LAN (cookies, runtime).
    * @returns {Promise<string>}
    */
-  async function downloadSharedAudio(ytId, dlOpts) {
+  async function downloadSharedAudio(ytId, dlOpts = ytOpts) {
     const existing = findSharedAudio(db, ytId);
     if (existing) return existing.filePath;
 
@@ -274,8 +344,11 @@ export async function startLanServer({ port, db, accessToken }) {
   /**
    * @param {string} ytId
    * @param {number} priority  10 = stream del usuario, 1 = prewarm background
+   * @param {object} [optsOverride]  ytOpts a usar si no hay cache hit.
+   *   Util para usar cookies del device que pidio el stream en lugar
+   *   de las globales del owner.
    */
-  function resolveCached(ytId, priority = 1) {
+  function resolveCached(ytId, priority = 1, optsOverride = null) {
     const now = Date.now();
     const hit = streamCache.get(ytId);
     if (hit) {
@@ -323,7 +396,7 @@ export async function startLanServer({ port, db, accessToken }) {
         const t0 = Date.now();
         console.log(`[lan-server] resolve ${ytId} START (p=${job.priority})`);
         try {
-          const cp = getStreamUrl(ytId, ytOpts);
+          const cp = getStreamUrl(ytId, optsOverride ?? ytOpts);
           job.childPromise = cp;
           const url = await cp;
           const dt = Date.now() - t0;
@@ -347,47 +420,6 @@ export async function startLanServer({ port, db, accessToken }) {
     }
     scheduleNext();
     return p;
-  }
-
-  /**
-   * Valida una firma HMAC emitida por la Edge Function `sign-stream`.
-   * Centraliza autorización en Supabase: si Supabase aceptó al usuario
-   * para este trackId (vía RLS), nos firmó la URL → reproducimos.
-   *
-   * Payload firmado: `${trackId}|${ytId}|${exp}`
-   * Validez: 5 min (TTL en la Edge), permite Range requests largos sin
-   *   re-firmar. Si caduca mid-stream, el siguiente Range falla y la PWA
-   *   pedirá nueva firma.
-   *
-   * @param {string} trackId
-   * @param {URLSearchParams} qs
-   * @returns {{ ok: true, ytId: string|null } | { ok: false, reason: string }}
-   */
-  function validateStreamSignature(trackId, qs) {
-    const sig = qs.get('sig');
-    const exp = qs.get('exp');
-    const yt  = qs.get('yt') ?? '';
-    if (!sig || !exp) return { ok: false, reason: 'missing sig/exp' };
-
-    const expN = parseInt(exp, 10);
-    if (!Number.isFinite(expN)) return { ok: false, reason: 'bad exp' };
-    if (Date.now() / 1000 > expN) return { ok: false, reason: 'expired' };
-
-    if (!STREAM_SIGNING_SECRET) {
-      return { ok: false, reason: 'server not configured' };
-    }
-    const payload = `${trackId}|${yt}|${expN}`;
-    const expected = createHmac('sha256', STREAM_SIGNING_SECRET)
-      .update(payload).digest('base64')
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-    // Comparación constant-time.
-    const a = Buffer.from(sig);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length) return { ok: false, reason: 'bad signature' };
-    if (!timingSafeEqual(a, b)) return { ok: false, reason: 'bad signature' };
-
-    return { ok: true, ytId: yt || null };
   }
 
   const server = http.createServer(async (req, res) => {
@@ -417,8 +449,12 @@ export async function startLanServer({ port, db, accessToken }) {
         return;
       }
 
-      // Resto de rutas: requieren autenticación si hay accessToken configurado.
-      if (!isAuthorized(req, url)) {
+      // Pareo: rutas PUBLICAS — la PWA aun no tiene token. Procesamos
+      // antes del check de auth para no rechazar legitimas solicitudes.
+      if (url.pathname === '/pair' || url.pathname === '/pair/status') {
+        // Handler real esta mas abajo (cerca del codigo existente). Caemos
+        // a traves: ese handler lo procesa.
+      } else if (!authorizeDeviceOrOwner(req, url)) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'unauthorized' }));
         return;
@@ -427,16 +463,16 @@ export async function startLanServer({ port, db, accessToken }) {
       if (url.pathname === '/yt/search') {
         const q = url.searchParams.get('q');
         if (!q) { res.writeHead(400).end('q required'); return; }
-        const items = await search(q, { ...ytOpts, max: 12 });
+        const principal = authorizeDeviceOrOwner(req, url);
+        const opts = ytOptsFor(principal);
+        const items = await search(q, { ...opts, max: 12 });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ items }));
-
-        // Pre-resolver los stream URLs de los 2 primeros resultados en
-        // background con prioridad BAJA. Reducimos de 3→2 para no saturar
-        // la cola de yt-dlp cuando el usuario hace varias búsquedas seguidas.
-        // El click real será prioridad ALTA y saltará la cola.
         for (const it of items.slice(0, 2)) {
-          if (it?.id) resolveCached(it.id, 1).catch(() => {});
+          if (it?.id) resolveCached(it.id, 1, opts).catch(() => {});
+        }
+        if (principal && principal.owner !== true) {
+          logActivity(db, { deviceId: principal.device_id, action: 'search', meta: { q } });
         }
         return;
       }
@@ -447,7 +483,8 @@ export async function startLanServer({ port, db, accessToken }) {
       if (url.pathname === '/yt/prewarm') {
         const ytId = url.searchParams.get('q');
         if (!ytId) { res.writeHead(400).end('q required'); return; }
-        resolveCached(ytId, 5).catch(() => {});
+        const principal = authorizeDeviceOrOwner(req, url);
+        resolveCached(ytId, 5, ytOptsFor(principal)).catch(() => {});
         res.writeHead(204).end();
         return;
       }
@@ -470,7 +507,8 @@ export async function startLanServer({ port, db, accessToken }) {
       if (url.pathname === '/yt/metadata') {
         const idOrUrl = url.searchParams.get('q');
         if (!idOrUrl) { res.writeHead(400).end('q required'); return; }
-        const meta = await getMetadata(idOrUrl, ytOpts);
+        const principal = authorizeDeviceOrOwner(req, url);
+        const meta = await getMetadata(idOrUrl, ytOptsFor(principal));
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(meta));
         return;
@@ -494,6 +532,128 @@ export async function startLanServer({ port, db, accessToken }) {
         return;
       }
 
+      // ─── Pairing: solicitudes y polling de estado ─────────────────────
+      // Endpoints PUBLICOS (sin Bearer) por necesidad: la PWA aun no
+      // tiene token cuando pide pareo. Rate limit por IP mitiga abuso.
+      // POST /pair: { device_id, display_name, supabase_user_id?, pin, cookies_b64? }
+      //   -> { status: 'approved'|'pending', device_token? }
+      // GET  /pair/status?device_id=X -> { status, device_token? }
+      if (url.pathname === '/pair') {
+        if (req.method !== 'POST') {
+          res.writeHead(405).end('method not allowed');
+          return;
+        }
+        const ip = clientIpOf(req);
+        if (!pairRateLimit(ip)) {
+          res.writeHead(429, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'too many pairing attempts, wait a minute' }));
+          return;
+        }
+        let body;
+        try { body = await readJsonBody(req); }
+        catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'invalid json' }));
+          return;
+        }
+        const { device_id, display_name, supabase_user_id, pin, cookies_b64 } = body ?? {};
+        if (!device_id || !display_name || !pin || !/^\d{4}$/.test(String(pin))) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'device_id, display_name and 4-digit pin required' }));
+          return;
+        }
+        const cookiesBlob = cookies_b64 ? Buffer.from(String(cookies_b64), 'base64') : null;
+        try {
+          const r = createPairRequest(db, {
+            deviceId: String(device_id),
+            displayName: String(display_name).slice(0, 80),
+            supabaseUserId: supabase_user_id ? String(supabase_user_id) : null,
+            pin: String(pin),
+            cookiesBlob,
+            clientIp: ip,
+          });
+          if (r.status === 'approved') {
+            logActivity(db, { deviceId: String(device_id), action: 'pair_auto_approved' });
+            console.log(`[lan-server] pair AUTO-APPROVED ${display_name} (${device_id})`);
+          } else {
+            console.log(`[lan-server] pair REQUEST ${display_name} (${device_id}) pin=${pin}`);
+            notifyOwnerNewPairRequest({ deviceId: String(device_id), displayName: String(display_name), pin: String(pin) });
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: r.status,
+            device_token: r.deviceToken,
+          }));
+        } catch (err) {
+          console.error('[lan-server] /pair error', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message ?? 'pair failed' }));
+        }
+        return;
+      }
+
+      if (url.pathname === '/pair/status') {
+        if (req.method !== 'GET') {
+          res.writeHead(405).end('method not allowed');
+          return;
+        }
+        const deviceId = url.searchParams.get('device_id');
+        if (!deviceId) {
+          res.writeHead(400).end('device_id required');
+          return;
+        }
+        const r = getPairStatus(db, deviceId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: r.status,
+          device_token: r.deviceToken,
+          display_name: r.displayName,
+        }));
+        return;
+      }
+
+      // ─── Cookies upload por device ─────────────────────────────────────
+      // POST /cookies/upload  { cookies_b64 }
+      // Auth: device_token (no aceptamos access-token owner aqui — el
+      // owner sube sus cookies via la app desktop si quiere).
+      if (url.pathname === '/cookies/upload') {
+        if (req.method !== 'POST') { res.writeHead(405).end('method not allowed'); return; }
+        const principal = authorizeDeviceOrOwner(req, url);
+        if (!principal || principal.owner === true) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'device_token required' }));
+          return;
+        }
+        let body;
+        try { body = await readJsonBody(req); }
+        catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'invalid json' }));
+          return;
+        }
+        const text = body?.cookies_b64
+          ? Buffer.from(String(body.cookies_b64), 'base64').toString('utf8')
+          : (body?.cookies ?? '');
+        if (!text || text.length < 50) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'cookies content too short' }));
+          return;
+        }
+        try {
+          const blob = encryptCookies(text);
+          updateDeviceCookies(db, principal.device_id, blob);
+          invalidateDeviceCookies(principal.device_id);
+          logActivity(db, { deviceId: principal.device_id, action: 'cookies_upload', meta: { size: text.length } });
+          console.log(`[lan-server] cookies updated for device ${principal.device_id} (${text.length} bytes)`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message ?? 'cookies upload failed' }));
+        }
+        return;
+      }
+
       // ─── Cache compartido: stats + clear ───────────────────────────────
       // Endpoints administrativos para la UI (botón "Limpiar caché
       // compartido"). Requieren Bearer token (ya validado arriba); no
@@ -506,8 +666,11 @@ export async function startLanServer({ port, db, accessToken }) {
           return;
         }
         if (req.method === 'DELETE') {
-          const r = clearSharedAudio(db);
-          console.log(`[lan-server] shared-cache clear: ${r.removed} files, ${r.freedBytes} bytes`);
+          const r = clearSharedAudio(db, sharedAudioDir);
+          console.log(
+            `[lan-server] shared-cache clear: ${r.removed} files, ${r.freedBytes} bytes` +
+            (r.preserved > 0 ? ` (preserved ${r.preserved} owner files)` : '')
+          );
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(r));
           return;
@@ -527,36 +690,26 @@ export async function startLanServer({ port, db, accessToken }) {
       // local — mucho más rápido que el proxy actual.
       if (url.pathname.startsWith('/download/')) {
         const trackId = decodeURIComponent(url.pathname.slice('/download/'.length));
-        const sigCheck = validateStreamSignature(trackId, url.searchParams);
+        const principalForDl = authorizeDeviceOrOwner(req, url);
         const localRow = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
-
-        let ytId = null;
-        if (sigCheck.ok) {
-          ytId = sigCheck.ytId || localRow?.yt_id || null;
-        } else if (ACCEPT_UNSIGNED && localRow?.source === 'youtube' && localRow.yt_id) {
-          ytId = localRow.yt_id;
-        } else {
-          const status = sigCheck.reason === 'expired' ? 401 : 403;
-          res.writeHead(status, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: sigCheck.reason ?? 'unauthorized' }));
-          return;
-        }
+        const ytId = url.searchParams.get('yt') || localRow?.yt_id || null;
         if (!ytId) {
-          res.writeHead(404).end('source unavailable');
+          res.writeHead(404).end('source unavailable (no ytId)');
           return;
         }
-
-        // Hit en cache compartido — servimos archivo y listo.
         const cached = findSharedAudio(db, ytId);
         if (cached) {
           console.log(`[lan-server] download ${ytId} CACHE HIT`);
+          if (principalForDl && principalForDl.owner !== true) {
+            logActivity(db, { deviceId: principalForDl.device_id, action: 'download_cached', trackId, ytId });
+          }
           return serveLocalFile(req, res, cached.filePath);
         }
-
-        // Miss → descargar con yt-dlp. Coalesce: si otro cliente pide el
-        // mismo ytId al mismo tiempo, esperan ambos al mismo trabajo.
         try {
-          const filePath = await downloadSharedAudio(ytId, ytOpts);
+          const filePath = await downloadSharedAudio(ytId, ytOptsFor(principalForDl));
+          if (principalForDl && principalForDl.owner !== true) {
+            logActivity(db, { deviceId: principalForDl.device_id, action: 'download', trackId, ytId });
+          }
           return serveLocalFile(req, res, filePath);
         } catch (err) {
           console.warn(`[lan-server] download ${ytId} FAIL`, err.message);
@@ -568,85 +721,41 @@ export async function startLanServer({ port, db, accessToken }) {
 
       if (url.pathname.startsWith('/stream/')) {
         const trackId = decodeURIComponent(url.pathname.slice('/stream/'.length));
+        const principalForStream = authorizeDeviceOrOwner(req, url);
 
-        // Track efímero: el id viene como "yt:<ytId>". Resolvemos vía yt-dlp
-        // y proxieamos los bytes (no redirect — las URLs de googlevideo van
-        // atadas a la IP del cliente original, así que el iPhone no podría
-        // consumirlas directamente).
-        if (trackId.startsWith('yt:')) {
-          const ytId = trackId.slice(3);
-          const tStart = Date.now();
-          // Prioridad MÁXIMA (10): el usuario YA pulsó play. Si hay otros
-          // prewarms encolados, este se cuela al frente.
-          const streamUrl = await resolveCached(ytId, 10);
-          const tResolved = Date.now();
-          console.log(
-            `[lan-server] stream yt:${ytId} resolve=${tResolved - tStart}ms ` +
-            `clientRange=${req.headers.range ?? '-'}`
-          );
-          return proxyAudio(req, res, streamUrl);
-        }
+        // SEGURIDAD: el endpoint `/stream/yt:<ytId>` (que permitia pedir
+        // CUALQUIER ytId sin atadura a una row de track) fue eliminado en
+        // Fase 4 — convertia el desktop en proxy abierto de YouTube. Para
+        // tracks efimeros usa /stream/<trackId>?yt=<ytId> con device_token.
 
-        // ── Autorización: firma HMAC emitida por Edge `sign-stream` ───────
-        //
-        // Path principal: la PWA llamó a `/functions/v1/sign-stream` con su
-        // JWT (RLS validó que el track es del user) y recibió URL firmada.
-        // Aquí solo validamos la firma — autorización ya hecha en Supabase.
-        //
-        // El payload firmado incluye `ytId`, así podemos resolver yt-dlp
-        // SIN consultar nuestra SQLite ni Supabase. Multi-tenant gratis.
-        const sigCheck = validateStreamSignature(trackId, url.searchParams);
-
-        // SQLite local (path rápido — owner del desktop). Útil tanto para
-        // tracks descargados como cuando la firma falta y ACCEPT_UNSIGNED
-        // está activo.
+        // Modelo Y: autorizacion ya validada arriba via authorizeDeviceOrOwner.
+        // Resolvemos el ytId en este orden:
+        //   1. SQLite local (track descargado por owner) -> archivo.
+        //   2. ?yt=<ytId> de la URL (PWA del device lo conoce).
+        //   3. shared_audio (alguien ya descargo este ytId) -> archivo.
+        //   4. yt-dlp resolve -> proxy live.
         const localRow = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
-
-        if (sigCheck.ok) {
-          // 1. Track descargado en SQLite local (owner del desktop).
-          if (localRow?.is_downloaded && localRow.file_path && existsSync(localRow.file_path)) {
-            return serveLocalFile(req, res, localRow.file_path);
-          }
-          // 2. Cache compartido entre cuentas indexado por ytId. Permite
-          //    que un track descargado por user A en este desktop sea
-          //    servido también a user B desde disco — sin re-resolver ni
-          //    re-descargar desde YouTube. La autorización ya está
-          //    garantizada por la firma HMAC (Supabase RLS validó que el
-          //    track pertenece a B en sign-stream).
-          const ytId = sigCheck.ytId || localRow?.yt_id;
-          if (ytId) {
-            const shared = findSharedAudio(db, ytId);
-            if (shared) {
-              console.log(`[lan-server] stream ${trackId} SHARED HIT ytId=${ytId}`);
-              return serveLocalFile(req, res, shared.filePath);
-            }
-            const streamUrl = await resolveCached(ytId);
-            return proxyAudio(req, res, streamUrl);
-          }
-          res.writeHead(404).end('source unavailable');
+        if (localRow?.is_downloaded && localRow.file_path && existsSync(localRow.file_path)) {
+          return serveLocalFile(req, res, localRow.file_path);
+        }
+        const ytId = url.searchParams.get('yt') || localRow?.yt_id || null;
+        if (!ytId) {
+          res.writeHead(404).end('source unavailable (no ytId)');
           return;
         }
-
-        // Compatibilidad: clientes viejos sin firma. Solo si owner habilitó
-        // ACCEPT_UNSIGNED y el track está en SQLite local (single-tenant).
-        if (ACCEPT_UNSIGNED && localRow) {
-          if (localRow.is_downloaded && localRow.file_path && existsSync(localRow.file_path)) {
-            return serveLocalFile(req, res, localRow.file_path);
+        const shared = findSharedAudio(db, ytId);
+        if (shared) {
+          console.log(`[lan-server] stream ${trackId} SHARED HIT ytId=${ytId}`);
+          if (principalForStream && principalForStream.owner !== true) {
+            logActivity(db, { deviceId: principalForStream.device_id, action: 'stream_shared', trackId, ytId });
           }
-          if (localRow.source === 'youtube' && localRow.yt_id) {
-            const shared = findSharedAudio(db, localRow.yt_id);
-            if (shared) return serveLocalFile(req, res, shared.filePath);
-            const streamUrl = await resolveCached(localRow.yt_id);
-            return proxyAudio(req, res, streamUrl);
-          }
+          return serveLocalFile(req, res, shared.filePath);
         }
-
-        // Rechazo: firma inválida y no hay fallback.
-        const status = sigCheck.reason === 'expired' ? 401 : 403;
-        console.warn(`[lan-server] /stream/${trackId} rechazado: ${sigCheck.reason}`);
-        res.writeHead(status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: sigCheck.reason }));
-        return;
+        const streamUrl = await resolveCached(ytId, 10, ytOptsFor(principalForStream));
+        if (principalForStream && principalForStream.owner !== true) {
+          logActivity(db, { deviceId: principalForStream.device_id, action: 'stream', trackId, ytId });
+        }
+        return proxyAudio(req, res, streamUrl);
       }
 
       res.writeHead(404).end('not found');
@@ -684,7 +793,57 @@ export async function startLanServer({ port, db, accessToken }) {
       try { bonjour?.destroy(); } catch {}
       await new Promise((r) => server.close(r));
     },
+    /**
+     * Suscripcion a eventos "nueva pair request". El renderer la usa
+     * para mostrar UI en vivo y notificacion nativa.
+     */
+    onPairRequest: (cb) => {
+      pairListeners.add(cb);
+      return () => pairListeners.delete(cb);
+    },
   };
+}
+
+/**
+ * Lee un body JSON con limite de tamaño (256 KB). Cookies son ~50KB
+ * realistas; mas que eso huele a abuso.
+ * @param {http.IncomingMessage} req
+ */
+async function readJsonBody(req) {
+  const MAX_BYTES = 256 * 1024;
+  return new Promise((resolve, reject) => {
+    let total = 0;
+    /** @type {Buffer[]} */
+    const chunks = [];
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > MAX_BYTES) {
+        req.destroy(new Error('body too large'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      try {
+        const txt = Buffer.concat(chunks).toString('utf8');
+        resolve(txt ? JSON.parse(txt) : {});
+      } catch (err) { reject(err); }
+    });
+    req.on('error', reject);
+  });
+}
+
+/**
+ * IP del cliente, respetando X-Forwarded-For si viene del tunnel.
+ * Cloudflare manda CF-Connecting-IP que es la mas fiable.
+ * @param {http.IncomingMessage} req
+ */
+function clientIpOf(req) {
+  const cf = req.headers['cf-connecting-ip'];
+  if (cf) return String(cf);
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) return String(xff).split(',')[0].trim();
+  return req.socket?.remoteAddress ?? '';
 }
 
 /**

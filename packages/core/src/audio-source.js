@@ -50,7 +50,7 @@ export async function resolveAudioSource(track, deps) {
   const lanBase = await deps.getLanBaseUrl();
   if (lanBase) {
     // `buildLanStreamUrl` puede ser síncrono (desktop) o Promise (PWA con
-    // sign-stream). `await` sirve para ambos casos.
+    // device_token; el await sirve igual aunque ya no haya firma).
     const url = await (deps.buildLanStreamUrl
       ? deps.buildLanStreamUrl(track.id, lanBase)
       : `${lanBase}/stream/${encodeURIComponent(track.id)}`);

@@ -14,6 +14,10 @@ import {
   upsertTrack, listTracks,
   registerSharedAudio, sharedAudioStats, clearSharedAudio,
 } from '@ritmiq/db/sqlite';
+import {
+  approveDevice, rejectPairRequest, revokeDevice, renameDevice,
+  listDevices, listPairRequests, getDeviceActivity,
+} from './devices.js';
 import { randomUUID } from 'node:crypto';
 import { getYtDlpPath, getYtDlpUserDataPath } from './ytdlp-path.js';
 import { cloudflared, getStoredToken, setStoredToken, getCustomUrl, setCustomUrl } from './cloudflared.js';
@@ -297,9 +301,55 @@ export function registerIpc({ db, lan, accessToken }) {
     return finalPath;
   });
 
+  // ─── Devices: pairing, gestion, actividad ─────────────────────────
+  ipcMain.handle('devices:list', () => listDevices(db));
+  ipcMain.handle('devices:pending', () => listPairRequests(db));
+  ipcMain.handle('devices:approve', (_e, { deviceId }) => {
+    const pr = db.prepare(/* sql */ `
+      SELECT device_id, display_name, supabase_user_id
+      FROM pair_requests WHERE device_id = ?
+    `).get(deviceId);
+    if (!pr) throw new Error('pair request not found');
+    const token = approveDevice(db, {
+      deviceId: pr.device_id,
+      displayName: pr.display_name,
+      supabaseUserId: pr.supabase_user_id,
+      // cookiesBlob viene del pair_request automaticamente en approveDevice.
+    });
+    return { ok: true, deviceToken: token };
+  });
+  ipcMain.handle('devices:reject', (_e, { deviceId }) => {
+    rejectPairRequest(db, deviceId);
+    return { ok: true };
+  });
+  ipcMain.handle('devices:revoke', (_e, { deviceId }) => {
+    revokeDevice(db, deviceId);
+    return { ok: true };
+  });
+  ipcMain.handle('devices:rename', (_e, { deviceId, name }) => {
+    renameDevice(db, deviceId, String(name));
+    return { ok: true };
+  });
+  ipcMain.handle('devices:activity', (_e, { deviceId, limit }) => {
+    return getDeviceActivity(db, deviceId, limit ?? 100);
+  });
+
+  // Forward de nuevas pair_requests al renderer (notificacion en vivo).
+  if (typeof lan?.onPairRequest === 'function') {
+    lan.onPairRequest((payload) => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        try { win.webContents.send('devices:pairRequest', payload); } catch {}
+      }
+    });
+  }
+
   // ─── Cache compartido (admin) ───────────────────────────────────────
   ipcMain.handle('sharedCache:stats', () => sharedAudioStats(db));
-  ipcMain.handle('sharedCache:clear', () => clearSharedAudio(db));
+  ipcMain.handle('sharedCache:clear', () => {
+    // Mismo path que en lan-server.js — mantener sincronizado.
+    const sharedAudioDir = join(app.getPath('userData'), 'shared-audio');
+    return clearSharedAudio(db, sharedAudioDir);
+  });
 
   ipcMain.handle('library:undownload', async (_e, trackId) => {
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
