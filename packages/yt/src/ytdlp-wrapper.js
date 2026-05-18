@@ -111,7 +111,6 @@ export async function getStreamUrl(youtubeIdOrUrl, opts) {
     // NOTA: yt-dlp NO acepta `--lazy-extractors` (extractors ya son lazy
     // por defecto desde hace años). No reintroducir.
     '--no-mark-watched',     // ~50ms — no llamamos a YouTube de vuelta
-    '--no-call-home',        // ~50ms — sin telemetría a github
     ...cacheArgs,            // cache persistente de player.js / JS solvers
     ...jsRuntimeArgs,
   ];
@@ -251,7 +250,6 @@ export async function getMetadata(youtubeIdOrUrl, opts) {
     '--no-playlist',
     '--no-warnings',
     '--no-mark-watched',
-    '--no-call-home',
     // Mismo orden que la cascada de getStreamUrl — ver comentario allí.
     // `skip=dash,hls` evita manifests alternativos (no los usamos).
     '--extractor-args', 'youtube:player_client=default,web_safari,mweb,tv_embedded,android_vr,ios_music;skip=dash,hls',
@@ -342,7 +340,6 @@ export function downloadAudio(youtubeIdOrUrl, outputPath, opts = {}) {
       '-o', `${outputPath}.%(ext)s`,
       '--newline',
       '--no-mark-watched',
-      '--no-call-home',
       // Mismo orden que la cascada de getStreamUrl — ver comentario allí.
       '--extractor-args', 'youtube:player_client=default,web_safari,mweb,tv_embedded,android_vr,ios_music',
     ];

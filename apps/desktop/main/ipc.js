@@ -10,10 +10,13 @@ import { spawnSync } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 import { createWriteStream } from 'node:fs';
 import { getMetadata, downloadAudio, getStreamUrl, search } from '@ritmiq/yt/ytdlp';
+import { translateYtdlpError } from '@ritmiq/yt';
 import {
   upsertTrack, listTracks,
   registerSharedAudio, sharedAudioStats, clearSharedAudio,
+  findSharedAudio,
 } from '@ritmiq/db/sqlite';
+import { copyFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { getYtDlpPath, getYtDlpUserDataPath } from './ytdlp-path.js';
 import { cloudflared, getStoredToken, setStoredToken, getCustomUrl, setCustomUrl } from './cloudflared.js';
@@ -270,17 +273,54 @@ export function registerIpc({ db, lan, accessToken }) {
     }
 
     if (!row || row.source !== 'youtube' || !row.yt_id) {
-      throw new Error('track not downloadable');
+      throw new Error('Esta canción no se puede descargar (no tiene origen YouTube válido).');
     }
     const dir = getAudioDir();
     const out = join(dir, `${row.id}`);
-    await downloadAudio(row.yt_id, out, {
-      ...ytOpts,
-      format: 'opus',
-      onProgress: (pct) => {
-        try { e.sender.send('library:download:progress', { trackId, pct }); } catch {}
-      },
-    });
+
+    // ── CACHE COMPARTIDO FIRST ──────────────────────────────────────────
+    // Antes saltabamos directo a yt-dlp aunque otro user (o sesion vieja)
+    // ya tuviese el archivo en shared_audio. Resultado: re-fetch innecesario
+    // y si YouTube ahora bloquea el video, fallo total cuando teniamos copia
+    // local valida. Replicamos aqui el flow del endpoint LAN /download/.
+    try {
+      const cached = findSharedAudio(db, row.yt_id);
+      if (cached && cached.filePath && existsSync(cached.filePath)) {
+        // Copiar el archivo cacheado al audio dir del owner para que
+        // file_path local apunte a un archivo del owner (semantica clara:
+        // shared_audio es indice global, audio/ es coleccion del owner).
+        const ext = cached.filePath.match(/\.(\w+)$/)?.[1] ?? 'm4a';
+        const finalPath = `${out}.${ext}`;
+        if (cached.filePath !== finalPath) {
+          copyFileSync(cached.filePath, finalPath);
+        }
+        db.prepare(/* sql */ `
+          UPDATE tracks SET is_downloaded = 1, file_path = ?, updated_at = ?
+          WHERE id = ?
+        `).run(finalPath, new Date().toISOString(), row.id);
+        console.log(`[ipc] library:download ${row.yt_id} CACHE HIT -> ${finalPath}`);
+        return finalPath;
+      }
+    } catch (err) {
+      console.warn('[ipc] cache lookup failed, falling back to yt-dlp:', err?.message);
+    }
+
+    // ── yt-dlp fallback ────────────────────────────────────────────────
+    try {
+      await downloadAudio(row.yt_id, out, {
+        ...ytOpts,
+        format: 'opus',
+        onProgress: (pct) => {
+          try { e.sender.send('library:download:progress', { trackId, pct }); } catch {}
+        },
+      });
+    } catch (err) {
+      // Opcion B: error user-friendly. Conservamos el stderr original en
+      // console para diagnostico tecnico, pero al renderer le mandamos
+      // un mensaje en espanol accionable.
+      console.warn(`[ipc] yt-dlp falló para ${row.yt_id}:`, err?.message);
+      throw new Error(translateYtdlpError(err));
+    }
     const finalPath = `${out}.opus`;
     db.prepare(/* sql */ `
       UPDATE tracks SET is_downloaded = 1, file_path = ?, updated_at = ?

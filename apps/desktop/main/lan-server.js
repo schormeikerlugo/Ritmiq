@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { app } from 'electron';
 import { Bonjour } from 'bonjour-service';
 import { getStreamUrl, getMetadata, search, downloadAudio } from '@ritmiq/yt/ytdlp';
+import { translateYtdlpError } from '@ritmiq/yt';
 import {
   findSharedAudio, registerSharedAudio,
   sharedAudioStats, clearSharedAudio,
@@ -811,7 +812,10 @@ export async function startLanServer({ port, db, accessToken }) {
         } catch (err) {
           console.warn(`[lan-server] download ${ytId} FAIL`, err.message);
           res.writeHead(502, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: err.message ?? 'download failed' }));
+          // Opcion B: mensaje user-friendly. El stderr crudo de yt-dlp se
+          // queda en el log del desktop para diagnostico, no se manda al
+          // navegador.
+          res.end(JSON.stringify({ error: translateYtdlpError(err) }));
           return;
         }
       }
