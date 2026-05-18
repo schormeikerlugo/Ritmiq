@@ -70,17 +70,28 @@ export function SearchView({ query }) {
   );
 
   /** Convierte videos del search en Tracks reproducibles, dedupeando
-   *  contra los que ya estan en la biblioteca local (mismo ytId). */
+   *  contra los que ya estan en la biblioteca local (mismo ytId), y
+   *  ordenando para que los cacheados en el desktop (⚡) aparezcan
+   *  primero. Sort estable: preserva el orden original dentro de cada
+   *  grupo (cached, no-cached). */
   const videosAsTracks = useMemo(() => {
     const filtered = dedupeByYtId(videos, localMatches);
-    return filtered.map((v) => metaToCandidate({
+    const tracks = filtered.map((v) => metaToCandidate({
       id: v.id,
       title: v.title,
       uploader: v.uploader ?? null,
       duration: v.duration ?? null,
       thumbnail: v.thumbnail ?? null,
     }));
-  }, [videos, localMatches]);
+    if (cachedSet.size === 0) return tracks;
+    const cached = [];
+    const others = [];
+    for (const t of tracks) {
+      if (t.ytId && cachedSet.has(t.ytId)) cached.push(t);
+      else others.push(t);
+    }
+    return [...cached, ...others];
+  }, [videos, localMatches, cachedSet]);
 
   const playSongList = (startIdx = 0) => {
     if (videosAsTracks.length === 0) return;

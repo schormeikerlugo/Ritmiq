@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { useAuthStore } from '../../stores/auth.js';
@@ -40,6 +40,21 @@ export function TopBar() {
   // remota. Suscribimos directo al array de tracks; cualquier cambio en
   // la lib re-renderiza el dropdown si esta abierto.
   const libraryTracks  = useLibraryStore((s) => s.tracks);
+
+  // Resultados YouTube ordenados: primero los que tienen ⚡ cache HIT en
+  // el desktop (reproduccion instantanea), despues el resto en su orden
+  // original. Sort estable: la posicion relativa dentro de cada grupo
+  // se preserva.
+  const sortedResults = useMemo(() => {
+    if (cachedSet.size === 0) return results;
+    const cached = [];
+    const others = [];
+    for (const r of results) {
+      if (cachedSet.has(r.id)) cached.push(r);
+      else others.push(r);
+    }
+    return [...cached, ...others];
+  }, [results, cachedSet]);
 
   // Cerrar dropdown al hacer click fuera
   useEffect(() => {
@@ -242,7 +257,7 @@ export function TopBar() {
                 <span>De YouTube</span>
               </li>
             )}
-            {results.map((r) => (
+            {sortedResults.map((r) => (
               <li key={r.id}>
                 <button
                   type="button"
