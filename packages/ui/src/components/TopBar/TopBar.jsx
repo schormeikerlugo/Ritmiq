@@ -8,6 +8,7 @@ import { metaToCandidate } from '../../lib/track-helpers.js';
 import { onConnectivityChange } from '../../lib/connectivity.js';
 import { onQueueSizeChange } from '../../lib/sync-queue.js';
 import { prewarmStream } from '../../lib/lan-client.js';
+import { searchLibraryTracks, dedupeByYtId } from '../../lib/library-search.js';
 import { SettingsDialog } from '../SettingsDialog/SettingsDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './TopBar.module.css';
@@ -24,6 +25,7 @@ function fmtDur(s) {
 export function TopBar() {
   const [value, setValue] = useState('');
   const [results, setResults] = useState([]);
+  const [localMatches, setLocalMatches] = useState(/** @type {import('@ritmiq/core/types').Track[]} */ ([]));
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -33,6 +35,10 @@ export function TopBar() {
   const setCurrent     = usePlayerStore((s) => s.setCurrent);
   const patch          = usePlayerStore((s) => s.patch);
   const goSearch       = useViewStore((s) => s.goSearch);
+  // Library en memoria — usada para matches locales antes de la busqueda
+  // remota. Suscribimos directo al array de tracks; cualquier cambio en
+  // la lib re-renderiza el dropdown si esta abierto.
+  const libraryTracks  = useLibraryStore((s) => s.tracks);
 
   // Cerrar dropdown al hacer click fuera
   useEffect(() => {
@@ -52,10 +58,19 @@ export function TopBar() {
     if (!q || URL_OR_ID_RE.test(q)) {
       reqRef.current++;       // invalidar cualquier petición en curso
       setResults([]);
+      setLocalMatches([]);
       setOpen(false);
       setBusy(false);
       return;
     }
+
+    // LOCAL-FIRST: matches contra la biblioteca al instante (sin debounce
+    // ni network). Se muestran encima de los resultados YouTube tan pronto
+    // el user tipea, dando feedback inmediato si la cancion ya esta en su
+    // libreria.
+    const local = searchLibraryTracks(libraryTracks, q, 5);
+    setLocalMatches(local);
+    if (local.length > 0) setOpen(true);
 
     const myReq = ++reqRef.current;
     let cancelled = false;
@@ -65,13 +80,15 @@ export function TopBar() {
       try {
         const items = await api.ytSearch(q);
         if (cancelled || reqRef.current !== myReq) return;
-        setResults(items);
+        // Dedupe: filtra videos cuyo ytId ya esta en la lib (no duplicar).
+        const filtered = dedupeByYtId(items, local);
+        setResults(filtered);
         setOpen(true);
         // Pre-calentar el cache del LAN server con los 3 primeros resultados,
         // así si el usuario pulsa play en cualquiera de ellos comienza al
         // instante en lugar de esperar 2-5s de yt-dlp.
         if (!isDesktop) {
-          for (const it of items.slice(0, 3)) {
+          for (const it of filtered.slice(0, 3)) {
             if (it?.id) prewarmStream(it.id);
           }
         }
@@ -87,7 +104,7 @@ export function TopBar() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [value]);
+  }, [value, libraryTracks]);
 
   const submitUrl = async () => {
     const v = value.trim();
@@ -112,10 +129,11 @@ export function TopBar() {
   const onSubmit = (e) => {
     e.preventDefault();
     if (URL_OR_ID_RE.test(value.trim())) submitUrl();
+    else if (localMatches[0]) pickLocal(localMatches[0]);
     else if (results[0]) pickResult(results[0]);
   };
 
-  // Click en resultado → reproducir SIN guardar.
+  // Click en resultado de YouTube → reproducir SIN guardar (efimero).
   const pickResult = (item) => {
     // Prewarm explícito en PWA: aunque el server haya prewarmeado los top-3
     // tras el search, el usuario puede pulsar uno fuera de ese top o haber
@@ -126,8 +144,21 @@ export function TopBar() {
     const candidate = metaToCandidate(item);
     setValue('');
     setResults([]);
+    setLocalMatches([]);
     setOpen(false);
     setCurrent(candidate);
+    patch({ isPlaying: true, positionSeconds: 0 });
+  };
+
+  // Click en match LOCAL → reproduce el track tal cual (con su UUID real).
+  // Sin metaToCandidate (no es efimero). El player resuelve via /stream/
+  // que hara cache HIT en shared_audio si esta descargado.
+  const pickLocal = (track) => {
+    setValue('');
+    setResults([]);
+    setLocalMatches([]);
+    setOpen(false);
+    setCurrent(track);
     patch({ isPlaying: true, positionSeconds: 0 });
   };
 
@@ -147,15 +178,60 @@ export function TopBar() {
           type="search"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onFocus={() => results.length && setOpen(true)}
+          onFocus={() => (results.length || localMatches.length) && setOpen(true)}
           placeholder="Busca canciones, artistas o pega un link de YouTube…"
           disabled={busy && !value}
           autoComplete="off"
         />
         {busy && <span className={styles.spinner} aria-hidden="true" />}
 
-        {open && (results.length > 0) && (
+        {open && (localMatches.length > 0 || results.length > 0) && (
           <ul className={styles.dropdown}>
+            {/* ── Matches locales (lib del usuario) — arriba con badge ── */}
+            {localMatches.length > 0 && (
+              <li className={styles.sectionHeader} aria-hidden="true">
+                <Icon name="Heart" size={12} />
+                <span>En tu biblioteca</span>
+              </li>
+            )}
+            {localMatches.map((t) => (
+              <li key={`local-${t.id}`}>
+                <button
+                  type="button"
+                  className={styles.item}
+                  onClick={() => pickLocal(t)}
+                >
+                  <div className={styles.thumb}>
+                    {t.coverUrl
+                      ? <img src={t.coverUrl} alt="" />
+                      : <Icon name="Music" size={16} />}
+                  </div>
+                  <div className={styles.itemMeta}>
+                    <span className={styles.itemTitle}>
+                      {t.title}
+                      {t.isDownloaded && (
+                        <span className={styles.badgeLocal} title="Descargada">
+                          <Icon name="Download" size={10} />
+                        </span>
+                      )}
+                    </span>
+                    <span className={styles.itemArtist}>
+                      {t.artist ?? '—'}
+                      {t.durationSeconds ? ` · ${fmtDur(t.durationSeconds)}` : ''}
+                    </span>
+                  </div>
+                  <span className={styles.badgeYours}>Tuya</span>
+                </button>
+              </li>
+            ))}
+
+            {/* ── Resultados de YouTube ──────────────────────────── */}
+            {results.length > 0 && localMatches.length > 0 && (
+              <li className={styles.sectionHeader} aria-hidden="true">
+                <Icon name="Search" size={12} />
+                <span>De YouTube</span>
+              </li>
+            )}
             {results.map((r) => (
               <li key={r.id}>
                 <button

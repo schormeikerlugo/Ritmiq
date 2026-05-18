@@ -616,7 +616,9 @@ export async function startLanServer({ port, db, accessToken }) {
         const q = url.searchParams.get('q');
         if (!q) { res.writeHead(400).end('q required'); return; }
         const opts = ytOptsFor(principal);
-        const items = await search(q, { ...opts, max: 12 });
+        // max=15: el PWA aplica dedupe contra la biblioteca local y se
+        // queda con un minimo de 8 visibles aunque haya solapamiento.
+        const items = await search(q, { ...opts, max: 15 });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ items }));
 

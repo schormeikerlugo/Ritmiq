@@ -195,7 +195,7 @@ export function registerIpc({ db, lan, accessToken }) {
 
   ipcMain.handle('yt:metadata', (_e, idOrUrl) => getMetadata(idOrUrl, ytOpts));
   ipcMain.handle('yt:streamUrl', (_e, idOrUrl) => getStreamUrl(idOrUrl, ytOpts));
-  ipcMain.handle('yt:search', async (_e, query) => search(query, { ...ytOpts, max: 12 }));
+  ipcMain.handle('yt:search', async (_e, query) => search(query, { ...ytOpts, max: 15 }));
 
   // Información y actualización del binario yt-dlp.
   ipcMain.handle('ytdlp:info', async () => {

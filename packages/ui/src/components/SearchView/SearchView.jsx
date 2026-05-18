@@ -9,11 +9,13 @@
  * Click en artista → navega a `goArtist(name)`.
  * Click en playlist → por ahora no implementado (Fase B).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchStore } from '../../stores/search.js';
+import { useLibraryStore } from '../../stores/library.js';
 import { useViewStore } from '../../stores/view.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { metaToCandidate } from '../../lib/track-helpers.js';
+import { searchLibraryTracks, dedupeByYtId } from '../../lib/library-search.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { TrackCard } from '../Home/TrackCard.jsx';
 import { ArtistCard } from '../Home/ArtistCard.jsx';
@@ -36,6 +38,7 @@ export function SearchView({ query }) {
   const error     = useSearchStore((s) => s.error);
   const playNow   = usePlayerStore((s) => s.playNow);
   const goArtist  = useViewStore((s) => s.goArtist);
+  const libraryTracks = useLibraryStore((s) => s.tracks);
 
   const [tab, setTab] = useState('all');
 
@@ -43,14 +46,25 @@ export function SearchView({ query }) {
     if (query) fetchAll(query);
   }, [query, fetchAll]);
 
-  /** Convierte videos del search en Tracks reproducibles. */
-  const videosAsTracks = videos.map((v) => metaToCandidate({
-    id: v.id,
-    title: v.title,
-    uploader: v.uploader ?? null,
-    duration: v.duration ?? null,
-    thumbnail: v.thumbnail ?? null,
-  }));
+  // Local-first: matches contra la biblioteca propia (max 5). Memoizado
+  // por (query, libraryTracks) para no recomputar en cada render del tab.
+  const localMatches = useMemo(
+    () => searchLibraryTracks(libraryTracks, query, 5),
+    [libraryTracks, query]
+  );
+
+  /** Convierte videos del search en Tracks reproducibles, dedupeando
+   *  contra los que ya estan en la biblioteca local (mismo ytId). */
+  const videosAsTracks = useMemo(() => {
+    const filtered = dedupeByYtId(videos, localMatches);
+    return filtered.map((v) => metaToCandidate({
+      id: v.id,
+      title: v.title,
+      uploader: v.uploader ?? null,
+      duration: v.duration ?? null,
+      thumbnail: v.thumbnail ?? null,
+    }));
+  }, [videos, localMatches]);
 
   const playSongList = (startIdx = 0) => {
     if (videosAsTracks.length === 0) return;
@@ -58,7 +72,17 @@ export function SearchView({ query }) {
     playNow(videosAsTracks, clamped);
   };
 
-  const noResults = !loading && videos.length === 0 && channels.length === 0 && playlists.length === 0;
+  const playLocal = (idx) => {
+    if (localMatches.length === 0) return;
+    const clamped = Math.min(idx, localMatches.length - 1);
+    playNow(localMatches, clamped);
+  };
+
+  const noResults = !loading
+    && videos.length === 0
+    && channels.length === 0
+    && playlists.length === 0
+    && localMatches.length === 0;
 
   return (
     <section className={styles.wrap}>
@@ -84,6 +108,28 @@ export function SearchView({ query }) {
       {/* ── Tab: Todo ────────────────────────────────────────────────── */}
       {tab === 'all' && (
         <div className={styles.sections}>
+          {/* En tu biblioteca: arriba de todo. Cero round-trip, instant. */}
+          {localMatches.length > 0 && (
+            <section className={styles.row}>
+              <header className={styles.rowHead}>
+                <h2 className={styles.rowTitle}>
+                  <Icon name="Heart" size={14} filled />
+                  {' '}En tu biblioteca
+                </h2>
+              </header>
+              <div className={styles.songList}>
+                {localMatches.map((t, i) => (
+                  <SongRow
+                    key={`local-${t.id}`}
+                    track={t}
+                    onClick={() => playLocal(i)}
+                    badge={t.isDownloaded ? 'Descargada' : 'Tuya'}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
           {loading && videos.length === 0 && (
             <>
               <RowSkeleton title="Canciones" count={4} />
@@ -221,8 +267,9 @@ export function SearchView({ query }) {
   );
 }
 
-/** Fila tipo Spotify para canciones individuales en el tab "Todo" / "Canciones". */
-function SongRow({ track, onClick }) {
+/** Fila tipo Spotify para canciones individuales en el tab "Todo" / "Canciones".
+ *  @param {{ track:any, onClick:()=>void, badge?:string }} props */
+function SongRow({ track, onClick, badge }) {
   return (
     <button type="button" className={styles.songRow} onClick={onClick}>
       <div className={styles.songCover}>
@@ -234,7 +281,10 @@ function SongRow({ track, onClick }) {
         </span>
       </div>
       <div className={styles.songMeta}>
-        <span className={styles.songTitle}>{track.title}</span>
+        <span className={styles.songTitle}>
+          {track.title}
+          {badge && <span className={styles.songBadge}>{badge}</span>}
+        </span>
         <span className={styles.songSub}>
           Canción{track.artist ? ` · ${track.artist}` : ''}
         </span>
