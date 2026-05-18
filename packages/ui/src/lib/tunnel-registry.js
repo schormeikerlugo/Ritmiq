@@ -79,10 +79,13 @@ export function subscribeTunnelUrl(userId, onChange) {
     if (url && url !== prevUrl) {
       setTunnelUrl(url);
       console.info('[tunnel-registry] tunnel URL actualizada:', url);
-    } else if (!url && prevUrl) {
-      setTunnelUrl(null);
-      console.info('[tunnel-registry] tunnel URL eliminada');
     }
+    // NUNCA borramos el tunnelUrl local desde aqui aunque Supabase
+    // devuelva null. Razon: la tabla tunnel_endpoints solo la publica
+    // el OWNER del desktop. Cuentas pareadas (no owner) NO tienen fila
+    // propia, entonces siempre verian url=null y se les borraria su
+    // tunnelUrl persistido via pareo. La eliminacion local debe ser
+    // explicita (boton 'Desconectar' o 'Limpiar tunnel' en Ajustes).
     const prevTok = getAccessTokenSync();
     if (token && token !== prevTok) {
       setAccessToken(token);
