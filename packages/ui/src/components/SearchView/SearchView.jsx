@@ -16,6 +16,7 @@ import { useViewStore } from '../../stores/view.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { metaToCandidate } from '../../lib/track-helpers.js';
 import { searchLibraryTracks, dedupeByYtId } from '../../lib/library-search.js';
+import { checkSharedCache } from '../../lib/lan-client.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { TrackCard } from '../Home/TrackCard.jsx';
 import { ArtistCard } from '../Home/ArtistCard.jsx';
@@ -41,10 +42,25 @@ export function SearchView({ query }) {
   const libraryTracks = useLibraryStore((s) => s.tracks);
 
   const [tab, setTab] = useState('all');
+  const [cachedSet, setCachedSet] = useState(/** @type {Set<string>} */ (new Set()));
 
   useEffect(() => {
     if (query) fetchAll(query);
   }, [query, fetchAll]);
+
+  // Tras llegar videos, chequear cuales estan en cache compartido del PC
+  // para mostrar el badge ⚡ "instant-play" a lo largo de la vista.
+  useEffect(() => {
+    if (!videos || videos.length === 0) {
+      setCachedSet(new Set());
+      return;
+    }
+    let cancelled = false;
+    checkSharedCache(videos.map((v) => v.id))
+      .then((set) => { if (!cancelled) setCachedSet(set); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [videos]);
 
   // Local-first: matches contra la biblioteca propia (max 5). Memoizado
   // por (query, libraryTracks) para no recomputar en cada render del tab.
@@ -152,6 +168,7 @@ export function SearchView({ query }) {
                     key={t.id}
                     track={t}
                     onClick={() => playSongList(i)}
+                    cached={t.ytId ? cachedSet.has(t.ytId) : false}
                   />
                 ))}
               </div>
@@ -218,6 +235,7 @@ export function SearchView({ query }) {
               key={t.id}
               track={t}
               onClick={() => playSongList(i)}
+              cached={t.ytId ? cachedSet.has(t.ytId) : false}
             />
           ))}
         </div>
@@ -268,8 +286,8 @@ export function SearchView({ query }) {
 }
 
 /** Fila tipo Spotify para canciones individuales en el tab "Todo" / "Canciones".
- *  @param {{ track:any, onClick:()=>void, badge?:string }} props */
-function SongRow({ track, onClick, badge }) {
+ *  @param {{ track:any, onClick:()=>void, badge?:string, cached?:boolean }} props */
+function SongRow({ track, onClick, badge, cached }) {
   return (
     <button type="button" className={styles.songRow} onClick={onClick}>
       <div className={styles.songCover}>
@@ -284,6 +302,12 @@ function SongRow({ track, onClick, badge }) {
         <span className={styles.songTitle}>
           {track.title}
           {badge && <span className={styles.songBadge}>{badge}</span>}
+          {cached && (
+            <span
+              className={styles.songCacheBadge}
+              title="En cache del PC — reproduccion instantanea"
+            >⚡ Caché</span>
+          )}
         </span>
         <span className={styles.songSub}>
           Canción{track.artist ? ` · ${track.artist}` : ''}

@@ -115,6 +115,30 @@ export function findSharedAudio(db, ytId) {
 }
 
 /**
+ * Chequeo en bulk: dado un array de ytIds, devuelve el subset que tiene
+ * archivo cacheado y vigente en disco. Cap interno en 100 ids/llamada
+ * para evitar SQL con miles de placeholders. NO valida `existsSync`
+ * por cada uno (seria costoso); confia en que registerSharedAudio /
+ * findSharedAudio mantienen la tabla limpia.
+ *
+ * @param {BetterDb} db
+ * @param {string[]} ytIds
+ * @returns {Set<string>}
+ */
+export function findSharedAudioBulk(db, ytIds) {
+  if (!Array.isArray(ytIds) || ytIds.length === 0) return new Set();
+  // Cap conservador. 100 placeholders en sqlite IN(...) sigue siendo
+  // un parseo barato (<1ms).
+  const clean = ytIds.filter((x) => typeof x === 'string' && x.length > 0).slice(0, 100);
+  if (clean.length === 0) return new Set();
+  const placeholders = clean.map(() => '?').join(',');
+  const rows = db
+    .prepare(`SELECT yt_id FROM shared_audio WHERE yt_id IN (${placeholders})`)
+    .all(...clean);
+  return new Set(rows.map((r) => r.yt_id));
+}
+
+/**
  * Estadísticas del cache compartido para mostrar en Ajustes.
  * @param {BetterDb} db
  * @returns {{ count: number, totalBytes: number }}

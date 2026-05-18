@@ -312,3 +312,14 @@
   vertical-align: middle;
   color: var(--color-success, #38c172);
 }
+
+/* Badge ⚡ "en cache del PC" para results YouTube que se reproducen al
+   instante porque el desktop ya los tiene en shared_audio. */
+.badgeCached {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  vertical-align: middle;
+  color: var(--color-success, #38c172);
+  filter: drop-shadow(0 0 3px rgba(56, 193, 114, 0.4));
+}

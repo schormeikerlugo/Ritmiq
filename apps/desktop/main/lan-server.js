@@ -20,6 +20,7 @@ import { translateYtdlpError } from '@ritmiq/yt';
 import {
   findSharedAudio, registerSharedAudio,
   sharedAudioStats, clearSharedAudio,
+  findSharedAudioBulk,
 } from '@ritmiq/db/sqlite';
 import { getYtDlpPath } from './ytdlp-path.js';
 import { detectCookiesBrowser, detectJsRuntime, exportCookiesToFile } from './cookies-detect.js';
@@ -593,7 +594,8 @@ export async function startLanServer({ port, db, accessToken }) {
         ACCEPT_UNSIGNED && (
           url.pathname.startsWith('/yt/') ||
           url.pathname.startsWith('/stream/') ||
-          url.pathname.startsWith('/download/')
+          url.pathname.startsWith('/download/') ||
+          url.pathname === '/shared-cache/check'
         );
       // Modelo Y: ademas del owner token, aceptamos device_token aprobado
       // para todos los endpoints de musica (/yt/*, /stream/*, /download/*,
@@ -603,7 +605,8 @@ export async function startLanServer({ port, db, accessToken }) {
         url.pathname.startsWith('/yt/') ||
         url.pathname.startsWith('/stream/') ||
         url.pathname.startsWith('/download/') ||
-        url.pathname === '/cookies/upload';
+        url.pathname === '/cookies/upload' ||
+        url.pathname === '/shared-cache/check';
       const principal = isMusicEndpoint ? authorizeDeviceOrOwner(req, url) : null;
       const isDeviceAuth = isMusicEndpoint && principal != null;
       if (!isSignedStreamRequest && !isCompatExempt && !isDeviceAuth && !isAuthorized(req, url)) {
@@ -723,6 +726,23 @@ export async function startLanServer({ port, db, accessToken }) {
           res.writeHead(502, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: String(err?.message ?? err) }));
         }
+        return;
+      }
+
+      // ─── Cache compartido: check bulk de ytIds ──────────────────────────
+      // Devuelve subset de ytIds que estan en shared_audio. Usado por la
+      // PWA tras un search para mostrar badge 'En cache del PC' en los
+      // resultados que se reproducirian al instante. Cap 100 ids/request.
+      if (url.pathname === '/shared-cache/check' && req.method === 'GET') {
+        const ytParam = url.searchParams.get('yt') ?? '';
+        const ytIds = ytParam.split(',').map((s) => s.trim()).filter(Boolean);
+        const cached = findSharedAudioBulk(db, ytIds);
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          // Pequeño cache HTTP para que repetir el mismo search no spamee.
+          'Cache-Control': 'private, max-age=30',
+        });
+        res.end(JSON.stringify({ cached: Array.from(cached) }));
         return;
       }
 

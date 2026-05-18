@@ -303,6 +303,64 @@ export function prewarmStream(ytId) {
   }).catch(() => {});
 }
 
+/**
+ * Bulk-check de ytIds contra el cache `shared_audio` del desktop.
+ * Devuelve un Set con los ytIds que estan en cache (reproducibles al
+ * instante sin yt-dlp).
+ *
+ * Cache de sesion: cada ytId queda 60s para no spamear el endpoint en
+ * busquedas repetidas (el user buscando "creep" cinco veces no genera
+ * cinco round-trips). Cap a 100 ids por request (mismo cap server-side).
+ *
+ * Si no hay desktop alcanzable, devuelve Set vacio sin error.
+ *
+ * @param {string[]} ytIds
+ * @returns {Promise<Set<string>>}
+ */
+const sharedCacheState = new Map(); // ytId -> { cached: boolean, at: number }
+const SHARED_CACHE_TTL_MS = 60 * 1000;
+export async function checkSharedCache(ytIds) {
+  if (!Array.isArray(ytIds) || ytIds.length === 0) return new Set();
+  const base = preferredBase();
+  if (!base) return new Set();
+
+  const now = Date.now();
+  const known = new Set();
+  const unknown = [];
+  for (const id of ytIds) {
+    if (!id) continue;
+    const hit = sharedCacheState.get(id);
+    if (hit && now - hit.at < SHARED_CACHE_TTL_MS) {
+      if (hit.cached) known.add(id);
+    } else {
+      unknown.push(id);
+    }
+  }
+  if (unknown.length === 0) return known;
+
+  // Cap a 100 — coincide con el server-side cap. Si la PWA pidiera mas
+  // (raro), tomamos los primeros 100 y descartamos el resto.
+  const batch = unknown.slice(0, 100);
+  try {
+    const r = await fetch(
+      `${base}/shared-cache/check?yt=${batch.map(encodeURIComponent).join(',')}`,
+      { headers: authHeaders() }
+    );
+    if (!r.ok) return known;
+    const body = await r.json();
+    const cachedSet = new Set(body?.cached ?? []);
+    // Persiste resultados (hits y misses) en el cache local de sesion.
+    for (const id of batch) {
+      const isCached = cachedSet.has(id);
+      sharedCacheState.set(id, { cached: isCached, at: now });
+      if (isCached) known.add(id);
+    }
+    return known;
+  } catch {
+    return known;
+  }
+}
+
 // ─── CONTEXTO HISTÓRICO: fetchDirectStreamUrl ───────────────────────────
 // Helper que pedía al lan-server la URL firmada directa de googlevideo
 // para pasarla a `<audio>.src` y bypassear el proxy del Tunnel.

@@ -7,7 +7,7 @@ import { api, isDesktop } from '../../lib/api.js';
 import { metaToCandidate } from '../../lib/track-helpers.js';
 import { onConnectivityChange } from '../../lib/connectivity.js';
 import { onQueueSizeChange } from '../../lib/sync-queue.js';
-import { prewarmStream } from '../../lib/lan-client.js';
+import { prewarmStream, checkSharedCache } from '../../lib/lan-client.js';
 import { searchLibraryTracks, dedupeByYtId } from '../../lib/library-search.js';
 import { SettingsDialog } from '../SettingsDialog/SettingsDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
@@ -26,6 +26,7 @@ export function TopBar() {
   const [value, setValue] = useState('');
   const [results, setResults] = useState([]);
   const [localMatches, setLocalMatches] = useState(/** @type {import('@ritmiq/core/types').Track[]} */ ([]));
+  const [cachedSet, setCachedSet] = useState(/** @type {Set<string>} */ (new Set()));
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -59,6 +60,7 @@ export function TopBar() {
       reqRef.current++;       // invalidar cualquier petición en curso
       setResults([]);
       setLocalMatches([]);
+      setCachedSet(new Set());
       setOpen(false);
       setBusy(false);
       return;
@@ -92,6 +94,14 @@ export function TopBar() {
             if (it?.id) prewarmStream(it.id);
           }
         }
+        // Chequeo bulk: cuales de estos ytIds ya estan en shared_audio?
+        // Aparece badge "En cache" → reproducibles al instante sin yt-dlp.
+        // Fire-and-forget; el setState se ignora si la busqueda fue
+        // invalidada (myReq cambio).
+        checkSharedCache(filtered.map((it) => it.id)).then((set) => {
+          if (cancelled || reqRef.current !== myReq) return;
+          setCachedSet(set);
+        }).catch(() => {});
       } catch (err) {
         if (cancelled || reqRef.current !== myReq) return;
         setError(String(err));
@@ -251,7 +261,15 @@ export function TopBar() {
                       : <Icon name="Music" size={16} />}
                   </div>
                   <div className={styles.itemMeta}>
-                    <span className={styles.itemTitle}>{r.title}</span>
+                    <span className={styles.itemTitle}>
+                      {r.title}
+                      {cachedSet.has(r.id) && (
+                        <span
+                          className={styles.badgeCached}
+                          title="En cache del PC — reproduccion instantanea"
+                        >⚡</span>
+                      )}
+                    </span>
                     <span className={styles.itemArtist}>
                       {r.uploader ?? '—'}
                       {r.duration ? ` · ${fmtDur(r.duration)}` : ''}
