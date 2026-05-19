@@ -10,9 +10,15 @@
   display: flex;
   align-items: center;
   padding: 0 var(--space-3);
-  /* mantenemos un alto coherente con el tamaño que ocupaba el texto antes */
   height: 32px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: opacity var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard);
 }
+.brand:hover  { opacity: 0.85; }
+.brand:active { transform: scale(0.97); }
 
 .brandLogo {
   height: 100%;
@@ -21,6 +27,7 @@
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
   user-select: none;
   -webkit-user-drag: none;
+  pointer-events: none;
 }
 
 .list {

@@ -291,10 +291,18 @@ export function PlaylistView({ playlistId }) {
         </div>
       </div>
 
-      {/* Fila de acciones secundarias + play principal a la derecha
-          (match Spotify mobile: heart/download/share a la izq, play grande
-          a la derecha que destaca como CTA principal). */}
+      {/* Toolbar: play FAB principal + acciones secundarias + filtro.
+          Mobile: filterWrap se renderiza como fila separada debajo del
+          actionsBar (igual que antes — el CSS mobile usa display:block
+          full-width para .filterWrap). Desktop: el CSS reagrupa todo en
+          una sola fila (play izq, iconos al lado, filtro a la derecha). */}
       <div className={styles.actionsBar}>
+        <button
+          className={styles.playFab}
+          onClick={playAll}
+          disabled={filteredTracks.length === 0}
+          aria-label="Reproducir"
+        ><Icon name="Play" size={28} filled /></button>
         <div className={styles.actionsLeft}>
           <button
             className={styles.iconAction}
@@ -319,22 +327,15 @@ export function PlaylistView({ playlistId }) {
             label="Más opciones de la playlist"
           />
         </div>
-        <button
-          className={styles.playFab}
-          onClick={playAll}
-          disabled={filteredTracks.length === 0}
-          aria-label="Reproducir"
-        ><Icon name="Play" size={28} filled /></button>
-      </div>
-
-      <div className={styles.filterWrap}>
-        <input
-          className={styles.filter}
-          type="search"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filtrar canciones…"
-        />
+        <div className={styles.filterWrap}>
+          <input
+            className={styles.filter}
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filtrar canciones…"
+          />
+        </div>
       </div>
 
       {tracks.length === 0 ? (

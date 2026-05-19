@@ -2,8 +2,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  max-width: 1200px;
-  margin: 0 auto;
+  /* Full ancho dentro del .mainContent (desktop) y dentro del .main
+     (mobile). El max-width anterior (1200px) impedia que la vista llenara
+     el panel central tipo Spotify. */
+  width: 100%;
 }
 
 .muted { color: var(--color-text-3); }
@@ -118,11 +120,16 @@
   color: #0a0a0c;
 }
 
-/* ── Fila de acciones bajo el hero (heart, download, more + play FAB) ── */
+/* ── Fila de acciones bajo el hero ── play + iconos + filter.
+   Mobile: flex-wrap permite que el filterWrap salte a una segunda linea
+   ocupando 100% del ancho (igual que antes del refactor). Desktop:
+   sobrescrito mas abajo para que todo viva en una sola fila. */
 .actionsBar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
   padding: 0 var(--space-2);
 }
 .actionsLeft {
@@ -156,13 +163,18 @@
 }
 
 .filterWrap {
-  /* Full ancho: el filtro vive ahora en su propia fila debajo de actionsBar */
+  /* Centrado horizontal: el filtro vive en su propia fila debajo de
+     actionsBar. En mobile ocupa todo el ancho menos un padding pequeño;
+     en desktop se limita y queda centrado. */
   width: 100%;
   padding: 0 var(--space-2);
+  display: flex;
+  justify-content: center;
 }
 
 .filter {
   width: 100%;
+  max-width: 560px;
   height: 36px;
   padding: 0 var(--space-3);
   background: var(--color-bg-2);
@@ -375,13 +387,104 @@
   .heroTitle {
     font-size: 22px;
   }
-  /* Filter full ancho en mobile */
+  /* Mobile: preservar EXACTAMENTE el layout previo, donde el orden visual
+     era: [icons download/shuffle/more] a la izquierda, [Play FAB] a la
+     derecha, y [filter] como fila separada debajo. Como el JSX ahora
+     tiene los hijos en orden [play, actionsLeft, filter], usamos `order`
+     para invertir play e iconos visualmente en mobile. */
+  .actionsBar {
+    justify-content: space-between;
+  }
+  .actionsLeft { order: 1; }
+  .playFab     { order: 2; }
   .filterWrap {
-    margin: 0 calc(var(--space-3) * -1);
-    padding: 0 var(--space-3);
+    order: 3;
+    flex: 1 1 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
   }
   .filter {
     width: 100%;
+  }
+}
+
+/* ── Desktop: hero HORIZONTAL estilo Spotify — cover a la izquierda
+   + meta a la derecha (kind, titulo grande, autor, contadores). El
+   gradient sigue activo como fondo del hero pero ahora ocupa todo el
+   ancho del panel central. ──────────────────────────────────────────── */
+@media (min-width: 769px) {
+  .hero {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: var(--space-5);
+    text-align: left;
+    padding: var(--space-6) var(--space-5) var(--space-5);
+    /* Margen negativo lateral para que el gradient ocupe todo el ancho
+       del panel main (el .main tiene padding interno). */
+    margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) 0;
+  }
+  .heroCover {
+    width: 232px;
+    height: 232px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  }
+  .heroMeta {
+    align-items: flex-start;
+    max-width: none;
+    flex: 1 1 auto;
+    /* Alineado al baseline del cover — el titulo destaca como header
+       principal de la vista. */
+    padding-bottom: var(--space-3);
+  }
+  .heroTitle {
+    font-size: clamp(48px, 6vw, 96px);
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+  .kind,
+  .heroSubtitle {
+    text-align: left;
+  }
+
+  /* ─── Toolbar Spotify-style desktop: play FAB grande a la izquierda,
+     iconos secundarios al lado, filtro alineado a la derecha. Todo en
+     una sola fila para que el contenido respire y no haya espacios
+     muertos. Replica el "Buscar en lista" de Spotify. */
+  .actionsBar {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+  }
+  .playFab {
+    width: 56px;
+    height: 56px;
+    order: 1;
+    flex: 0 0 auto;
+  }
+  .actionsLeft {
+    gap: var(--space-1);
+    flex: 0 0 auto;
+    order: 2;
+  }
+  .filterWrap {
+    /* Se expande para ocupar el espacio restante; el input interno tiene
+       su propio max-width para no estirarse al infinito. */
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 0;
+    justify-content: flex-end;
+    order: 3;
+  }
+  .filter {
+    max-width: 320px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+  }
+  .filter:focus {
+    background: var(--color-bg-2);
   }
 }
 

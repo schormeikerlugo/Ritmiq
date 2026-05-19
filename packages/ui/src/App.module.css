@@ -12,14 +12,28 @@
   --topbar-h: calc(var(--layout-topbar-h) + var(--safe-top));
   --player-h: calc(var(--layout-player-h) + var(--safe-bottom));
   --bottom-nav-h: 0px;
+  /* Gap entre paneles flotantes (estilo Spotify desktop). En mobile lo
+     anulamos a 0 para mantener la UI compacta de PWA. */
+  --shell-gap: var(--space-2);
 
   display: grid;
+  /* Desktop: 4 columnas (sidebar | main | queue | nowplaying)
+     + 3 filas (topbar | main | player).
+     - sidebar abarca rows 1+2 verticalmente (modulo flotante autocontenido).
+     - topbar ocupa solo la columna central (col 2) en row 1.
+     - queue abarca rows 1+2 (col 3, ocupado o no segun --queue-w).
+     - nowplaying abarca rows 1+2 (col 4).
+     - player: full-width en row 3.
+     Las areas con el mismo nombre forman rectangulos validos. */
   grid-template-columns: var(--layout-sidebar-w) 1fr var(--queue-w) var(--np-panel-w);
-  grid-template-rows: var(--topbar-h) 1fr var(--player-h);
+  grid-template-rows: var(--layout-topbar-h) 1fr var(--player-h);
   grid-template-areas:
-    "sidebar topbar  queue  nowplaying"
-    "sidebar main    queue  nowplaying"
-    "player  player  player player";
+    "sidebar topbar queue nowplaying"
+    "sidebar main   queue nowplaying"
+    "player  player player player";
+  gap: var(--shell-gap);
+  padding: var(--shell-gap) var(--shell-gap) 0 var(--shell-gap);
+  background: #000;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
@@ -41,42 +55,45 @@
 .queue {
   grid-area: queue;
   overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-1);
 }
 
 .nowplayingPanel {
   grid-area: nowplaying;
   overflow: hidden;
   background: var(--color-bg-1);
-  border-left: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
 }
 
 .sidebar {
   grid-area: sidebar;
   background: var(--color-bg-1);
-  border-right: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   overflow-y: auto;
 }
 
+/* TopBar como modulo flotante independiente en su propia grid-area —
+   ocupa solo la columna central (main). Mismo background y border-radius
+   que los demas paneles, replicando el header de Spotify. */
 .topbar {
   grid-area: topbar;
-  background: var(--color-bg-0);
-  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-1);
+  border-radius: var(--radius-lg);
   display: flex;
-  align-items: flex-end;
-  padding:
-    var(--safe-top)
-    calc(var(--space-5) + var(--safe-right))
-    0
-    calc(var(--space-5) + var(--safe-left));
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  overflow: visible;
 }
 
 .main {
   grid-area: main;
   background: var(--color-bg-0);
+  border-radius: var(--radius-lg);
   overflow-y: auto;
-  padding: var(--space-5);
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  padding: var(--space-5);
 }
 
 /* Transición suave al cambiar de vista (Home → Library → Playlist…) */
@@ -122,6 +139,12 @@
     --bottom-nav-h: calc(58px + var(--safe-bottom));
     /* Player pill: 64px de alto + margen separacion */
     --player-h: 64px;
+    /* En mobile el layout es full-bleed: sin gap, sin padding exterior,
+       sin border-radius. El look "flotante" de Spotify es solo desktop. */
+    --shell-gap: 0px;
+    gap: 0;
+    padding: 0;
+    background: var(--color-bg-0);
 
     grid-template-columns: 1fr !important;
     grid-template-areas:
@@ -131,25 +154,23 @@
     grid-template-rows: 1fr !important;
   }
 
-  /* TopBar va sticky-top dentro de main en mobile (cada view maneja su
-     propio header — Library, Search, etc tienen su titulo + chips).
-     Ocultamos el TopBar global en mobile excepto en views especificas. */
+  /* TopBar oculta en mobile — cada view (Library, Search, etc) maneja
+     su propio header sticky. */
   .topbar {
     display: none;
   }
 
   .sidebar { display: none; }
 
-  /* Main toma toda la pantalla con padding-top safe-area por defecto
-     (cubre la mayoria de las vistas: Home, Library, Search, Cuenta).
-     PlaylistView usa margin-top negativo en su hero para escapar y
-     que su gradient se extienda fullbleed hasta el top de la viewport. */
+  /* Main full-bleed en mobile — sin border-radius. */
   .main {
     grid-area: main;
+    border-radius: 0;
     padding-top: env(safe-area-inset-top, 0px) !important;
     padding-right: var(--space-3) !important;
     padding-bottom: calc(var(--player-h) + var(--bottom-nav-h) + var(--space-3)) !important;
     padding-left: var(--space-3) !important;
+    display: block;
   }
 
   /* Player como pill flotante encima del bottom nav. */
@@ -190,8 +211,14 @@
     animation: ritmiq-slide-up 280ms var(--ease-emphasized);
   }
 
-  /* NowPlaying en mobile sigue siendo fullscreen modal — no side panel. */
-  .nowplayingPanel { display: none; }
+  /* NowPlaying en mobile sigue siendo fullscreen modal (position:fixed).
+     El aside envoltorio NO debe ocupar espacio en el grid ni aplicar
+     background — usamos display:contents para que el aside sea "invisible"
+     al layout pero permita que su hijo siga existiendo en el DOM con su
+     position:fixed activo. */
+  .nowplayingPanel {
+    display: contents;
+  }
 }
 
 @media (min-width: 769px) {

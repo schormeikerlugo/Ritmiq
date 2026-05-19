@@ -1,6 +1,7 @@
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useViewStore } from '../../stores/view.js';
 import { Icon } from '../Icon/Icon.jsx';
+import logotipoUrl from '../../assets/logotipo.png';
 import styles from './Sidebar.module.css';
 
 export function Sidebar() {
@@ -17,6 +18,18 @@ export function Sidebar() {
 
   return (
     <nav className={styles.nav}>
+      {/* Logotipo Ritmiq — click va a Home, mismo patron que un logo de
+          app en barra lateral. Solo visible en sidebar desktop (en mobile
+          la sidebar esta oculta). */}
+      <button
+        type="button"
+        className={styles.brand}
+        onClick={goHome}
+        aria-label="Ritmiq — Inicio"
+      >
+        <img src={logotipoUrl} alt="Ritmiq" className={styles.brandLogo} />
+      </button>
+
       <ul className={styles.list}>
         <li>
           <button

@@ -1,26 +1,23 @@
 /**
- * BottomSheet iOS-style para PWA mobile.
+ * BottomSheet iOS-style — modal bottom-up con drag-to-dismiss para PWA
+ * mobile, modal centrado clasico en desktop.
  *
  * Caracteristicas:
- *  - Sube desde abajo con animacion spring-like (cubic-bezier emphasized).
- *  - Header con "drag handle" gris arriba (visual cue para arrastrar).
- *  - Backdrop con dim oscuro detras + blur.
- *  - Click en backdrop cierra.
- *  - Swipe-down en el handle/body cierra (con resistencia visual).
- *  - Bloqueo de scroll del body mientras abierto (useLockBodyScroll).
- *  - Respeta safe-area-inset-bottom (iPhone home indicator).
- *  - Solo activo en mobile (<=768px). En desktop renderea como Modal centrado.
+ *  - Sube desde abajo con animacion spring (cubic-bezier emphasized).
+ *  - Drag handle arriba como cue visual para arrastrar.
+ *  - Backdrop con dim oscuro + blur. Click cierra.
+ *  - Swipe-down en handle/header cierra con resistencia visual.
+ *  - Bloquea scroll del body mientras esta abierto.
+ *  - Respeta safe-area-inset-bottom (iPhone home indicator) via CSS.
+ *  - Solo activo en mobile (<=768px). En desktop renderea como Modal.
  *
- * Uso:
- *   <BottomSheet onClose={() => setOpen(false)} title="Opciones">
- *     <button>Opcion 1</button>
- *     <button>Opcion 2</button>
- *   </BottomSheet>
+ * Renderizado INLINE — no portalea. La via estandar es usar el store
+ * global `useBottomSheet` + `<BottomSheetHost />` (montado una vez en
+ * App.jsx). Ver bottom-sheet.js y BottomSheetHost.jsx.
  *
  * @module @ritmiq/ui/components/BottomSheet/BottomSheet
  */
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './BottomSheet.module.css';
 
@@ -123,55 +120,52 @@ export function BottomSheet({ onClose, children, title, header, dismissOnBackdro
       ? { transition: 'transform 260ms var(--ease-emphasized)' }
       : undefined;
 
-  /* Portal a document.body: el BottomSheet ANTES se renderaba dentro
-     del arbol React donde se invocaba (ej. dentro de un DropdownMenu
-     dentro de Library dentro de .main). Si algun ancestor tiene
-     transform/filter/contain, el position:fixed se ancla a ese ancestor
-     en lugar del viewport — el backdrop quedaba con un gap arriba.
-     Portal a body resuelve el problema garantizando inset:0 vs viewport. */
-  const content = (
-    <div
-      className={styles.backdrop}
-      data-closing={closing}
-      onMouseDown={onBackdropMouseDown}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
+  return (
+    <>
       <div
-        ref={sheetRef}
-        className={styles.sheet}
+        className={styles.backdrop}
         data-closing={closing}
-        style={sheetStyle}
+        onMouseDown={onBackdropMouseDown}
+        aria-hidden="true"
+      />
+      <div
+        className={styles.sheet}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
       >
-        {/* Handle drag — area touch sensible para swipe-down */}
         <div
-          className={styles.handleWrap}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
+          ref={sheetRef}
+          className={styles.sheetInner}
+          data-closing={closing}
+          style={sheetStyle}
         >
-          <div className={styles.handle} aria-hidden="true" />
-        </div>
-
-        {(title || header) && (
-          <header
-            className={styles.header}
+          {/* Handle drag — area touch sensible para swipe-down */}
+          <div
+            className={styles.handleWrap}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
           >
-            {header ?? <h3 className={styles.title}>{title}</h3>}
-          </header>
-        )}
+            <div className={styles.handle} aria-hidden="true" />
+          </div>
 
-        <div className={styles.body}>
-          {children}
+          {(title || header) && (
+            <header
+              className={styles.header}
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+            >
+              {header ?? <h3 className={styles.title}>{title}</h3>}
+            </header>
+          )}
+
+          <div className={styles.body}>
+            {children}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
-
-  if (typeof document === 'undefined') return null;
-  return createPortal(content, document.body);
 }

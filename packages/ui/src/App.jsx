@@ -15,6 +15,7 @@ import { AuthScreen } from './components/Auth/AuthScreen.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
 import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
+import { BottomSheetHost } from './components/BottomSheet/BottomSheetHost.jsx';
 import { useAuthStore } from './stores/auth.js';
 import { useLibraryStore } from './stores/library.js';
 import { usePlaylistsStore } from './stores/playlists.js';
@@ -191,6 +192,9 @@ export function App() {
         onClick={closeSidebar}
         aria-hidden="true"
       />
+      {/* TopBar como modulo flotante independiente — fila propia del grid,
+          ocupa solo la columna central. Oculta en mobile (cada view tiene
+          su propio header). */}
       <header className={styles.topbar}>
         <TopBar />
       </header>
@@ -200,12 +204,27 @@ export function App() {
       <aside className={styles.queue}>
         <QueueOutlet />
       </aside>
+      {/* NowPlaying side panel — en desktop renderiza dentro del grid-area
+          nowplaying (panel flotante derecho); en mobile el propio componente
+          se ocupa de mostrarse como modal fullscreen via su CSS. Renderizamos
+          el componente tanto dentro como afuera del grid:
+            - dentro del <aside>: para que el panel desktop ocupe la columna
+              correctamente y herede el grid layout.
+            - Como el CSS del NowPlaying mobile es position:fixed inset:0,
+              en mobile el aside no contribuye visualmente (grid-area
+              nowplaying esta a 0px en mobile).
+       */}
+      <aside className={styles.nowplayingPanel}>
+        <NowPlaying />
+      </aside>
       <footer className={styles.player}>
         <Player />
       </footer>
       <BottomNav />
       <DownloadProgress />
-      <NowPlaying />
+      {/* Render unico de todos los bottom sheets globales — controlados
+          por el store useBottomSheet. Ver BottomSheetHost.jsx. */}
+      <BottomSheetHost />
     </div>
   );
 }

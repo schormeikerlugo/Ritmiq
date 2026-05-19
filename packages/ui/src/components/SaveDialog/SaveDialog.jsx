@@ -1,22 +1,25 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { isEphemeralTrack } from '../../lib/track-helpers.js';
 import { useMobileViewport } from '../../lib/use-mobile-viewport.js';
 import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
-import { BottomSheet } from '../BottomSheet/BottomSheet.jsx';
+import { useBottomSheet } from '../../stores/bottom-sheet.js';
 import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './SaveDialog.module.css';
 
 /**
+ * Cuerpo del dialog — extraido como componente propio para que tenga su
+ * propio state local (creating, newName) y pueda re-renderizarse
+ * aisladamente sin forzar al BottomSheet a recrearse en cada teclazo.
+ *
  * @param {Object} props
  * @param {import('@ritmiq/core/types').Track} props.track
  * @param {() => void} props.onClose
  */
-export function SaveDialog({ track, onClose }) {
-  useLockBodyScroll(true);
+function SaveBody({ track, onClose }) {
   const persistEphemeral = useLibraryStore((s) => s.persistEphemeral);
   const tracks = useLibraryStore((s) => s.tracks);
   const playlists = usePlaylistsStore((s) => s.playlists);
@@ -84,13 +87,7 @@ export function SaveDialog({ track, onClose }) {
     } finally { setBusy(false); }
   };
 
-  const isMobile = useMobileViewport();
-  const useSheet = isMobile && !isDesktop;
-
-  /* Contenido reutilizable entre el wrapper Modal (desktop) y el wrapper
-     BottomSheet (PWA mobile). Sin el backdrop/dialog outer: cada wrapper
-     provee su propia chrome. */
-  const inner = (
+  return (
     <>
       <p className={styles.song}>
         <strong>{track.title}</strong>
@@ -171,15 +168,48 @@ export function SaveDialog({ track, onClose }) {
       )}
     </>
   );
+}
 
-  /* PWA mobile: BottomSheet con drag handle + spring iOS */
-  if (useSheet) {
-    return (
-      <BottomSheet onClose={onClose} title="Guardar canción">
-        <div className={styles.sheetBody}>{inner}</div>
-      </BottomSheet>
-    );
-  }
+/**
+ * Wrapper que decide entre BottomSheet (mobile) o dialog clasico (desktop)
+ * y delega el contenido a <SaveBody>. SaveBody tiene state propio, asi el
+ * sheet no se recrea en cada teclazo.
+ *
+ * @param {Object} props
+ * @param {import('@ritmiq/core/types').Track} props.track
+ * @param {() => void} props.onClose
+ */
+export function SaveDialog({ track, onClose }) {
+  const isMobile = useMobileViewport();
+  const useSheet = isMobile && !isDesktop;
+  // En modo sheet, el BottomSheet aplica su propio lock; aqui solo
+  // bloqueamos en modo desktop dialog para no duplicar.
+  useLockBodyScroll(!useSheet);
+
+  /* PWA mobile: empuja el SaveBody al store global; el render lo hace
+     BottomSheetHost. */
+  const openSheet = useBottomSheet((s) => s.open);
+  const closeSheetById = useBottomSheet((s) => s.closeById);
+  const sheetIdRef = useRef(null);
+
+  useEffect(() => {
+    if (!useSheet) return;
+    const id = openSheet({
+      title: 'Guardar canción',
+      content: <div className={styles.sheetBody}><SaveBody track={track} onClose={onClose} /></div>,
+      onClose,
+    });
+    sheetIdRef.current = id;
+    return () => {
+      if (sheetIdRef.current != null) {
+        closeSheetById(sheetIdRef.current);
+        sheetIdRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useSheet]);
+
+  if (useSheet) return null;
 
   /* Desktop: dialog clasico centrado */
   return createPortal((
@@ -189,7 +219,7 @@ export function SaveDialog({ track, onClose }) {
           <h2 className={styles.title}>Guardar canción</h2>
           <button className={styles.close} onClick={onClose} aria-label="Cerrar"><Icon name="X" size={18} /></button>
         </header>
-        {inner}
+        <SaveBody track={track} onClose={onClose} />
       </div>
     </div>
   ), document.body);

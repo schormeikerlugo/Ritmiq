@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { isDesktop } from '../../lib/api.js';
-import { BottomSheet } from '../BottomSheet/BottomSheet.jsx';
+import { useBottomSheet } from '../../stores/bottom-sheet.js';
 import styles from './DropdownMenu.module.css';
 
 /**
@@ -48,6 +48,10 @@ export function DropdownMenu({ trigger, items, align = 'right', label }) {
   // Tambien forzamos dropdown en Electron desktop sin importar viewport.
   const useSheet = isMobile && !isDesktop;
 
+  const openSheet = useBottomSheet((s) => s.open);
+  const closeSheetById = useBottomSheet((s) => s.closeById);
+  const sheetIdRef = useRef(null);
+
   useEffect(() => {
     if (!open || useSheet) return;
     const onDoc = (e) => {
@@ -63,9 +67,57 @@ export function DropdownMenu({ trigger, items, align = 'right', label }) {
   }, [open, useSheet]);
 
   const handleItemClick = (it) => {
+    // Solo cambia el state local. El cleanup del effect de abajo se
+    // encargara de sacar el sheet del store.
     setOpen(false);
     it.onClick?.();
   };
+
+  // PWA mobile: abrir el menu = push al store global de BottomSheet.
+  // El render real lo hace <BottomSheetHost /> en App.jsx.
+  useEffect(() => {
+    if (!open || !useSheet) return;
+    const id = openSheet({
+      title: label ?? 'Opciones',
+      content: (
+        <ul className={styles.sheetList} role="menu">
+          {items.map((it, i) => {
+            if (it.separator) {
+              return <li key={`sep-${i}`} className={styles.sheetSep} role="separator" />;
+            }
+            return (
+              <li key={it.id ?? `${i}-${it.label}`} role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.sheetItem}
+                  data-danger={it.danger}
+                  disabled={it.disabled}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleItemClick(it);
+                  }}
+                >
+                  {it.icon && <span className={styles.sheetIcon}>{it.icon}</span>}
+                  <span className={styles.sheetLabel}>{it.label}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ),
+      onClose: () => setOpen(false),
+    });
+    sheetIdRef.current = id;
+    return () => {
+      // Idempotente — si el host ya saco el sheet, closeById es no-op.
+      if (sheetIdRef.current != null) {
+        closeSheetById(sheetIdRef.current);
+        sheetIdRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, useSheet]);
 
   return (
     <div className={styles.wrap} ref={ref}>
@@ -105,40 +157,6 @@ export function DropdownMenu({ trigger, items, align = 'right', label }) {
             );
           })}
         </ul>
-      )}
-
-      {/* PWA mobile: BottomSheet iOS-style con drag-to-dismiss */}
-      {open && useSheet && (
-        <BottomSheet
-          onClose={() => setOpen(false)}
-          title={label ?? 'Opciones'}
-        >
-          <ul className={styles.sheetList} role="menu">
-            {items.map((it, i) => {
-              if (it.separator) {
-                return <li key={`sep-${i}`} className={styles.sheetSep} role="separator" />;
-              }
-              return (
-                <li key={it.id ?? `${i}-${it.label}`} role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={styles.sheetItem}
-                    data-danger={it.danger}
-                    disabled={it.disabled}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleItemClick(it);
-                    }}
-                  >
-                    {it.icon && <span className={styles.sheetIcon}>{it.icon}</span>}
-                    <span className={styles.sheetLabel}>{it.label}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </BottomSheet>
       )}
     </div>
   );

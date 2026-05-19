@@ -1,7 +1,28 @@
-/* Backdrop: SOLO el overlay dim. NO contiene el sheet visualmente
-   (el sheet usa position:fixed bottom:0 propio, paralelo al BottomNav).
-   Separar el backdrop del sheet evita problemas de flex layout donde
-   el sheet quedaba flotando sin alcanzar el borde fisico inferior. */
+/* ─────────────────────────────────────────────────────────────────────
+   BottomSheet — modal bottom-up estilo iOS para PWA mobile.
+
+   Estructura:
+     <backdrop />              ← overlay dim con blur
+     <sheet>                   ← wrapper fixed inset:0, flex-end
+       <sheetInner>            ← panel visible (header + body)
+         <handle/header/body/>
+       </sheetInner>
+     </sheet>
+
+   El wrapper se estira al viewport completo y ancla el panel al fondo
+   con `justify-content: flex-end`. El panel interno absorbe la safe-area
+   con `padding-bottom: var(--safe-bottom)`.
+
+   LIMITACION CONOCIDA — iOS PWA standalone:
+   En modo standalone (app instalada en Home Screen), iOS WebKit puede
+   dejar un pequeño espacio entre el panel y el borde fisico inferior
+   correspondiente a la safe-area-inset-bottom. No es un bug del codigo
+   sino comportamiento del runtime de iOS con `position:fixed` cuando el
+   contenedor padre tiene altura propia. Documentado para no perder
+   tiempo en futuras iteraciones — el comportamiento es funcional, solo
+   estetico en una plataforma especifica.
+   ───────────────────────────────────────────────────────────────────── */
+
 .backdrop {
   position: fixed;
   inset: 0;
@@ -15,22 +36,25 @@
   animation: ritmiq-fade-in 200ms var(--ease-standard) reverse forwards;
 }
 
-/* Sheet: position:fixed bottom:0 directo (mismo patron que BottomNav
-   que SI toca el borde fisico). El safe-area-inset-bottom se absorbe
-   INTERNAMENTE via padding-bottom — eso es lo que diferencia un
-   elemento que llega al borde de uno que flota arriba. */
+/* Wrapper: estirado al viewport. No recibe eventos por defecto — los
+   pasa al backdrop hermano debajo — pero el sheetInner si los recibe. */
 .sheet {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  /* margin auto centra horizontalmente cuando left/right = 0 y width tope */
-  margin: 0 auto;
+  inset: 0;
+  z-index: 250;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  pointer-events: none;
+}
+
+/* Panel visible: aqui vive todo el styling. La animation y el transform
+   durante drag actuan sobre este elemento. */
+.sheetInner {
+  pointer-events: auto;
   width: 100%;
   max-width: 720px;
-  /* z-index +1 que el backdrop para garantizar que el sheet recibe los
-     click events (no los swallow el backdrop encima). */
-  z-index: 250;
   background: var(--color-bg-2);
   border-radius: 18px 18px 0 0;
   box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.55);
@@ -39,13 +63,9 @@
   flex-direction: column;
   max-height: 92dvh;
   animation: bs-slide-up 320ms var(--ease-emphasized);
-  will-change: transform;
-  /* CRITICO: safe-area aqui como padding interno. El elemento llega
-     fisicamente al borde inferior del viewport (gracias a bottom:0),
-     y su contenido respeta el home indicator iOS via este padding. */
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--safe-bottom);
 }
-.sheet[data-closing='true'] {
+.sheetInner[data-closing='true'] {
   animation: bs-slide-down 240ms cubic-bezier(0.32, 0.72, 0.4, 1) forwards;
 }
 
@@ -90,12 +110,9 @@
   flex: 1 1 auto;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  /* Cero padding — el safe-area lo absorbe el .sheet via padding-bottom.
-     Pequeño top breathing para no pegar el primer item al header. */
   padding: var(--space-1) 0 var(--space-2);
 }
 
-/* Entrada con bounce sutil — empieza 100% abajo, sube y rebota un pixel. */
 @keyframes bs-slide-up {
   0%   { transform: translate3d(0, 100%, 0); }
   88%  { transform: translate3d(0, -4px, 0); }
@@ -106,24 +123,21 @@
   100% { transform: translate3d(0, 100%, 0); }
 }
 
-/* Desktop: BottomSheet se vuelve modal centrado vertical clasico.
-   Centramos con inset:0 + margin:auto en lugar de translate(-50%,-50%)
-   para no chocar con el transform de las animaciones (scale-in usa
-   transform, lo cual nos arruinaba el centrado si dependieramos de
-   translate). El backdrop sigue siendo overlay dim. */
+/* Desktop: modal centrado clasico. El wrapper centra con flex en ambos
+   ejes; el inner muta a una card centrada con scale-in. */
 @media (min-width: 769px) {
   .sheet {
-    inset: 0;
-    margin: auto;
-    border-radius: var(--radius-xl);
+    justify-content: center;
+    align-items: center;
+  }
+  .sheetInner {
     max-width: 440px;
     max-height: 80vh;
-    /* Cancelo el padding-bottom de safe-area (desktop no tiene home
-       indicator iOS). */
+    border-radius: var(--radius-xl);
     padding-bottom: 0;
     animation: ritmiq-scale-in var(--dur-normal) var(--ease-emphasized);
   }
-  .sheet[data-closing='true'] {
+  .sheetInner[data-closing='true'] {
     animation: ritmiq-scale-in 200ms var(--ease-emphasized) reverse forwards;
   }
   .handleWrap { display: none; }

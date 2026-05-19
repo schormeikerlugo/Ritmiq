@@ -1,6 +1,17 @@
 .wrap {
-  max-width: 920px;
-  margin: 0 auto;
+  /* Full ancho del contenedor padre — el panel main ya define su propio
+     ancho/padding. El max-width anterior (920px) limitaba la vista en
+     desktop ancho, dejando espacios vacios a los lados. */
+  width: 100%;
+}
+
+/* Header + chips sticky — se quedan arriba al scrollear la lista de
+   biblioteca. Mismo comportamiento que Spotify mobile. */
+.stickyHeader {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-bg-0);
 }
 
 .header {

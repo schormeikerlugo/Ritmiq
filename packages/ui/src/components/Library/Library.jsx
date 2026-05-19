@@ -154,63 +154,68 @@ export function Library() {
 
   return (
     <section className={styles.wrap}>
-      <header className={styles.header}>
-        <button
-          type="button"
-          className={styles.avatar}
-          onClick={goAccount}
-          aria-label="Cuenta"
-        >{initial}</button>
-        <h1 className={styles.title}>Tu biblioteca</h1>
-        <div className={styles.headerActions}>
+      {/* Header + filtros sticky en PWA mobile (como Spotify): se quedan
+          arriba al hacer scroll de la lista. En desktop el wrap completo
+          tiene su propio overflow, asi que el sticky tambien aplica. */}
+      <div className={styles.stickyHeader}>
+        <header className={styles.header}>
           <button
             type="button"
-            className={styles.iconBtn}
-            onClick={() => setSearchOpen((v) => !v)}
-            aria-label="Buscar en biblioteca"
-          ><Icon name="Search" size={20} /></button>
-          <button
-            type="button"
-            className={styles.iconBtn}
-            onClick={() => setImportOpen(true)}
-            aria-label="Importar de Spotify"
-            title="Importar de Spotify"
-          ><SpotifyIcon size={22} /></button>
-        </div>
-      </header>
-
-      {searchOpen && (
-        <div className={styles.searchRow}>
-          <input
-            autoFocus
-            type="search"
-            className={styles.searchInput}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar en biblioteca…"
-          />
-          {search && (
+            className={styles.avatar}
+            onClick={goAccount}
+            aria-label="Cuenta"
+          >{initial}</button>
+          <h1 className={styles.title}>Tu biblioteca</h1>
+          <div className={styles.headerActions}>
             <button
               type="button"
               className={styles.iconBtn}
-              onClick={() => setSearch('')}
-              aria-label="Limpiar"
-            ><Icon name="X" size={16} /></button>
-          )}
-        </div>
-      )}
+              onClick={() => setSearchOpen((v) => !v)}
+              aria-label="Buscar en biblioteca"
+            ><Icon name="Search" size={20} /></button>
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={() => setImportOpen(true)}
+              aria-label="Importar de Spotify"
+              title="Importar de Spotify"
+            ><SpotifyIcon size={22} /></button>
+          </div>
+        </header>
 
-      <nav className={styles.chips} aria-label="Filtros">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            className={styles.chip}
-            data-active={filter === f.id}
-            onClick={() => setFilter(f.id)}
-          >{f.label}</button>
-        ))}
-      </nav>
+        {searchOpen && (
+          <div className={styles.searchRow}>
+            <input
+              autoFocus
+              type="search"
+              className={styles.searchInput}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar en biblioteca…"
+            />
+            {search && (
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={() => setSearch('')}
+                aria-label="Limpiar"
+              ><Icon name="X" size={16} /></button>
+            )}
+          </div>
+        )}
+
+        <nav className={styles.chips} aria-label="Filtros">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className={styles.chip}
+              data-active={filter === f.id}
+              onClick={() => setFilter(f.id)}
+            >{f.label}</button>
+          ))}
+        </nav>
+      </div>
 
       <div className={styles.sortRow}>
         <DropdownMenu

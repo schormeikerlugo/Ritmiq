@@ -1,12 +1,12 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useImportStore } from '../../stores/import.js';
 import { useViewStore } from '../../stores/view.js';
 import { getLanBaseUrlSync, getTunnelUrlSync } from '../../lib/lan-client.js';
 import { useMobileViewport } from '../../lib/use-mobile-viewport.js';
 import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
-import { BottomSheet } from '../BottomSheet/BottomSheet.jsx';
+import { useBottomSheet } from '../../stores/bottom-sheet.js';
 import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './SpotifyImportDialog.module.css';
 
@@ -18,26 +18,30 @@ function fmtDur(ms) {
   return `${m}:${sec}`;
 }
 
-/** @param {{ onClose: () => void }} props */
-export function SpotifyImportDialog({ onClose }) {
-  useLockBodyScroll(true);
+/**
+ * Cuerpo del dialog — extraido como componente propio para que tenga su
+ * propio state local (input url) y pueda re-renderizarse aisladamente
+ * sin forzar al BottomSheet a recrearse en cada teclazo. Eso es lo que
+ * impedia que el form de importar Spotify respondiera correctamente.
+ *
+ * @param {{ onClose: () => void }} props
+ */
+function ImportBody({ onClose }) {
   const { loading, importing, done, error, source, items, createdPlaylistId,
           preview, import: doImport, reset } = useImportStore();
-
   const goPlaylist = useViewStore((s) => s.goPlaylist);
-
   const [url, setUrl] = useState('');
+
+  const closeAll = useCallback(() => {
+    reset();
+    onClose();
+  }, [reset, onClose]);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !importing) closeAll(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  });
-
-  const closeAll = () => {
-    reset();
-    onClose();
-  };
+  }, [importing, closeAll]);
 
   // Desktop siempre lista (yt-dlp + scraper local). PWA: necesita LAN local
   // O tunnel remoto configurado — cualquiera sirve, porque el cliente
@@ -62,12 +66,7 @@ export function SpotifyImportDialog({ onClose }) {
     closeAll();
   };
 
-  const isMobile = useMobileViewport();
-  const useSheet = isMobile && !isDesktop;
-
-  /* Contenido reusable entre BottomSheet (mobile) y dialog clasico
-     (desktop). Sin wrapper outer — cada modo provee su propia chrome. */
-  const inner = (
+  return (
     <>
       {!lanReady && (
           <p className={styles.warning}>
@@ -193,39 +192,87 @@ export function SpotifyImportDialog({ onClose }) {
       )}
     </>
   );
+}
 
-  /* PWA mobile: BottomSheet. La altura crece dinamicamente con el
-     contenido (lista de canciones a importar) hasta max 88dvh. El
-     scroll interno del sheet body maneja listas largas. */
-  if (useSheet) {
-    return (
-      <BottomSheet
-        onClose={() => { if (!importing) closeAll(); }}
-        title="Importar desde Spotify"
-        dismissOnBackdrop={!importing}
-      >
-        <div className={styles.sheetBody}>{inner}</div>
-      </BottomSheet>
-    );
-  }
+/**
+ * Wrapper que decide entre BottomSheet (mobile) o dialog clasico (desktop)
+ * y delega el contenido a <ImportBody>. Como ImportBody guarda su propio
+ * state, el sheet/dialog no se recrea en cada teclazo del input.
+ *
+ * @param {{ onClose: () => void }} props
+ */
+export function SpotifyImportDialog({ onClose }) {
+  const isMobile = useMobileViewport();
+  const useSheet = isMobile && !isDesktop;
+  // En modo sheet, el BottomSheet aplica su propio lock; aqui solo
+  // bloqueamos en modo desktop dialog para no duplicar.
+  useLockBodyScroll(!useSheet);
+  const importing = useImportStore((s) => s.importing);
+
+  /* PWA mobile: empuja el ImportBody al store global. El render lo hace
+     BottomSheetHost. ImportBody tiene su propio state local — el sheet
+     no se recrea cuando el usuario escribe en el input. */
+  const openSheet = useBottomSheet((s) => s.open);
+  const updateSheet = useBottomSheet((s) => s.update);
+  const closeSheetById = useBottomSheet((s) => s.closeById);
+  const sheetIdRef = useRef(null);
+
+  // Monta el sheet una vez cuando entramos en modo mobile.
+  useEffect(() => {
+    if (!useSheet) return;
+    const id = openSheet({
+      title: 'Importar desde Spotify',
+      content: <div className={styles.sheetBody}><ImportBody onClose={onClose} /></div>,
+      dismissOnBackdrop: !importing,
+      onClose: () => {
+        // Cierre originado por el sheet (backdrop/ESC/swipe). Si esta
+        // importando, ignoramos. Sino: reset + notificar al padre.
+        if (!useImportStore.getState().importing) {
+          useImportStore.getState().reset();
+          onClose();
+        }
+      },
+    });
+    sheetIdRef.current = id;
+    return () => {
+      if (sheetIdRef.current != null) {
+        closeSheetById(sheetIdRef.current);
+        sheetIdRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useSheet]);
+
+  // Sincroniza solo el flag dismissOnBackdrop con el state de import —
+  // NO refrescamos `content` (el ImportBody se autoactualiza con sus
+  // propios hooks via useImportStore).
+  useEffect(() => {
+    if (!useSheet || sheetIdRef.current == null) return;
+    updateSheet(sheetIdRef.current, { dismissOnBackdrop: !importing });
+  }, [useSheet, importing, updateSheet]);
+
+  if (useSheet) return null;
 
   /* Desktop: dialog clasico centrado */
+  const onBackdropClick = () => {
+    if (!importing) {
+      useImportStore.getState().reset();
+      onClose();
+    }
+  };
   return createPortal((
-    <div
-      className={styles.backdrop}
-      onClick={() => { if (!importing) closeAll(); }}
-    >
+    <div className={styles.backdrop} onClick={onBackdropClick}>
       <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
         <header className={styles.header}>
           <h2 className={styles.title}>Importar desde Spotify</h2>
           <button
             className={styles.close}
-            onClick={closeAll}
+            onClick={onBackdropClick}
             disabled={importing}
             aria-label="Cerrar"
           ><Icon name="X" size={18} /></button>
         </header>
-        {inner}
+        <ImportBody onClose={onClose} />
       </div>
     </div>
   ), document.body);
