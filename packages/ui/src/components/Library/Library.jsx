@@ -22,6 +22,7 @@ import { useHistoryStore, selectTopArtists } from '../../stores/history.js';
 import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
 import { SpotifyImportDialog } from '../SpotifyImportDialog/SpotifyImportDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
+import { SpotifyIcon } from '../Icon/SpotifyIcon.jsx';
 import styles from './Library.module.css';
 
 const FILTERS = [
@@ -175,7 +176,7 @@ export function Library() {
             onClick={() => setImportOpen(true)}
             aria-label="Importar de Spotify"
             title="Importar de Spotify"
-          ><Icon name="Plus" size={20} /></button>
+          ><SpotifyIcon size={22} /></button>
         </div>
       </header>
 
@@ -235,7 +236,7 @@ export function Library() {
       {sorted.length === 0 && (filter === 'all' || filter === 'playlists') && playlists.length === 0 && (
         <div className={styles.bigEmpty}>
           <div className={styles.bigEmptyIcon} aria-hidden="true">
-            <Icon name="Music2" size={56} />
+            <SpotifyIcon size={64} />
           </div>
           <h2 className={styles.bigEmptyTitle}>Empieza tu biblioteca</h2>
           <p className={styles.bigEmptyText}>
@@ -247,7 +248,7 @@ export function Library() {
             className={styles.bigEmptyBtn}
             onClick={() => setImportOpen(true)}
           >
-            <Icon name="ArrowDownToLine" size={16} />
+            <SpotifyIcon size={16} />
             <span>Importar de Spotify</span>
           </button>
         </div>

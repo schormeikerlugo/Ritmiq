@@ -15,6 +15,7 @@ import {
   PwaPairingSection,
   PwaDiagnosticsSection,
   PwaRemoteSection,
+  PwaLanSection,
   SharedCacheSection,
   DevicesSection,
 } from '../SettingsDialog/SettingsDialog.jsx';
@@ -65,16 +66,19 @@ export function AccountView() {
         </div>
       </header>
 
-      {/* PWA: pareo + diagnostico + URL fallback */}
+      {/* PWA: pareo + LAN local + diagnostico + URL remoto */}
       {!isDesktop && (
         <>
           <AccordionSection title="Parear con tu PC" icon="Wifi" defaultOpen>
             <div className={styles.embed}><PwaPairingSection /></div>
           </AccordionSection>
+          <AccordionSection title="Conexión LAN (misma WiFi)" icon="Wifi">
+            <div className={styles.embed}><PwaLanSection /></div>
+          </AccordionSection>
           <AccordionSection title="Diagnóstico de conexión" icon="AlertCircle">
             <div className={styles.embed}><PwaDiagnosticsSection /></div>
           </AccordionSection>
-          <AccordionSection title="Acceso remoto (compat)" icon="Cloud">
+          <AccordionSection title="Acceso remoto (Tunnel)" icon="Cloud">
             <div className={styles.embed}><PwaRemoteSection /></div>
           </AccordionSection>
         </>

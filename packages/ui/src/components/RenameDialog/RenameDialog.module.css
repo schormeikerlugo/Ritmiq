@@ -6,8 +6,8 @@
   backdrop-filter: blur(4px);
   display: grid;
   place-items: center;
-  z-index: 100;
-  padding: var(--space-4);
+  z-index: 300;
+  padding: calc(var(--space-4) + var(--safe-top, 0px)) var(--space-4) calc(var(--space-4) + var(--safe-bottom, 0px));
 }
 
 .dialog {

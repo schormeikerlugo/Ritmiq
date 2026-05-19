@@ -1,6 +1,7 @@
 .wrap {
   max-width: 920px;
   margin: 0 auto;
+  padding-top: var(--safe-top, 0px);
 }
 
 .header {
@@ -239,9 +240,8 @@
   width: 96px;
   height: 96px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-accent) 0%, #5a3eff 100%);
-  color: white;
-  filter: drop-shadow(0 8px 16px var(--color-accent-shadow, rgba(124, 92, 255, 0.25)));
+  background: transparent;
+  filter: drop-shadow(0 8px 16px rgba(29, 185, 84, 0.25));
   margin-bottom: var(--space-2);
 }
 

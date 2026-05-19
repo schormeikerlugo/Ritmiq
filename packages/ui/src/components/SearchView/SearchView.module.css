@@ -4,6 +4,7 @@
   gap: var(--space-5);
   max-width: 1400px;
   margin: 0 auto;
+  padding-top: calc(var(--safe-top, 0px) + var(--space-3));
   padding-bottom: var(--space-6);
 }
 

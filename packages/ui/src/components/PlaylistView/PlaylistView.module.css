@@ -1,7 +1,7 @@
 .wrap {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
   max-width: 1200px;
   margin: 0 auto;
 }
@@ -9,16 +9,20 @@
 .muted { color: var(--color-text-3); }
 
 /* ── HERO Spotify-style: cover centrado + gradient atras del color
-   dominante. Title y meta centrados debajo. ─────────────────────────── */
+   dominante. Title y meta centrados debajo.
+   El gradient debe llegar HASTA EL TOP de la viewport (debajo del notch /
+   status bar), no cortarse en el safe-area. Lo conseguimos con
+   padding-top: safe-top + extra. El gradient mismo es el background del
+   hero, asi que cubrira todo ese espacio. ──────────────────────────── */
 .hero {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-5) var(--space-3) var(--space-4);
+  padding: calc(var(--safe-top, 0px) + var(--space-5)) var(--space-3) var(--space-4);
   /* Margenes negativos para que el gradient se extienda hasta los bordes
      del main area, dando el efecto fullbleed estilo Spotify. */
-  margin: calc(var(--space-3) * -1) calc(var(--space-3) * -1) 0;
+  margin: 0 calc(var(--space-3) * -1) 0;
   border-radius: 0;
   transition: background 600ms var(--ease-standard);
   text-align: center;
@@ -149,9 +153,9 @@
 }
 
 .filterWrap {
-  margin-left: auto;
-  flex: 0 1 280px;
-  min-width: 180px;
+  /* Full ancho: el filtro vive ahora en su propia fila debajo de actionsBar */
+  width: 100%;
+  padding: 0 var(--space-2);
 }
 
 .filter {
@@ -352,11 +356,8 @@
 
 @media (max-width: 768px) {
   .hero {
-    margin-left: calc(var(--space-3) * -1);
-    margin-right: calc(var(--space-3) * -1);
-    padding: var(--space-5) var(--space-3) var(--space-3);
-    /* Padding extra arriba en mobile para respetar safe-area (notch). */
-    padding-top: calc(var(--space-5) + var(--safe-top, 0px));
+    /* Margenes negativos mas el padding-top con safe-top ya esta arriba.
+       En mobile el gradient extiende hasta el top de la viewport. */
   }
   .heroCover {
     width: 180px;
@@ -364,5 +365,13 @@
   }
   .heroTitle {
     font-size: 22px;
+  }
+  /* Filter full ancho en mobile */
+  .filterWrap {
+    margin: 0 calc(var(--space-3) * -1);
+    padding: 0 var(--space-3);
+  }
+  .filter {
+    width: 100%;
   }
 }

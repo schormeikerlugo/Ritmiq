@@ -1230,3 +1230,160 @@ export function PwaDiagnosticsSection() {
     </div>
   );
 }
+
+/**
+ * PWA: conexión LAN local (HTTP). Para uso en la misma red WiFi que el
+ * desktop. Extraído de SettingsDialog para reusar en AccountView.
+ *
+ * - Input manual de URL `http://192.168.x.x:3939`.
+ * - Auto-detect que escanea /24 comunes con concurrencia 30.
+ * - Test + persistencia en localStorage via setLanBaseUrl.
+ */
+export function PwaLanSection() {
+  const [value, setValue] = useState(getLanBaseUrlSync() ?? '');
+  const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [statusMsg, setStatusMsg] = useState(null);
+  const [statusOk, setStatusOk] = useState(false);
+
+  const test = async (url) => {
+    setStatusMsg('Probando conexión…');
+    setStatusOk(false);
+    const normalized = normalize(url);
+    const ok = await pingLan(normalized, 1500);
+    if (ok) {
+      setStatusMsg(`✓ Conectado a ${normalized}`);
+      setStatusOk(true);
+      setLanBaseUrl(normalized);
+      setValue(normalized);
+    } else {
+      setStatusMsg('No se pudo conectar. Verifica IP, puerto y que la app de escritorio esté abierta.');
+      setStatusOk(false);
+    }
+  };
+
+  const onSave = async () => {
+    if (!value.trim()) {
+      setLanBaseUrl(null);
+      setStatusMsg('Conexión LAN borrada.');
+      setStatusOk(true);
+      return;
+    }
+    await test(value);
+  };
+
+  const onAutoScan = async () => {
+    setScanning(true);
+    setStatusMsg('Buscando tu PC en la red…');
+    setStatusOk(false);
+    setScanProgress(0);
+
+    const subnets = [
+      '192.168.0', '192.168.1', '192.168.2', '192.168.3',
+      '192.168.10', '192.168.50', '192.168.68', '192.168.86',
+      '192.168.100', '192.168.101',
+      '10.0.0', '10.0.1', '10.10.10',
+      '172.16.0', '172.20.10',
+    ];
+    const port = 3939;
+    let found = null;
+    const ips = [];
+    for (const sub of subnets) {
+      for (let i = 1; i < 255; i++) ips.push(`${sub}.${i}`);
+    }
+    const total = ips.length;
+    let done = 0;
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < total && !found) {
+        const ip = ips[cursor++];
+        const url = `http://${ip}:${port}`;
+        const ok = await pingLan(url, 250);
+        done++;
+        setScanProgress(Math.round((done / total) * 100));
+        if (ok && !found) { found = url; break; }
+      }
+    };
+    await Promise.all(Array.from({ length: 30 }, worker));
+
+    setScanning(false);
+    if (found) {
+      setStatusMsg(`✓ Encontrado en ${found}`);
+      setStatusOk(true);
+      setValue(found);
+      setLanBaseUrl(found);
+    } else {
+      setStatusMsg('No encontré tu PC. Introduce la IP manualmente.');
+      setStatusOk(false);
+    }
+  };
+
+  const onClear = () => {
+    setValue('');
+    setLanBaseUrl(null);
+    setStatusMsg('Conexión LAN borrada.');
+    setStatusOk(true);
+  };
+
+  return (
+    <div>
+      <h3>Conexión LAN local</h3>
+      <p className={styles.intro}>
+        Si tu PC está en la misma WiFi, conecta directo via IP local. Mucho
+        más rápido que el tunnel (que es para fuera de casa).
+      </p>
+
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="lan-url-acc">
+          Dirección del servidor
+        </label>
+        <input
+          id="lan-url-acc"
+          className={styles.input}
+          type="url"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="http://192.168.1.50:3939"
+          disabled={scanning}
+        />
+        <p className={styles.hint}>
+          Ejemplo: <code>http://192.168.1.50:3939</code>
+        </p>
+      </div>
+
+      {scanning && (
+        <div className={styles.scanBar}>
+          <div className={styles.scanFill} style={{ width: `${scanProgress}%` }} />
+        </div>
+      )}
+
+      {statusMsg && (
+        <p className={styles.status} data-ok={statusOk}>
+          {statusMsg}
+        </p>
+      )}
+
+      <div className={styles.actions}>
+        <button
+          type="button"
+          className={styles.btnSecondary}
+          onClick={onClear}
+          disabled={scanning}
+        >Borrar</button>
+        <div className={styles.spacer} />
+        <button
+          type="button"
+          className={styles.btnSecondary}
+          onClick={onAutoScan}
+          disabled={scanning}
+        >{scanning ? 'Buscando…' : 'Auto-detectar'}</button>
+        <button
+          type="button"
+          className={styles.btnPrimary}
+          onClick={onSave}
+          disabled={scanning}
+        >Probar y guardar</button>
+      </div>
+    </div>
+  );
+}

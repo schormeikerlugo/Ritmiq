@@ -6,7 +6,7 @@
   backdrop-filter: blur(4px);
   display: grid;
   place-items: center;
-  z-index: 100;
+  z-index: 300;
   padding: var(--space-4);
 }
 
