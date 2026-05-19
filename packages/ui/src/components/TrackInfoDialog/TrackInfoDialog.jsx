@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './TrackInfoDialog.module.css';
 
 function fmtBytes(n) {
@@ -31,6 +32,7 @@ function fmtDur(s) {
  * @param {() => void} props.onClose
  */
 export function TrackInfoDialog({ track, onClose }) {
+  useLockBodyScroll(true);
   const [size, setSize] = useState(null);
 
   useEffect(() => {

@@ -3,6 +3,7 @@ import { useAuthStore } from '../../stores/auth.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { resizeImage, uploadPlaylistCover } from '../../lib/storage.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './CoverUploadDialog.module.css';
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -14,6 +15,7 @@ const ACCEPT = 'image/png, image/jpeg, image/webp, image/gif';
  * @param {() => void} props.onClose
  */
 export function CoverUploadDialog({ playlist, onClose }) {
+  useLockBodyScroll(true);
   const user = useAuthStore((s) => s.user);
   const setCover = usePlaylistsStore((s) => s.setCover);
   const fileInputRef = useRef(null);

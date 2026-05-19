@@ -19,10 +19,13 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  padding: calc(var(--safe-top, 0px) + var(--space-5)) var(--space-3) var(--space-4);
-  /* Margenes negativos para que el gradient se extienda hasta los bordes
-     del main area, dando el efecto fullbleed estilo Spotify. */
-  margin: 0 calc(var(--space-3) * -1) 0;
+  /* Padding interno: respeta safe-top para que el cover NO quede tapado
+     por el notch. El background gradient si extiende hasta el top. */
+  padding: calc(env(safe-area-inset-top, 0px) + var(--space-5)) var(--space-3) var(--space-4);
+  /* Margenes negativos: laterales para fullbleed horizontal + top para
+     escapar el padding-top safe-area del .main mobile. Asi el gradient
+     se ve desde el top absoluto de la viewport, debajo del status bar. */
+  margin: calc(env(safe-area-inset-top, 0px) * -1) calc(var(--space-3) * -1) 0;
   border-radius: 0;
   transition: background 600ms var(--ease-standard);
   text-align: center;

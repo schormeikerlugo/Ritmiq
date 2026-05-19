@@ -3,6 +3,7 @@ import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { isEphemeralTrack } from '../../lib/track-helpers.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './SaveDialog.module.css';
 
 /**
@@ -11,6 +12,7 @@ import styles from './SaveDialog.module.css';
  * @param {() => void} props.onClose
  */
 export function SaveDialog({ track, onClose }) {
+  useLockBodyScroll(true);
   const persistEphemeral = useLibraryStore((s) => s.persistEphemeral);
   const tracks = useLibraryStore((s) => s.tracks);
   const playlists = usePlaylistsStore((s) => s.playlists);

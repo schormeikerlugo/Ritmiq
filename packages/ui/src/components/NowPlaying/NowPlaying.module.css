@@ -1,6 +1,8 @@
 .root {
   position: fixed;
   inset: 0;
+  /* z-index: por encima de player (50), bottom-nav (50), pero por debajo
+     de dialogs (300) que pueden abrirse desde aqui. */
   z-index: 95;
   display: flex;
   flex-direction: column;
@@ -10,12 +12,10 @@
     calc(var(--safe-bottom) + var(--space-5))
     calc(var(--safe-left) + var(--space-5));
   color: var(--color-text-1);
-  animation: ritmiq-slide-up 360ms var(--ease-emphasized);
-  will-change: transform, opacity;
-  /* CRITICO: en mobile el ArtistInfoPanel se agrega al final de este
-     contenedor flex-column. overflow:hidden bloqueaba el scroll y el user
-     no podia ver la info del artista. overflow-y:auto + scroll-behavior
-     suave + -webkit-overflow-scrolling para inercia iOS. */
+  /* Animacion estilo BottomSheet (iOS bounce sutil) tanto en entrada
+     como en salida. Match con el feel de los menus de opciones. */
+  animation: bs-np-slide-up 360ms var(--ease-emphasized);
+  will-change: transform;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -23,7 +23,18 @@
   transition: background 400ms var(--ease-standard);
 }
 .root[data-closing='true'] {
-  animation: ritmiq-slide-down 260ms var(--ease-emphasized) forwards;
+  animation: bs-np-slide-down 280ms cubic-bezier(0.32, 0.72, 0.4, 1) forwards;
+}
+
+/* Bounce-up: como BottomSheet — overshoot -4px en frame 88%. */
+@keyframes bs-np-slide-up {
+  0%   { transform: translate3d(0, 100%, 0); }
+  88%  { transform: translate3d(0, -4px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+@keyframes bs-np-slide-down {
+  0%   { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(0, 100%, 0); }
 }
 
 /* ── Header ──────────────────────────────────────────────────────────── */

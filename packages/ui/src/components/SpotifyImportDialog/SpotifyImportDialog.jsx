@@ -3,6 +3,7 @@ import { useImportStore } from '../../stores/import.js';
 import { useViewStore } from '../../stores/view.js';
 import { getLanBaseUrlSync, getTunnelUrlSync } from '../../lib/lan-client.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './SpotifyImportDialog.module.css';
 
 function fmtDur(ms) {
@@ -15,6 +16,7 @@ function fmtDur(ms) {
 
 /** @param {{ onClose: () => void }} props */
 export function SpotifyImportDialog({ onClose }) {
+  useLockBodyScroll(true);
   const { loading, importing, done, error, source, items, createdPlaylistId,
           preview, import: doImport, reset } = useImportStore();
 

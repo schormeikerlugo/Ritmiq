@@ -140,13 +140,16 @@
 
   .sidebar { display: none; }
 
-  /* Main toma toda la pantalla; reservamos espacio inferior para que el
-     player pill + bottom nav no tapen contenido al final del scroll.
-     Sin padding-top — cada vista decide si respeta safe-top (la mayoria
-     si) o si lo extiende fullbleed (PlaylistView hero). */
+  /* Main toma toda la pantalla con padding-top safe-area por defecto
+     (cubre la mayoria de las vistas: Home, Library, Search, Cuenta).
+     PlaylistView usa margin-top negativo en su hero para escapar y
+     que su gradient se extienda fullbleed hasta el top de la viewport. */
   .main {
     grid-area: main;
-    padding: 0 var(--space-3) calc(var(--player-h) + var(--bottom-nav-h) + var(--space-3)) !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-right: var(--space-3) !important;
+    padding-bottom: calc(var(--player-h) + var(--bottom-nav-h) + var(--space-3)) !important;
+    padding-left: var(--space-3) !important;
   }
 
   /* Player como pill flotante encima del bottom nav. */

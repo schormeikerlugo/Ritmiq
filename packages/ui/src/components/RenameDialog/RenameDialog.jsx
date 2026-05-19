@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './RenameDialog.module.css';
 
 /**
@@ -9,6 +10,7 @@ import styles from './RenameDialog.module.css';
  * @param {() => void} props.onClose
  */
 export function RenameDialog({ title, initialValue, onSubmit, onClose }) {
+  useLockBodyScroll(true);
   const [value, setValue] = useState(initialValue);
   const [busy, setBusy] = useState(false);
 
