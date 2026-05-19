@@ -321,12 +321,10 @@
 }
 
 /* Wrapper de contenido cuando SpotifyImportDialog se renderea dentro
-   de BottomSheet (PWA mobile). El sheet ya provee handle + header;
-   solo necesitamos padding lateral y gap entre secciones. El
-   padding-bottom absorbe safe-area-inset-bottom para evitar que el
-   contenido quede bajo el home indicator iOS. */
+   de BottomSheet (PWA mobile). El sheet absorbe el safe-area-inset
+   internamente, aqui solo padding lateral + breathing inferior. */
 .sheetBody {
-  padding: 0 var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  padding: 0 var(--space-4) var(--space-3);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);

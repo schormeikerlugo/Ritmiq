@@ -233,13 +233,11 @@
 }
 
 /* Padding lateral cuando SaveDialog se renderea dentro de BottomSheet
-   (PWA mobile). El sheet provee su propio chrome (handle + header),
-   solo necesitamos espaciar el contenido. El padding-bottom absorbe
-   safe-area-inset-bottom para que el contenido (boton crear playlist)
-   no quede bajo el home indicator iOS, pero el bg del sheet llegue al
-   borde fisico de la pantalla. */
+   (PWA mobile). El sheet provee su propio chrome (handle + header) Y
+   absorbe el safe-area-inset-bottom internamente, asi que aqui solo
+   espaciamos lateralmente y un padding-bottom minimo. */
 .sheetBody {
-  padding: 0 var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  padding: 0 var(--space-4) var(--space-3);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);

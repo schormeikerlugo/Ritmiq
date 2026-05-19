@@ -87,14 +87,6 @@
 }
 
 /* ── Estilos para items dentro de BottomSheet (PWA mobile) ─────────── */
-/* El ultimo item del sheet absorbe la safe-area-inset-bottom como
-   padding interno. Asi la lista llega visualmente al borde fisico de
-   la pantalla (sin gap), pero el contenido tappable no queda bajo el
-   home indicator iOS. */
-.sheetList > li:last-child .sheetItem {
-  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
-}
-
 .sheetList {
   list-style: none;
   margin: 0;

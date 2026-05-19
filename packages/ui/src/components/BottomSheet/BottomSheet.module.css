@@ -1,22 +1,11 @@
+/* Backdrop: SOLO el overlay dim. NO contiene el sheet visualmente
+   (el sheet usa position:fixed bottom:0 propio, paralelo al BottomNav).
+   Separar el backdrop del sheet evita problemas de flex layout donde
+   el sheet quedaba flotando sin alcanzar el borde fisico inferior. */
 .backdrop {
   position: fixed;
   inset: 0;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
-  z-index: 250;
-  /* flex column + justify-content: flex-end mantiene el sheet anclado
-     al borde inferior del viewport. Antes con align-items:flex-end +
-     direction:row el sheet podia quedar mal posicionado en algunos
-     navegadores. */
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
+  z-index: 249;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -26,31 +15,35 @@
   animation: ritmiq-fade-in 200ms var(--ease-standard) reverse forwards;
 }
 
+/* Sheet: position:fixed bottom:0 directo (mismo patron que BottomNav
+   que SI toca el borde fisico). El safe-area-inset-bottom se absorbe
+   INTERNAMENTE via padding-bottom — eso es lo que diferencia un
+   elemento que llega al borde de uno que flota arriba. */
 .sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  /* margin auto centra horizontalmente cuando left/right = 0 y width tope */
+  margin: 0 auto;
   width: 100%;
   max-width: 720px;
-  /* Bg ligeramente mas claro que la pagina (--color-bg-1) para diferenciar
-     visualmente el sheet del fondo dimmed atras. Antes con el mismo color
-     el user no veia donde terminaba el sheet — sensacion de flotando. */
+  /* z-index +1 que el backdrop para garantizar que el sheet recibe los
+     click events (no los swallow el backdrop encima). */
+  z-index: 250;
   background: var(--color-bg-2);
-  /* Corners redondeados ARRIBA solamente. El bottom es plano y se ancla
-     al borde fisico inferior del viewport (sin gap). */
   border-radius: 18px 18px 0 0;
   box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.55);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  /* max-height: hasta 92dvh — deja un margen minimo arriba para que se
-     vea que es un sheet. El sheet GROWS hasta este maximo segun contenido,
-     y siempre esta anclado al borde fisico de abajo del viewport. */
   max-height: 92dvh;
   animation: bs-slide-up 320ms var(--ease-emphasized);
   will-change: transform;
-  /* CRITICO: cero margin/padding-bottom aqui. El sheet termina exactamente
-     en el borde fisico del viewport. No floating, no gap, no nav-bar
-     visible debajo. El safe-area iOS se respeta DENTRO del .body via
-     padding-bottom. */
-  margin: 0;
+  /* CRITICO: safe-area aqui como padding interno. El elemento llega
+     fisicamente al borde inferior del viewport (gracias a bottom:0),
+     y su contenido respeta el home indicator iOS via este padding. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .sheet[data-closing='true'] {
   animation: bs-slide-down 240ms cubic-bezier(0.32, 0.72, 0.4, 1) forwards;
@@ -97,14 +90,9 @@
   flex: 1 1 auto;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  /* CERO padding-bottom aqui — los items deben llegar pegados al borde
-     fisico de la pantalla, como pedido por el usuario ('debe venir de
-     abajo y no dejar espacio abajo'). El safe-area inset bottom para el
-     home indicator iOS lo respetamos solo via padding-top del primer
-     item — pero como la convencion iOS es que los items inferiores
-     pueden tocar el indicator zone sin problema visual real, lo
-     omitimos. */
-  padding: 0;
+  /* Cero padding — el safe-area lo absorbe el .sheet via padding-bottom.
+     Pequeño top breathing para no pegar el primer item al header. */
+  padding: var(--space-1) 0 var(--space-2);
 }
 
 /* Entrada con bounce sutil — empieza 100% abajo, sube y rebota un pixel. */
@@ -118,16 +106,21 @@
   100% { transform: translate3d(0, 100%, 0); }
 }
 
-/* En desktop el BottomSheet se vuelve modal centrado clasico. */
+/* Desktop: BottomSheet se vuelve modal centrado vertical clasico.
+   Centramos con inset:0 + margin:auto en lugar de translate(-50%,-50%)
+   para no chocar con el transform de las animaciones (scale-in usa
+   transform, lo cual nos arruinaba el centrado si dependieramos de
+   translate). El backdrop sigue siendo overlay dim. */
 @media (min-width: 769px) {
-  .backdrop {
-    align-items: center;
-    padding: var(--space-4);
-  }
   .sheet {
+    inset: 0;
+    margin: auto;
     border-radius: var(--radius-xl);
     max-width: 440px;
     max-height: 80vh;
+    /* Cancelo el padding-bottom de safe-area (desktop no tiene home
+       indicator iOS). */
+    padding-bottom: 0;
     animation: ritmiq-scale-in var(--dur-normal) var(--ease-emphasized);
   }
   .sheet[data-closing='true'] {
