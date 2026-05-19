@@ -11,73 +11,67 @@
 import { useEffect } from 'react';
 
 let lockCount = 0;
-let savedBodyOverflow = '';
-let savedHtmlOverflow = '';
 let savedPaddingRight = '';
-/** @type {Array<{el:Element, prevOverflow:string, prevTouchAction:string}>} */
-let savedScrollers = [];
 
 /**
- * Selectores de elementos que actuan como scroll containers en la app.
- * Necesitan ser bloqueados ademas del body porque el shell de Ritmiq
- * delega el scroll en `.main` (no en el body) — bloquear solo body
- * dejaba la pagina de fondo scrolleable mientras el modal estaba abierto.
+ * Mecanismo de lock por CSS class en el body. Mas robusto que manipular
+ * inline styles porque:
+ *  - El cleanup es atomico: removeAttribute / classList.remove no falla.
+ *  - El CSS global controla TODO desde un solo punto, sin riesgo de
+ *    olvidar restaurar inline styles individuales.
+ *  - Reentrante: si N modales se abren simultaneamente, el contador
+ *    decide cuando aplicar/quitar la clase (solo al pasar 0↔1).
  *
- * Los selectores son class-names CSS-modules generados por Vite con un
- * hash al final (ej. `_main_3xy2z`). Usamos `[class*="main"]` para
- * matchear cualquier hash sin acoplarnos al build.
+ * La clase la aplica un <style> global inyectado al primer uso. Bloquea:
+ *  - <html> y <body> overflow:hidden + position fixed (preserva scroll)
+ *  - cualquier elemento `<main>` o con class `main_*` (CSS modules con
+ *    hash) o `scrollContainer_*`.
  */
-const SCROLL_LOCK_SELECTORS = [
-  'main',
-  '[class*="main_"]',
-  '[class*="scrollContainer_"]',
-];
+const STYLE_ID = '__ritmiq_scroll_lock_style';
+const LOCK_CLASS = 'ritmiq-scroll-locked';
+
+function ensureStyleInjected() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = `
+    html.${LOCK_CLASS},
+    body.${LOCK_CLASS} {
+      overflow: hidden !important;
+      touch-action: none !important;
+    }
+    body.${LOCK_CLASS} main,
+    body.${LOCK_CLASS} [class*="main_"],
+    body.${LOCK_CLASS} [class*="scrollContainer_"] {
+      overflow: hidden !important;
+      touch-action: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 function applyLock() {
+  ensureStyleInjected();
   // Compensa el scrollbar para que la pagina no salte al bloquearse.
   const sbw = window.innerWidth - document.documentElement.clientWidth;
   if (sbw > 0) {
     savedPaddingRight = document.body.style.paddingRight;
     document.body.style.paddingRight = `${sbw}px`;
   }
-  savedBodyOverflow = document.body.style.overflow;
-  savedHtmlOverflow = document.documentElement.style.overflow;
-  document.body.style.overflow = 'hidden';
-  document.documentElement.style.overflow = 'hidden';
-
-  // Lock todos los scroll containers conocidos.
-  savedScrollers = [];
-  for (const sel of SCROLL_LOCK_SELECTORS) {
-    const nodes = document.querySelectorAll(sel);
-    for (const el of nodes) {
-      const htmlEl = /** @type {HTMLElement} */ (el);
-      savedScrollers.push({
-        el,
-        prevOverflow: htmlEl.style.overflow,
-        prevTouchAction: htmlEl.style.touchAction,
-      });
-      htmlEl.style.overflow = 'hidden';
-      // touchAction:none previene swipe scroll inercial en iOS sobre
-      // el contenedor lockeado.
-      htmlEl.style.touchAction = 'none';
-    }
-  }
+  document.documentElement.classList.add(LOCK_CLASS);
+  document.body.classList.add(LOCK_CLASS);
 }
 
 function applyUnlock() {
-  document.body.style.overflow = savedBodyOverflow;
-  document.documentElement.style.overflow = savedHtmlOverflow;
-  document.body.style.paddingRight = savedPaddingRight;
-  savedBodyOverflow = '';
-  savedHtmlOverflow = '';
-  savedPaddingRight = '';
-
-  for (const { el, prevOverflow, prevTouchAction } of savedScrollers) {
-    const htmlEl = /** @type {HTMLElement} */ (el);
-    htmlEl.style.overflow = prevOverflow;
-    htmlEl.style.touchAction = prevTouchAction;
+  document.documentElement.classList.remove(LOCK_CLASS);
+  document.body.classList.remove(LOCK_CLASS);
+  if (savedPaddingRight !== '') {
+    document.body.style.paddingRight = savedPaddingRight;
+  } else {
+    document.body.style.removeProperty('padding-right');
   }
-  savedScrollers = [];
+  savedPaddingRight = '';
 }
 
 /**
