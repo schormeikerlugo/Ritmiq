@@ -19,6 +19,7 @@ import {
   DevicesSection,
 } from '../SettingsDialog/SettingsDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
+import logotipoUrl from '../../assets/logotipo.png';
 import styles from './AccountView.module.css';
 
 /** @param {{ title:string, icon?:string, defaultOpen?:boolean, children:React.ReactNode }} props */
@@ -53,6 +54,9 @@ export function AccountView() {
 
   return (
     <section className={styles.wrap}>
+      <div className={styles.brandTop}>
+        <img src={logotipoUrl} alt="Ritmiq" className={styles.brandLogo} />
+      </div>
       <header className={styles.header}>
         <div className={styles.avatarBig}>{initial}</div>
         <div className={styles.identity}>

@@ -29,7 +29,6 @@ import { Icon } from '../Icon/Icon.jsx';
 import { HomeRow } from './HomeRow.jsx';
 import { TrackCard } from './TrackCard.jsx';
 import { ArtistCard } from './ArtistCard.jsx';
-import logotipoUrl from '../../assets/logotipo.png';
 import styles from './Home.module.css';
 
 function getGreeting() {
@@ -107,17 +106,12 @@ export function Home() {
   return (
     <section className={styles.wrap}>
       <header className={styles.header}>
-        <div className={styles.brandRow}>
-          <img src={logotipoUrl} alt="Ritmiq" className={styles.brandMark} />
-          <div className={styles.greeting}>
-            <h1 className={styles.title}>
-              {getGreeting()}{name ? `, ${name}` : ''}
-            </h1>
-            <p className={styles.subtitle}>
-              ¿Qué quieres escuchar hoy?
-            </p>
-          </div>
-        </div>
+        <h1 className={styles.title}>
+          {getGreeting()}{name ? `, ${name}` : ''}
+        </h1>
+        <p className={styles.subtitle}>
+          ¿Qué quieres escuchar hoy?
+        </p>
       </header>
 
       {/* ─── Hero: accesos rápidos ─── */}

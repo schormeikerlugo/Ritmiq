@@ -22,6 +22,7 @@ import { CoverUploadDialog } from '../CoverUploadDialog/CoverUploadDialog.jsx';
 import { exportPlaylistJson, exportPlaylistCsv } from '../../lib/export.js';
 import { isDesktop } from '../../lib/api.js';
 import { prewarmStream } from '../../lib/lan-client.js';
+import { getDominantColor } from '../../lib/dominant-color.js';
 import { DownloadIndicator } from '../DownloadIndicator/DownloadIndicator.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './PlaylistView.module.css';
@@ -78,6 +79,21 @@ export function PlaylistView({ playlistId }) {
   const [saveDialogTrack, setSaveDialogTrack] = useState(null);
   const [infoTrack, setInfoTrack] = useState(null);
   const [filter, setFilter] = useState('');
+  const [heroBg, setHeroBg] = useState('var(--color-bg-1)');
+
+  // Extraer color dominante del cover para el gradiente hero (estilo Spotify).
+  useEffect(() => {
+    let cancelled = false;
+    const cover = playlists.find((p) => p.id === playlistId)?.coverUrl;
+    if (!cover) {
+      setHeroBg('var(--color-bg-1)');
+      return;
+    }
+    getDominantColor(cover).then((c) => {
+      if (!cancelled) setHeroBg(c || 'var(--color-bg-1)');
+    });
+    return () => { cancelled = true; };
+  }, [playlists, playlistId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -228,11 +244,16 @@ export function PlaylistView({ playlistId }) {
     },
   ];
 
+  // Gradiente hero: del color dominante al bg-0 (estilo Spotify).
+  const heroGradient = `linear-gradient(180deg, ${heroBg} 0%, color-mix(in srgb, ${heroBg} 50%, var(--color-bg-0)) 35%, var(--color-bg-0) 80%)`;
+
   return (
     <section className={styles.wrap}>
-      <header className={styles.header}>
+      {/* HERO Spotify-style: cover centrado grande con gradiente atras
+          del color dominante. Title y meta debajo. */}
+      <div className={styles.hero} style={{ background: heroGradient }}>
         <button
-          className={styles.cover}
+          className={styles.heroCover}
           data-favs={isFavs}
           data-has-image={!!playlist.coverUrl}
           onClick={() => setCoverOpen(true)}
@@ -242,64 +263,71 @@ export function PlaylistView({ playlistId }) {
           {playlist.coverUrl ? (
             <img src={playlist.coverUrl} alt="" />
           ) : (
-            <Icon name={isFavs ? 'Heart' : 'Music'} size={56} filled={isFavs} />
+            <Icon name={isFavs ? 'Heart' : 'Music'} size={72} filled={isFavs} />
           )}
         </button>
-        <div className={styles.head}>
+
+        <div className={styles.heroMeta}>
           <span className={styles.kind}>
-            {playlist.isOffline ? 'Playlist · Disponible offline' : 'Playlist'}
+            {playlist.isOffline ? 'Playlist · Offline' : 'Playlist'}
           </span>
-          <h1 className={styles.title}>{playlist.name}</h1>
-          <span className={styles.count}>
+          <h1 className={styles.heroTitle}>{playlist.name}</h1>
+          <p className={styles.heroSubtitle}>
             {tracks.length} {tracks.length === 1 ? 'canción' : 'canciones'}
             {totalSeconds > 0 && ` · ${fmtTotalDur(totalSeconds)}`}
-            {tracks.length > 0 && (
-              <span className={styles.dlBadge} data-all={allDownloaded}>
-                {downloadedCount}/{tracks.length} descargadas
-              </span>
-            )}
-          </span>
+          </p>
+          {tracks.length > 0 && (
+            <span className={styles.dlBadge} data-all={allDownloaded}>
+              <Icon name={allDownloaded ? 'CheckCircle2' : 'ArrowDownToLine'} size={12} />
+              {downloadedCount}/{tracks.length} descargadas
+            </span>
+          )}
         </div>
-      </header>
+      </div>
 
-      <div className={styles.actions}>
+      {/* Fila de acciones secundarias + play principal a la derecha
+          (match Spotify mobile: heart/download/share a la izq, play grande
+          a la derecha que destaca como CTA principal). */}
+      <div className={styles.actionsBar}>
+        <div className={styles.actionsLeft}>
+          <button
+            className={styles.iconAction}
+            onClick={downloadAll}
+            disabled={tracks.length === 0 || allDownloaded}
+            aria-label="Descargar toda la playlist"
+            title={allDownloaded ? 'Todo descargado' : 'Descargar toda'}
+          ><Icon name="ArrowDownToLine" size={22} /></button>
+          <button
+            className={styles.iconAction}
+            onClick={playShuffle}
+            disabled={filteredTracks.length === 0}
+            aria-label="Reproducir aleatorio"
+            title="Reproducir aleatorio"
+            data-active={playerShuffle}
+          ><Icon name="Shuffle" size={22} /></button>
+          <DropdownMenu
+            trigger={<Icon name="MoreHorizontal" size={22} />}
+            items={headerMenuItems}
+            align="left"
+            label="Más opciones de la playlist"
+          />
+        </div>
         <button
-          className={styles.playAll}
+          className={styles.playFab}
           onClick={playAll}
           disabled={filteredTracks.length === 0}
           aria-label="Reproducir"
-        ><Icon name="Play" size={24} filled /></button>
-        <button
-          className={styles.iconAction}
-          onClick={playShuffle}
-          disabled={filteredTracks.length === 0}
-          aria-label="Reproducir aleatorio"
-          title="Reproducir aleatorio"
-          data-active={playerShuffle}
-        ><Icon name="Shuffle" size={20} /></button>
-        <button
-          className={styles.iconAction}
-          onClick={downloadAll}
-          disabled={tracks.length === 0 || allDownloaded}
-          aria-label="Descargar toda la playlist"
-          title={allDownloaded ? 'Todo descargado' : 'Descargar toda la playlist'}
-        ><Icon name="ArrowDownToLine" size={20} /></button>
-        <DropdownMenu
-          trigger={<Icon name="MoreHorizontal" size={20} />}
-          items={headerMenuItems}
-          align="left"
-          label="Más opciones de la playlist"
-        />
+        ><Icon name="Play" size={28} filled /></button>
+      </div>
 
-        <div className={styles.filterWrap}>
-          <input
-            className={styles.filter}
-            type="search"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filtrar canciones…"
-          />
-        </div>
+      <div className={styles.filterWrap}>
+        <input
+          className={styles.filter}
+          type="search"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filtrar canciones…"
+        />
       </div>
 
       {tracks.length === 0 ? (

@@ -1,112 +1,151 @@
 .wrap {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
   max-width: 1200px;
   margin: 0 auto;
 }
 
 .muted { color: var(--color-text-3); }
 
-.header {
+/* ── HERO Spotify-style: cover centrado + gradient atras del color
+   dominante. Title y meta centrados debajo. ─────────────────────────── */
+.hero {
   display: flex;
-  align-items: flex-end;
-  gap: var(--space-5);
-  padding: var(--space-3) 0;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-3) var(--space-4);
+  /* Margenes negativos para que el gradient se extienda hasta los bordes
+     del main area, dando el efecto fullbleed estilo Spotify. */
+  margin: calc(var(--space-3) * -1) calc(var(--space-3) * -1) 0;
+  border-radius: 0;
+  transition: background 600ms var(--ease-standard);
+  text-align: center;
 }
 
-.cover {
-  width: 200px;
-  height: 200px;
+.heroCover {
+  width: 220px;
+  height: 220px;
   border-radius: var(--radius-md);
   display: grid;
   place-items: center;
   color: #fff;
   background: linear-gradient(135deg, var(--color-accent), #5cd0ff);
   box-shadow:
-    var(--shadow-lg),
-    0 0 40px var(--color-accent-shadow);
-  flex-shrink: 0;
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 0 60px var(--color-accent-shadow);
   overflow: hidden;
   position: relative;
   cursor: pointer;
   padding: 0;
   border: 0;
-  transition: transform var(--dur-fast) var(--ease-standard),
-              box-shadow var(--dur-fast) var(--ease-standard);
+  flex-shrink: 0;
+  transition: transform var(--dur-fast) var(--ease-standard);
 }
+.heroCover:hover { transform: scale(1.03); }
+.heroCover:active { transform: scale(0.98); }
 
-.cover:hover {
-  transform: scale(1.02);
-  box-shadow: var(--shadow-lg);
-}
-
-.cover[data-favs='true'] {
+.heroCover[data-favs='true'] {
   background: linear-gradient(135deg, #ff5d6c, #ff9f6c);
 }
-
-.cover[data-has-image='true'] {
+.heroCover[data-has-image='true'] {
   background: var(--color-bg-2);
 }
-
-.cover img {
+.heroCover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.head {
+.heroMeta {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  max-width: 640px;
 }
 
 .kind {
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-text-2);
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
-.title {
-  font-size: var(--fs-3xl);
-  font-weight: var(--fw-bold);
+.heroTitle {
+  font-size: clamp(24px, 5vw, 40px);
+  font-weight: 800;
   letter-spacing: -0.03em;
   margin: 0;
-  line-height: 1.05;
+  line-height: 1.1;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
 }
 
-.count {
+.heroSubtitle {
+  margin: 0;
   font-size: var(--fs-sm);
-  color: var(--color-text-3);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 .dlBadge {
-  background: var(--color-bg-2);
-  color: var(--color-text-2);
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  font-size: var(--fs-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.95);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 4px;
 }
-
 .dlBadge[data-all='true'] {
   background: var(--color-success);
   color: #0a0a0c;
-  font-weight: var(--fw-semibold);
 }
 
-.actions {
+/* ── Fila de acciones bajo el hero (heart, download, more + play FAB) ── */
+.actionsBar {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 0 var(--space-2);
+}
+.actionsLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.playFab {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 20px var(--color-accent-shadow);
+  transition: transform var(--dur-fast) var(--ease-emphasized),
+              box-shadow var(--dur-fast) var(--ease-emphasized);
+}
+.playFab:hover {
+  transform: scale(1.06);
+  box-shadow: 0 12px 28px var(--color-accent-shadow);
+}
+.playFab:active { transform: scale(0.96); }
+.playFab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .filterWrap {
@@ -309,4 +348,21 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-sm);
   text-align: right;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    margin-left: calc(var(--space-3) * -1);
+    margin-right: calc(var(--space-3) * -1);
+    padding: var(--space-5) var(--space-3) var(--space-3);
+    /* Padding extra arriba en mobile para respetar safe-area (notch). */
+    padding-top: calc(var(--space-5) + var(--safe-top, 0px));
+  }
+  .heroCover {
+    width: 180px;
+    height: 180px;
+  }
+  .heroTitle {
+    font-size: 22px;
+  }
 }

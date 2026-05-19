@@ -15,21 +15,29 @@ body {
   overscroll-behavior: none;
 }
 
-/* Scrollbars sutiles */
+/* Scrollbars minimalistas: reducidos al ~20% del default visual.
+   Solo aparecen cuando hay hover/scroll activo, casi invisibles en reposo. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-bg-3) transparent;
+}
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 4px;
+  height: 4px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
   background: var(--color-bg-3);
-  border-radius: var(--radius-pill);
-  border: 2px solid var(--color-bg-0);
+  border-radius: 999px;
+  border: none;
 }
 *::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-3);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* Focus accesible */

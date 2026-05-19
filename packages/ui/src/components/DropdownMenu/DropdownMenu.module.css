@@ -85,3 +85,55 @@
   background: var(--color-border);
   margin: var(--space-1) 0;
 }
+
+/* ── Estilos para items dentro de BottomSheet (PWA mobile) ─────────── */
+.sheetList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sheetSep {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--space-2) var(--space-4);
+}
+.sheetItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  color: var(--color-text-1);
+  font-size: var(--fs-md);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.sheetItem:active {
+  background: var(--color-bg-2);
+}
+.sheetItem:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.sheetItem[data-danger='true'] {
+  color: var(--color-danger);
+}
+.sheetIcon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--color-text-2);
+  flex-shrink: 0;
+}
+.sheetItem[data-danger='true'] .sheetIcon {
+  color: var(--color-danger);
+}
+.sheetLabel {
+  flex: 1;
+  font-weight: 500;
+}

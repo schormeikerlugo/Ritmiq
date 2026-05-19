@@ -1,5 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
+import { isDesktop } from '../../lib/api.js';
+import { BottomSheet } from '../BottomSheet/BottomSheet.jsx';
 import styles from './DropdownMenu.module.css';
+
+/**
+ * Detecta si estamos en viewport mobile. Memoizado por render para no
+ * volver a leer matchMedia en cada item — solo en el render del menu.
+ */
+function useIsMobileViewport() {
+  const [mobile, setMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 768px)').matches;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 768px)');
+    const onChange = () => setMobile(mq.matches);
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, []);
+  return mobile;
+}
 
 /**
  * Menú desplegable simple.
@@ -22,9 +43,13 @@ import styles from './DropdownMenu.module.css';
 export function DropdownMenu({ trigger, items, align = 'right', label }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const isMobile = useIsMobileViewport();
+  // PWA mobile usa BottomSheet iOS-style; desktop usa dropdown clasico.
+  // Tambien forzamos dropdown en Electron desktop sin importar viewport.
+  const useSheet = isMobile && !isDesktop;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || useSheet) return;
     const onDoc = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     };
@@ -35,7 +60,12 @@ export function DropdownMenu({ trigger, items, align = 'right', label }) {
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, useSheet]);
+
+  const handleItemClick = (it) => {
+    setOpen(false);
+    it.onClick?.();
+  };
 
   return (
     <div className={styles.wrap} ref={ref}>
@@ -47,7 +77,9 @@ export function DropdownMenu({ trigger, items, align = 'right', label }) {
         aria-haspopup="menu"
         aria-expanded={open}
       >{trigger}</button>
-      {open && (
+
+      {/* Desktop / wide viewport: dropdown clasico inline */}
+      {open && !useSheet && (
         <ul className={styles.menu} data-align={align} role="menu" style={{ animation: 'ritmiq-fade-in-up var(--dur-fast) var(--ease-standard)' }}>
           {items.map((it, i) => {
             if (it.separator) {
@@ -63,8 +95,7 @@ export function DropdownMenu({ trigger, items, align = 'right', label }) {
                   disabled={it.disabled}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setOpen(false);
-                    it.onClick?.();
+                    handleItemClick(it);
                   }}
                 >
                   {it.icon && <span className={styles.icon}>{it.icon}</span>}
@@ -74,6 +105,40 @@ export function DropdownMenu({ trigger, items, align = 'right', label }) {
             );
           })}
         </ul>
+      )}
+
+      {/* PWA mobile: BottomSheet iOS-style con drag-to-dismiss */}
+      {open && useSheet && (
+        <BottomSheet
+          onClose={() => setOpen(false)}
+          title={label ?? 'Opciones'}
+        >
+          <ul className={styles.sheetList} role="menu">
+            {items.map((it, i) => {
+              if (it.separator) {
+                return <li key={`sep-${i}`} className={styles.sheetSep} role="separator" />;
+              }
+              return (
+                <li key={it.id ?? `${i}-${it.label}`} role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={styles.sheetItem}
+                    data-danger={it.danger}
+                    disabled={it.disabled}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleItemClick(it);
+                    }}
+                  >
+                    {it.icon && <span className={styles.sheetIcon}>{it.icon}</span>}
+                    <span className={styles.sheetLabel}>{it.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </BottomSheet>
       )}
     </div>
   );
