@@ -137,6 +137,23 @@ input, textarea, select { font-size: 16px; }
   }
 }
 
+/* ── Light theme ─────────────────────────────────────────────────────
+   Aplica cuando:
+   - el usuario fuerza tema claro: <html data-theme='light'>
+   - o esta en auto y el SO esta en claro: <html data-theme='auto'> + media
+*/
+:root[data-theme='light'] {
+  --color-bg-0: #f7f7f8;
+  --color-bg-1: #ffffff;
+  --color-bg-2: #efeff2;
+  --color-bg-3: #e3e3e8;
+  --color-surface: #ffffff;
+  --color-border: #d8d8de;
+  --color-text-1: #161618;
+  --color-text-2: #4a4a55;
+  --color-text-3: #8a8a92;
+}
+
 @media (prefers-color-scheme: light) {
   :root[data-theme='auto'] {
     --color-bg-0: #f7f7f8;

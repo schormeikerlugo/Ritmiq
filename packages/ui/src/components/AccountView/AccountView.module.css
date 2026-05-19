@@ -158,6 +158,52 @@
   background: rgba(255, 93, 108, 0.1);
 }
 
+/* ── Theme switcher ──────────────────────────────────────────────── */
+.themeWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.themeLead {
+  color: var(--color-text-2);
+  font-size: var(--fs-sm);
+  margin: 0;
+  line-height: 1.5;
+}
+.themeSwitch {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-1);
+  background: var(--color-bg-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.themeOpt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-2);
+  background: transparent;
+  color: var(--color-text-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+.themeOpt:hover {
+  color: var(--color-text-1);
+}
+.themeOpt[data-active='true'] {
+  background: var(--color-accent);
+  color: white;
+}
+
 @media (max-width: 768px) {
   .wrap { padding-bottom: var(--space-6); }
   .avatarBig { width: 64px; height: 64px; font-size: 24px; }

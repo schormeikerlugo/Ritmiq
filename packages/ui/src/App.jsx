@@ -26,6 +26,12 @@ import { useArtistStore } from './stores/artist.js';
 import { useSearchStore } from './stores/search.js';
 import { useViewStore } from './stores/view.js';
 import { usePlayerEngine } from './lib/use-player.js';
+import { useGlobalShortcuts } from './lib/use-shortcuts.js';
+import { initTheme } from './stores/theme.js';
+
+// Aplica el tema guardado en localStorage al <html> ANTES del primer render.
+// Idempotente — si ya estaba aplicado por otro modulo, no hace nada nuevo.
+initTheme();
 import {
   autoDetectLanFromHost, setLanBaseUrl, getLanBaseUrlSync, setAccessToken,
   startTunnelKeepalive,
@@ -174,6 +180,10 @@ export function App() {
 
   // Motor de audio activo siempre que haya sesión
   usePlayerEngine();
+  // Atajos de teclado globales — activos en desktop y en PWA con teclado
+  // fisico conectado. Internamente ignoran eventos desde campos editables
+  // y cuando hay un BottomSheet abierto.
+  useGlobalShortcuts();
 
   if (loading) {
     return (

@@ -15,6 +15,7 @@ import {
   AlertTriangle, AlertCircle, Loader2, CheckCircle2,
   CornerDownRight, Share2, Settings, LogOut, User,
   Wifi, WifiOff, Cloud, CloudOff, Cast, Disc3,
+  Sun, Moon, Monitor,
 } from 'lucide-react';
 
 const ICONS = {
@@ -27,6 +28,7 @@ const ICONS = {
   AlertTriangle, AlertCircle, Loader2, CheckCircle2,
   CornerDownRight, Share2, Settings, LogOut, User,
   Wifi, WifiOff, Cloud, CloudOff, Cast, Disc3,
+  Sun, Moon, Monitor,
 };
 
 /**

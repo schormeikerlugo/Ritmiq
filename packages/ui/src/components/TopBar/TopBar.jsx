@@ -9,6 +9,7 @@ import { onConnectivityChange } from '../../lib/connectivity.js';
 import { onQueueSizeChange } from '../../lib/sync-queue.js';
 import { prewarmStream, checkSharedCache } from '../../lib/lan-client.js';
 import { searchLibraryTracks, dedupeByYtId } from '../../lib/library-search.js';
+import { SEARCH_INPUT_ID } from '../../lib/use-shortcuts.js';
 import { SettingsDialog } from '../SettingsDialog/SettingsDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './TopBar.module.css';
@@ -199,6 +200,7 @@ export function TopBar() {
       ><Icon name="Menu" size={22} /></button>
       <form className={styles.search} onSubmit={onSubmit}>
         <input
+          id={SEARCH_INPUT_ID}
           className={styles.input}
           type="search"
           value={value}

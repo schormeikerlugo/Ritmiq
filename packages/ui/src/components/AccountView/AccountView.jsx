@@ -10,6 +10,7 @@
  */
 import { useState } from 'react';
 import { useAuthStore } from '../../stores/auth.js';
+import { useThemeStore } from '../../stores/theme.js';
 import { isDesktop } from '../../lib/api.js';
 import {
   PwaPairingSection,
@@ -97,7 +98,7 @@ export function AccountView() {
       )}
 
       <AccordionSection title="Apariencia" icon="Settings">
-        <p className={styles.muted}>Tema e idioma. (Próximamente.)</p>
+        <ThemeSwitcher />
       </AccordionSection>
 
       <AccordionSection title="Acerca de" icon="Info">
@@ -117,5 +118,43 @@ export function AccountView() {
         </button>
       </div>
     </section>
+  );
+}
+
+/**
+ * Selector de tema — segmented control con 3 opciones (claro/oscuro/auto).
+ * El store aplica el cambio al DOM en O(1) y persiste a localStorage.
+ */
+const THEME_OPTIONS = [
+  { value: 'light', label: 'Claro',   icon: 'Sun' },
+  { value: 'dark',  label: 'Oscuro',  icon: 'Moon' },
+  { value: 'auto',  label: 'Sistema', icon: 'Monitor' },
+];
+
+function ThemeSwitcher() {
+  const theme = useThemeStore((s) => s.theme);
+  const setTheme = useThemeStore((s) => s.setTheme);
+  return (
+    <div className={styles.themeWrap}>
+      <p className={styles.themeLead}>
+        Cambia entre claro y oscuro, o deja que la app siga al sistema.
+      </p>
+      <div className={styles.themeSwitch} role="radiogroup" aria-label="Tema">
+        {THEME_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={theme === opt.value}
+            data-active={theme === opt.value}
+            className={styles.themeOpt}
+            onClick={() => setTheme(opt.value)}
+          >
+            <Icon name={opt.icon} size={16} />
+            <span>{opt.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
