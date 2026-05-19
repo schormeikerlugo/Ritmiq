@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useState } from 'react';
 import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './RenameDialog.module.css';
@@ -31,7 +32,7 @@ export function RenameDialog({ title, initialValue, onSubmit, onClose }) {
     } finally { setBusy(false); }
   };
 
-  return (
+  return createPortal((
     <div className={styles.backdrop} onClick={onClose}>
       <form className={styles.dialog} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h2 className={styles.title}>{title}</h2>
@@ -59,5 +60,5 @@ export function RenameDialog({ title, initialValue, onSubmit, onClose }) {
         </div>
       </form>
     </div>
-  );
+  ), document.body);
 }

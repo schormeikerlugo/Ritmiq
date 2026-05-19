@@ -18,6 +18,7 @@
  * @module @ritmiq/ui/components/Modal/Modal
  */
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './Modal.module.css';
@@ -56,7 +57,7 @@ export function Modal({
     if (e.target === e.currentTarget && dismissOnBackdrop) onClose?.();
   };
 
-  return (
+  const content = (
     <div
       className={styles.backdrop}
       onMouseDown={onBackdropClick}
@@ -83,4 +84,7 @@ export function Modal({
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(content, document.body);
 }

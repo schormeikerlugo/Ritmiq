@@ -1,11 +1,22 @@
 .backdrop {
   position: fixed;
+  /* inset:0 + 100vh por safety: en iOS PWA standalone, a veces 100vh
+     no incluye la safe-top area por defecto. Usar 100dvh fallback +
+     forzar que el backdrop cubra ABSOLUTAMENTE TODO el viewport
+     incluyendo la franja del status bar (notch/dynamic island). */
   inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   z-index: 250;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   animation: ritmiq-fade-in 240ms var(--ease-standard);

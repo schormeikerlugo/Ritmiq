@@ -11,8 +11,27 @@
 import { useEffect } from 'react';
 
 let lockCount = 0;
-let savedOverflow = '';
+let savedBodyOverflow = '';
+let savedHtmlOverflow = '';
 let savedPaddingRight = '';
+/** @type {Array<{el:Element, prevOverflow:string, prevTouchAction:string}>} */
+let savedScrollers = [];
+
+/**
+ * Selectores de elementos que actuan como scroll containers en la app.
+ * Necesitan ser bloqueados ademas del body porque el shell de Ritmiq
+ * delega el scroll en `.main` (no en el body) — bloquear solo body
+ * dejaba la pagina de fondo scrolleable mientras el modal estaba abierto.
+ *
+ * Los selectores son class-names CSS-modules generados por Vite con un
+ * hash al final (ej. `_main_3xy2z`). Usamos `[class*="main"]` para
+ * matchear cualquier hash sin acoplarnos al build.
+ */
+const SCROLL_LOCK_SELECTORS = [
+  'main',
+  '[class*="main_"]',
+  '[class*="scrollContainer_"]',
+];
 
 function applyLock() {
   // Compensa el scrollbar para que la pagina no salte al bloquearse.
@@ -21,15 +40,44 @@ function applyLock() {
     savedPaddingRight = document.body.style.paddingRight;
     document.body.style.paddingRight = `${sbw}px`;
   }
-  savedOverflow = document.body.style.overflow;
+  savedBodyOverflow = document.body.style.overflow;
+  savedHtmlOverflow = document.documentElement.style.overflow;
   document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
+
+  // Lock todos los scroll containers conocidos.
+  savedScrollers = [];
+  for (const sel of SCROLL_LOCK_SELECTORS) {
+    const nodes = document.querySelectorAll(sel);
+    for (const el of nodes) {
+      const htmlEl = /** @type {HTMLElement} */ (el);
+      savedScrollers.push({
+        el,
+        prevOverflow: htmlEl.style.overflow,
+        prevTouchAction: htmlEl.style.touchAction,
+      });
+      htmlEl.style.overflow = 'hidden';
+      // touchAction:none previene swipe scroll inercial en iOS sobre
+      // el contenedor lockeado.
+      htmlEl.style.touchAction = 'none';
+    }
+  }
 }
 
 function applyUnlock() {
-  document.body.style.overflow = savedOverflow;
+  document.body.style.overflow = savedBodyOverflow;
+  document.documentElement.style.overflow = savedHtmlOverflow;
   document.body.style.paddingRight = savedPaddingRight;
-  savedOverflow = '';
+  savedBodyOverflow = '';
+  savedHtmlOverflow = '';
   savedPaddingRight = '';
+
+  for (const { el, prevOverflow, prevTouchAction } of savedScrollers) {
+    const htmlEl = /** @type {HTMLElement} */ (el);
+    htmlEl.style.overflow = prevOverflow;
+    htmlEl.style.touchAction = prevTouchAction;
+  }
+  savedScrollers = [];
 }
 
 /**

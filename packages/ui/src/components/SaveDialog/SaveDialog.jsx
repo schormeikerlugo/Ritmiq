@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useState } from 'react';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
@@ -80,7 +81,7 @@ export function SaveDialog({ track, onClose }) {
     } finally { setBusy(false); }
   };
 
-  return (
+  return createPortal((
     <div className={styles.backdrop} onClick={onClose}>
       <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
         <header className={styles.header}>
@@ -167,5 +168,5 @@ export function SaveDialog({ track, onClose }) {
         )}
       </div>
     </div>
-  );
+  ), document.body);
 }

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useState } from 'react';
 import { useImportStore } from '../../stores/import.js';
 import { useViewStore } from '../../stores/view.js';
@@ -58,7 +59,7 @@ export function SpotifyImportDialog({ onClose }) {
     closeAll();
   };
 
-  return (
+  return createPortal((
     <div
       className={styles.backdrop}
       onClick={() => { if (!importing) closeAll(); }}
@@ -198,5 +199,5 @@ export function SpotifyImportDialog({ onClose }) {
         )}
       </div>
     </div>
-  );
+  ), document.body);
 }

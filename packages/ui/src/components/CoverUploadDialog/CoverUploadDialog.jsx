@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../../stores/auth.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
@@ -78,7 +79,7 @@ export function CoverUploadDialog({ playlist, onClose }) {
     }
   };
 
-  return (
+  return createPortal((
     <div className={styles.backdrop} onClick={onClose}>
       <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
         <header className={styles.header}>
@@ -144,5 +145,5 @@ export function CoverUploadDialog({ playlist, onClose }) {
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 }

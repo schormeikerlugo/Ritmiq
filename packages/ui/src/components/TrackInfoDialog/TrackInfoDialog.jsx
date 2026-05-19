@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useState } from 'react';
 import { api, isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
@@ -46,7 +47,7 @@ export function TrackInfoDialog({ track, onClose }) {
     api.libraryFileSize(track.id).then(setSize).catch(() => setSize(null));
   }, [track.id, track.isDownloaded]);
 
-  return (
+  return createPortal((
     <div className={styles.backdrop} onClick={onClose}>
       <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
         <header className={styles.header}>
@@ -101,7 +102,7 @@ export function TrackInfoDialog({ track, onClose }) {
         )}
       </div>
     </div>
-  );
+  ), document.body);
 }
 
 function Row({ label, value }) {

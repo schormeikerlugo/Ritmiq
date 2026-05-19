@@ -20,6 +20,7 @@
  * @module @ritmiq/ui/components/BottomSheet/BottomSheet
  */
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './BottomSheet.module.css';
 
@@ -122,7 +123,13 @@ export function BottomSheet({ onClose, children, title, header, dismissOnBackdro
       ? { transition: 'transform 260ms var(--ease-emphasized)' }
       : undefined;
 
-  return (
+  /* Portal a document.body: el BottomSheet ANTES se renderaba dentro
+     del arbol React donde se invocaba (ej. dentro de un DropdownMenu
+     dentro de Library dentro de .main). Si algun ancestor tiene
+     transform/filter/contain, el position:fixed se ancla a ese ancestor
+     en lugar del viewport — el backdrop quedaba con un gap arriba.
+     Portal a body resuelve el problema garantizando inset:0 vs viewport. */
+  const content = (
     <div
       className={styles.backdrop}
       data-closing={closing}
@@ -164,4 +171,7 @@ export function BottomSheet({ onClose, children, title, header, dismissOnBackdro
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(content, document.body);
 }

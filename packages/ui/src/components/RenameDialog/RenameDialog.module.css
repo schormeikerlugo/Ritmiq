@@ -2,6 +2,9 @@
   animation: ritmiq-fade-in var(--dur-normal) var(--ease-standard);
   position: fixed;
   inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
   display: grid;
