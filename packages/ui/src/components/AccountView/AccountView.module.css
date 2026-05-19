@@ -1,0 +1,153 @@
+.wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-3) 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.avatarBig {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent) 0%, #5a3eff 100%);
+  color: white;
+  font-size: 28px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.identity {
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--color-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.muted {
+  margin: 4px 0 0 0;
+  color: var(--color-text-2);
+  font-size: var(--fs-sm);
+}
+
+/* Accordion section */
+.section {
+  background: var(--color-bg-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-2);
+  overflow: hidden;
+}
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-4);
+  background: transparent;
+  border: none;
+  color: var(--color-text-1);
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.sectionHead:hover {
+  background: var(--color-bg-2);
+}
+.sectionIcon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-2);
+  color: var(--color-text-2);
+  flex-shrink: 0;
+}
+.sectionTitle { flex: 1; }
+.sectionChevron {
+  color: var(--color-text-3);
+  transition: transform var(--dur-fast) var(--ease-standard);
+  flex-shrink: 0;
+}
+.section[data-open='true'] .sectionChevron {
+  color: var(--color-text-1);
+}
+
+.sectionBody {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height var(--dur-slow, 360ms) var(--ease-emphasized);
+}
+.section[data-open='true'] .sectionBody {
+  /* max-height grande para acomodar contenido; usamos un valor alto y el
+     transition se siente fluido porque el contenido suele ser menor. */
+  max-height: 2400px;
+}
+.sectionInner {
+  padding: 0 var(--space-4) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+  animation: ritmiq-fade-in var(--dur-normal) var(--ease-standard);
+}
+
+/* Embed: contenedor para secciones reusadas de SettingsDialog. El h3
+   propio de cada seccion se oculta porque el AccordionSection ya provee
+   el titulo en su header clickeable. */
+.embed :global(h3) { display: none; }
+.embed > :first-child { margin-top: 0 !important; padding-top: 0 !important; border-top: none !important; }
+.embed { margin: 0; }
+
+.aboutGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--fs-sm);
+}
+
+.dangerZone {
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-2);
+}
+
+.signOut {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.signOut:hover {
+  background: rgba(255, 93, 108, 0.1);
+}
+
+@media (max-width: 768px) {
+  .wrap { padding-bottom: var(--space-6); }
+  .avatarBig { width: 64px; height: 64px; font-size: 24px; }
+  .name { font-size: var(--fs-lg); }
+}

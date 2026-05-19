@@ -266,7 +266,7 @@ function YtDlpSection() {
  * archivo desde disco sin re-descargar. Este panel muestra cuánto espacio
  * ocupa y permite vaciarlo.
  */
-function SharedCacheSection() {
+export function SharedCacheSection() {
   const [stats, setStats] = useState({ count: 0, totalBytes: 0 });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -565,7 +565,7 @@ function DesktopAccessTokenSection() {
 /**
  * PWA: configurar URL del Cloudflare Tunnel del PC + token de acceso.
  */
-function PwaRemoteSection() {
+export function PwaRemoteSection() {
   const [tunnel, setTunnelInput] = useState(getTunnelUrlSync() ?? '');
   const [token, setTokenInput] = useState(getAccessTokenSync() ?? '');
   const [msg, setMsg] = useState(null);
@@ -665,7 +665,7 @@ function PwaRemoteSection() {
  * Desktop: gestion de devices pareados. Listado de devices aprobados,
  * solicitudes pendientes con PIN para aprobar/rechazar, y activity log.
  */
-function DevicesSection() {
+export function DevicesSection() {
   const [devices, setDevices] = useState([]);
   const [pending, setPending] = useState([]);
   const [activityFor, setActivityFor] = useState(null);
@@ -881,7 +881,7 @@ function DevicesSection() {
  * polling /pair/status hasta aprobacion o rechazo. Guarda el
  * device_token resultante en localStorage.
  */
-function PwaPairingSection() {
+export function PwaPairingSection() {
   const [tunnelInput, setTunnelInput] = useState(getTunnelUrlSync() ?? '');
   const [displayName, setDisplayName] = useState(() => {
     try {
@@ -1081,7 +1081,7 @@ function PwaPairingSection() {
  * residuos del modelo viejo. Util cuando algo falla y el user no tiene
  * DevTools.
  */
-function PwaDiagnosticsSection() {
+export function PwaDiagnosticsSection() {
   const [tick, setTick] = useState(0);
   const [testing, setTesting] = useState(false);
   const [pingResult, setPingResult] = useState(null);

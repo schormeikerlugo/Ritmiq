@@ -9,6 +9,8 @@ import { ArtistView } from './components/ArtistView/ArtistView.jsx';
 import { AlbumView } from './components/AlbumView/AlbumView.jsx';
 import { Player } from './components/Player/Player.jsx';
 import { TopBar } from './components/TopBar/TopBar.jsx';
+import { BottomNav } from './components/BottomNav/BottomNav.jsx';
+import { AccountView } from './components/AccountView/AccountView.jsx';
 import { AuthScreen } from './components/Auth/AuthScreen.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
@@ -42,6 +44,7 @@ export function App() {
   const queueOpen = useViewStore((s) => s.queueOpen);
   const sidebarOpen = useViewStore((s) => s.sidebarOpen);
   const closeSidebar = useViewStore((s) => s.closeSidebar);
+  const nowPlayingOpen = useViewStore((s) => s.nowPlayingOpen);
 
   // Inicializar sesión Supabase al montar
   useEffect(() => { init(); }, [init]);
@@ -178,7 +181,7 @@ export function App() {
   }
 
   return (
-    <div className={styles.shell} data-queue-open={queueOpen}>
+    <div className={styles.shell} data-queue-open={queueOpen} data-nowplaying-open={nowPlayingOpen}>
       <aside className={styles.sidebar} data-mobile-open={sidebarOpen}>
         <Sidebar />
       </aside>
@@ -200,6 +203,7 @@ export function App() {
       <footer className={styles.player}>
         <Player />
       </footer>
+      <BottomNav />
       <DownloadProgress />
       <NowPlaying />
     </div>
@@ -226,6 +230,7 @@ function MainView() {
   if (view.kind === 'home') content = <Home />;
   else if (view.kind === 'library') content = <Library />;
   else if (view.kind === 'downloads') content = <Downloads />;
+  else if (view.kind === 'account') content = <AccountView />;
   else if (view.kind === 'playlist') content = <PlaylistView playlistId={view.playlistId} />;
   else if (view.kind === 'search') content = <SearchView query={view.query} />;
   else if (view.kind === 'artist') content = <ArtistView name={view.name} />;

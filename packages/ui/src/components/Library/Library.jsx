@@ -1,158 +1,261 @@
-import { useEffect, useState } from 'react';
+/**
+ * Library Spotify-style.
+ *
+ * Header: avatar (→ Cuenta) + título + búsqueda + agregar.
+ * Filter chips: Todo · Playlists · Artistas · Descargados.
+ * Sort: Recientes · A-Z · Más reproducidos.
+ * Lista unificada de items (playlist | artist | track-downloaded) con cover
+ * 56px + nombre + meta line tipo "Playlist · autor".
+ *
+ * Click en playlist → PlaylistView. Click en artista → ArtistView.
+ * Click en track-downloaded → reproduce.
+ *
+ * @module @ritmiq/ui/components/Library/Library
+ */
+import { useEffect, useMemo, useState } from 'react';
+import { useAuthStore } from '../../stores/auth.js';
 import { useLibraryStore } from '../../stores/library.js';
-import { usePlayerStore } from '../../stores/player.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
+import { usePlayerStore } from '../../stores/player.js';
+import { useViewStore } from '../../stores/view.js';
+import { useHistoryStore, selectTopArtists } from '../../stores/history.js';
 import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
-import { TrackInfoDialog } from '../TrackInfoDialog/TrackInfoDialog.jsx';
-import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
-import { DownloadIndicator } from '../DownloadIndicator/DownloadIndicator.jsx';
 import { Icon } from '../Icon/Icon.jsx';
-import { isDesktop } from '../../lib/api.js';
 import styles from './Library.module.css';
 
-function fmtDur(s) {
-  if (!Number.isFinite(s)) return '—';
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60).toString().padStart(2, '0');
-  return `${m}:${sec}`;
-}
+const FILTERS = [
+  { id: 'all',         label: 'Todo' },
+  { id: 'playlists',   label: 'Playlists' },
+  { id: 'artists',     label: 'Artistas' },
+  { id: 'downloaded',  label: 'Descargados' },
+];
+
+const SORTS = [
+  { id: 'recent',  label: 'Recientes' },
+  { id: 'alpha',   label: 'A–Z' },
+  { id: 'plays',   label: 'Más reproducidos' },
+];
 
 export function Library() {
-  const { tracks, loading, error, load, download, undownload, remove } = useLibraryStore();
+  const tracks = useLibraryStore((s) => s.tracks);
+  const loadLib = useLibraryStore((s) => s.load);
+  const playlists = usePlaylistsStore((s) => s.playlists);
+  const favoritesId = usePlaylistsStore((s) => s.favoritesId);
+  const events = useHistoryStore((s) => s.events);
   const playNow = usePlayerStore((s) => s.playNow);
-  const playNext = usePlayerStore((s) => s.playNext);
-  const enqueue = usePlayerStore((s) => s.enqueue);
-  const currentTrack = usePlayerStore((s) => s.currentTrack);
-  const toggleFavorite = usePlaylistsStore((s) => s.toggleFavorite);
-  const isFavorite = usePlaylistsStore((s) => s.isFavorite);
-  const [infoTrack, setInfoTrack] = useState(null);
-  const [saveTrack, setSaveTrack] = useState(null);
-  const [filter, setFilter] = useState('');
+  const goPlaylist = useViewStore((s) => s.goPlaylist);
+  const goArtist = useViewStore((s) => s.goArtist);
+  const goAccount = useViewStore((s) => s.goAccount);
+  const user = useAuthStore((s) => s.user);
 
-  useEffect(() => { load(); }, [load]);
+  const [filter, setFilter] = useState('all');
+  const [sort, setSort] = useState('recent');
+  const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
 
-  if (loading && tracks.length === 0) {
-    return (
-      <section className={styles.wrap}>
-        <p className={styles.muted}>Cargando biblioteca…</p>
-      </section>
+  useEffect(() => { loadLib(); }, [loadLib]);
+
+  // Build unified items list.
+  const items = useMemo(() => {
+    const list = [];
+
+    // Playlists.
+    if (filter === 'all' || filter === 'playlists') {
+      for (const pl of playlists) {
+        list.push({
+          kind: 'playlist',
+          id: `pl:${pl.id}`,
+          rawId: pl.id,
+          title: pl.name,
+          subtitle: pl.id === favoritesId ? 'Playlist · Tus favoritas' : 'Playlist',
+          coverUrl: pl.coverUrl,
+          isFavorites: pl.id === favoritesId,
+          updatedAt: pl.updatedAt ?? pl.createdAt,
+        });
+      }
+    }
+
+    // Top artistas (del historial — los más escuchados últimos 90 días).
+    if (filter === 'all' || filter === 'artists') {
+      const topArt = selectTopArtists(events, { days: 90, limit: 40 });
+      for (const a of topArt) {
+        list.push({
+          kind: 'artist',
+          id: `ar:${a.artist}`,
+          rawId: a.artist,
+          title: a.artist,
+          subtitle: `Artista · ${a.playCount} reproducciones`,
+          coverUrl: a.coverUrl ?? null,
+          plays: a.playCount,
+          updatedAt: a.seedTrack?.createdAt ?? null,
+        });
+      }
+    }
+
+    // Descargados.
+    if (filter === 'all' || filter === 'downloaded') {
+      const dl = tracks.filter((t) => t.isDownloaded);
+      for (const t of dl) {
+        list.push({
+          kind: 'track',
+          id: `tr:${t.id}`,
+          rawId: t.id,
+          title: t.title,
+          subtitle: `Canción descargada · ${t.artist ?? '—'}`,
+          coverUrl: t.coverUrl,
+          track: t,
+          updatedAt: t.createdAt,
+        });
+      }
+    }
+
+    return list;
+  }, [filter, playlists, favoritesId, events, tracks]);
+
+  // Filtro de búsqueda (cuando search input visible).
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((it) =>
+      it.title.toLowerCase().includes(q) ||
+      (it.subtitle ?? '').toLowerCase().includes(q)
     );
-  }
+  }, [items, search]);
 
-  if (tracks.length === 0) {
-    return (
-      <section className={styles.wrap}>
-        <header className={styles.header}>
-          <h1 className={styles.title}>Tu biblioteca</h1>
-          <p className={styles.subtitle}>
-            Aún no hay canciones. Pega una URL de YouTube en la búsqueda para añadir tu primera.
-          </p>
-        </header>
-        {error && <p className={styles.error}>{error}</p>}
-        <div className={styles.empty}>
-          <div className={styles.emptyIcon}><Icon name="Music" size={48} /></div>
-          <p>Tu música aparecerá aquí.</p>
-        </div>
-      </section>
-    );
-  }
+  // Sort.
+  const sorted = useMemo(() => {
+    const arr = filtered.slice();
+    if (sort === 'alpha') {
+      arr.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sort === 'plays') {
+      arr.sort((a, b) => (b.plays ?? 0) - (a.plays ?? 0));
+    } else {
+      // recent
+      arr.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+    }
+    // Pinear "Tus favoritas" siempre al principio si esta visible.
+    arr.sort((a, b) => {
+      if (a.isFavorites) return -1;
+      if (b.isFavorites) return 1;
+      return 0;
+    });
+    return arr;
+  }, [filtered, sort]);
 
-  const q = filter.trim().toLowerCase();
-  const filteredTracks = q
-    ? tracks.filter((t) =>
-        (t.title ?? '').toLowerCase().includes(q) ||
-        (t.artist ?? '').toLowerCase().includes(q) ||
-        (t.album ?? '').toLowerCase().includes(q))
-    : tracks;
+  const onItemClick = (item) => {
+    if (item.kind === 'playlist') goPlaylist(item.rawId);
+    else if (item.kind === 'artist') goArtist(item.rawId);
+    else if (item.kind === 'track') playNow(tracks.filter((t) => t.isDownloaded), tracks.filter((t) => t.isDownloaded).findIndex((t) => t.id === item.rawId));
+  };
+
+  const initial = (user?.email ?? 'U').slice(0, 1).toUpperCase();
 
   return (
     <section className={styles.wrap}>
       <header className={styles.header}>
+        <button
+          type="button"
+          className={styles.avatar}
+          onClick={goAccount}
+          aria-label="Cuenta"
+        >{initial}</button>
         <h1 className={styles.title}>Tu biblioteca</h1>
-        <p className={styles.subtitle}>{tracks.length} canciones</p>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={() => setSearchOpen((v) => !v)}
+            aria-label="Buscar en biblioteca"
+          ><Icon name="Search" size={20} /></button>
+        </div>
       </header>
 
-      <div className={styles.toolbar}>
-        <input
-          className={styles.filter}
-          type="search"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filtrar por título, artista o álbum…"
+      {searchOpen && (
+        <div className={styles.searchRow}>
+          <input
+            autoFocus
+            type="search"
+            className={styles.searchInput}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar en biblioteca…"
+          />
+          {search && (
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={() => setSearch('')}
+              aria-label="Limpiar"
+            ><Icon name="X" size={16} /></button>
+          )}
+        </div>
+      )}
+
+      <nav className={styles.chips} aria-label="Filtros">
+        {FILTERS.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            className={styles.chip}
+            data-active={filter === f.id}
+            onClick={() => setFilter(f.id)}
+          >{f.label}</button>
+        ))}
+      </nav>
+
+      <div className={styles.sortRow}>
+        <DropdownMenu
+          trigger={
+            <span className={styles.sortTrigger}>
+              <Icon name="ChevronDown" size={14} />
+              <span>{SORTS.find((s) => s.id === sort)?.label}</span>
+            </span>
+          }
+          items={SORTS.map((s) => ({
+            id: s.id, label: s.label,
+            onClick: () => setSort(s.id),
+          }))}
+          align="left"
+          label="Ordenar por"
         />
       </div>
 
-      {error && <p className={styles.error}>{error}</p>}
-
       <ul className={styles.list}>
-        {filteredTracks.map((t, i) => {
-          const playing = currentTrack?.id === t.id;
-          const fav = isFavorite(t.id);
-          const trackMenu = [
-            { id: 'next', label: 'Reproducir a continuación', icon: <Icon name="CornerDownRight" size={16} />, onClick: () => playNext(t) },
-            { id: 'q', label: 'Añadir a la cola', icon: <Icon name="ListMusic" size={16} />, onClick: () => enqueue(t) },
-            { separator: true },
-            {
-              id: 'fav',
-              label: fav ? 'Quitar de favoritos' : 'Añadir a favoritos',
-              icon: <Icon name="Heart" size={16} filled={fav} />,
-              onClick: () => toggleFavorite(t.id),
-            },
-            {
-              id: 'addto', label: 'Añadir a otra playlist…', icon: <Icon name="Plus" size={16} />,
-              onClick: () => setSaveTrack(t),
-            },
-            { separator: true },
-            {
-              id: 'dl',
-              label: t.isDownloaded ? 'Quitar descarga' : 'Descargar',
-              icon: <Icon name={t.isDownloaded ? 'X' : 'ArrowDownToLine'} size={16} />,
-              onClick: () => t.isDownloaded ? undownload(t.id) : download(t.id),
-            },
-            { id: 'info', label: 'Mostrar info', icon: <Icon name="Info" size={16} />, onClick: () => setInfoTrack(t) },
-            { separator: true },
-            {
-              id: 'remove',
-              label: 'Quitar de biblioteca',
-              icon: <Icon name="Trash2" size={16} />,
-              danger: true,
-              onClick: () => {
-                if (confirm(`¿Quitar "${t.title}" de la biblioteca?`)) remove(t.id);
-              },
-            },
-          ];
-
-          return (
-            <li key={t.id} className={styles.row} data-playing={playing}>
-              <button
-                className={styles.cell}
-                onClick={() => playNow(filteredTracks, i)}
-                aria-label={`Reproducir ${t.title}`}
+        {sorted.length === 0 && (
+          <li className={styles.empty}>
+            <Icon name="Music" size={40} />
+            <p>No hay items en esta categoría.</p>
+          </li>
+        )}
+        {sorted.map((item) => (
+          <li key={item.id} className={styles.row}>
+            <button
+              type="button"
+              className={styles.rowBtn}
+              onClick={() => onItemClick(item)}
+            >
+              <div
+                className={styles.cover}
+                data-shape={item.kind === 'artist' ? 'circle' : 'square'}
+                data-favorites={item.isFavorites || undefined}
               >
-                <div className={styles.cover}>
-                  {t.coverUrl
-                    ? <img src={t.coverUrl} alt="" />
-                    : <Icon name="Music" size={18} />}
-                </div>
-                <div className={styles.meta}>
-                  <span className={styles.rowTitle}>{t.title}</span>
-                  <span className={styles.rowArtist}>{t.artist ?? '—'}</span>
-                </div>
-              </button>
-              <DownloadIndicator trackId={t.id} isDownloaded={t.isDownloaded} className={styles.dlIndicator} />
-              <span className={styles.dur}>{fmtDur(t.durationSeconds)}</span>
-              <DropdownMenu trigger={<Icon name="MoreHorizontal" size={18} />} items={trackMenu} align="right" label="Opciones" />
-            </li>
-          );
-        })}
+                {item.coverUrl
+                  ? <img src={item.coverUrl} alt="" loading="lazy" />
+                  : <Icon
+                      name={item.isFavorites ? 'Heart' : item.kind === 'artist' ? 'User' : 'Music'}
+                      size={22}
+                      filled={item.isFavorites}
+                    />
+                }
+              </div>
+              <div className={styles.meta}>
+                <span className={styles.rowTitle}>{item.title}</span>
+                <span className={styles.rowSub}>{item.subtitle}</span>
+              </div>
+            </button>
+          </li>
+        ))}
       </ul>
-
-      {infoTrack && (
-        <TrackInfoDialog track={infoTrack} onClose={() => setInfoTrack(null)} />
-      )}
-      {saveTrack && (
-        <SaveDialog track={saveTrack} onClose={() => setSaveTrack(null)} />
-      )}
     </section>
   );
 }

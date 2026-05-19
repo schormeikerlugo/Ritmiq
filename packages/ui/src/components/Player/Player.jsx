@@ -65,7 +65,7 @@ export function Player() {
   };
 
   return (
-    <div className={styles.player}>
+    <div className={styles.player} data-empty={!currentTrack}>
       {/* Barra fina superior de progreso, visible solo en mobile (CSS). */}
       <div className={styles.miniProgress} aria-hidden="true">
         <div className={styles.miniProgressFill} style={{ width: `${progress}%` }} />

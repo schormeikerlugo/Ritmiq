@@ -1,0 +1,215 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-5);
+  padding-bottom: var(--space-8);
+  animation: ritmiq-fade-in-up var(--dur-slow, 400ms) var(--ease-emphasized);
+}
+
+.heroSection,
+.exploreSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-2) 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-2);
+}
+
+.hero {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-bg-2);
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+.heroPlaceholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-3);
+}
+.heroOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: var(--space-3);
+  background: linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 50%);
+}
+.heroBadge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.heroMeta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-1);
+}
+
+.artistName {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text-1);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  align-self: flex-start;
+}
+.artistName:hover { text-decoration: underline; }
+
+.listeners {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-2);
+}
+
+.bioBox {
+  margin-top: var(--space-2);
+}
+.bio {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.bio[data-expanded='true'] {
+  -webkit-line-clamp: unset;
+  display: block;
+}
+.bioToggle {
+  margin-top: var(--space-1);
+  background: transparent;
+  border: none;
+  color: var(--color-text-1);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.muted {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-3);
+}
+
+/* Carrusel horizontal con scroll-snap */
+.carousel {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 0 var(--space-1) var(--space-2);
+  margin: 0 calc(var(--space-1) * -1);
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.carousel::-webkit-scrollbar { display: none; }
+
+.card {
+  flex-shrink: 0;
+  width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  scroll-snap-align: start;
+  text-align: left;
+  color: inherit;
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+.card:active { transform: scale(0.97); }
+
+.cardCover {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  background: var(--color-bg-2);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-3);
+}
+.cardCover[data-circle='true'] { border-radius: 50%; }
+.cardCover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cardPlayOverlay {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: white;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard);
+  box-shadow: var(--shadow-md);
+}
+.card:hover .cardPlayOverlay,
+.card:focus-visible .cardPlayOverlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.cardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cardSub {
+  font-size: 12px;
+  color: var(--color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .card { width: 120px; }
+  .cardCover { width: 120px; height: 120px; }
+  .artistName { font-size: 18px; }
+}

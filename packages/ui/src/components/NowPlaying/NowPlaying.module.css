@@ -268,7 +268,32 @@
 .footerBtn:active { color: var(--color-text-1); }
 .footerBtn:disabled { opacity: 0.4; }
 
-/* Solo aparece en mobile (la app desktop no usa NowPlaying). */
+/* Desktop: NowPlaying se muestra como side panel a la derecha cuando el
+   user hace click en el cover/meta del player. NO es modal fullscreen:
+   ocupa solo el ancho de la columna --np-panel-w (380px) del grid del
+   shell, dejando el resto de la app visible y operativa. Click en
+   cualquier otro lado NO cierra (a diferencia de un modal) — para cerrar,
+   el user pulsa de nuevo el cover del player o el X del header. */
 @media (min-width: 769px) {
-  .root { display: none; }
+  .root {
+    /* Anclado a la derecha, debajo del topbar y encima del player. */
+    top: var(--topbar-h, 56px);
+    bottom: var(--layout-player-h, 88px);
+    left: auto;
+    right: 0;
+    inset: auto;
+    width: 380px;
+    background: var(--color-bg-1);
+    border-left: 1px solid var(--color-border);
+    border-radius: 0;
+    z-index: 80;
+    padding: var(--space-4);
+    overflow-y: auto;
+    animation: ritmiq-fade-in-right 320ms var(--ease-emphasized);
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
+  }
+  .root[data-closing='true'] {
+    /* En desktop reverso el slide-right como salida lateral. */
+    animation: ritmiq-fade-in-right 220ms var(--ease-emphasized) reverse forwards;
+  }
 }

@@ -12,6 +12,7 @@ import { create } from 'zustand';
  *   | { kind: 'home' }
  *   | { kind: 'library' }
  *   | { kind: 'downloads' }
+ *   | { kind: 'account' }
  *   | { kind: 'playlist', playlistId: string }
  *   | { kind: 'search', query: string }
  *   | { kind: 'artist', name: string }
@@ -42,7 +43,7 @@ export const useViewStore = create((set, get) => ({
   history: [],
   queueOpen: false,
   sidebarOpen: false, // móvil: overlay
-  nowPlayingOpen: false, // mobile fullscreen player
+  nowPlayingOpen: false, // mobile fullscreen player + desktop side panel
 
   // Navegaciones "top-level" desde sidebar resetean el historial — el botón
   // "atrás" solo tiene sentido dentro de un flujo de navegación lateral
@@ -50,6 +51,8 @@ export const useViewStore = create((set, get) => ({
   goHome:      () => set({ view: { kind: 'home' }, history: [], sidebarOpen: false }),
   goLibrary:   () => set({ view: { kind: 'library' }, history: [], sidebarOpen: false }),
   goDownloads: () => set({ view: { kind: 'downloads' }, history: [], sidebarOpen: false }),
+  goAccount:   () => set({ view: { kind: 'account' }, history: [], sidebarOpen: false }),
+  goSearchView: () => set({ view: { kind: 'search', query: '' }, history: [], sidebarOpen: false }),
   /** @param {string} playlistId */
   goPlaylist: (playlistId) =>
     set({ view: { kind: 'playlist', playlistId }, history: [], sidebarOpen: false }),

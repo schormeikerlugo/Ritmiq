@@ -1,0 +1,104 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-3) 0;
+}
+
+.header {
+  padding: var(--space-3) 0;
+}
+.title {
+  margin: 0;
+  font-size: var(--fs-2xl, 28px);
+  font-weight: 700;
+  color: var(--color-text-1);
+}
+.sub {
+  margin: 4px 0 0 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-2);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.rowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.rowTitle {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--color-text-1);
+}
+
+/* Artist grid (cards circulares) */
+.artistGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+/* Genre grid: cards coloridas con label */
+.genreGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+.genreCard {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-lg);
+  border: none;
+  cursor: pointer;
+  overflow: hidden;
+  padding: var(--space-3);
+  display: flex;
+  align-items: flex-end;
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: transform var(--dur-fast) var(--ease-emphasized),
+              box-shadow var(--dur-fast) var(--ease-emphasized);
+}
+.genreCard::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 60%;
+  height: 60%;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  transform: translate(35%, -45%) rotate(25deg);
+  pointer-events: none;
+}
+.genreCard:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+.genreCard:active {
+  transform: scale(0.97);
+}
+
+.genreLabel {
+  position: relative;
+  z-index: 1;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 768px) {
+  .title { font-size: 22px; }
+  .genreGrid { grid-template-columns: repeat(2, 1fr); }
+  .artistGrid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+  .genreCard { padding: var(--space-2); }
+  .genreLabel { font-size: 15px; }
+}

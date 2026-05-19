@@ -16,11 +16,13 @@ import { useViewStore } from '../../stores/view.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { metaToCandidate } from '../../lib/track-helpers.js';
 import { searchLibraryTracks, dedupeByYtId } from '../../lib/library-search.js';
-import { checkSharedCache } from '../../lib/lan-client.js';
+import { checkSharedCache, prewarmStream } from '../../lib/lan-client.js';
+import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { TrackCard } from '../Home/TrackCard.jsx';
 import { ArtistCard } from '../Home/ArtistCard.jsx';
 import { RowSkeleton } from '../Home/RowSkeleton.jsx';
+import { ExploreView } from './ExploreView.jsx';
 import styles from './SearchView.module.css';
 
 const TABS = [
@@ -39,14 +41,30 @@ export function SearchView({ query }) {
   const error     = useSearchStore((s) => s.error);
   const playNow   = usePlayerStore((s) => s.playNow);
   const goArtist  = useViewStore((s) => s.goArtist);
+  const goSearch  = useViewStore((s) => s.goSearch);
   const libraryTracks = useLibraryStore((s) => s.tracks);
 
   const [tab, setTab] = useState('all');
   const [cachedSet, setCachedSet] = useState(/** @type {Set<string>} */ (new Set()));
+  const [inputValue, setInputValue] = useState(query ?? '');
+
+  useEffect(() => { setInputValue(query ?? ''); }, [query]);
 
   useEffect(() => {
     if (query) fetchAll(query);
   }, [query, fetchAll]);
+
+  // Submit del input mobile: lanza goSearch (que pushea a history view stack
+  // y dispara fetchAll en el useEffect siguiente).
+  const onSubmitSearch = (e) => {
+    e.preventDefault();
+    const q = inputValue.trim();
+    if (q && q !== query) goSearch(q);
+  };
+
+  // En mobile cuando no hay query, mostramos ExploreView (Explorar).
+  // Mantenemos el input arriba para que el user pueda escribir.
+  const showExplore = !query;
 
   // Tras llegar videos, chequear cuales estan en cache compartido del PC
   // para mostrar el badge ⚡ "instant-play" a lo largo de la vista.
@@ -113,6 +131,61 @@ export function SearchView({ query }) {
 
   return (
     <section className={styles.wrap}>
+      {/* Input de busqueda — visible siempre en mobile, oculto en desktop
+          (desktop tiene el input arriba en TopBar). */}
+      <form className={styles.searchForm} onSubmit={onSubmitSearch}>
+        <Icon name="Search" size={18} />
+        <input
+          type="search"
+          className={styles.searchInput}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder="¿Qué quieres escuchar?"
+          autoComplete="off"
+        />
+        {inputValue && (
+          <button
+            type="button"
+            className={styles.searchClear}
+            onClick={() => { setInputValue(''); if (query) useViewStore.getState().goSearchView(); }}
+            aria-label="Limpiar"
+          ><Icon name="X" size={16} /></button>
+        )}
+      </form>
+
+      {showExplore ? (
+        <ExploreView />
+      ) : (
+        <SearchResults
+          query={query}
+          tab={tab}
+          setTab={setTab}
+          videos={videos}
+          channels={channels}
+          playlists={playlists}
+          loading={loading}
+          error={error}
+          localMatches={localMatches}
+          videosAsTracks={videosAsTracks}
+          cachedSet={cachedSet}
+          noResults={noResults}
+          playLocal={playLocal}
+          playSongList={playSongList}
+          goArtist={goArtist}
+        />
+      )}
+    </section>
+  );
+}
+
+function SearchResults({
+  query, tab, setTab,
+  videos, channels, playlists, loading, error,
+  localMatches, videosAsTracks, cachedSet, noResults,
+  playLocal, playSongList, goArtist,
+}) {
+  return (
+    <>
       <header className={styles.header}>
         <h1 className={styles.query}>“{query}”</h1>
         <p className={styles.sub}>Resultados de búsqueda</p>
@@ -292,7 +365,7 @@ export function SearchView({ query }) {
           <p>No encontramos resultados para “{query}”.</p>
         </div>
       )}
-    </section>
+    </>
   );
 }
 

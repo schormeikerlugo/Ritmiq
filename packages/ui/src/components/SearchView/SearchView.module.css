@@ -234,3 +234,53 @@
   vertical-align: middle;
   white-space: nowrap;
 }
+
+/* Input de busqueda visible en SearchView (key UI: en mobile reemplaza el
+   TopBar que esta oculto; en desktop tambien funciona como search alt). */
+.searchForm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-bg-1);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+  color: var(--color-text-2);
+  transition: background var(--dur-fast) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard);
+}
+.searchForm:focus-within {
+  background: var(--color-bg-2);
+  box-shadow: 0 0 0 2px var(--color-accent-soft);
+}
+.searchInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text-1);
+  font-size: var(--fs-md);
+  padding: 4px 0;
+  min-width: 0;
+}
+.searchInput::placeholder { color: var(--color-text-3); }
+.searchClear {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  color: var(--color-text-2);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.searchClear:hover {
+  background: var(--color-bg-3);
+  color: var(--color-text-1);
+}
+
+@media (min-width: 769px) {
+  /* En desktop el TopBar ya tiene su propio input — ocultamos este. */
+  .searchForm { display: none; }
+}

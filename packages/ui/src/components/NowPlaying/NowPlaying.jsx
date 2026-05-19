@@ -16,6 +16,7 @@ import { isEphemeralTrack } from '../../lib/track-helpers.js';
 import { getDominantColor } from '../../lib/dominant-color.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
+import { ArtistInfoPanel } from './ArtistInfoPanel.jsx';
 import styles from './NowPlaying.module.css';
 
 function fmt(sec) {
@@ -279,6 +280,12 @@ export function NowPlaying() {
           <Icon name="ListMusic" size={20} />
         </button>
       </div>
+
+      {/* Acerca del artista + Explora [Artist]. Solo se carga si hay
+          artista — el ArtistInfoPanel decide internamente que mostrar. */}
+      {currentTrack?.artist && (
+        <ArtistInfoPanel artistName={currentTrack.artist} />
+      )}
 
       {saveOpen && currentTrack && (
         <SaveDialog track={currentTrack} onClose={() => setSaveOpen(false)} />
