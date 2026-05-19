@@ -23,6 +23,7 @@ import { useArtistStore } from '../../stores/artist.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { HeroSkeleton, TrackRowSkeleton } from '../Skeleton/index.js';
 import styles from './ArtistView.module.css';
 
 function fmtListeners(n) {
@@ -69,13 +70,8 @@ export function ArtistView({ name }) {
   if (!details || details.loading) {
     return (
       <section className={styles.wrap}>
-        <header className={styles.headerSkel}>
-          <div className={styles.coverSkel} />
-          <div className={styles.metaSkel}>
-            <div className={styles.lineSkel} style={{ width: '60%', height: 28 }} />
-            <div className={styles.lineSkel} style={{ width: '40%' }} />
-          </div>
-        </header>
+        <HeroSkeleton />
+        <TrackRowSkeleton count={5} />
       </section>
     );
   }

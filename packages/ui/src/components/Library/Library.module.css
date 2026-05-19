@@ -6,12 +6,25 @@
 }
 
 /* Header + chips sticky — se quedan arriba al scrollear la lista de
-   biblioteca. Mismo comportamiento que Spotify mobile. */
+   biblioteca. Fondo translucido con blur estilo iOS: 10% del contenido
+   detras visible (background a 0.72 de opacidad + backdrop-filter blur
+   y saturate). Estira lateralmente con margin-inline negativo para
+   cubrir todo el ancho del panel sin dejar franjas. */
 .stickyHeader {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--color-bg-0);
+  background: rgba(10, 10, 12, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  margin-inline: calc(var(--space-3) * -1);
+  padding-inline: var(--space-3);
+}
+@media (min-width: 769px) {
+  .stickyHeader {
+    margin-inline: calc(var(--space-5) * -1);
+    padding-inline: var(--space-5);
+  }
 }
 
 .header {

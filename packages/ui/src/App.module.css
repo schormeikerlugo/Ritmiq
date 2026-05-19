@@ -1,9 +1,37 @@
+/* Boot screen — primera pantalla mientras useAuthStore.init() resuelve.
+   Logo Ritmiq centrado con animacion de pulse-opacity + hint debajo. */
 .boot {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
   height: 100vh;
+  background: var(--color-bg-0);
   color: var(--color-text-3);
   font-size: var(--fs-sm);
+}
+.bootLogo {
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 32px var(--color-accent-glow, rgba(124, 92, 255, 0.45)));
+  animation: ritmiq-boot-pulse 1.8s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+.bootHint {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  opacity: 0.85;
+}
+@keyframes ritmiq-boot-pulse {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.97); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bootLogo { animation: none; }
 }
 
 .shell {

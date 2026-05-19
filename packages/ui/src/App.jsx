@@ -16,6 +16,7 @@ import { DownloadProgress } from './components/DownloadProgress/DownloadProgress
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
 import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
 import { BottomSheetHost } from './components/BottomSheet/BottomSheetHost.jsx';
+import logotipoUrl from './assets/logotipo.png';
 import { useAuthStore } from './stores/auth.js';
 import { useLibraryStore } from './stores/library.js';
 import { usePlaylistsStore } from './stores/playlists.js';
@@ -175,7 +176,12 @@ export function App() {
   usePlayerEngine();
 
   if (loading) {
-    return <div className={styles.boot}>Cargando…</div>;
+    return (
+      <div className={styles.boot}>
+        <img src={logotipoUrl} alt="Ritmiq" className={styles.bootLogo} />
+        <span className={styles.bootHint}>Cargando…</span>
+      </div>
+    );
   }
   if (!user) {
     return <AuthScreen />;

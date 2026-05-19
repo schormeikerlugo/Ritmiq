@@ -23,6 +23,7 @@ import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
 import { SpotifyImportDialog } from '../SpotifyImportDialog/SpotifyImportDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import { SpotifyIcon } from '../Icon/SpotifyIcon.jsx';
+import { TrackRowSkeleton } from '../Skeleton/index.js';
 import styles from './Library.module.css';
 
 const FILTERS = [
@@ -40,6 +41,8 @@ const SORTS = [
 export function Library() {
   const tracks = useLibraryStore((s) => s.tracks);
   const loadLib = useLibraryStore((s) => s.load);
+  const libLoading = useLibraryStore((s) => s.loading);
+  const plsLoading = usePlaylistsStore((s) => s.loading);
   const playlists = usePlaylistsStore((s) => s.playlists);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
   const events = useHistoryStore((s) => s.events);
@@ -234,10 +237,17 @@ export function Library() {
         />
       </div>
 
+      {/* Skeleton mientras carga la biblioteca/playlists por primera vez.
+          Sustituye el flash de "empty state" → empty state real cuando no
+          hay datos pero ya termino de cargar. */}
+      {(libLoading || plsLoading) && sorted.length === 0 && playlists.length === 0 && (
+        <TrackRowSkeleton count={8} />
+      )}
+
       {/* Empty state grande con CTA cuando la biblioteca esta vacia.
           Solo se muestra cuando el filtro es 'all'/'playlists' Y no hay
           playlists todavia — invita al user a importar de Spotify. */}
-      {sorted.length === 0 && (filter === 'playlists') && playlists.length === 0 && (
+      {!libLoading && !plsLoading && sorted.length === 0 && (filter === 'playlists') && playlists.length === 0 && (
         <div className={styles.bigEmpty}>
           <div className={styles.bigEmptyIcon} aria-hidden="true">
             <SpotifyIcon size={64} />

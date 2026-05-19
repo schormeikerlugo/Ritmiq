@@ -4,6 +4,7 @@ import { usePlayerStore } from '../../stores/player.js';
 import { listLocalDownloads, storageEstimate, clearAllLocal } from '../../lib/local-downloads.js';
 import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { TrackRowSkeleton } from '../Skeleton/index.js';
 import styles from './Downloads.module.css';
 
 function fmtBytes(n) {
@@ -23,6 +24,7 @@ function fmtDur(s) {
 
 export function Downloads() {
   const tracks = useLibraryStore((s) => s.tracks);
+  const libLoading = useLibraryStore((s) => s.loading);
   const undownload = useLibraryStore((s) => s.undownload);
   const playNow = usePlayerStore((s) => s.playNow);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
@@ -97,7 +99,9 @@ export function Downloads() {
         </div>
       )}
 
-      {downloadedTracks.length === 0 ? (
+      {libLoading && downloadedTracks.length === 0 ? (
+        <TrackRowSkeleton count={6} />
+      ) : downloadedTracks.length === 0 ? (
         <div className={styles.empty}>
           <p>No tienes música descargada en este dispositivo.</p>
           <p className={styles.hint}>

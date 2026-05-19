@@ -25,6 +25,7 @@ import { prewarmStream } from '../../lib/lan-client.js';
 import { getDominantColor } from '../../lib/dominant-color.js';
 import { DownloadIndicator } from '../DownloadIndicator/DownloadIndicator.jsx';
 import { Icon } from '../Icon/Icon.jsx';
+import { HeroSkeleton, TrackRowSkeleton } from '../Skeleton/index.js';
 import styles from './PlaylistView.module.css';
 
 function fmtDur(s) {
@@ -49,6 +50,7 @@ function normalize(s) {
 /** @param {{ playlistId: string }} props */
 export function PlaylistView({ playlistId }) {
   const playlists = usePlaylistsStore((s) => s.playlists);
+  const playlistsLoading = usePlaylistsStore((s) => s.loading);
   const contents = usePlaylistsStore((s) => s.contents);
   const removeTrack = usePlaylistsStore((s) => s.removeTrack);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
@@ -133,6 +135,16 @@ export function PlaylistView({ playlistId }) {
   const someDownloaded = downloadedCount > 0;
 
   if (!playlist) {
+    // Mientras se hidrata desde Supabase, mostrar skeleton — evita el
+    // flash de "Playlist no encontrada" en cada navegacion directa.
+    if (playlistsLoading) {
+      return (
+        <section className={styles.wrap}>
+          <HeroSkeleton />
+          <TrackRowSkeleton count={8} />
+        </section>
+      );
+    }
     return (
       <section className={styles.wrap}>
         <p className={styles.muted}>Playlist no encontrada.</p>

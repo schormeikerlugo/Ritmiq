@@ -35,7 +35,6 @@ export function AuthScreen() {
     <div className={styles.screen}>
       <div className={styles.card}>
         <img src={logotipoUrl} alt="Ritmiq" className={styles.brandLogo} />
-        <h1 className={styles.brand}>Ritmiq</h1>
         <p className={styles.subtitle}>
           {mode === 'signin' ? 'Inicia sesión en tu biblioteca' : 'Crea tu cuenta'}
         </p>

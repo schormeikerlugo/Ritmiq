@@ -18,6 +18,7 @@ import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
 import { prewarmStream } from '../../lib/lan-client.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { HeroSkeleton, TrackRowSkeleton } from '../Skeleton/index.js';
 import styles from './AlbumView.module.css';
 
 function albumKey(artist, album) {
@@ -99,6 +100,20 @@ export function AlbumView({ artist, album }) {
   const otherAlbums = (artistData?.albums ?? []).filter(
     (al) => al.title.toLowerCase() !== album.toLowerCase()
   );
+
+  // Skeleton mientras el album resuelve metadata + tracklist.
+  if (loading && tracks.length === 0) {
+    return (
+      <section className={styles.wrap}>
+        <button type="button" className={styles.back} onClick={goBack}>
+          <Icon name="ChevronLeft" size={16} />
+          <span>Atrás</span>
+        </button>
+        <HeroSkeleton />
+        <TrackRowSkeleton count={8} />
+      </section>
+    );
+  }
 
   return (
     <section className={styles.wrap}>
