@@ -15,6 +15,26 @@
   gap: var(--space-1);
 }
 
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.brandMark {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 8px var(--color-accent-glow, rgba(124, 92, 255, 0.3)));
+}
+.greeting {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .title {
   font-size: var(--fs-3xl);
   font-weight: var(--fw-bold);
@@ -94,4 +114,9 @@
 .emptyText {
   margin: 0;
   font-size: var(--fs-sm);
+}
+
+@media (max-width: 768px) {
+  .title { font-size: 22px; }
+  .brandMark { width: 36px; height: 36px; }
 }

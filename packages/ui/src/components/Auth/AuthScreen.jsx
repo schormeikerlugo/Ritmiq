@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../stores/auth.js';
+import logotipoUrl from '../../assets/logotipo.png';
 import styles from './AuthScreen.module.css';
 
 export function AuthScreen() {
@@ -33,6 +34,7 @@ export function AuthScreen() {
   return (
     <div className={styles.screen}>
       <div className={styles.card}>
+        <img src={logotipoUrl} alt="Ritmiq" className={styles.brandLogo} />
         <h1 className={styles.brand}>Ritmiq</h1>
         <p className={styles.subtitle}>
           {mode === 'signin' ? 'Inicia sesión en tu biblioteca' : 'Crea tu cuenta'}

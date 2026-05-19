@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useViewStore } from '../../stores/view.js';
-import { SpotifyImportDialog } from '../SpotifyImportDialog/SpotifyImportDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 // Import como módulo (no path absoluto): Vite genera la URL correcta en
 // ambos targets. En Electron `file://` un path absoluto `/logotipo.png`
@@ -14,7 +12,6 @@ export function Sidebar() {
   const playlists = usePlaylistsStore((s) => s.playlists);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
   const { view, goHome, goLibrary, goDownloads, goPlaylist } = useViewStore();
-  const [importOpen, setImportOpen] = useState(false);
 
   // Ordenar: Favoritas primero, luego por created_at.
   const sorted = playlists.slice().sort((a, b) => {
@@ -62,19 +59,6 @@ export function Sidebar() {
       </ul>
 
       <div className={styles.section}>
-        <button
-          className={styles.importBtn}
-          onClick={() => setImportOpen(true)}
-        >
-          <span className={styles.importIcon} aria-hidden="true"><Icon name="Music2" size={18} /></span>
-          <div className={styles.importMeta}>
-            <span className={styles.importTitle}>Importar de Spotify</span>
-            <span className={styles.importSub}>Pega un link público</span>
-          </div>
-        </button>
-      </div>
-
-      <div className={styles.section}>
         <div className={styles.sectionTitle}>Playlists</div>
         <ul className={styles.list}>
           {sorted.map((pl) => {
@@ -108,9 +92,6 @@ export function Sidebar() {
         </ul>
       </div>
 
-      {importOpen && (
-        <SpotifyImportDialog onClose={() => setImportOpen(false)} />
-      )}
     </nav>
   );
 }

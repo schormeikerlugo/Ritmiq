@@ -20,6 +20,7 @@ import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
 import { useHistoryStore, selectTopArtists } from '../../stores/history.js';
 import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
+import { SpotifyImportDialog } from '../SpotifyImportDialog/SpotifyImportDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './Library.module.css';
 
@@ -52,6 +53,7 @@ export function Library() {
   const [sort, setSort] = useState('recent');
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => { loadLib(); }, [loadLib]);
 
@@ -167,6 +169,13 @@ export function Library() {
             onClick={() => setSearchOpen((v) => !v)}
             aria-label="Buscar en biblioteca"
           ><Icon name="Search" size={20} /></button>
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={() => setImportOpen(true)}
+            aria-label="Importar de Spotify"
+            title="Importar de Spotify"
+          ><Icon name="Plus" size={20} /></button>
         </div>
       </header>
 
@@ -220,8 +229,32 @@ export function Library() {
         />
       </div>
 
+      {/* Empty state grande con CTA cuando la biblioteca esta vacia.
+          Solo se muestra cuando el filtro es 'all'/'playlists' Y no hay
+          playlists todavia — invita al user a importar de Spotify. */}
+      {sorted.length === 0 && (filter === 'all' || filter === 'playlists') && playlists.length === 0 && (
+        <div className={styles.bigEmpty}>
+          <div className={styles.bigEmptyIcon} aria-hidden="true">
+            <Icon name="Music2" size={56} />
+          </div>
+          <h2 className={styles.bigEmptyTitle}>Empieza tu biblioteca</h2>
+          <p className={styles.bigEmptyText}>
+            Importa tus playlists públicas de Spotify y empezá a escuchar.
+            Pegá un link y nosotros encontramos las canciones en YouTube.
+          </p>
+          <button
+            type="button"
+            className={styles.bigEmptyBtn}
+            onClick={() => setImportOpen(true)}
+          >
+            <Icon name="ArrowDownToLine" size={16} />
+            <span>Importar de Spotify</span>
+          </button>
+        </div>
+      )}
+
       <ul className={styles.list}>
-        {sorted.length === 0 && (
+        {sorted.length === 0 && playlists.length > 0 && (
           <li className={styles.empty}>
             <Icon name="Music" size={40} />
             <p>No hay items en esta categoría.</p>
@@ -256,6 +289,10 @@ export function Library() {
           </li>
         ))}
       </ul>
+
+      {importOpen && (
+        <SpotifyImportDialog onClose={() => setImportOpen(false)} />
+      )}
     </section>
   );
 }

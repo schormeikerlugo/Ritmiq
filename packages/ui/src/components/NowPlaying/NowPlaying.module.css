@@ -12,7 +12,14 @@
   color: var(--color-text-1);
   animation: ritmiq-slide-up 360ms var(--ease-emphasized);
   will-change: transform, opacity;
-  overflow: hidden;
+  /* CRITICO: en mobile el ArtistInfoPanel se agrega al final de este
+     contenedor flex-column. overflow:hidden bloqueaba el scroll y el user
+     no podia ver la info del artista. overflow-y:auto + scroll-behavior
+     suave + -webkit-overflow-scrolling para inercia iOS. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   transition: background 400ms var(--ease-standard);
 }
 .root[data-closing='true'] {
@@ -295,5 +302,36 @@
   .root[data-closing='true'] {
     /* En desktop reverso el slide-right como salida lateral. */
     animation: ritmiq-fade-in-right 220ms var(--ease-emphasized) reverse forwards;
+  }
+
+  /* Diseño DESKTOP minimalista: ocultamos los controles grandes y el
+     cover hero. El user tiene el reproductor en el footer del shell con
+     todos los controles (play/pause, scrubber, etc) — duplicarlos aqui
+     es ruido. El side panel se enfoca en info del artista. */
+  .coverWrap { display: none; }
+  .info { display: none; }
+  .scrubber { display: none; }
+  .controls { display: none; }
+  .footer { display: none; }
+
+  /* Header compacto: solo close + titulo contextual (track playing). */
+  .header {
+    height: 40px;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: var(--space-3);
+  }
+  .headerTitle .eyebrow {
+    font-size: 10px;
+  }
+  .headerTitle .context {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* El background con gradiente del color dominante queda muy fuerte
+     en un panel angosto — atenuamos a un tinte sutil. */
+  .root {
+    background: var(--color-bg-1) !important;
   }
 }

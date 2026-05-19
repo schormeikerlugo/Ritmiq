@@ -22,11 +22,21 @@
   gap: var(--space-4);
 }
 
+.brandLogo {
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+  margin: 0 auto;
+  filter: drop-shadow(0 4px 20px var(--color-accent-glow, rgba(124, 92, 255, 0.4)));
+  animation: ritmiq-fade-in-up var(--dur-normal) var(--ease-emphasized);
+}
+
 .brand {
   font-size: var(--fs-2xl);
   font-weight: var(--fw-bold);
   letter-spacing: -0.02em;
   margin: 0;
+  text-align: center;
   background: linear-gradient(120deg, var(--color-accent), #5cd0ff);
   -webkit-background-clip: text;
   background-clip: text;
