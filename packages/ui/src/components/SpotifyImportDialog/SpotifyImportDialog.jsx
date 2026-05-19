@@ -3,7 +3,10 @@ import { useEffect, useState } from 'react';
 import { useImportStore } from '../../stores/import.js';
 import { useViewStore } from '../../stores/view.js';
 import { getLanBaseUrlSync, getTunnelUrlSync } from '../../lib/lan-client.js';
+import { useMobileViewport } from '../../lib/use-mobile-viewport.js';
+import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { BottomSheet } from '../BottomSheet/BottomSheet.jsx';
 import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './SpotifyImportDialog.module.css';
 
@@ -59,23 +62,14 @@ export function SpotifyImportDialog({ onClose }) {
     closeAll();
   };
 
-  return createPortal((
-    <div
-      className={styles.backdrop}
-      onClick={() => { if (!importing) closeAll(); }}
-    >
-      <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
-        <header className={styles.header}>
-          <h2 className={styles.title}>Importar desde Spotify</h2>
-          <button
-            className={styles.close}
-            onClick={closeAll}
-            disabled={importing}
-            aria-label="Cerrar"
-          ><Icon name="X" size={18} /></button>
-        </header>
+  const isMobile = useMobileViewport();
+  const useSheet = isMobile && !isDesktop;
 
-        {!lanReady && (
+  /* Contenido reusable entre BottomSheet (mobile) y dialog clasico
+     (desktop). Sin wrapper outer — cada modo provee su propia chrome. */
+  const inner = (
+    <>
+      {!lanReady && (
           <p className={styles.warning}>
             Para importar de Spotify necesitas conexión con tu PC. Configúrala en Ajustes.
           </p>
@@ -180,23 +174,58 @@ export function SpotifyImportDialog({ onClose }) {
           </>
         )}
 
-        {done && (
-          <div className={styles.summary}>
-            <div className={styles.summaryIcon}>✓</div>
-            <h3 className={styles.summaryTitle}>Importación completada</h3>
-            <p className={styles.summaryText}>
-              {matched} canciones importadas{errored > 0 ? `, ${errored} con error` : ''}.
-            </p>
-            <div className={styles.actions}>
-              <button className={styles.btnSecondary} onClick={closeAll}>
-                Cerrar
-              </button>
-              <button className={styles.btnPrimary} onClick={onGoToPlaylist}>
-                Abrir playlist
-              </button>
-            </div>
+      {done && (
+        <div className={styles.summary}>
+          <div className={styles.summaryIcon}>✓</div>
+          <h3 className={styles.summaryTitle}>Importación completada</h3>
+          <p className={styles.summaryText}>
+            {matched} canciones importadas{errored > 0 ? `, ${errored} con error` : ''}.
+          </p>
+          <div className={styles.actions}>
+            <button className={styles.btnSecondary} onClick={closeAll}>
+              Cerrar
+            </button>
+            <button className={styles.btnPrimary} onClick={onGoToPlaylist}>
+              Abrir playlist
+            </button>
           </div>
-        )}
+        </div>
+      )}
+    </>
+  );
+
+  /* PWA mobile: BottomSheet. La altura crece dinamicamente con el
+     contenido (lista de canciones a importar) hasta max 88dvh. El
+     scroll interno del sheet body maneja listas largas. */
+  if (useSheet) {
+    return (
+      <BottomSheet
+        onClose={() => { if (!importing) closeAll(); }}
+        title="Importar desde Spotify"
+        dismissOnBackdrop={!importing}
+      >
+        <div className={styles.sheetBody}>{inner}</div>
+      </BottomSheet>
+    );
+  }
+
+  /* Desktop: dialog clasico centrado */
+  return createPortal((
+    <div
+      className={styles.backdrop}
+      onClick={() => { if (!importing) closeAll(); }}
+    >
+      <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
+        <header className={styles.header}>
+          <h2 className={styles.title}>Importar desde Spotify</h2>
+          <button
+            className={styles.close}
+            onClick={closeAll}
+            disabled={importing}
+            aria-label="Cerrar"
+          ><Icon name="X" size={18} /></button>
+        </header>
+        {inner}
       </div>
     </div>
   ), document.body);

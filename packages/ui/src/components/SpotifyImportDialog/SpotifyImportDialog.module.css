@@ -319,3 +319,18 @@
   width: 100%;
   margin-top: var(--space-2);
 }
+
+/* Wrapper de contenido cuando SpotifyImportDialog se renderea dentro
+   de BottomSheet (PWA mobile). El sheet ya provee handle + header;
+   solo necesitamos padding lateral y gap entre secciones. */
+.sheetBody {
+  padding: 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sheetBody .list {
+  /* En sheet la lista puede ser larga; permitir que crezca y que el
+     scroll del sheet body la maneje. */
+  max-height: none;
+}

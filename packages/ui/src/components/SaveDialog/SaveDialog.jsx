@@ -3,7 +3,10 @@ import { useEffect, useState } from 'react';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { isEphemeralTrack } from '../../lib/track-helpers.js';
+import { useMobileViewport } from '../../lib/use-mobile-viewport.js';
+import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { BottomSheet } from '../BottomSheet/BottomSheet.jsx';
 import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './SaveDialog.module.css';
 
@@ -81,6 +84,104 @@ export function SaveDialog({ track, onClose }) {
     } finally { setBusy(false); }
   };
 
+  const isMobile = useMobileViewport();
+  const useSheet = isMobile && !isDesktop;
+
+  /* Contenido reutilizable entre el wrapper Modal (desktop) y el wrapper
+     BottomSheet (PWA mobile). Sin el backdrop/dialog outer: cada wrapper
+     provee su propia chrome. */
+  const inner = (
+    <>
+      <p className={styles.song}>
+        <strong>{track.title}</strong>
+        {track.artist ? ` · ${track.artist}` : ''}
+      </p>
+
+      <div className={styles.section}>
+        <button
+          className={styles.action}
+          onClick={onSaveLibrary}
+          disabled={busy || isInLibrary}
+        >
+          <span className={styles.actionIcon}><Icon name="Library" size={16} /></span>
+          <span className={styles.actionLabel}>
+            {isInLibrary ? 'Ya está en tu biblioteca' : 'Solo añadir a biblioteca'}
+          </span>
+        </button>
+      </div>
+
+      <div className={styles.sectionTitle}>Playlists</div>
+      <ul className={styles.list}>
+        {playlists.map((pl) => {
+          const checked = isInLibrary &&
+            (contents[pl.id] ?? []).includes(track.id);
+          return (
+            <li key={pl.id}>
+              <button
+                className={styles.row}
+                onClick={() => onTogglePlaylist(pl)}
+                disabled={busy}
+              >
+                <span
+                  className={styles.checkbox}
+                  data-checked={checked}
+                  aria-hidden="true"
+                >{checked && <Icon name="Check" size={14} />}</span>
+                <span className={styles.rowName}>{pl.name}</span>
+              </button>
+            </li>
+          );
+        })}
+        {playlists.length === 0 && (
+          <li className={styles.empty}>Aún no tienes playlists.</li>
+        )}
+      </ul>
+
+      {creating ? (
+        <form className={styles.createForm} onSubmit={onCreate}>
+          <input
+            className={styles.createInput}
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Nombre de la playlist"
+            autoFocus
+            disabled={busy}
+          />
+          <div className={styles.createActions}>
+            <button
+              type="button"
+              className={styles.btnSecondary}
+              onClick={() => { setCreating(false); setNewName(''); }}
+              disabled={busy}
+            >Cancelar</button>
+            <button
+              type="submit"
+              className={styles.btnPrimary}
+              disabled={busy || !newName.trim()}
+            >Crear y añadir</button>
+          </div>
+        </form>
+      ) : (
+        <button
+          className={styles.createBtn}
+          onClick={() => setCreating(true)}
+          disabled={busy}
+        ><Icon name="Plus" size={16} /> Nueva playlist</button>
+      )}
+    </>
+  );
+
+  /* PWA mobile: BottomSheet con drag handle + spring iOS */
+  if (useSheet) {
+    return (
+      <BottomSheet onClose={onClose} title="Guardar canción">
+        <div className={styles.sheetBody}>{inner}</div>
+      </BottomSheet>
+    );
+  }
+
+  /* Desktop: dialog clasico centrado */
   return createPortal((
     <div className={styles.backdrop} onClick={onClose}>
       <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
@@ -88,84 +189,7 @@ export function SaveDialog({ track, onClose }) {
           <h2 className={styles.title}>Guardar canción</h2>
           <button className={styles.close} onClick={onClose} aria-label="Cerrar"><Icon name="X" size={18} /></button>
         </header>
-
-        <p className={styles.song}>
-          <strong>{track.title}</strong>
-          {track.artist ? ` · ${track.artist}` : ''}
-        </p>
-
-        <div className={styles.section}>
-          <button
-            className={styles.action}
-            onClick={onSaveLibrary}
-            disabled={busy || isInLibrary}
-          >
-            <span className={styles.actionIcon}><Icon name="Library" size={16} /></span>
-            <span className={styles.actionLabel}>
-              {isInLibrary ? 'Ya está en tu biblioteca' : 'Solo añadir a biblioteca'}
-            </span>
-          </button>
-        </div>
-
-        <div className={styles.sectionTitle}>Playlists</div>
-        <ul className={styles.list}>
-          {playlists.map((pl) => {
-            const checked = isInLibrary &&
-              (contents[pl.id] ?? []).includes(track.id);
-            return (
-              <li key={pl.id}>
-                <button
-                  className={styles.row}
-                  onClick={() => onTogglePlaylist(pl)}
-                  disabled={busy}
-                >
-                  <span
-                    className={styles.checkbox}
-                    data-checked={checked}
-                    aria-hidden="true"
-                  >{checked && <Icon name="Check" size={14} />}</span>
-                  <span className={styles.rowName}>{pl.name}</span>
-                </button>
-              </li>
-            );
-          })}
-          {playlists.length === 0 && (
-            <li className={styles.empty}>Aún no tienes playlists.</li>
-          )}
-        </ul>
-
-        {creating ? (
-          <form className={styles.createForm} onSubmit={onCreate}>
-            <input
-              className={styles.createInput}
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Nombre de la playlist"
-              autoFocus
-              disabled={busy}
-            />
-            <div className={styles.createActions}>
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                onClick={() => { setCreating(false); setNewName(''); }}
-                disabled={busy}
-              >Cancelar</button>
-              <button
-                type="submit"
-                className={styles.btnPrimary}
-                disabled={busy || !newName.trim()}
-              >Crear y añadir</button>
-            </div>
-          </form>
-        ) : (
-          <button
-            className={styles.createBtn}
-            onClick={() => setCreating(true)}
-            disabled={busy}
-          ><Icon name="Plus" size={16} /> Nueva playlist</button>
-        )}
+        {inner}
       </div>
     </div>
   ), document.body);
