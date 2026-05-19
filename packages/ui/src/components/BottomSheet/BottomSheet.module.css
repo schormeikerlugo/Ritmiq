@@ -1,9 +1,5 @@
 .backdrop {
   position: fixed;
-  /* inset:0 + 100vh por safety: en iOS PWA standalone, a veces 100vh
-     no incluye la safe-top area por defecto. Usar 100dvh fallback +
-     forzar que el backdrop cubra ABSOLUTAMENTE TODO el viewport
-     incluyendo la franja del status bar (notch/dynamic island). */
   inset: 0;
   top: 0;
   left: 0;
@@ -13,9 +9,14 @@
   height: 100vh;
   height: 100dvh;
   z-index: 250;
+  /* flex column + justify-content: flex-end mantiene el sheet anclado
+     al borde inferior del viewport. Antes con align-items:flex-end +
+     direction:row el sheet podia quedar mal posicionado en algunos
+     navegadores. */
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -96,12 +97,14 @@
   flex: 1 1 auto;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  /* padding-bottom solo respeta safe-area cuando el dispositivo lo tiene
-     (~34px en iPhone con home indicator). Si no, padding minimo de
-     space-2 para breathing. La PERCEPCION de "flotando" la atacamos con
-     bg distinto al fondo (.sheet usa --color-bg-2 vs --color-bg-1 del
-     fondo) — asi el user ve claramente donde termina el sheet. */
-  padding: var(--space-1) 0 max(var(--space-2), env(safe-area-inset-bottom, 0px));
+  /* CERO padding-bottom aqui — los items deben llegar pegados al borde
+     fisico de la pantalla, como pedido por el usuario ('debe venir de
+     abajo y no dejar espacio abajo'). El safe-area inset bottom para el
+     home indicator iOS lo respetamos solo via padding-top del primer
+     item — pero como la convencion iOS es que los items inferiores
+     pueden tocar el indicator zone sin problema visual real, lo
+     omitimos. */
+  padding: 0;
 }
 
 /* Entrada con bounce sutil — empieza 100% abajo, sube y rebota un pixel. */
