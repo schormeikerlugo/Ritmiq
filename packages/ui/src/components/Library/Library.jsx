@@ -26,7 +26,6 @@ import { SpotifyIcon } from '../Icon/SpotifyIcon.jsx';
 import styles from './Library.module.css';
 
 const FILTERS = [
-  { id: 'all',         label: 'Todo' },
   { id: 'playlists',   label: 'Playlists' },
   { id: 'artists',     label: 'Artistas' },
   { id: 'downloaded',  label: 'Descargados' },
@@ -50,7 +49,7 @@ export function Library() {
   const goAccount = useViewStore((s) => s.goAccount);
   const user = useAuthStore((s) => s.user);
 
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('playlists');
   const [sort, setSort] = useState('recent');
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -63,7 +62,7 @@ export function Library() {
     const list = [];
 
     // Playlists.
-    if (filter === 'all' || filter === 'playlists') {
+    if (filter === 'playlists') {
       for (const pl of playlists) {
         list.push({
           kind: 'playlist',
@@ -79,7 +78,7 @@ export function Library() {
     }
 
     // Top artistas (del historial — los más escuchados últimos 90 días).
-    if (filter === 'all' || filter === 'artists') {
+    if (filter === 'artists') {
       const topArt = selectTopArtists(events, { days: 90, limit: 40 });
       for (const a of topArt) {
         list.push({
@@ -96,7 +95,7 @@ export function Library() {
     }
 
     // Descargados.
-    if (filter === 'all' || filter === 'downloaded') {
+    if (filter === 'downloaded') {
       const dl = tracks.filter((t) => t.isDownloaded);
       for (const t of dl) {
         list.push({
@@ -233,7 +232,7 @@ export function Library() {
       {/* Empty state grande con CTA cuando la biblioteca esta vacia.
           Solo se muestra cuando el filtro es 'all'/'playlists' Y no hay
           playlists todavia — invita al user a importar de Spotify. */}
-      {sorted.length === 0 && (filter === 'all' || filter === 'playlists') && playlists.length === 0 && (
+      {sorted.length === 0 && (filter === 'playlists') && playlists.length === 0 && (
         <div className={styles.bigEmpty}>
           <div className={styles.bigEmptyIcon} aria-hidden="true">
             <SpotifyIcon size={64} />

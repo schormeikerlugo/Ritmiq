@@ -218,10 +218,11 @@ export const usePlaylistsStore = create((set, get) => ({
       contents: { ...s.contents, [playlistId]: [...(s.contents[playlistId] ?? []), trackId] },
     }));
 
-    // Si la playlist es offline, encolar descarga del track recién añadido.
-    // (carga lazy para evitar ciclo: playlists → library → playlists)
+    // Si la playlist es offline, encolar descarga del track recien anadido.
+    // Funciona tanto en desktop (IPC) como en PWA (IndexedDB blob).
+    // (carga lazy para evitar ciclo: playlists -> library -> playlists)
     const pl = get().playlists.find((p) => p.id === playlistId);
-    if (pl?.isOffline && isDesktop) {
+    if (pl?.isOffline) {
       enqueueOfflineDownload(trackId);
     }
   },

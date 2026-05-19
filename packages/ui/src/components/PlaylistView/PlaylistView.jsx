@@ -156,8 +156,14 @@ export function PlaylistView({ playlistId }) {
     playNow(filteredTracks, idx);
   };
 
-  const downloadAll = () => {
+  const downloadAll = async () => {
     enqueueDownloads(tracks);
+    // AUTO-OFFLINE: descargar toda la playlist tambien la marca como
+    // disponible offline. El watcher del store auto-descarga cada track
+    // nuevo que se agregue mientras este flag este activo.
+    if (!playlist.isOffline) {
+      try { await setOffline(playlist.id, true); } catch {}
+    }
   };
 
   const undownloadAll = async () => {
@@ -292,11 +298,12 @@ export function PlaylistView({ playlistId }) {
         <div className={styles.actionsLeft}>
           <button
             className={styles.iconAction}
+            data-success={allDownloaded || undefined}
             onClick={downloadAll}
             disabled={tracks.length === 0 || allDownloaded}
             aria-label="Descargar toda la playlist"
             title={allDownloaded ? 'Todo descargado' : 'Descargar toda'}
-          ><Icon name="ArrowDownToLine" size={22} /></button>
+          ><Icon name={allDownloaded ? 'CheckCircle2' : 'ArrowDownToLine'} size={22} filled={allDownloaded} /></button>
           <button
             className={styles.iconAction}
             onClick={playShuffle}
@@ -500,12 +507,18 @@ function PlaylistRow({
             : <Icon name="Music" size={18} />}
         </div>
         <div className={styles.meta}>
-          <span className={styles.rowTitle}>{track.title}</span>
+          <span className={styles.rowTitle} data-marquee={playing || undefined}>
+            {playing ? (
+              <span className={styles.marqueeTrack}>
+                <span className={styles.marqueeText}>{track.title}</span>
+                <span className={styles.marqueeText} aria-hidden="true">{track.title}</span>
+              </span>
+            ) : track.title}
+          </span>
           <span className={styles.rowArtist}>{track.artist ?? '—'}</span>
         </div>
       </button>
       <DownloadIndicator trackId={track.id} isDownloaded={track.isDownloaded} className={styles.dlIndicator} />
-      <span className={styles.dur}>{fmtDur(track.durationSeconds)}</span>
       <DropdownMenu trigger={<Icon name="MoreHorizontal" size={18} />} items={trackMenu} align="right" label="Opciones de la canción" />
     </li>
   );

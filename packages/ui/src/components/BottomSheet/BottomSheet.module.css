@@ -28,24 +28,28 @@
 .sheet {
   width: 100%;
   max-width: 720px;
-  background: var(--color-bg-1);
-  /* iOS-style: corners redondeados arriba, planos abajo (encaja con borde
-     de la pantalla). */
-  border-radius: 16px 16px 0 0;
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
+  /* Bg ligeramente mas claro que la pagina (--color-bg-1) para diferenciar
+     visualmente el sheet del fondo dimmed atras. Antes con el mismo color
+     el user no veia donde terminaba el sheet — sensacion de flotando. */
+  background: var(--color-bg-2);
+  /* Corners redondeados ARRIBA solamente. El bottom es plano y se ancla
+     al borde fisico inferior del viewport (sin gap). */
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.55);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  /* max-height 88dvh para que en iOS el sheet pueda ocupar maximo el
-     viewport dinamico (excluye barras nativas). El sheet crece segun
-     contenido hasta este maximo. */
-  max-height: 88dvh;
-  /* Anim de entrada: emphasized ease para el "bounce" sutil iOS. */
+  /* max-height: hasta 92dvh — deja un margen minimo arriba para que se
+     vea que es un sheet. El sheet GROWS hasta este maximo segun contenido,
+     y siempre esta anclado al borde fisico de abajo del viewport. */
+  max-height: 92dvh;
   animation: bs-slide-up 320ms var(--ease-emphasized);
   will-change: transform;
-  /* SIN padding-bottom aqui — lo manejamos dentro de .body para que el
-     contenido fluya hasta la safe-area inset bottom sin dejar un gap
-     visible "flotante" debajo de los items. */
+  /* CRITICO: cero margin/padding-bottom aqui. El sheet termina exactamente
+     en el borde fisico del viewport. No floating, no gap, no nav-bar
+     visible debajo. El safe-area iOS se respeta DENTRO del .body via
+     padding-bottom. */
+  margin: 0;
 }
 .sheet[data-closing='true'] {
   animation: bs-slide-down 240ms cubic-bezier(0.32, 0.72, 0.4, 1) forwards;
@@ -92,9 +96,12 @@
   flex: 1 1 auto;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  /* padding-top minimal; padding-bottom = safe-bottom para que el home
-     indicator del iPhone no tape el ultimo item, pero sin un gap extra. */
-  padding: var(--space-1) 0 max(var(--space-2), var(--safe-bottom, 0px));
+  /* padding-bottom solo respeta safe-area cuando el dispositivo lo tiene
+     (~34px en iPhone con home indicator). Si no, padding minimo de
+     space-2 para breathing. La PERCEPCION de "flotando" la atacamos con
+     bg distinto al fondo (.sheet usa --color-bg-2 vs --color-bg-1 del
+     fondo) — asi el user ve claramente donde termina el sheet. */
+  padding: var(--space-1) 0 max(var(--space-2), env(safe-area-inset-bottom, 0px));
 }
 
 /* Entrada con bounce sutil — empieza 100% abajo, sube y rebota un pixel. */

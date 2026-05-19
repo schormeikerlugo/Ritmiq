@@ -224,6 +224,11 @@
   color: var(--color-text-1);
 }
 
+.iconAction[data-success='true'] {
+  color: var(--color-success);
+  opacity: 1 !important;
+  cursor: default;
+}
 .iconAction[data-active='true'] {
   color: var(--color-accent);
 }
@@ -246,7 +251,8 @@
 
 .row {
   display: grid;
-  grid-template-columns: 32px 1fr 24px 60px 32px;
+  /* Sin columna de duracion — usamos ese espacio para titulos largos. */
+  grid-template-columns: 32px 1fr 24px 32px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2);
@@ -377,4 +383,41 @@
   .filter {
     width: 100%;
   }
+}
+
+/* ── Marquee: scroll horizontal del titulo cuando el track esta playing
+   Y el titulo no entra en el ancho disponible. El truco: duplicamos el
+   texto y movemos 50% via translateX, dando la ilusion de loop infinito
+   sin cortar. mask-image fade los bordes laterales para suavizar. ──── */
+.rowTitle[data-marquee] {
+  overflow: hidden;
+  position: relative;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 12px,
+    black calc(100% - 12px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 12px,
+    black calc(100% - 12px),
+    transparent 100%
+  );
+}
+.marqueeTrack {
+  display: inline-flex;
+  gap: 2rem;
+  white-space: nowrap;
+  animation: marquee-scroll 14s linear infinite;
+  will-change: transform;
+  /* Pequeño delay antes del primer scroll para que el user lea el inicio. */
+  animation-delay: 1.2s;
+}
+.marqueeText { display: inline-block; }
+@keyframes marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(calc(-50% - 1rem)); }
 }
