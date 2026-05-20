@@ -35,6 +35,7 @@
 }
 
 .heroTile {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -50,6 +51,42 @@
 }
 .heroTile:hover { background: rgba(255, 255, 255, 0.12); }
 .heroTile:active { transform: scale(0.97); }
+
+/* Quick-play en hero tile — flotante a la derecha sobre el cover,
+   visible solo en hover. En mobile siempre visible. */
+.heroPlay {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.8);
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  box-shadow: 0 4px 12px var(--color-accent-shadow);
+  opacity: 0;
+  transition:
+    opacity 180ms var(--ease-emphasized),
+    transform 180ms var(--ease-emphasized);
+  cursor: pointer;
+  z-index: 1;
+}
+.heroTile:hover .heroPlay {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+.heroPlay:hover {
+  background: var(--color-accent-hover);
+}
+@media (max-width: 768px) {
+  .heroPlay {
+    opacity: 0.92;
+    transform: translateY(-50%) scale(1);
+  }
+}
 
 .heroIcon {
   width: 44px;

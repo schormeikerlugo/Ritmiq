@@ -108,6 +108,38 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Quick-play overlay al final de la fila — solo visible en hover en
+   desktop. En sidebar el thumb es 28px (muy pequeño para overlay
+   centrado), asi que va al lado derecho. */
+.quickPlay {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  flex-shrink: 0;
+  opacity: 0;
+  transform: scale(0.8) translateX(4px);
+  transition:
+    opacity var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+  cursor: pointer;
+}
+.link:hover .quickPlay {
+  opacity: 1;
+  transform: scale(1) translateX(0);
+}
+.quickPlay:hover {
+  background: var(--color-accent-hover);
+}
+.quickPlay:active {
+  transform: scale(0.9);
 }
 
 .muted {

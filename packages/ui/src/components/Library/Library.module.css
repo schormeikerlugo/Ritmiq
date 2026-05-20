@@ -177,6 +177,7 @@
 .rowBtn:active { transform: scale(0.995); }
 
 .cover {
+  position: relative;
   display: grid;
   place-items: center;
   width: 56px;
@@ -185,6 +186,52 @@
   overflow: hidden;
   flex-shrink: 0;
   color: var(--color-text-2);
+}
+
+/* Quick-play overlay sobre el cover. Aparece al hacer hover en la fila;
+   en mobile/tactil aparece siempre (no hay hover). Tamaño compacto
+   apropiado al cover de 56px. stopPropagation en el handler JS evita
+   que pase el click al boton padre que navega. */
+.quickPlay {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  box-shadow: 0 4px 12px var(--color-accent-shadow);
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+  cursor: pointer;
+  z-index: 1;
+}
+.rowBtn:hover .quickPlay {
+  opacity: 1;
+  transform: scale(1);
+}
+.quickPlay:hover {
+  background: var(--color-accent-hover);
+  transform: scale(1.08);
+}
+.quickPlay:active {
+  transform: scale(0.92);
+}
+@media (max-width: 768px) {
+  /* En tactil no hay hover — el overlay vive siempre visible pero un
+     poco mas sutil para no taparlo todo. */
+  .quickPlay {
+    opacity: 0.92;
+    transform: scale(1);
+    width: 26px;
+    height: 26px;
+  }
 }
 .cover[data-shape='square'] { border-radius: var(--radius-md); }
 .cover[data-shape='circle'] { border-radius: 50%; }

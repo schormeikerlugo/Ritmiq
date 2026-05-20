@@ -1,6 +1,7 @@
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useViewStore } from '../../stores/view.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { playPlaylist } from '../../lib/play-helpers.js';
 import logotipoUrl from '../../assets/logotipo.png';
 import styles from './Sidebar.module.css';
 
@@ -87,6 +88,22 @@ export function Sidebar() {
                     )}
                   </span>
                   <span className={styles.linkText}>{pl.name}</span>
+                  {/* Quick-play en hover sobre la fila — al ser items
+                      compactos lo posicionamos al final, no sobre el
+                      thumb (28px es muy pequeño para overlay). */}
+                  <span
+                    className={styles.quickPlay}
+                    role="button"
+                    tabIndex={-1}
+                    aria-label={`Reproducir ${pl.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      playPlaylist(pl.id);
+                    }}
+                  >
+                    <Icon name="Play" size={12} filled />
+                  </span>
                 </button>
               </li>
             );

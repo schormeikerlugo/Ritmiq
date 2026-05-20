@@ -24,6 +24,7 @@ import { SpotifyImportDialog } from '../SpotifyImportDialog/SpotifyImportDialog.
 import { Icon } from '../Icon/Icon.jsx';
 import { SpotifyIcon } from '../Icon/SpotifyIcon.jsx';
 import { TrackRowSkeleton } from '../Skeleton/index.js';
+import { playPlaylist, playArtistFromLibrary } from '../../lib/play-helpers.js';
 import styles from './Library.module.css';
 
 const FILTERS = [
@@ -151,6 +152,18 @@ export function Library() {
     if (item.kind === 'playlist') goPlaylist(item.rawId);
     else if (item.kind === 'artist') goArtist(item.rawId);
     else if (item.kind === 'track') playNow(tracks.filter((t) => t.isDownloaded), tracks.filter((t) => t.isDownloaded).findIndex((t) => t.id === item.rawId));
+  };
+
+  // Quick-play del overlay flotante (▶). Para tracks reusa onItemClick
+  // (que ya reproduce). Para playlists/artistas resuelve sus tracks y
+  // arranca playback sin navegar. stopPropagation en el handler evita
+  // que el click pase al boton padre que navega.
+  const onQuickPlay = (e, item) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (item.kind === 'playlist') playPlaylist(item.rawId);
+    else if (item.kind === 'artist') playArtistFromLibrary(item.rawId);
+    else if (item.kind === 'track') onItemClick(item);
   };
 
   const initial = (user?.email ?? 'U').slice(0, 1).toUpperCase();
@@ -295,6 +308,17 @@ export function Library() {
                       filled={item.isFavorites}
                     />
                 }
+                {/* Quick-play overlay — visible en hover (desktop)
+                    o siempre visible en tactil (mobile via CSS). */}
+                <span
+                  className={styles.quickPlay}
+                  role="button"
+                  tabIndex={-1}
+                  aria-label={`Reproducir ${item.title}`}
+                  onClick={(e) => onQuickPlay(e, item)}
+                >
+                  <Icon name="Play" size={14} filled />
+                </span>
               </div>
               <div className={styles.meta}>
                 <span className={styles.rowTitle}>{item.title}</span>

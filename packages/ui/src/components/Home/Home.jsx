@@ -29,6 +29,7 @@ import { Icon } from '../Icon/Icon.jsx';
 import { HomeRow } from './HomeRow.jsx';
 import { TrackCard } from './TrackCard.jsx';
 import { ArtistCard } from './ArtistCard.jsx';
+import { playPlaylist } from '../../lib/play-helpers.js';
 import styles from './Home.module.css';
 
 function getGreeting() {
@@ -132,6 +133,19 @@ export function Home() {
                 : <Icon name={pl.id === favoritesId ? 'Heart' : 'Music'} size={20} filled={pl.id === favoritesId} />}
             </div>
             <span className={styles.heroLabel}>{pl.name}</span>
+            <span
+              className={styles.heroPlay}
+              role="button"
+              tabIndex={-1}
+              aria-label={`Reproducir ${pl.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                playPlaylist(pl.id);
+              }}
+            >
+              <Icon name="Play" size={14} filled />
+            </span>
           </button>
         ))}
       </div>
