@@ -83,6 +83,86 @@
   color: var(--color-text-2);
 }
 
+/* ── Banner contextual (instalar / abrir en app / etc.) ────────── */
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 420px;
+  padding: var(--space-4);
+  background: var(--color-bg-1);
+  border: 1px solid var(--color-border);
+  border-left-width: 3px;
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+.banner[data-tone='warn'] {
+  border-left-color: var(--color-warning);
+  background: linear-gradient(135deg, rgba(255, 181, 71, 0.08), transparent);
+}
+.banner[data-tone='info'] {
+  border-left-color: var(--color-accent);
+  background: linear-gradient(135deg, var(--color-accent-soft), transparent);
+}
+.bannerIcon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-2);
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+.banner[data-tone='warn'] .bannerIcon { color: var(--color-warning); }
+.bannerBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.bannerBody strong {
+  font-size: var(--fs-sm);
+  color: var(--color-text-1);
+  font-weight: var(--fw-semibold);
+}
+.bannerBody p {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--color-text-2);
+  line-height: 1.5;
+}
+.bannerSteps {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--fs-xs);
+  color: var(--color-text-2);
+  line-height: 1.55;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bannerSteps strong { font-weight: var(--fw-semibold); color: var(--color-text-1); }
+.bannerCta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  padding: var(--space-2) var(--space-3);
+  margin-top: var(--space-1);
+  background: var(--color-bg-3);
+  color: var(--color-text-1);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.bannerCta:hover { background: var(--color-accent); color: white; }
+
 .actions {
   display: flex;
   flex-direction: column;

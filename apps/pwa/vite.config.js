@@ -16,6 +16,10 @@ export default defineConfig({
         'logotipo.png',
       ],
       manifest: {
+        // id explicito recomendado para PWAs publicadas — sin esto iOS y
+        // Chrome pueden confundir instancias si start_url cambia. Es la
+        // identidad estable de la app a nivel sistema operativo.
+        id: '/',
         name: 'Ritmiq',
         short_name: 'Ritmiq',
         description: 'Reproductor de música personal',
@@ -23,7 +27,11 @@ export default defineConfig({
         background_color: '#0a0a0c',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        // start_url incluye source=pwa para que el server pueda distinguir
+        // arranques desde el home screen vs visitas web normales (utiles
+        // para analytics y para que la PWA marque "instalada" en su
+        // localStorage al primer boot standalone).
+        start_url: '/?source=pwa',
         scope: '/',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

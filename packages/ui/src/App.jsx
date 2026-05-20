@@ -19,7 +19,10 @@ import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
 import { BottomSheetHost } from './components/BottomSheet/BottomSheetHost.jsx';
 import { Onboarding } from './components/Onboarding/Onboarding.jsx';
 import { SharedView } from './components/SharedView/SharedView.jsx';
-import { parseShareFromUrl } from './lib/share.js';
+import {
+  parseShareFromUrl, clearShareFromUrl,
+  isStandalonePWA, markPwaInstalled,
+} from './lib/share.js';
 import { usePlayerStore } from './stores/player.js';
 import { metaToCandidate } from './lib/track-helpers.js';
 import logotipoUrl from './assets/logotipo.png';
@@ -40,6 +43,14 @@ import { initTheme } from './stores/theme.js';
 // Aplica el tema guardado en localStorage al <html> ANTES del primer render.
 // Idempotente — si ya estaba aplicado por otro modulo, no hace nada nuevo.
 initTheme();
+
+// Si la app arranca en modo PWA standalone, marca un flag en localStorage
+// para que las visitas posteriores desde el navegador puedan saber que
+// este device tiene la PWA instalada y mostrar el banner "Abrir en Ritmiq".
+// Limitacion iOS: Safari y la PWA standalone tienen storage segregado, asi
+// que esta deteccion solo funciona en Android/desktop. En iOS la landing
+// igualmente muestra instrucciones genericas de instalacion.
+if (isStandalonePWA()) markPwaInstalled();
 import {
   autoDetectLanFromHost, setLanBaseUrl, getLanBaseUrlSync, setAccessToken,
   startTunnelKeepalive,
@@ -194,7 +205,7 @@ export function App() {
   }, [user]);
 
   // Si hay un share pendiente Y el user ya esta autenticado, cargamos el
-  // track al player y limpiamos el query param de la URL. Se ejecuta una
+  // track al player y limpiamos el path/query de la URL. Se ejecuta una
   // sola vez por share — el setShare(null) evita re-disparos.
   useEffect(() => {
     if (!user || !share || share.type !== 'track') return;
@@ -207,12 +218,7 @@ export function App() {
     });
     usePlayerStore.getState().setCurrent(candidate);
     usePlayerStore.getState().patch({ isPlaying: true, positionSeconds: 0 });
-    // Limpia el query param sin recargar la pagina.
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('share');
-      window.history.replaceState({}, '', url.toString());
-    } catch {}
+    clearShareFromUrl();
     setShare(null);
   }, [user, share]);
 
