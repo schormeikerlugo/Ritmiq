@@ -41,32 +41,43 @@ export function PlaybackSection() {
   const setEqPreset = useSettingsStore((s) => s.setEqPreset);
   const [eqError, setEqError] = useState(null);
 
-  // Toggle del EQ — debe ejecutar initGraphFromGesture SINCRONICAMENTE
-  // desde el onClick para que iOS PWA acepte el resume del AudioContext.
-  const handleEqToggle = async (next) => {
+  // Toggle del EQ. CRITICO iOS PWA: initGraphFromGesture() debe
+  // ejecutarse SINCRONICAMENTE como primera operacion del handler para
+  // capturar el "user gesture token" que Apple usa para validar el
+  // resume del AudioContext. Si metemos cualquier await antes, el
+  // gesto expira y el ctx queda suspended → silencio total con la
+  // barra de progreso avanzando.
+  //
+  // Por eso la funcion NO es async. Hacemos la llamada sincrona y
+  // manejamos el resultado con .then().
+  const handleEqToggle = (next) => {
     setEqError(null);
     const backend = getSharedBackend();
     if (!next) {
+      // Desactivar es seguro siempre — no requiere gesto. El subscriber
+      // useApplyAudioSettings llamara backend.setEqEnabled(false).
       setEqEnabledStore(false);
-      backend?.setEqEnabled(false);
       return;
     }
     if (!backend) {
       setEqError('Motor de audio no disponible. Reproduce algo primero.');
       return;
     }
-    try {
-      const ok = await backend.initGraphFromGesture();
+    // PASO 1 (sincrono, dentro del gesto): crear el graph + disparar
+    // resume. Si returna null, AudioContext API no esta disponible.
+    const initPromise = backend.initGraphFromGesture();
+    // PASO 2 (despues del gesto): activa el store. useApplyAudioSettings
+    // subscribe → llama backend.setEqEnabled(true) + setEqGains() una
+    // sola vez. Evitamos duplicar el connectChain manualmente aqui.
+    initPromise.then((ok) => {
       if (!ok) {
-        setEqError('No se pudo inicializar el ecualizador. Intenta reproducir una cancion primero.');
+        setEqError('No se pudo inicializar el ecualizador. Reproduce algo primero y vuelve a intentarlo.');
         return;
       }
-      backend.setEqEnabled(true);
-      backend.setEqGains(eqGains);
       setEqEnabledStore(true);
-    } catch (err) {
+    }).catch((err) => {
       setEqError(`Error: ${err?.message ?? 'desconocido'}`);
-    }
+    });
   };
 
   return (

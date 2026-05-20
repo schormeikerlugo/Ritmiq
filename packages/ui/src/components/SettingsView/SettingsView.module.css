@@ -9,20 +9,11 @@
   gap: var(--space-6);
 }
 
-/* Header sticky con titulo grande estilo Spotify. */
+/* Header con titulo grande estilo Spotify. NO sticky: el usuario pidio
+   que el titulo se vaya con el scroll para que la lectura se sienta
+   menos congestionada. */
 .header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: rgba(10, 10, 12, 0.72);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-  padding: var(--space-4) 0;
-  margin: 0 calc(var(--space-5) * -1) var(--space-2);
-  padding-inline: var(--space-5);
-}
-:root[data-theme='light'] .header {
-  background: rgba(247, 247, 248, 0.72);
+  padding: var(--space-4) 0 var(--space-2);
 }
 
 .title {

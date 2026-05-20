@@ -102,27 +102,31 @@ export function createHtmlAudioBackend() {
   let eqEnabled = false;
 
   /**
-   * Inicializa el AudioContext y conecta el graph. Lazy — solo se llama
-   * si el caller necesita EQ, analyser o crossfade. Idempotente.
+   * Crea SINCRONICAMENTE el AudioContext + nodos + conexiones, y
+   * dispara `resume()` sin await. Devuelve la Promise del resume para
+   * que el caller pueda await DESPUES de que el resto del handler haya
+   * disparado todo lo que necesita del gesto.
    *
-   * CRITICO: una vez creas MediaElementSource(audio), el audio del
-   * <audio> deja de ir directo a output y pasa por el graph. Si el ctx
-   * esta suspended (iOS por defecto, Chrome 71+ con autoplay policy),
-   * NO SE OYE NADA aunque el <audio> siga corriendo internamente —
-   * sintoma: barra de progreso avanza pero silencio. Por eso hacemos
-   * resume() inmediato y agresivo, y ademas devolvemos una promesa
-   * para que el caller pueda await si necesita garantia.
+   * CRITICO iOS PWA: si esta funcion se llama desde dentro de un
+   * onClick directo (no de un wrapper async tras un await), iOS marca
+   * el AudioContext como "user gesture validated" y el resume() lo
+   * sacara de 'suspended' a 'running'. Si se llama tras un await el
+   * gesto ya expiro → silencio total aunque el <audio> siga ticking.
    *
-   * @returns {Promise<AudioContext|null>}
+   * Idempotente: si ctx ya existe, solo redispara resume() si quedo
+   * suspended (iOS lo revoca en background).
+   *
+   * @returns {Promise<AudioContext|null>|null} la promise del resume,
+   *   o null si AudioContext API no esta disponible.
    */
-  async function ensureGraph() {
+  function ensureGraphSync() {
     if (ctx) {
-      // Si ya existia pero esta suspended (iOS revoca en background),
-      // forzamos resume cada vez que alguien llama ensureGraph.
+      // Re-resume si quedo suspended. SIN await aqui — devolvemos la
+      // promesa para que el caller la maneje si quiere.
       if (ctx.state === 'suspended') {
-        try { await ctx.resume(); } catch {}
+        try { return ctx.resume().then(() => ctx); } catch {}
       }
-      return ctx;
+      return Promise.resolve(ctx);
     }
     const el = ensureAudio();
     try {
@@ -155,15 +159,19 @@ export function createHtmlAudioBackend() {
       source.connect(masterGain);
       connectChain();
 
-      // CRITICO: resume sin condicional. Algunos browsers reportan state
-      // 'running' tras new AudioContext() pero internamente estan
-      // bloqueados hasta el primer resume() explicito.
-      try { await ctx.resume(); } catch {}
+      // CRITICO: resume SIN await dentro de la misma stack del gesto.
+      // Devolvemos la promesa al caller; el resume se ejecuta paralelo
+      // mientras el caller sigue con el resto del handler.
+      try {
+        return ctx.resume().then(() => ctx).catch(() => ctx);
+      } catch {
+        return Promise.resolve(ctx);
+      }
     } catch (err) {
       console.warn('[audio-backend] WebAudio init failed', err?.message);
       ctx = null;
+      return null;
     }
-    return ctx;
   }
 
   /** Reconecta la cadena segun eqEnabled. */
@@ -356,20 +364,31 @@ export function createHtmlAudioBackend() {
     },
 
     /**
-     * Inicializa el graph DESDE UN GESTO DEL USUARIO. Critico iOS PWA:
-     * si esto se llama desde useEffect o desde una promesa que cruzo
-     * el event loop, iOS lo trata como "no gesture" y el AudioContext
-     * queda suspended → silencio total.
+     * Inicializa el graph DESDE UN GESTO DEL USUARIO. Critico iOS PWA.
      *
-     * Llamar SIEMPRE desde onClick directo. Es async porque el resume()
-     * del AudioContext devuelve Promise. Idempotente.
+     * IMPORTANTE: esta funcion crea TODO sincronicamente y dispara
+     * resume() en la misma stack. Devuelve la Promise del resume para
+     * que el caller la pueda await DESPUES. Asi iOS valida el gesto
+     * cuando el evento aun esta vivo, y el await no rompe el contrato.
      *
-     * @returns {Promise<boolean>} true si el graph esta running tras
-     *   la llamada.
+     * Patron correcto (handler de onClick):
+     *
+     *   const onClickToggle = () => {
+     *     // 1) Dispara la creacion + resume EN LA MISMA STACK del click.
+     *     const p = backend.initGraphFromGesture();
+     *     // 2) Ya puedes esperar el resume sin problemas — el gesto
+     *     //    fue capturado en el paso 1.
+     *     p.then(running => {
+     *       if (running) backend.setEqEnabled(true);
+     *     });
+     *   };
+     *
+     * @returns {Promise<boolean>} true si el graph quedo running.
      */
-    async initGraphFromGesture() {
-      await ensureGraph();
-      return ctx?.state === 'running';
+    initGraphFromGesture() {
+      const p = ensureGraphSync();
+      if (!p) return Promise.resolve(false);
+      return p.then(() => ctx?.state === 'running');
     },
 
     /**
