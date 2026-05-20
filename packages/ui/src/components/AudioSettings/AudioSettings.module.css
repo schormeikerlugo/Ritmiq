@@ -1,0 +1,221 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rowHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-1);
+}
+.hint {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+/* Slider horizontal de crossfade. */
+.slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--color-bg-3);
+  border-radius: var(--radius-pill);
+  outline: none;
+  cursor: pointer;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+  box-shadow: 0 2px 8px var(--color-accent-shadow);
+}
+.slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: none;
+  cursor: pointer;
+}
+
+.tickRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Toggle pill switch. */
+.toggle {
+  width: 40px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-3);
+  border: none;
+  position: relative;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard);
+  flex-shrink: 0;
+}
+.toggle[data-on='true'] {
+  background: var(--color-accent);
+}
+.toggleDot {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  transition: transform var(--dur-fast) var(--ease-emphasized);
+}
+.toggle[data-on='true'] .toggleDot {
+  transform: translateX(18px);
+}
+
+/* Preset tabs. */
+.presetTabs {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+.presetTab {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-bg-1);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard);
+}
+.presetTab:hover {
+  color: var(--color-text-1);
+  background: var(--color-bg-2);
+}
+.presetTab[data-active='true'] {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+/* Grid del EQ — 6 bandas en columnas verticales. */
+.eqGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2);
+  background: var(--color-bg-1);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+.eqBand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.eqVal {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-accent);
+  font-weight: var(--fw-semibold);
+  min-height: 14px;
+}
+/* Slider vertical via writing-mode + appearance, compatible WebKit. */
+.eqSlider {
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 24px;
+  height: 120px;
+  background: transparent;
+  cursor: pointer;
+}
+.eqSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+}
+.eqLabel {
+  font-size: 10px;
+  color: var(--color-text-3);
+  font-weight: var(--fw-medium);
+}
+
+.eqFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.miniBtn {
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.miniBtn:hover {
+  background: var(--color-bg-2);
+  color: var(--color-text-1);
+}
+
+.dangerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  color: var(--color-text-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  align-self: flex-start;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+.dangerBtn:hover {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+@media (max-width: 480px) {
+  .eqSlider { height: 100px; }
+  .eqGrid { padding: var(--space-3) var(--space-1); gap: var(--space-1); }
+}

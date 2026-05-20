@@ -22,6 +22,7 @@ import {
   DevicesSection,
 } from '../SettingsDialog/SettingsDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
+import { AudioSettings } from '../AudioSettings/AudioSettings.jsx';
 import logotipoUrl from '../../assets/logotipo.png';
 import styles from './AccountView.module.css';
 
@@ -108,6 +109,10 @@ export function AccountView() {
         <span className={styles.linkRowLabel}>Tu mes en Ritmiq</span>
         <Icon name="ChevronRight" size={16} />
       </button>
+
+      <AccordionSection title="Reproduccion" icon="Music2">
+        <AudioSettings />
+      </AccordionSection>
 
       <AccordionSection title="Apariencia" icon="Settings">
         <ThemeSwitcher />
