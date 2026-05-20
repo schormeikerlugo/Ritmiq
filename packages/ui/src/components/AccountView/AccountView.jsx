@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../stores/auth.js';
 import { useThemeStore } from '../../stores/theme.js';
+import { useViewStore } from '../../stores/view.js';
 import { isDesktop } from '../../lib/api.js';
 import {
   PwaPairingSection,
@@ -51,6 +52,7 @@ export function AccordionSection({ title, icon, defaultOpen = false, children })
 export function AccountView() {
   const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
+  const goStats = useViewStore((s) => s.goStats);
 
   const initial = (user?.email ?? 'U').slice(0, 1).toUpperCase();
 
@@ -96,6 +98,16 @@ export function AccountView() {
           </AccordionSection>
         </>
       )}
+
+      <button
+        type="button"
+        className={styles.linkRow}
+        onClick={goStats}
+      >
+        <span className={styles.linkRowIcon}><Icon name="Disc3" size={18} /></span>
+        <span className={styles.linkRowLabel}>Tu mes en Ritmiq</span>
+        <Icon name="ChevronRight" size={16} />
+      </button>
 
       <AccordionSection title="Apariencia" icon="Settings">
         <ThemeSwitcher />

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Sidebar } from './components/Sidebar/Sidebar.jsx';
 import { Library } from './components/Library/Library.jsx';
 import { Home } from './components/Home/Home.jsx';
@@ -11,11 +11,17 @@ import { Player } from './components/Player/Player.jsx';
 import { TopBar } from './components/TopBar/TopBar.jsx';
 import { BottomNav } from './components/BottomNav/BottomNav.jsx';
 import { AccountView } from './components/AccountView/AccountView.jsx';
+import { StatsView } from './components/StatsView/StatsView.jsx';
 import { AuthScreen } from './components/Auth/AuthScreen.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
 import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
 import { BottomSheetHost } from './components/BottomSheet/BottomSheetHost.jsx';
+import { Onboarding } from './components/Onboarding/Onboarding.jsx';
+import { SharedView } from './components/SharedView/SharedView.jsx';
+import { parseShareFromUrl } from './lib/share.js';
+import { usePlayerStore } from './stores/player.js';
+import { metaToCandidate } from './lib/track-helpers.js';
 import logotipoUrl from './assets/logotipo.png';
 import { useAuthStore } from './stores/auth.js';
 import { useLibraryStore } from './stores/library.js';
@@ -28,6 +34,7 @@ import { useViewStore } from './stores/view.js';
 import { usePlayerEngine } from './lib/use-player.js';
 import { useGlobalShortcuts } from './lib/use-shortcuts.js';
 import { useDesktopNotifications } from './lib/use-desktop-notifications.js';
+import { useRadioAutoExtend } from './lib/use-radio.js';
 import { initTheme } from './stores/theme.js';
 
 // Aplica el tema guardado en localStorage al <html> ANTES del primer render.
@@ -44,8 +51,15 @@ import { flushQueue } from './lib/sync-queue.js';
 import { subscribeTunnelUrl, publishTunnelUrl, clearTunnelUrl } from './lib/tunnel-registry.js';
 import styles from './App.module.css';
 
+// Parsea el query param `?share=...` al cargar el modulo — solo una vez.
+// Si encuentra un share valido se renderiza la landing publica antes que
+// cualquier otra UI. Cuando el usuario hace login y el share esta presente,
+// el track se anade a la cola y el param se limpia de la URL.
+const initialShare = parseShareFromUrl();
+
 export function App() {
   const { user, loading, init } = useAuthStore();
+  const [share, setShare] = useState(initialShare);
   const loadLibrary = useLibraryStore((s) => s.load);
   const resetLibrary = useLibraryStore((s) => s.reset);
   const loadPlaylists = usePlaylistsStore((s) => s.load);
@@ -179,6 +193,29 @@ export function App() {
     return () => { try { unsub?.(); } catch {} };
   }, [user]);
 
+  // Si hay un share pendiente Y el user ya esta autenticado, cargamos el
+  // track al player y limpiamos el query param de la URL. Se ejecuta una
+  // sola vez por share — el setShare(null) evita re-disparos.
+  useEffect(() => {
+    if (!user || !share || share.type !== 'track') return;
+    const candidate = metaToCandidate({
+      id: share.ytId,
+      title: share.title ?? 'Track compartido',
+      uploader: share.artist ?? '',
+      thumbnail: share.coverUrl ?? '',
+      duration: null,
+    });
+    usePlayerStore.getState().setCurrent(candidate);
+    usePlayerStore.getState().patch({ isPlaying: true, positionSeconds: 0 });
+    // Limpia el query param sin recargar la pagina.
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('share');
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+    setShare(null);
+  }, [user, share]);
+
   // Motor de audio activo siempre que haya sesión
   usePlayerEngine();
   // Atajos de teclado globales — activos en desktop y en PWA con teclado
@@ -188,6 +225,22 @@ export function App() {
   // Notificaciones nativas del SO al cambiar pista — solo desktop y solo
   // cuando la ventana no esta enfocada (evita spam si el user mira la app).
   useDesktopNotifications();
+  // Modo Radio — auto-extiende la cola con tracks de la lib cuando quedan
+  // pocas por delante y radioMode esta activo. Idle si radioMode=false.
+  useRadioAutoExtend();
+
+  // Si llega via link compartido Y aun no esta logueado, mostrar landing
+  // publica. Click en "Abrir Ritmiq" cierra share view → flujo normal de
+  // login → al login completo, el useEffect de abajo aplica el share.
+  if (share && !user && !loading) {
+    return (
+      <SharedView
+        share={share}
+        isAuthed={false}
+        onOpenInApp={() => setShare(null)}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -245,6 +298,9 @@ export function App() {
       {/* Render unico de todos los bottom sheets globales — controlados
           por el store useBottomSheet. Ver BottomSheetHost.jsx. */}
       <BottomSheetHost />
+      {/* Onboarding 3 pasos al primer login en cada dispositivo. Se
+          auto-cierra y persiste el flag de completado en localStorage. */}
+      <Onboarding />
     </div>
   );
 }
@@ -270,6 +326,7 @@ function MainView() {
   else if (view.kind === 'library') content = <Library />;
   else if (view.kind === 'downloads') content = <Downloads />;
   else if (view.kind === 'account') content = <AccountView />;
+  else if (view.kind === 'stats') content = <StatsView />;
   else if (view.kind === 'playlist') content = <PlaylistView playlistId={view.playlistId} />;
   else if (view.kind === 'search') content = <SearchView query={view.query} />;
   else if (view.kind === 'artist') content = <ArtistView name={view.name} />;

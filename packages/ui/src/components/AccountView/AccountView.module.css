@@ -158,6 +158,40 @@
   background: rgba(255, 93, 108, 0.1);
 }
 
+/* ── Link-row (fila clickable plana, no acordeon) ──────────────── */
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-4);
+  background: var(--color-bg-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-1);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.linkRow:hover {
+  background: var(--color-bg-2);
+}
+.linkRowIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+.linkRowLabel {
+  flex: 1;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
 /* ── Theme switcher ──────────────────────────────────────────────── */
 .themeWrap {
   display: flex;

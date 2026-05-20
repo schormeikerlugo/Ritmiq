@@ -250,6 +250,94 @@ export function selectTopArtists(events, { days = 30, limit = 10 } = {}) {
 }
 
 /**
+ * Stats agregados de los ultimos `days` dias — usado por la vista
+ * "Tu mes en Ritmiq" (F2.11). Devuelve totales + top tracks/artistas.
+ *
+ * @param {Array} events
+ * @param {{ days?: number, topLimit?: number }} opts
+ */
+export function selectStatsForPeriod(events, { days = 30, topLimit = 5 } = {}) {
+  const cutoff = Date.now() - days * 86400_000;
+  let totalPlays = 0;
+  let totalSeconds = 0;
+  const trackCounts = new Map();
+  const artistCounts = new Map();
+  const dayMap = new Map();  // ISO date → count, para racha
+
+  for (const e of events) {
+    const t = new Date(e.playedAt).getTime();
+    if (!Number.isFinite(t) || t < cutoff) continue;
+    totalPlays += 1;
+    // Tiempo escuchado real (puede venir como durationPlayedSeconds o
+    // como aproximacion la propia duracion del track si esta consumido).
+    const played = Number(e.durationPlayedSeconds);
+    const dur = Number(e.durationSeconds);
+    if (Number.isFinite(played) && played > 0) totalSeconds += played;
+    else if (Number.isFinite(dur) && dur > 0) totalSeconds += dur;
+
+    // Track aggregation.
+    const fp = e.ytId || e.trackId;
+    if (fp) {
+      const cur = trackCounts.get(fp);
+      if (cur) cur.count++;
+      else trackCounts.set(fp, { count: 1, event: e });
+    }
+    // Artist aggregation.
+    const a = (e.artist || '').trim();
+    if (a) {
+      const key = a.toLowerCase();
+      const cur = artistCounts.get(key);
+      if (cur) {
+        cur.count++;
+        if (new Date(e.playedAt) > new Date(cur.event.playedAt)) cur.event = e;
+      } else {
+        artistCounts.set(key, { count: 1, artist: a, event: e });
+      }
+    }
+    // Daily distribution para racha de dias activos.
+    const day = new Date(e.playedAt).toISOString().slice(0, 10);
+    dayMap.set(day, (dayMap.get(day) ?? 0) + 1);
+  }
+
+  const topTracks = [...trackCounts.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, topLimit)
+    .map((x) => ({ ...eventToTrackLike(x.event), playCount: x.count }));
+
+  const topArtists = [...artistCounts.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, topLimit)
+    .map((x) => ({
+      artist: x.artist,
+      coverUrl: x.event.coverUrl,
+      playCount: x.count,
+    }));
+
+  // Racha consecutiva: dias seguidos con al menos 1 play, contando hacia
+  // atras desde hoy.
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(today.getTime() - i * 86400_000);
+    const iso = d.toISOString().slice(0, 10);
+    if (dayMap.has(iso)) streak++;
+    else if (i > 0) break;
+  }
+
+  return {
+    totalPlays,
+    totalSeconds,
+    totalMinutes: Math.floor(totalSeconds / 60),
+    uniqueTracks: trackCounts.size,
+    uniqueArtists: artistCounts.size,
+    activeDays: dayMap.size,
+    streak,
+    topTracks,
+    topArtists,
+  };
+}
+
+/**
  * Tracks que comenzaste pero no terminaste recientemente.
  * Heurística: duration_played_seconds < duration_seconds * 0.8.
  */

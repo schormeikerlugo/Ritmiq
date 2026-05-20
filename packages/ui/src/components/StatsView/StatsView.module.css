@@ -1,0 +1,220 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  padding-bottom: var(--space-6);
+  position: relative;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.eyebrow {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-accent);
+  font-weight: var(--fw-semibold);
+}
+.title {
+  margin: 0;
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-bold);
+  color: var(--color-text-1);
+  line-height: 1.1;
+}
+.subtitle {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-2);
+}
+
+.periodTabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--color-bg-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  align-self: flex-start;
+}
+.periodTab {
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  border: none;
+  color: var(--color-text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard);
+}
+.periodTab:hover { color: var(--color-text-1); }
+.periodTab[data-active='true'] {
+  background: var(--color-accent);
+  color: white;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-4);
+  color: var(--color-text-3);
+}
+.emptyHint { font-size: var(--fs-xs); margin: 0; }
+
+/* ── Grid de stats compactos ────────────────────────────────────────── */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  background: var(--color-bg-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  position: relative;
+  overflow: hidden;
+}
+.statCard[data-highlight='true'] {
+  background: linear-gradient(135deg, var(--color-accent-soft), transparent);
+  border-color: var(--color-accent);
+}
+.statIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-2);
+  color: var(--color-accent);
+  margin-bottom: var(--space-2);
+}
+.statValue {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  color: var(--color-text-1);
+  line-height: 1.1;
+}
+.statLabel {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  text-transform: lowercase;
+}
+
+/* ── Secciones top ──────────────────────────────────────────────────── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sectionTitle {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  color: var(--color-text-1);
+}
+
+.topList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.topRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.topRow:hover { background: var(--color-bg-1); }
+
+.topRank {
+  width: 24px;
+  text-align: center;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.topItem {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  min-width: 0;
+  padding: 0;
+}
+
+.topCover {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-3);
+  display: grid;
+  place-items: center;
+  color: var(--color-text-3);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.topCover[data-shape='circle'] { border-radius: 50%; }
+.topCover img { width: 100%; height: 100%; object-fit: cover; }
+
+.topMeta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.topTitle {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topSub {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topCount {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .title { font-size: var(--fs-2xl); }
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .statValue { font-size: var(--fs-lg); }
+}

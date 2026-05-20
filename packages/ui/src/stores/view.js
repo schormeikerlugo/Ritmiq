@@ -13,6 +13,7 @@ import { create } from 'zustand';
  *   | { kind: 'library' }
  *   | { kind: 'downloads' }
  *   | { kind: 'account' }
+ *   | { kind: 'stats' }
  *   | { kind: 'playlist', playlistId: string }
  *   | { kind: 'search', query: string }
  *   | { kind: 'artist', name: string }
@@ -52,6 +53,7 @@ export const useViewStore = create((set, get) => ({
   goLibrary:   () => set({ view: { kind: 'library' }, history: [], sidebarOpen: false }),
   goDownloads: () => set({ view: { kind: 'downloads' }, history: [], sidebarOpen: false }),
   goAccount:   () => set({ view: { kind: 'account' }, history: [], sidebarOpen: false }),
+  goStats:     () => set({ view: { kind: 'stats' }, history: [], sidebarOpen: false }),
   goSearchView: () => set({ view: { kind: 'search', query: '' }, history: [], sidebarOpen: false }),
   /** @param {string} playlistId */
   goPlaylist: (playlistId) =>
