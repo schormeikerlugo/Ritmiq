@@ -323,3 +323,67 @@
   color: var(--color-success, #38c172);
   filter: drop-shadow(0 0 3px rgba(56, 193, 114, 0.4));
 }
+
+/* ── Historial de busquedas ──────────────────────────────────────── */
+.clearRecents {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  background: transparent;
+  color: var(--color-text-3);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard);
+}
+.clearRecents:hover {
+  background: var(--color-bg-3);
+  color: var(--color-text-1);
+}
+
+.recentItem {
+  display: flex;
+  align-items: stretch;
+  list-style: none;
+}
+.recentBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-1);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.recentBtn:hover {
+  background: var(--color-bg-2);
+}
+.recentBtn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recentRemove {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-3);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.recentRemove:hover {
+  color: var(--color-text-1);
+  background: var(--color-bg-3);
+}

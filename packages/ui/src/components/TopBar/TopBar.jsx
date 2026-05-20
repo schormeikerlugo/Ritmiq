@@ -10,6 +10,7 @@ import { onQueueSizeChange } from '../../lib/sync-queue.js';
 import { prewarmStream, checkSharedCache } from '../../lib/lan-client.js';
 import { searchLibraryTracks, dedupeByYtId } from '../../lib/library-search.js';
 import { SEARCH_INPUT_ID } from '../../lib/use-shortcuts.js';
+import { useSearchHistoryStore } from '../../stores/search-history.js';
 import { SettingsDialog } from '../SettingsDialog/SettingsDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './TopBar.module.css';
@@ -37,6 +38,10 @@ export function TopBar() {
   const setCurrent     = usePlayerStore((s) => s.setCurrent);
   const patch          = usePlayerStore((s) => s.patch);
   const goSearch       = useViewStore((s) => s.goSearch);
+  const recents        = useSearchHistoryStore((s) => s.recents);
+  const recordSearch   = useSearchHistoryStore((s) => s.record);
+  const removeRecent   = useSearchHistoryStore((s) => s.remove);
+  const clearRecents   = useSearchHistoryStore((s) => s.clear);
   // Library en memoria — usada para matches locales antes de la busqueda
   // remota. Suscribimos directo al array de tracks; cualquier cambio en
   // la lib re-renderiza el dropdown si esta abierto.
@@ -168,6 +173,7 @@ export function TopBar() {
     // <audio> haga el primer Range request la URL ya esté cacheada.
     if (!isDesktop && item?.id) prewarmStream(item.id);
     const candidate = metaToCandidate(item);
+    recordSearch(value);  // registra la query que llevo al pick
     setValue('');
     setResults([]);
     setLocalMatches([]);
@@ -180,12 +186,22 @@ export function TopBar() {
   // Sin metaToCandidate (no es efimero). El player resuelve via /stream/
   // que hara cache HIT en shared_audio si esta descargado.
   const pickLocal = (track) => {
+    recordSearch(value);
     setValue('');
     setResults([]);
     setLocalMatches([]);
     setOpen(false);
     setCurrent(track);
     patch({ isPlaying: true, positionSeconds: 0 });
+  };
+
+  // Click en un chip de "recientes" → re-ejecuta la busqueda (mueve query
+  // al top automaticamente porque record() es LRU).
+  const pickRecent = (q) => {
+    setValue(q);
+    setOpen(true);
+    // El useEffect del debounce dispara la busqueda como si el user
+    // hubiera tipeado; no hace falta hacer fetch aqui.
   };
 
   const toggleSidebar = useViewStore((s) => s.toggleSidebar);
@@ -205,12 +221,53 @@ export function TopBar() {
           type="search"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onFocus={() => (results.length || localMatches.length) && setOpen(true)}
+          onFocus={() => {
+            // Abre el dropdown al enfocar si hay resultados activos O
+            // si el input esta vacio y hay historial — asi el user ve
+            // sus busquedas recientes inmediatamente al hacer focus.
+            if (results.length || localMatches.length) setOpen(true);
+            else if (!value.trim() && recents.length > 0) setOpen(true);
+          }}
           placeholder="Busca canciones, artistas o pega un link de YouTube…"
           disabled={busy && !value}
           autoComplete="off"
         />
         {busy && <span className={styles.spinner} aria-hidden="true" />}
+
+        {/* ── Recientes — solo visibles con input vacio + open + hay recents ── */}
+        {open && !value.trim() && recents.length > 0 && (
+          <ul className={styles.dropdown}>
+            <li className={styles.sectionHeader} aria-hidden="true">
+              <Icon name="Search" size={12} />
+              <span>Busquedas recientes</span>
+              <button
+                type="button"
+                className={styles.clearRecents}
+                onClick={(e) => { e.stopPropagation(); clearRecents(); }}
+              >Limpiar</button>
+            </li>
+            {recents.map((q) => (
+              <li key={q} className={styles.recentItem}>
+                <button
+                  type="button"
+                  className={styles.recentBtn}
+                  onClick={() => pickRecent(q)}
+                >
+                  <Icon name="Search" size={14} />
+                  <span>{q}</span>
+                </button>
+                <button
+                  type="button"
+                  className={styles.recentRemove}
+                  aria-label={`Quitar "${q}" del historial`}
+                  onClick={(e) => { e.stopPropagation(); removeRecent(q); }}
+                >
+                  <Icon name="X" size={12} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {open && (localMatches.length > 0 || results.length > 0) && (
           <ul className={styles.dropdown}>
@@ -304,6 +361,7 @@ export function TopBar() {
                 onClick={() => {
                   const q = value.trim();
                   if (!q) return;
+                  recordSearch(q);
                   setOpen(false);
                   setResults([]);
                   setValue('');
