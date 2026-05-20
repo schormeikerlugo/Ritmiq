@@ -10,7 +10,7 @@ import { AlbumView } from './components/AlbumView/AlbumView.jsx';
 import { Player } from './components/Player/Player.jsx';
 import { TopBar } from './components/TopBar/TopBar.jsx';
 import { BottomNav } from './components/BottomNav/BottomNav.jsx';
-import { AccountView } from './components/AccountView/AccountView.jsx';
+import { SettingsView } from './components/SettingsView/SettingsView.jsx';
 import { StatsView } from './components/StatsView/StatsView.jsx';
 import { AuthScreen } from './components/Auth/AuthScreen.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
@@ -339,7 +339,7 @@ function MainView() {
   if (view.kind === 'home') content = <Home />;
   else if (view.kind === 'library') content = <Library />;
   else if (view.kind === 'downloads') content = <Downloads />;
-  else if (view.kind === 'account') content = <AccountView />;
+  else if (view.kind === 'settings') content = <SettingsView />;
   else if (view.kind === 'stats') content = <StatsView />;
   else if (view.kind === 'playlist') content = <PlaylistView playlistId={view.playlistId} />;
   else if (view.kind === 'search') content = <SearchView query={view.query} />;

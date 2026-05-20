@@ -1,0 +1,287 @@
+/* ── Layout principal ──────────────────────────────────────────── */
+.wrap {
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: var(--space-3) 0 var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* Header sticky con titulo grande estilo Spotify. */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(10, 10, 12, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  padding: var(--space-4) 0;
+  margin: 0 calc(var(--space-5) * -1) var(--space-2);
+  padding-inline: var(--space-5);
+}
+:root[data-theme='light'] .header {
+  background: rgba(247, 247, 248, 0.72);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-bold);
+  color: var(--color-text-1);
+  letter-spacing: -0.02em;
+}
+
+/* Back button (subvistas tipo Cuenta) */
+.backRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 6px 12px 6px 8px;
+  background: var(--color-bg-2);
+  color: var(--color-text-1);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.backBtn:hover {
+  background: var(--color-bg-3);
+}
+
+/* ── SettingsGroup ─────────────────────────────────────────────── */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.groupTitle {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  color: var(--color-text-1);
+  letter-spacing: -0.01em;
+}
+.groupHint {
+  margin: -8px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  line-height: 1.5;
+}
+.groupBody {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── SettingRow ───────────────────────────────────────────────── */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+.row:last-child {
+  border-bottom: none;
+}
+.row[data-clickable='true'] {
+  cursor: pointer;
+  transition: padding-left var(--dur-fast) var(--ease-standard);
+}
+.row[data-clickable='true']:hover {
+  padding-left: var(--space-1);
+}
+.row[data-nested='true'] {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.rowMain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.rowLabel {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-1);
+}
+.rowDesc {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  line-height: 1.5;
+  max-width: 60ch;
+}
+.rowControl {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.rowNested {
+  margin-top: var(--space-2);
+}
+
+/* ── Sub-bloque (ej. EQ cuando esta activo) ─────────────────────── */
+.subBlock {
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-bg-1);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Acerca de — items planos sin border-bottom (info row) ────── */
+.aboutItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--fs-sm);
+}
+.aboutItem:last-child { border-bottom: none; }
+.aboutLabel { color: var(--color-text-2); }
+.aboutValue { color: var(--color-text-1); font-variant-numeric: tabular-nums; }
+
+/* ── Status/error messages ───────────────────────────────────── */
+.statusMsg {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  margin-top: var(--space-2);
+}
+.statusMsg[data-tone='ok'] {
+  background: rgba(61, 220, 151, 0.1);
+  color: var(--color-success);
+}
+.statusMsg[data-tone='err'] {
+  background: rgba(255, 93, 108, 0.1);
+  color: var(--color-danger);
+}
+.statusMsg[data-tone='info'] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+/* ── Embed wrapper para subsecciones legacy de SettingsDialog ─── */
+.embed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Sign-out button (Cuenta subview) ─────────────────────────── */
+.signOut {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  align-self: flex-start;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.signOut:hover {
+  background: rgba(255, 93, 108, 0.1);
+}
+
+/* ── EQ grid (sub-bloque del Playback) ─────────────────────────── */
+.eqGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+}
+.eqBand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.eqVal {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-success);
+  font-weight: var(--fw-semibold);
+  min-height: 14px;
+}
+.eqSlider {
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 24px;
+  height: 120px;
+  background: transparent;
+  cursor: pointer;
+}
+.eqSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-text-1);
+  cursor: pointer;
+}
+.eqLabel {
+  font-size: 10px;
+  color: var(--color-text-3);
+  font-weight: var(--fw-medium);
+}
+
+@media (max-width: 768px) {
+  .wrap {
+    padding: 0 0 var(--space-6);
+    gap: var(--space-5);
+  }
+  .header {
+    margin-inline: calc(var(--space-3) * -1);
+    padding-inline: var(--space-3);
+  }
+  .title { font-size: var(--fs-2xl); }
+  .row {
+    padding: var(--space-3) 0;
+  }
+  /* En mobile el control se va abajo si la descripcion es larga. Usamos
+     una heuristica: si hay descripcion, va column. */
+  .row {
+    flex-wrap: wrap;
+  }
+  .rowControl {
+    margin-left: auto;
+  }
+  .eqSlider { height: 100px; }
+}

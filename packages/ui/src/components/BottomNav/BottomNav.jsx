@@ -1,7 +1,7 @@
 /**
  * Navegacion inferior estilo Spotify para mobile.
  *
- * 4 tabs: Inicio · Buscar · Biblioteca · Cuenta.
+ * 4 tabs: Inicio · Buscar · Biblioteca · Ajustes.
  *
  * - Visible solo en mobile (<=768px).
  * - Indicador animado del tab activo.
@@ -20,14 +20,14 @@ export function BottomNav() {
   const goHome = useViewStore((s) => s.goHome);
   const goSearchView = useViewStore((s) => s.goSearchView);
   const goLibrary = useViewStore((s) => s.goLibrary);
-  const goAccount = useViewStore((s) => s.goAccount);
+  const goSettings = useViewStore((s) => s.goSettings);
   const user = useAuthStore((s) => s.user);
 
   const tabs = [
     { id: 'home',    label: 'Inicio',     icon: 'Home',    isActive: view.kind === 'home', onClick: goHome },
     { id: 'search',  label: 'Buscar',     icon: 'Search',  isActive: view.kind === 'search', onClick: goSearchView },
     { id: 'library', label: 'Biblioteca', icon: 'Library', isActive: view.kind === 'library', onClick: goLibrary },
-    { id: 'account', label: 'Cuenta',     icon: 'User',    isActive: view.kind === 'account', onClick: goAccount, avatar: true },
+    { id: 'settings', label: 'Ajustes',   icon: 'Settings', isActive: view.kind === 'settings', onClick: goSettings, avatar: true },
   ];
 
   return (

@@ -8,7 +8,7 @@ import styles from './Sidebar.module.css';
 export function Sidebar() {
   const playlists = usePlaylistsStore((s) => s.playlists);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
-  const { view, goHome, goLibrary, goDownloads, goPlaylist } = useViewStore();
+  const { view, goHome, goLibrary, goDownloads, goSettings, goPlaylist } = useViewStore();
 
   // Ordenar: Favoritas primero, luego por created_at.
   const sorted = playlists.slice().sort((a, b) => {
@@ -60,6 +60,16 @@ export function Sidebar() {
           >
             <span className={styles.icon}><Icon name="ArrowDownToLine" size={20} /></span>
             <span>Descargas</span>
+          </button>
+        </li>
+        <li>
+          <button
+            className={styles.link}
+            data-active={view.kind === 'settings'}
+            onClick={goSettings}
+          >
+            <span className={styles.icon}><Icon name="Settings" size={20} /></span>
+            <span>Ajustes</span>
           </button>
         </li>
       </ul>

@@ -11,7 +11,6 @@ import { prewarmStream, checkSharedCache } from '../../lib/lan-client.js';
 import { searchLibraryTracks, dedupeByYtId } from '../../lib/library-search.js';
 import { SEARCH_INPUT_ID } from '../../lib/use-shortcuts.js';
 import { useSearchHistoryStore } from '../../stores/search-history.js';
-import { SettingsDialog } from '../SettingsDialog/SettingsDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './TopBar.module.css';
 
@@ -384,12 +383,12 @@ export function TopBar() {
 
 function UserMenu() {
   const [open, setOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [conn, setConn] = useState({ internet: true, lan: false, tunnel: false, source: 'cloud' });
   const [pending, setPending] = useState(0);
   const online = conn.internet || conn.lan || conn.tunnel;
   const ref = useRef(null);
   const { user, signOut } = useAuthStore();
+  const goSettings = useViewStore((s) => s.goSettings);
 
   useEffect(() => {
     const onDoc = (e) => {
@@ -434,16 +433,13 @@ function UserMenu() {
           <hr className={styles.userSep} />
           <button
             className={styles.userItem}
-            onClick={() => { setOpen(false); setSettingsOpen(true); }}
-          >{isDesktop ? 'Ajustes…' : 'Conexión con tu PC…'}</button>
+            onClick={() => { setOpen(false); goSettings(); }}
+          >Ajustes</button>
           <button
             className={styles.userItem}
             onClick={() => { setOpen(false); signOut(); }}
           >Cerrar sesión</button>
         </div>
-      )}
-      {settingsOpen && (
-        <SettingsDialog onClose={() => setSettingsOpen(false)} />
       )}
     </div>
   );

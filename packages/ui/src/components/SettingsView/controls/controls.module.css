@@ -1,0 +1,134 @@
+/* ── Toggle ────────────────────────────────────────────────────── */
+.toggle {
+  width: 40px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-3);
+  border: none;
+  position: relative;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard);
+  flex-shrink: 0;
+}
+.toggle:disabled { opacity: 0.4; cursor: not-allowed; }
+.toggle[data-on='true'] {
+  background: var(--color-success);
+}
+.toggleDot {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  transition: transform var(--dur-fast) var(--ease-emphasized);
+}
+.toggle[data-on='true'] .toggleDot {
+  transform: translateX(18px);
+}
+
+/* ── SegmentedControl ──────────────────────────────────────────── */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--color-bg-2);
+  border-radius: var(--radius-pill);
+  gap: 2px;
+}
+.segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard),
+              background var(--dur-fast) var(--ease-standard);
+}
+.segment:hover { color: var(--color-text-1); }
+.segment[data-active='true'] {
+  background: var(--color-bg-3);
+  color: var(--color-text-1);
+}
+
+/* ── Slider ────────────────────────────────────────────────────── */
+.sliderWrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 200px;
+}
+.slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--color-bg-3);
+  border-radius: var(--radius-pill);
+  outline: none;
+  cursor: pointer;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-text-1);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-standard),
+              background var(--dur-fast) var(--ease-standard);
+}
+.slider:hover::-webkit-slider-thumb {
+  background: var(--color-success);
+  transform: scale(1.1);
+}
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-text-1);
+  border: none;
+  cursor: pointer;
+}
+.sliderVal {
+  font-size: var(--fs-xs);
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
+  min-width: 60px;
+  text-align: right;
+}
+
+/* ── LinkButton ────────────────────────────────────────────────── */
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard);
+}
+.linkBtn:hover {
+  background: var(--color-bg-2);
+  border-color: var(--color-text-3);
+}
+.linkBtnDanger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+.linkBtnDanger:hover {
+  background: rgba(255, 93, 108, 0.1);
+}

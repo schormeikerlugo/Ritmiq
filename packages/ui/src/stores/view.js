@@ -12,7 +12,7 @@ import { create } from 'zustand';
  *   | { kind: 'home' }
  *   | { kind: 'library' }
  *   | { kind: 'downloads' }
- *   | { kind: 'account' }
+ *   | { kind: 'settings' }
  *   | { kind: 'stats' }
  *   | { kind: 'playlist', playlistId: string }
  *   | { kind: 'search', query: string }
@@ -45,6 +45,9 @@ export const useViewStore = create((set, get) => ({
   queueOpen: false,
   sidebarOpen: false, // móvil: overlay
   nowPlayingOpen: false, // mobile fullscreen player + desktop side panel
+  /** @type {null | 'account'}  Subvista interna de Ajustes (futuro:
+   *  'devices', 'pairing', etc.). null = grid principal de Ajustes. */
+  settingsSubview: null,
 
   // Navegaciones "top-level" desde sidebar resetean el historial — el botón
   // "atrás" solo tiene sentido dentro de un flujo de navegación lateral
@@ -52,7 +55,12 @@ export const useViewStore = create((set, get) => ({
   goHome:      () => set({ view: { kind: 'home' }, history: [], sidebarOpen: false }),
   goLibrary:   () => set({ view: { kind: 'library' }, history: [], sidebarOpen: false }),
   goDownloads: () => set({ view: { kind: 'downloads' }, history: [], sidebarOpen: false }),
-  goAccount:   () => set({ view: { kind: 'account' }, history: [], sidebarOpen: false }),
+  // Ajustes — view.kind 'settings'. goAccount mantiene el nombre por
+  // backwards compat (Library header avatar lo usa) y redirige a Ajustes.
+  goSettings:  () => set({ view: { kind: 'settings' }, settingsSubview: null, history: [], sidebarOpen: false }),
+  goAccount:   () => set({ view: { kind: 'settings' }, settingsSubview: null, history: [], sidebarOpen: false }),
+  /** @param {null|'account'} sub */
+  setSettingsSubview: (sub) => set({ settingsSubview: sub }),
   goStats:     () => set({ view: { kind: 'stats' }, history: [], sidebarOpen: false }),
   goSearchView: () => set({ view: { kind: 'search', query: '' }, history: [], sidebarOpen: false }),
   /** @param {string} playlistId */
