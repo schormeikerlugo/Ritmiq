@@ -113,7 +113,46 @@
   padding: 0;
 }
 
-.li { padding: 0; }
+.li {
+  padding: 0;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.li[data-dragging] {
+  background: var(--color-bg-2);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+.li > .row {
+  flex: 1;
+  min-width: 0;
+}
+
+.dragHandle {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 36px;
+  color: var(--color-text-3);
+  cursor: grab;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+  touch-action: none;
+}
+.dragHandle:active { cursor: grabbing; }
+.li:hover .dragHandle {
+  opacity: 0.7;
+}
+.li:hover .dragHandle:hover {
+  opacity: 1;
+  color: var(--color-text-1);
+}
+@media (max-width: 768px) {
+  /* En tactil siempre visible — no hay hover. */
+  .dragHandle { opacity: 0.6; }
+}
 
 .row {
   display: grid;
@@ -132,6 +171,33 @@
 }
 
 .row[data-playing='true'] .rowTitle { color: var(--color-accent); }
+
+/* Filas del historial — opacidad reducida para indicar que ya se
+   reprodujeron, pero siguen siendo clickables. */
+.row[data-muted='true'] {
+  opacity: 0.55;
+}
+.row[data-muted='true']:hover {
+  opacity: 1;
+}
+
+/* Boton-cabecera colapsable para "Reproducidas". */
+.collapseHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-3);
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+.collapseHead:hover { color: var(--color-text-1); }
+.collapseHead .sectionTitle {
+  padding: 0;
+}
 
 .cell {
   display: flex;

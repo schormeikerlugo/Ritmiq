@@ -1,3 +1,27 @@
+/**
+ * QueuePanel — panel lateral de cola de reproduccion.
+ *
+ * Tres secciones:
+ *   1. "Sonando ahora" — el track actual (sin drag).
+ *   2. "A continuacion" — proximos tracks, reordenables con drag.
+ *   3. "Reproducidas" — tracks ya escuchados de la cola actual,
+ *      colapsado por defecto, sin drag (es historial).
+ *
+ * Drag-and-drop con @dnd-kit/sortable (mismo patron que PlaylistView).
+ *
+ * @module @ritmiq/ui/components/QueuePanel
+ */
+import { useState } from 'react';
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor,
+  useSensor, useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates,
+  verticalListSortingStrategy, useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
 import { usePlayerStore } from '../../stores/player.js';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './QueuePanel.module.css';
@@ -13,12 +37,38 @@ function fmtDur(s) {
 export function QueuePanel({ onClose }) {
   const queue = usePlayerStore((s) => s.queue);
   const index = usePlayerStore((s) => s.index);
-  const playNow = usePlayerStore((s) => s.playNow);
+  const moveQueueItem = usePlayerStore((s) => s.moveQueueItem);
   const removeFromQueue = usePlayerStore((s) => s.removeFromQueue);
   const clearQueue = usePlayerStore((s) => s.clearQueue);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const current = index >= 0 ? queue[index] : null;
   const upcoming = queue.slice(index + 1);
+  const played = index > 0 ? queue.slice(0, index) : [];
+
+  // Keys estables para upcoming — combinan id + posicion real en la cola
+  // para evitar colision si el mismo track esta dos veces en la cola.
+  const upcomingItems = upcoming.map((t, i) => ({
+    track: t,
+    realIdx: index + 1 + i,
+    dndId: `q-${index + 1 + i}-${t.id}`,
+  }));
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldOrderIdx = upcomingItems.findIndex((it) => it.dndId === active.id);
+    const newOrderIdx = upcomingItems.findIndex((it) => it.dndId === over.id);
+    if (oldOrderIdx < 0 || newOrderIdx < 0) return;
+    const fromIdx = upcomingItems[oldOrderIdx].realIdx;
+    const toIdx = upcomingItems[newOrderIdx].realIdx;
+    moveQueueItem(fromIdx, toIdx);
+  };
 
   return (
     <aside className={styles.panel}>
@@ -56,7 +106,9 @@ export function QueuePanel({ onClose }) {
                 <button
                   className={styles.linkBtn}
                   onClick={() => {
-                    if (current) playNow(current);
+                    // "Vaciar" — mantiene solo el track actual.
+                    const cur = usePlayerStore.getState().currentTrack;
+                    if (cur) usePlayerStore.getState().playNow(cur);
                     else clearQueue();
                   }}
                 >Vaciar</button>
@@ -65,38 +117,113 @@ export function QueuePanel({ onClose }) {
             {upcoming.length === 0 ? (
               <p className={styles.muted}>Sin más canciones encoladas.</p>
             ) : (
-              <ul className={styles.list}>
-                {upcoming.map((t, i) => {
-                  const realIdx = index + 1 + i;
-                  return (
-                    <li key={`${t.id}-${realIdx}`} className={styles.li}>
-                      <Row
-                        track={t}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={upcomingItems.map((it) => it.dndId)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <ul className={styles.list}>
+                    {upcomingItems.map((it) => (
+                      <SortableRow
+                        key={it.dndId}
+                        dndId={it.dndId}
+                        track={it.track}
                         onClick={() => {
                           usePlayerStore.setState({
-                            index: realIdx,
+                            index: it.realIdx,
+                            currentTrack: it.track,
+                            isPlaying: true,
+                            positionSeconds: 0,
+                          });
+                        }}
+                        onRemove={() => removeFromQueue(it.realIdx)}
+                      />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
+            )}
+          </section>
+
+          {played.length > 0 && (
+            <section className={styles.section}>
+              <button
+                type="button"
+                className={styles.collapseHead}
+                onClick={() => setShowHistory((v) => !v)}
+                aria-expanded={showHistory}
+              >
+                <span className={styles.sectionTitle}>
+                  Reproducidas ({played.length})
+                </span>
+                <Icon
+                  name={showHistory ? 'ChevronUp' : 'ChevronDown'}
+                  size={16}
+                />
+              </button>
+              {showHistory && (
+                <ul className={styles.list}>
+                  {played.map((t, i) => (
+                    <li key={`played-${i}-${t.id}`} className={styles.li}>
+                      <Row
+                        track={t}
+                        muted
+                        onClick={() => {
+                          usePlayerStore.setState({
+                            index: i,
                             currentTrack: t,
                             isPlaying: true,
                             positionSeconds: 0,
                           });
                         }}
-                        onRemove={() => removeFromQueue(realIdx)}
                       />
                     </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
         </>
       )}
     </aside>
   );
 }
 
-function Row({ track, playing, onClick, onRemove }) {
+/** Fila ordenable via dnd-kit. Usada solo en "A continuacion". */
+function SortableRow({ dndId, track, onClick, onRemove }) {
+  const sortable = useSortable({ id: dndId });
+  const style = {
+    transform: CSS.Transform.toString(sortable.transform),
+    transition: sortable.transition,
+    opacity: sortable.isDragging ? 0.55 : 1,
+    zIndex: sortable.isDragging ? 2 : undefined,
+  };
   return (
-    <div className={styles.row} data-playing={!!playing}>
+    <li
+      ref={sortable.setNodeRef}
+      style={style}
+      className={styles.li}
+      data-dragging={sortable.isDragging || undefined}
+    >
+      <div className={styles.dragHandle} {...sortable.attributes} {...sortable.listeners}>
+        <Icon name="Menu" size={14} />
+      </div>
+      <Row track={track} onClick={onClick} onRemove={onRemove} />
+    </li>
+  );
+}
+
+function Row({ track, playing, muted, onClick, onRemove }) {
+  return (
+    <div
+      className={styles.row}
+      data-playing={!!playing}
+      data-muted={!!muted}
+    >
       <button
         className={styles.cell}
         onClick={onClick}

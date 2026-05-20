@@ -105,6 +105,39 @@ export const usePlayerStore = create((set, get) => ({
     set({ queue: [], index: -1, currentTrack: null, isPlaying: false });
   },
 
+  /**
+   * Mueve un elemento de la cola de `fromIdx` a `toIdx`. Ajusta `index`
+   * para que `currentTrack` siga apuntando al mismo track despues del
+   * reorder. No reproduce nada; solo reordena.
+   *
+   * Casos:
+   *   - Si `fromIdx === index`: index se ajusta a `toIdx`.
+   *   - Si fromIdx < index <= toIdx: el current "se desplaza arriba" → index--
+   *   - Si toIdx <= index < fromIdx: el current "se desplaza abajo" → index++
+   *
+   * @param {number} fromIdx
+   * @param {number} toIdx
+   */
+  moveQueueItem(fromIdx, toIdx) {
+    const { queue, index } = get();
+    if (fromIdx === toIdx) return;
+    if (fromIdx < 0 || fromIdx >= queue.length) return;
+    if (toIdx < 0 || toIdx >= queue.length) return;
+    const next = queue.slice();
+    const [item] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, item);
+
+    let nextIndex = index;
+    if (index === fromIdx) {
+      nextIndex = toIdx;
+    } else if (fromIdx < index && toIdx >= index) {
+      nextIndex = index - 1;
+    } else if (fromIdx > index && toIdx <= index) {
+      nextIndex = index + 1;
+    }
+    set({ queue: next, index: nextIndex });
+  },
+
   /** Avanza al siguiente track según repeat/shuffle. Devuelve true si avanzó. */
   next() {
     const { queue, index, repeat, shuffle } = get();
