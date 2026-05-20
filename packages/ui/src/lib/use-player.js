@@ -167,10 +167,24 @@ function buildResolveDeps(track) {
   };
 }
 
+/**
+ * Backend singleton expuesto para que componentes (NowPlaying BPM viz,
+ * EQ UI, etc.) puedan accederlo sin pasar props. Inicializado por el
+ * primer usePlayerEngine() — null antes de eso.
+ * @type {ReturnType<typeof createHtmlAudioBackend>|null}
+ */
+let sharedBackend = null;
+
+/** Devuelve el backend singleton, o null si el engine aun no monto. */
+export function getSharedBackend() {
+  return sharedBackend;
+}
+
 export function usePlayerEngine() {
   const backendRef = useRef(null);
   if (!backendRef.current) {
     backendRef.current = createHtmlAudioBackend();
+    sharedBackend = backendRef.current;
   }
   const backend = backendRef.current;
 

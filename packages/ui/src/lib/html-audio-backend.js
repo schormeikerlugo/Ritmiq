@@ -12,10 +12,42 @@
  *    reproduciendo en background al cambiar de pista.
  *  - `prepare(url)` opcional: pre-fetch a blob URL para casos donde se
  *    necesita un swap síncrono e instantáneo (precarga del siguiente track).
+ *
+ * WebAudio graph (LAZY):
+ *  - El graph (AudioContext + MediaElementSource + GainNode + AnalyserNode +
+ *    BiquadFilters de EQ) se crea SOLO cuando alguien llama a `ensureGraph()`.
+ *    Esto es deliberado: una vez creas MediaElementSource(audio), el audio
+ *    del <audio> deja de ir directo a output y pasa siempre por el graph.
+ *    Si el usuario nunca activa EQ ni visualizer, evitamos overhead y
+ *    cualquier riesgo de regresion en iOS background playback.
+ *
+ *  - Topologia:
+ *
+ *      <audio> --MediaElementSource--> master(Gain) --+--> Analyser --+--> destination
+ *                                                     |               |
+ *                                                     +--> EQ chain --+
+ *
+ *  - `setEqEnabled(bool)` y `setEqGains(number[])` para EQ por bandas.
+ *  - `getAnalyser()` para BPM viz (F2.17) y otros visualizers.
+ *  - `getMasterGain()` para crossfade futuro (F2.8) si usamos 2 backends.
  */
 
 /** Cache de blob URLs creados para revocarlos al cambiar. */
 const liveBlobUrls = new Set();
+
+/**
+ * Bandas del ecualizador. Frecuencias clasicas de EQ grafico de 6 bandas:
+ * sub-bass, bass, low-mid, mid, high-mid, treble. Tipos lowshelf en los
+ * extremos para que el control sea natural, peaking en el medio.
+ */
+export const EQ_BANDS = [
+  { freq: 60,    type: 'lowshelf',  q: 1.0,  label: '60' },
+  { freq: 170,   type: 'peaking',   q: 1.0,  label: '170' },
+  { freq: 400,   type: 'peaking',   q: 1.0,  label: '400' },
+  { freq: 1000,  type: 'peaking',   q: 1.0,  label: '1k' },
+  { freq: 3500,  type: 'peaking',   q: 1.0,  label: '3.5k' },
+  { freq: 10000, type: 'highshelf', q: 1.0,  label: '10k' },
+];
 
 function revokeAllExcept(currentUrl) {
   for (const url of liveBlobUrls) {
@@ -55,6 +87,93 @@ export function createHtmlAudioBackend() {
   const posCbs = new Set();
   /** URL actualmente cargada. */
   let currentSrc = null;
+
+  // ── WebAudio graph (lazy) ───────────────────────────────────────────
+  /** @type {AudioContext|null} */
+  let ctx = null;
+  /** @type {MediaElementAudioSourceNode|null} */
+  let source = null;
+  /** @type {GainNode|null} */
+  let masterGain = null;
+  /** @type {AnalyserNode|null} */
+  let analyser = null;
+  /** @type {BiquadFilterNode[]} */
+  let eqFilters = [];
+  let eqEnabled = false;
+
+  /**
+   * Inicializa el AudioContext y conecta el graph. Lazy — solo se llama
+   * si el caller necesita EQ, analyser o crossfade. Idempotente.
+   *
+   * En iOS WebKit el AudioContext arranca 'suspended' hasta que un gesto
+   * del usuario lo resume — esto ya esta garantizado por el usePlayerEngine
+   * que arranca tras el primer click/tap, asi que aqui solo lo llamamos
+   * resume() por si acaso.
+   */
+  function ensureGraph() {
+    if (ctx) return ctx;
+    const el = ensureAudio();
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+      source = ctx.createMediaElementSource(el);
+
+      masterGain = ctx.createGain();
+      masterGain.gain.value = 1;
+
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.7;
+
+      // Construye la cadena de filtros EQ una sola vez. Por defecto
+      // todos a gain=0 (bypass aural — los filtros estan en la chain
+      // pero no modifican el sonido hasta que el user toque un slider).
+      eqFilters = EQ_BANDS.map((b) => {
+        const f = ctx.createBiquadFilter();
+        f.type = b.type;
+        f.frequency.value = b.freq;
+        f.Q.value = b.q;
+        f.gain.value = 0;
+        return f;
+      });
+
+      // Conexion: source → masterGain → [chain segun eqEnabled] → analyser → dest
+      // Reconectamos en setEqEnabled.
+      source.connect(masterGain);
+      connectChain();
+
+      // Resume si esta suspended (iOS).
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+    } catch (err) {
+      console.warn('[audio-backend] WebAudio init failed', err?.message);
+      ctx = null;
+    }
+    return ctx;
+  }
+
+  /** Reconecta la cadena segun eqEnabled. */
+  function connectChain() {
+    if (!ctx || !masterGain || !analyser) return;
+    try { masterGain.disconnect(); } catch {}
+    for (const f of eqFilters) { try { f.disconnect(); } catch {} }
+    try { analyser.disconnect(); } catch {}
+
+    if (eqEnabled && eqFilters.length > 0) {
+      // masterGain → EQ[0] → EQ[1] → ... → analyser → destination
+      masterGain.connect(eqFilters[0]);
+      for (let i = 0; i < eqFilters.length - 1; i++) {
+        eqFilters[i].connect(eqFilters[i + 1]);
+      }
+      eqFilters[eqFilters.length - 1].connect(analyser);
+    } else {
+      // masterGain → analyser → destination (EQ bypass)
+      masterGain.connect(analyser);
+    }
+    analyser.connect(ctx.destination);
+  }
 
   function ensureAudio() {
     if (audio) return audio;
@@ -188,6 +307,87 @@ export function createHtmlAudioBackend() {
       currentSrc = null;
       endedCbs.clear();
       posCbs.clear();
+      // WebAudio cleanup. Disconnect + close — solo si el graph existe.
+      try { source?.disconnect(); } catch {}
+      try { masterGain?.disconnect(); } catch {}
+      try { analyser?.disconnect(); } catch {}
+      for (const f of eqFilters) { try { f.disconnect(); } catch {} }
+      try { ctx?.close(); } catch {}
+      ctx = null; source = null; masterGain = null; analyser = null;
+      eqFilters = []; eqEnabled = false;
+    },
+
+    // ── WebAudio API publica ─────────────────────────────────────────
+
+    /**
+     * Inicializa el graph si no existe. Retorna el AnalyserNode listo
+     * para .getByteFrequencyData() etc. Usar para visualizers (F2.17).
+     */
+    getAnalyser() {
+      ensureGraph();
+      return analyser;
+    },
+
+    /**
+     * Retorna el GainNode master. Util para crossfade externo si
+     * implementamos dual-backend (F2.8 v2). El volumen del store player
+     * sigue usando audio.volume; este gain es independiente y aplica
+     * sobre el graph completo.
+     */
+    getMasterGain() {
+      ensureGraph();
+      return masterGain;
+    },
+
+    /** Devuelve si el AudioContext esta listo + el estado. */
+    audioContextState() {
+      return ctx?.state ?? 'inactive';
+    },
+
+    /** Resume el AudioContext (necesario en iOS tras gesto). */
+    resumeContext() {
+      try {
+        if (ctx?.state === 'suspended') return ctx.resume();
+      } catch {}
+      return Promise.resolve();
+    },
+
+    /**
+     * Activa o desactiva el EQ. Cuando se desactiva, los filtros se
+     * desconectan del graph (bypass total — cero overhead). Cuando se
+     * activa, se vuelven a insertar entre masterGain y analyser.
+     *
+     * @param {boolean} enabled
+     */
+    setEqEnabled(enabled) {
+      ensureGraph();
+      eqEnabled = !!enabled;
+      connectChain();
+    },
+
+    /**
+     * Aplica ganancias a las 6 bandas de EQ. Acepta un array de 6
+     * numeros en rango [-12, +12] dB. Valores fuera de rango se
+     * clampean. Si el array es corto, las bandas faltantes quedan en 0.
+     *
+     * @param {number[]} gainsDb
+     */
+    setEqGains(gainsDb) {
+      ensureGraph();
+      if (!Array.isArray(gainsDb)) return;
+      for (let i = 0; i < eqFilters.length; i++) {
+        const g = Number(gainsDb[i]);
+        const clamped = Number.isFinite(g) ? Math.max(-12, Math.min(12, g)) : 0;
+        try { eqFilters[i].gain.value = clamped; } catch {}
+      }
+    },
+
+    /** Retorna el estado actual del EQ (enabled + gains). */
+    getEqState() {
+      return {
+        enabled: eqEnabled,
+        gains: eqFilters.map((f) => f.gain.value),
+      };
     },
   };
 }
