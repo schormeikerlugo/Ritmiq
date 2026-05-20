@@ -17,6 +17,8 @@ import { getDominantColor } from '../../lib/dominant-color.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { ArtistInfoPanel } from './ArtistInfoPanel.jsx';
+import { useBottomSheet } from '../../stores/bottom-sheet.js';
+import { buildShareLink, copyToClipboard } from '../../lib/share.js';
 import styles from './NowPlaying.module.css';
 
 function fmt(sec) {
@@ -49,6 +51,11 @@ export function NowPlaying() {
   const addTrack = usePlaylistsStore((s) => s.addTrack);
   const toggleFavorite = usePlaylistsStore((s) => s.toggleFavorite);
   const persistEphemeral = useLibraryStore((s) => s.persistEphemeral);
+
+  const radioMode = usePlayerStore((s) => s.radioMode);
+  const startRadio = usePlayerStore((s) => s.startRadio);
+  const stopRadio = usePlayerStore((s) => s.stopRadio);
+  const openSheet = useBottomSheet((s) => s.open);
 
   const [bgColor, setBgColor] = useState('var(--color-bg-1)');
   const [closing, setClosing] = useState(false);
@@ -162,6 +169,78 @@ export function NowPlaying() {
     return `linear-gradient(180deg, ${c} 0%, var(--color-bg-0) 75%)`;
   }, [bgColor]);
 
+  /** Comparte el track actual: genera link publico, copia al clipboard,
+   *  y si la Share API esta disponible (mobile) abre el sheet nativo. */
+  const shareCurrent = async () => {
+    if (!currentTrack?.ytId) return;
+    const link = buildShareLink(currentTrack);
+    if (!link) return;
+    // Web Share API (mobile principalmente) — bottom sheet nativo del SO.
+    if (navigator?.share) {
+      try {
+        await navigator.share({
+          title: currentTrack.title || 'Ritmiq',
+          text: `${currentTrack.title}${currentTrack.artist ? ' — ' + currentTrack.artist : ''}`,
+          url: link,
+        });
+        return;
+      } catch {
+        // user cancelo o no soportado → fallback a copiar
+      }
+    }
+    const ok = await copyToClipboard(link);
+    // Notificacion visual minima — toast manual via timeout. Reusamos el
+    // patron del player error toast: dispatch via store.
+    if (ok) {
+      usePlayerStore.setState({ error: 'Link copiado al portapapeles' });
+      setTimeout(() => {
+        if (usePlayerStore.getState().error === 'Link copiado al portapapeles') {
+          usePlayerStore.setState({ error: null });
+        }
+      }, 2000);
+    }
+  };
+
+  /** Menu desplegable del boton `⋯`. Abre un bottom sheet con acciones
+   *  rapidas — guardar, modo radio, compartir. Sleep timer se anadira
+   *  aqui en F2.3. */
+  const openMoreMenu = () => {
+    const closeSelf = () => useBottomSheet.getState().closeAll();
+    const items = [
+      {
+        id: 'save',
+        label: 'Guardar en biblioteca o playlist...',
+        icon: 'Plus',
+        onClick: () => { closeSelf(); setSaveOpen(true); },
+      },
+      {
+        id: 'share',
+        label: 'Compartir...',
+        icon: 'Share2',
+        disabled: !currentTrack?.ytId,
+        onClick: () => { closeSelf(); shareCurrent(); },
+      },
+      radioMode
+        ? {
+            id: 'radio-stop',
+            label: 'Detener modo Radio',
+            icon: 'X',
+            onClick: () => { closeSelf(); stopRadio(); },
+          }
+        : {
+            id: 'radio-start',
+            label: 'Iniciar modo Radio',
+            icon: 'Disc3',
+            onClick: () => { closeSelf(); startRadio(); },
+            disabled: !currentTrack?.artist,
+          },
+    ];
+    openSheet({
+      title: 'Opciones',
+      content: <MoreMenuBody items={items} />,
+    });
+  };
+
   if (!open && !closing) return null;
 
   return (
@@ -183,10 +262,20 @@ export function NowPlaying() {
           <Icon name="ChevronDown" size={24} />
         </button>
         <div className={styles.headerTitle}>
-          <span className={styles.eyebrow}>Reproduciendo</span>
+          <span className={styles.eyebrow}>
+            {radioMode ? (
+              <>
+                <Icon name="Disc3" size={11} /> Modo Radio
+              </>
+            ) : 'Reproduciendo'}
+          </span>
           <span className={styles.context}>{currentTrack?.album || currentTrack?.artist || 'Ritmiq'}</span>
         </div>
-        <button className={styles.headerBtn} aria-label="Más opciones" onClick={() => setSaveOpen(true)}>
+        <button
+          className={styles.headerBtn}
+          aria-label="Más opciones"
+          onClick={() => openMoreMenu()}
+        >
           <Icon name="MoreHorizontal" size={22} />
         </button>
       </header>
@@ -290,6 +379,26 @@ export function NowPlaying() {
       {saveOpen && currentTrack && (
         <SaveDialog track={currentTrack} onClose={() => setSaveOpen(false)} />
       )}
+    </div>
+  );
+}
+
+/** Cuerpo del bottom sheet de "Más opciones" del NowPlaying. */
+function MoreMenuBody({ items }) {
+  return (
+    <div className={styles.moreMenu}>
+      {items.map((it) => (
+        <button
+          key={it.id}
+          type="button"
+          className={styles.moreItem}
+          disabled={it.disabled}
+          onClick={it.onClick}
+        >
+          <Icon name={it.icon} size={18} />
+          <span>{it.label}</span>
+        </button>
+      ))}
     </div>
   );
 }

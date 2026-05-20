@@ -37,6 +37,13 @@ export const usePlayerStore = create((set, get) => ({
   /** @type {string|null} Mensaje de error visible al usuario */
   error: null,
 
+  /** Modo Radio activo — auto-extiende la cola con tracks de la lib
+   *  basados en el seed cuando quedan ≤ 2 tracks por delante. */
+  radioMode: false,
+  /** Artista usado como seed del radio actual (para mantener consistencia
+   *  entre batches aunque cambie el currentTrack al avanzar). */
+  radioSeedArtist: null,
+
   /** @param {Partial<any>} p */
   patch: (p) => set(p),
 
@@ -190,6 +197,24 @@ export const usePlayerStore = create((set, get) => ({
       positionSeconds: 0,
     });
     return true;
+  },
+
+  // ── Modo Radio ──────────────────────────────────────────────────────
+  /** Activa el modo radio usando el track actual como seed. */
+  startRadio() {
+    const cur = get().currentTrack;
+    if (!cur) return;
+    set({ radioMode: true, radioSeedArtist: cur.artist ?? null });
+  },
+  /** Desactiva radio mode. La cola actual no se toca. */
+  stopRadio() {
+    set({ radioMode: false, radioSeedArtist: null });
+  },
+  /** Append tracks al final de la cola (sin cambiar index/current).
+   *  Usado por el engine al auto-extender el radio. */
+  appendQueue(tracks) {
+    if (!Array.isArray(tracks) || tracks.length === 0) return;
+    set((s) => ({ queue: [...s.queue, ...tracks] }));
   },
 
   // ── Compatibilidad con código previo ─────────────────────────────────

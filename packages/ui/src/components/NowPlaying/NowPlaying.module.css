@@ -72,6 +72,10 @@
   text-transform: uppercase;
   color: var(--color-text-2);
   font-weight: var(--fw-semibold);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
 }
 .context {
   font-size: var(--fs-sm);
@@ -345,4 +349,33 @@
     font-size: 13px;
     font-weight: 600;
   }
+}
+
+/* ── Menu del boton MoreHorizontal (bottom sheet) ───────────────────── */
+.moreMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) 0;
+}
+.moreItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  color: var(--color-text-1);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.moreItem:hover:not(:disabled) {
+  background: var(--color-bg-2);
+}
+.moreItem:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
