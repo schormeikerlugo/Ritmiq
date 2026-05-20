@@ -27,6 +27,7 @@ import { useSearchStore } from './stores/search.js';
 import { useViewStore } from './stores/view.js';
 import { usePlayerEngine } from './lib/use-player.js';
 import { useGlobalShortcuts } from './lib/use-shortcuts.js';
+import { useDesktopNotifications } from './lib/use-desktop-notifications.js';
 import { initTheme } from './stores/theme.js';
 
 // Aplica el tema guardado en localStorage al <html> ANTES del primer render.
@@ -184,6 +185,9 @@ export function App() {
   // fisico conectado. Internamente ignoran eventos desde campos editables
   // y cuando hay un BottomSheet abierto.
   useGlobalShortcuts();
+  // Notificaciones nativas del SO al cambiar pista — solo desktop y solo
+  // cuando la ventana no esta enfocada (evita spam si el user mira la app).
+  useDesktopNotifications();
 
   if (loading) {
     return (
