@@ -38,6 +38,8 @@ import { usePlayerEngine } from './lib/use-player.js';
 import { useGlobalShortcuts } from './lib/use-shortcuts.js';
 import { useDesktopNotifications } from './lib/use-desktop-notifications.js';
 import { useRadioAutoExtend } from './lib/use-radio.js';
+import { useCrossfade } from './lib/use-crossfade.js';
+import { useApplyAudioSettings } from './lib/use-apply-audio-settings.js';
 import { initTheme } from './stores/theme.js';
 
 // Aplica el tema guardado en localStorage al <html> ANTES del primer render.
@@ -223,7 +225,7 @@ export function App() {
   }, [user, share]);
 
   // Motor de audio activo siempre que haya sesión
-  usePlayerEngine();
+  const backend = usePlayerEngine();
   // Atajos de teclado globales — activos en desktop y en PWA con teclado
   // fisico conectado. Internamente ignoran eventos desde campos editables
   // y cuando hay un BottomSheet abierto.
@@ -234,6 +236,12 @@ export function App() {
   // Modo Radio — auto-extiende la cola con tracks de la lib cuando quedan
   // pocas por delante y radioMode esta activo. Idle si radioMode=false.
   useRadioAutoExtend();
+  // Crossfade en cambios manuales de track (Sprint γ — F2.8). Idle si
+  // settings.crossfadeSeconds === 0.
+  useCrossfade(backend);
+  // Aplica settings de EQ al backend cuando cambian en el store. Lazy:
+  // si el usuario nunca toca el EQ, no inicializa el WebAudio graph.
+  useApplyAudioSettings(backend);
 
   // Si llega via link compartido Y aun no esta logueado, mostrar landing
   // publica. Click en "Abrir Ritmiq" cierra share view → flujo normal de

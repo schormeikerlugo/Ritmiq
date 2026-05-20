@@ -19,6 +19,8 @@ import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { ArtistInfoPanel } from './ArtistInfoPanel.jsx';
 import { useBottomSheet } from '../../stores/bottom-sheet.js';
 import { buildShareLink, copyToClipboard } from '../../lib/share.js';
+import { getSharedBackend } from '../../lib/use-player.js';
+import { useBpmPulse } from '../../lib/use-bpm-pulse.js';
 import styles from './NowPlaying.module.css';
 
 function fmt(sec) {
@@ -56,6 +58,11 @@ export function NowPlaying() {
   const startRadio = usePlayerStore((s) => s.startRadio);
   const stopRadio = usePlayerStore((s) => s.stopRadio);
   const openSheet = useBottomSheet((s) => s.open);
+
+  // BPM-reactive pulse del cover. Solo activo cuando NowPlaying esta
+  // visible (open === true) para no consumir CPU en idle. El primer
+  // acceso a getAnalyser inicializa el WebAudio graph.
+  const bpmScale = useBpmPulse(getSharedBackend(), open);
 
   const [bgColor, setBgColor] = useState('var(--color-bg-1)');
   const [closing, setClosing] = useState(false);
@@ -281,7 +288,10 @@ export function NowPlaying() {
       </header>
 
       <div className={styles.coverWrap}>
-        <div className={styles.cover}>
+        <div
+          className={styles.cover}
+          style={{ transform: `scale(${bpmScale.toFixed(3)})` }}
+        >
           {currentTrack?.coverUrl
             ? <img src={currentTrack.coverUrl} alt="" />
             : <div className={styles.coverPlaceholder}><Icon name="Music" size={64} /></div>}

@@ -106,7 +106,15 @@
   display: grid;
   place-items: center;
   animation: ritmiq-fade-in var(--dur-slow) var(--ease-standard);
-  transition: transform 300ms var(--ease-emphasized);
+  /* Transition corta (linear) para que el BPM pulse se vea suave entre
+     frames de rAF sin restarle reactividad. El hook setea scale a ~30Hz;
+     una transicion de 80ms suaviza sin "lagear" detras del beat. */
+  transition: transform 80ms linear;
+  transform-origin: center;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cover { transition: none; transform: none !important; }
 }
 .cover img {
   width: 100%;
