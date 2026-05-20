@@ -30,6 +30,8 @@ import { HomeRow } from './HomeRow.jsx';
 import { TrackCard } from './TrackCard.jsx';
 import { ArtistCard } from './ArtistCard.jsx';
 import { playPlaylist } from '../../lib/play-helpers.js';
+import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
+import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
 import styles from './Home.module.css';
 
 function getGreeting() {
@@ -92,6 +94,24 @@ export function Home() {
   const genreRec         = recStore['auto-genre-mix:'];
   const discoverRec      = recStore['discover:'];
 
+  // Pull-to-refresh — refresca historial + recomendaciones de Last.fm.
+  // Solo activo en mobile (max-width 768px). El historial vive como
+  // tracking client-side; el "refresh" semantico aqui es re-fetch de
+  // recomendaciones, que es lo que cambia con frecuencia.
+  const refetchRecs = () => {
+    const ps = [];
+    if (topArtistSeed) ps.push(fetchRec('similar-artist', topArtistSeed));
+    if (trackSeed?.artist && trackSeed?.title) {
+      ps.push(fetchRec('mix-by-track', `${trackSeed.artist}::${trackSeed.title}`));
+    }
+    if (topArtists.length >= 1) ps.push(fetchRec('auto-genre-mix', ''));
+    if (topArtists.length >= 2) ps.push(fetchRec('discover', ''));
+    return Promise.allSettled(ps);
+  };
+  const { bind: ptrBind, pullDistance, refreshing } = usePullToRefresh({
+    onRefresh: refetchRecs,
+  });
+
   /* ── Lanzar cola completa empezando en `startIdx` ───────────────────── */
   const playRow = (rowItems, startIdx = 0) => {
     if (!rowItems || rowItems.length === 0) return;
@@ -105,7 +125,8 @@ export function Home() {
   };
 
   return (
-    <section className={styles.wrap}>
+    <section className={styles.wrap} {...ptrBind}>
+      <PullIndicator pullDistance={pullDistance} refreshing={refreshing} />
       <header className={styles.header}>
         <h1 className={styles.title}>
           {getGreeting()}{name ? `, ${name}` : ''}

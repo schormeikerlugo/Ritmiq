@@ -3,6 +3,7 @@
      ancho/padding. El max-width anterior (920px) limitaba la vista en
      desktop ancho, dejando espacios vacios a los lados. */
   width: 100%;
+  position: relative;
 }
 
 /* Header + chips sticky — se quedan arriba al scrollear la lista de

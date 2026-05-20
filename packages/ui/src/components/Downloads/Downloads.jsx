@@ -5,6 +5,8 @@ import { listLocalDownloads, storageEstimate, clearAllLocal } from '../../lib/lo
 import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { TrackRowSkeleton } from '../Skeleton/index.js';
+import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
+import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
 import styles from './Downloads.module.css';
 
 function fmtBytes(n) {
@@ -45,6 +47,11 @@ export function Downloads() {
 
   useEffect(() => { refresh(); }, [tracks]);
 
+  // Pull-to-refresh — recarga el listado local desde IndexedDB + estimate.
+  const { bind: ptrBind, pullDistance, refreshing } = usePullToRefresh({
+    onRefresh: refresh,
+  });
+
   const downloadedTracks = useMemo(() => {
     if (isDesktop) return tracks.filter((t) => t.isDownloaded);
     const sizeMap = new Map(localItems.map((i) => [i.trackId, i.size]));
@@ -70,7 +77,8 @@ export function Downloads() {
   };
 
   return (
-    <section className={styles.wrap}>
+    <section className={styles.wrap} {...ptrBind}>
+      <PullIndicator pullDistance={pullDistance} refreshing={refreshing} />
       <header className={styles.header}>
         <h1 className={styles.title}>Descargas</h1>
         <p className={styles.subtitle}>

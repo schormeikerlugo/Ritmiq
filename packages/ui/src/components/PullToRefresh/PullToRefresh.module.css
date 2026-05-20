@@ -1,0 +1,36 @@
+.indicator {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-bg-2);
+  color: var(--color-accent);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  z-index: 5;
+  /* No transition por defecto — el pullDistance ya se mueve frame-by-frame
+     con el dedo. La transicion solo aparece al SOLTAR cuando vuelve a 0. */
+}
+.indicator[data-active='false'] {
+  transition: transform 220ms var(--ease-emphasized), opacity 220ms;
+}
+
+.spinner {
+  display: grid;
+  place-items: center;
+  transition: transform 60ms linear;
+}
+.spinner[data-spinning='true'] {
+  animation: ritmiq-ptr-spin 800ms linear infinite;
+}
+@keyframes ritmiq-ptr-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner[data-spinning='true'] { animation: none; }
+}

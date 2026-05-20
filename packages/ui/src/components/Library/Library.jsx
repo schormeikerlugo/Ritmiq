@@ -25,6 +25,8 @@ import { Icon } from '../Icon/Icon.jsx';
 import { SpotifyIcon } from '../Icon/SpotifyIcon.jsx';
 import { TrackRowSkeleton } from '../Skeleton/index.js';
 import { playPlaylist, playArtistFromLibrary } from '../../lib/play-helpers.js';
+import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
+import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
 import styles from './Library.module.css';
 
 const FILTERS = [
@@ -44,6 +46,7 @@ export function Library() {
   const loadLib = useLibraryStore((s) => s.load);
   const libLoading = useLibraryStore((s) => s.loading);
   const plsLoading = usePlaylistsStore((s) => s.loading);
+  const loadPlaylists = usePlaylistsStore((s) => s.load);
   const playlists = usePlaylistsStore((s) => s.playlists);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
   const events = useHistoryStore((s) => s.events);
@@ -60,6 +63,14 @@ export function Library() {
   const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => { loadLib(); }, [loadLib]);
+
+  // Pull-to-refresh: recarga libreria + playlists desde Supabase. Solo
+  // activo en mobile (max-width:768px); hook devuelve {} en desktop.
+  const { bind: ptrBind, pullDistance, refreshing } = usePullToRefresh({
+    onRefresh: async () => {
+      await Promise.allSettled([loadLib(), loadPlaylists()]);
+    },
+  });
 
   // Build unified items list.
   const items = useMemo(() => {
@@ -169,7 +180,8 @@ export function Library() {
   const initial = (user?.email ?? 'U').slice(0, 1).toUpperCase();
 
   return (
-    <section className={styles.wrap}>
+    <section className={styles.wrap} {...ptrBind}>
+      <PullIndicator pullDistance={pullDistance} refreshing={refreshing} />
       {/* Header + filtros sticky en PWA mobile (como Spotify): se quedan
           arriba al hacer scroll de la lista. En desktop el wrap completo
           tiene su propio overflow, asi que el sticky tambien aplica. */}
