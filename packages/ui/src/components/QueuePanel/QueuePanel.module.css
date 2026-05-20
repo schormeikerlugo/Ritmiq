@@ -118,6 +118,12 @@
   display: flex;
   align-items: center;
   position: relative;
+  /* dnd-kit ya aplica touch-action: none al activarse el TouchSensor; lo
+     dejamos manipulation por defecto para que el scroll de la cola siga
+     fluido antes de iniciar drag. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 .li[data-dragging] {
   background: var(--color-bg-2);
@@ -129,29 +135,33 @@
   min-width: 0;
 }
 
+/* Drag handle — affordance visual. El gesto de drag se inicia desde
+   TODA la fila gracias al TouchSensor delay 220ms; el handle solo
+   indica visualmente que la fila es reordenable. */
 .dragHandle {
   display: grid;
   place-items: center;
-  width: 20px;
+  width: 22px;
   height: 36px;
   color: var(--color-text-3);
   cursor: grab;
   flex-shrink: 0;
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease-standard);
-  touch-action: none;
+  pointer-events: none;  /* no captura — el <li> es el que escucha */
 }
-.dragHandle:active { cursor: grabbing; }
 .li:hover .dragHandle {
   opacity: 0.7;
 }
-.li:hover .dragHandle:hover {
+.li[data-dragging] .dragHandle {
   opacity: 1;
   color: var(--color-text-1);
+  cursor: grabbing;
 }
 @media (max-width: 768px) {
   /* En tactil siempre visible — no hay hover. */
-  .dragHandle { opacity: 0.6; }
+  .dragHandle { opacity: 0.5; }
+  .li[data-dragging] .dragHandle { opacity: 1; }
 }
 
 .row {

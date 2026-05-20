@@ -93,6 +93,34 @@ html, body {
 /* iOS hace zoom-on-focus si el input es < 16px. Forzamos 16px en inputs */
 input, textarea, select { font-size: 16px; }
 
+/* ── Bloqueo de seleccion de texto en la app ──────────────────────────
+   La PWA se comporta como app nativa, no como pagina web. La seleccion
+   de texto:
+     - rompe el drag-and-drop tactil (long-press inicia seleccion en lugar
+       de drag).
+     - causa el callout iOS de "Copiar/Compartir" sobre texto al hacer
+       long-press.
+     - selecciona texto accidentalmente al arrastrar la cola/playlist.
+   Solucion: bloquear seleccion globalmente, y RE-HABILITAR explicitamente
+   donde tiene sentido (inputs, textareas, codigo, dialogs de info). */
+html, body, button, [role='button'], a, li, ul, span, div, header, footer,
+section, article, nav, aside, h1, h2, h3, h4, h5, h6, p {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;  /* iOS: oculta el callout de Copiar/Compartir */
+}
+/* Re-habilitar seleccion donde el usuario SI necesita copiar/pegar. */
+input, textarea, [contenteditable='true'], code, pre,
+[data-selectable='true'], [data-selectable='true'] * {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 /* ── Animaciones globales reutilizables ───────────────────────────────── */
 @keyframes ritmiq-scale-in {
   from { opacity: 0; transform: scale(0.96); }

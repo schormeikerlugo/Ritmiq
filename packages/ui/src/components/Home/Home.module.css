@@ -83,10 +83,10 @@
   background: var(--color-accent-hover);
 }
 @media (max-width: 768px) {
-  .heroPlay {
-    opacity: 0.92;
-    transform: translateY(-50%) scale(1);
-  }
+  /* En mobile el quick-play overlay de los hero tiles se OCULTA: ya
+     existe el mismo boton en la fila correspondiente de Library, y
+     duplicarlo aqui afea la card + confunde al usuario. */
+  .heroPlay { display: none; }
 }
 
 .heroIcon {

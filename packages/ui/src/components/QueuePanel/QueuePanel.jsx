@@ -13,11 +13,11 @@
  */
 import { useState } from 'react';
 import {
-  DndContext, closestCenter, KeyboardSensor, PointerSensor,
-  useSensor, useSensors,
+  DndContext, closestCenter, KeyboardSensor, TouchSensor,
+  MouseSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
 import {
-  arrayMove, SortableContext, sortableKeyboardCoordinates,
+  SortableContext, sortableKeyboardCoordinates,
   verticalListSortingStrategy, useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -42,8 +42,17 @@ export function QueuePanel({ onClose }) {
   const clearQueue = usePlayerStore((s) => s.clearQueue);
   const [showHistory, setShowHistory] = useState(false);
 
+  // Sensores separados por device para evitar conflictos:
+  //   - Mouse (desktop): distance 4px → snappy, no espera.
+  //   - Touch (mobile):  delay 220ms + tolerance 6px → distingue tap/scroll
+  //     del drag. Sin delay, cualquier scroll vertical iniciaria un drag y
+  //     bloquearia el scroll de la pagina.
+  //   - Keyboard: navegacion accesible.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 6 },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -193,7 +202,17 @@ export function QueuePanel({ onClose }) {
   );
 }
 
-/** Fila ordenable via dnd-kit. Usada solo en "A continuacion". */
+/**
+ * Fila ordenable via dnd-kit. Usada solo en "A continuacion".
+ *
+ * Listeners de drag montados en TODA la fila (no solo en el handle) — en
+ * mobile el handle es muy pequeno para ser tap target unico. El TouchSensor
+ * con delay 220ms ya distingue tap/scroll de drag, asi que iniciar drag
+ * desde cualquier punto de la fila es seguro.
+ *
+ * El handle queda como affordance visual (muestra al usuario que la fila
+ * es reordenable) y como zona de inicio de drag en desktop (mouse).
+ */
 function SortableRow({ dndId, track, onClick, onRemove }) {
   const sortable = useSortable({ id: dndId });
   const style = {
@@ -208,16 +227,33 @@ function SortableRow({ dndId, track, onClick, onRemove }) {
       style={style}
       className={styles.li}
       data-dragging={sortable.isDragging || undefined}
+      {...sortable.attributes}
+      {...sortable.listeners}
     >
-      <div className={styles.dragHandle} {...sortable.attributes} {...sortable.listeners}>
+      <div className={styles.dragHandle} aria-hidden="true">
         <Icon name="Menu" size={14} />
       </div>
-      <Row track={track} onClick={onClick} onRemove={onRemove} />
+      <Row
+        track={track}
+        onClick={onClick}
+        onRemove={onRemove}
+        dragging={sortable.isDragging}
+      />
     </li>
   );
 }
 
-function Row({ track, playing, muted, onClick, onRemove }) {
+function Row({ track, playing, muted, dragging, onClick, onRemove }) {
+  // Si la fila esta siendo arrastrada, el click NO debe disparar play
+  // (el usuario solo queria reordenar). dnd-kit ya hace cancel del click
+  // tras un drag exitoso, pero con touch a veces el click se cuela.
+  const handleClick = (e) => {
+    if (dragging) {
+      e.preventDefault();
+      return;
+    }
+    onClick?.(e);
+  };
   return (
     <div
       className={styles.row}
@@ -226,7 +262,7 @@ function Row({ track, playing, muted, onClick, onRemove }) {
     >
       <button
         className={styles.cell}
-        onClick={onClick}
+        onClick={handleClick}
         aria-label={`Reproducir ${track.title}`}
       >
         <div className={styles.thumb}>
@@ -243,7 +279,7 @@ function Row({ track, playing, muted, onClick, onRemove }) {
       {onRemove && (
         <button
           className={styles.removeBtn}
-          onClick={onRemove}
+          onClick={(e) => { e.stopPropagation(); onRemove(e); }}
           aria-label="Quitar de la cola"
           title="Quitar"
         ><Icon name="X" size={16} /></button>
