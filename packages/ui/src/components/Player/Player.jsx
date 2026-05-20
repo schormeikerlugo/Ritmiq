@@ -79,7 +79,11 @@ export function Player() {
           aria-label={currentTrack ? `Ver ${currentTrack.title} a pantalla completa` : 'Reproductor'}
           disabled={!currentTrack}
         >
-          <div className={styles.cover} aria-hidden="true">
+          <div
+            className={styles.cover}
+            data-spinning={isPlaying && !!currentTrack?.coverUrl}
+            aria-hidden="true"
+          >
             {currentTrack?.coverUrl
               ? <img src={currentTrack.coverUrl} alt="" />
               : <div className={styles.coverPlaceholder}><Icon name="Music" size={20} /></div>}
