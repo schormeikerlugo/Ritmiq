@@ -105,13 +105,25 @@ export function createHtmlAudioBackend() {
    * Inicializa el AudioContext y conecta el graph. Lazy — solo se llama
    * si el caller necesita EQ, analyser o crossfade. Idempotente.
    *
-   * En iOS WebKit el AudioContext arranca 'suspended' hasta que un gesto
-   * del usuario lo resume — esto ya esta garantizado por el usePlayerEngine
-   * que arranca tras el primer click/tap, asi que aqui solo lo llamamos
-   * resume() por si acaso.
+   * CRITICO: una vez creas MediaElementSource(audio), el audio del
+   * <audio> deja de ir directo a output y pasa por el graph. Si el ctx
+   * esta suspended (iOS por defecto, Chrome 71+ con autoplay policy),
+   * NO SE OYE NADA aunque el <audio> siga corriendo internamente —
+   * sintoma: barra de progreso avanza pero silencio. Por eso hacemos
+   * resume() inmediato y agresivo, y ademas devolvemos una promesa
+   * para que el caller pueda await si necesita garantia.
+   *
+   * @returns {Promise<AudioContext|null>}
    */
-  function ensureGraph() {
-    if (ctx) return ctx;
+  async function ensureGraph() {
+    if (ctx) {
+      // Si ya existia pero esta suspended (iOS revoca en background),
+      // forzamos resume cada vez que alguien llama ensureGraph.
+      if (ctx.state === 'suspended') {
+        try { await ctx.resume(); } catch {}
+      }
+      return ctx;
+    }
     const el = ensureAudio();
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -143,10 +155,10 @@ export function createHtmlAudioBackend() {
       source.connect(masterGain);
       connectChain();
 
-      // Resume si esta suspended (iOS).
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
-      }
+      // CRITICO: resume sin condicional. Algunos browsers reportan state
+      // 'running' tras new AudioContext() pero internamente estan
+      // bloqueados hasta el primer resume() explicito.
+      try { await ctx.resume(); } catch {}
     } catch (err) {
       console.warn('[audio-backend] WebAudio init failed', err?.message);
       ctx = null;
@@ -320,22 +332,21 @@ export function createHtmlAudioBackend() {
     // ── WebAudio API publica ─────────────────────────────────────────
 
     /**
-     * Inicializa el graph si no existe. Retorna el AnalyserNode listo
-     * para .getByteFrequencyData() etc. Usar para visualizers (F2.17).
+     * Inicializa el graph si no existe (async — debe llamarse desde
+     * dentro de un gesto del usuario en iOS PWA). Retorna el
+     * AnalyserNode listo para .getByteFrequencyData() etc.
+     *
+     * SI el graph aun no esta creado, devuelve null sin forzar init —
+     * el caller decide si conviene crearlo (ver initGraphFromGesture).
      */
     getAnalyser() {
-      ensureGraph();
       return analyser;
     },
 
     /**
-     * Retorna el GainNode master. Util para crossfade externo si
-     * implementamos dual-backend (F2.8 v2). El volumen del store player
-     * sigue usando audio.volume; este gain es independiente y aplica
-     * sobre el graph completo.
+     * Retorna el GainNode master. null si el graph no esta inicializado.
      */
     getMasterGain() {
-      ensureGraph();
       return masterGain;
     },
 
@@ -344,37 +355,61 @@ export function createHtmlAudioBackend() {
       return ctx?.state ?? 'inactive';
     },
 
-    /** Resume el AudioContext (necesario en iOS tras gesto). */
-    resumeContext() {
+    /**
+     * Inicializa el graph DESDE UN GESTO DEL USUARIO. Critico iOS PWA:
+     * si esto se llama desde useEffect o desde una promesa que cruzo
+     * el event loop, iOS lo trata como "no gesture" y el AudioContext
+     * queda suspended → silencio total.
+     *
+     * Llamar SIEMPRE desde onClick directo. Es async porque el resume()
+     * del AudioContext devuelve Promise. Idempotente.
+     *
+     * @returns {Promise<boolean>} true si el graph esta running tras
+     *   la llamada.
+     */
+    async initGraphFromGesture() {
+      await ensureGraph();
+      return ctx?.state === 'running';
+    },
+
+    /**
+     * Resume el AudioContext (necesario en iOS tras gesto). No-op si
+     * el graph aun no existe (no fuerza creacion).
+     */
+    async resumeContext() {
+      if (!ctx) return;
       try {
-        if (ctx?.state === 'suspended') return ctx.resume();
+        if (ctx.state === 'suspended') await ctx.resume();
       } catch {}
-      return Promise.resolve();
     },
 
     /**
      * Activa o desactiva el EQ. Cuando se desactiva, los filtros se
      * desconectan del graph (bypass total — cero overhead). Cuando se
-     * activa, se vuelven a insertar entre masterGain y analyser.
+     * activa, los filtros se insertan en la chain. Si el graph aun
+     * NO existe y enabled=false, no se inicializa (no-op).
+     *
+     * IMPORTANTE: si enabled=true y el graph no existe, no se crea
+     * automaticamente desde aqui — el caller debe haber llamado
+     * initGraphFromGesture() previamente dentro de un onClick.
      *
      * @param {boolean} enabled
      */
     setEqEnabled(enabled) {
-      ensureGraph();
       eqEnabled = !!enabled;
+      if (!ctx) return; // sin graph, nada que reconectar
       connectChain();
     },
 
     /**
      * Aplica ganancias a las 6 bandas de EQ. Acepta un array de 6
      * numeros en rango [-12, +12] dB. Valores fuera de rango se
-     * clampean. Si el array es corto, las bandas faltantes quedan en 0.
+     * clampean. No-op si el graph no esta inicializado.
      *
      * @param {number[]} gainsDb
      */
     setEqGains(gainsDb) {
-      ensureGraph();
-      if (!Array.isArray(gainsDb)) return;
+      if (!ctx || !Array.isArray(gainsDb)) return;
       for (let i = 0; i < eqFilters.length; i++) {
         const g = Number(gainsDb[i]);
         const clamped = Number.isFinite(g) ? Math.max(-12, Math.min(12, g)) : 0;
@@ -388,6 +423,12 @@ export function createHtmlAudioBackend() {
         enabled: eqEnabled,
         gains: eqFilters.map((f) => f.gain.value),
       };
+    },
+
+    /** True si el WebAudio graph esta inicializado. Para que la UI
+     *  sepa si puede aplicar EQ inmediato o si necesita un gesto. */
+    isGraphReady() {
+      return !!ctx;
     },
   };
 }

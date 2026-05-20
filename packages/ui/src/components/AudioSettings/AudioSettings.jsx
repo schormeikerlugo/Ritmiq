@@ -4,8 +4,10 @@
  *
  * @module @ritmiq/ui/components/AudioSettings
  */
+import { useState } from 'react';
 import { useSettingsStore, EQ_PRESETS } from '../../stores/settings.js';
 import { EQ_BANDS } from '../../lib/html-audio-backend.js';
+import { getSharedBackend } from '../../lib/use-player.js';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './AudioSettings.module.css';
 
@@ -23,12 +25,48 @@ export function AudioSettings() {
   const crossfade = useSettingsStore((s) => s.crossfadeSeconds);
   const setCrossfade = useSettingsStore((s) => s.setCrossfade);
   const eqEnabled = useSettingsStore((s) => s.eqEnabled);
-  const setEqEnabled = useSettingsStore((s) => s.setEqEnabled);
+  const setEqEnabledStore = useSettingsStore((s) => s.setEqEnabled);
   const eqGains = useSettingsStore((s) => s.eqGains);
   const setEqBand = useSettingsStore((s) => s.setEqBand);
   const eqPreset = useSettingsStore((s) => s.eqPreset);
   const setEqPreset = useSettingsStore((s) => s.setEqPreset);
   const resetAudio = useSettingsStore((s) => s.resetAudio);
+  const [eqError, setEqError] = useState(null);
+
+  /**
+   * Handler del toggle del EQ — debe ejecutar initGraphFromGesture()
+   * sincronicamente desde el onClick para que iOS PWA acepte el resume
+   * del AudioContext. Si el graph falla en arrancar, mostramos error
+   * y dejamos el toggle en off.
+   */
+  const handleEqToggle = async (next) => {
+    setEqError(null);
+    if (!next) {
+      // Desactivar es seguro siempre — solo desconecta la chain.
+      setEqEnabledStore(false);
+      const backend = getSharedBackend();
+      backend?.setEqEnabled(false);
+      return;
+    }
+    // Activar: inicializa el graph DENTRO del gesto.
+    const backend = getSharedBackend();
+    if (!backend) {
+      setEqError('Motor de audio no disponible. Reproduce algo primero.');
+      return;
+    }
+    try {
+      const ok = await backend.initGraphFromGesture();
+      if (!ok) {
+        setEqError('No se pudo inicializar el ecualizador. Intenta reproducir una cancion primero.');
+        return;
+      }
+      backend.setEqEnabled(true);
+      backend.setEqGains(eqGains);
+      setEqEnabledStore(true);
+    } catch (err) {
+      setEqError(`Error: ${err?.message ?? 'desconocido'}`);
+    }
+  };
 
   return (
     <div className={styles.wrap}>
@@ -73,10 +111,17 @@ export function AudioSettings() {
             <div className={styles.label}>Ecualizador</div>
             <div className={styles.hint}>
               6 bandas con presets. Solo aplica al audio en este dispositivo.
+              Si reproduces en PWA mobile, activalo MIENTRAS suena algo.
             </div>
           </div>
-          <Toggle checked={eqEnabled} onChange={setEqEnabled} />
+          <Toggle checked={eqEnabled} onChange={handleEqToggle} />
         </div>
+        {eqError && (
+          <div className={styles.errorMsg} role="alert">
+            <Icon name="AlertTriangle" size={14} />
+            <span>{eqError}</span>
+          </div>
+        )}
       </div>
 
       {/* Sliders + presets (solo si EQ activo) */}
