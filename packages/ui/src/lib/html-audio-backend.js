@@ -201,6 +201,16 @@ export function createHtmlAudioBackend() {
     audio.preload = 'auto';
     audio.setAttribute('playsinline', '');
     audio.setAttribute('webkit-playsinline', '');
+    // CRITICO WebAudio + iOS: para que MediaElementSource pueda leer las
+    // muestras del audio (necesario para EQ, AnalyserNode/visualizers),
+    // el <audio> debe ser cargado con CORS validado. Sin esto, WebKit
+    // devuelve "MediaElementAudioSource outputs zeroes due to CORS
+    // access restrictions" → silencio total cuando el graph esta activo.
+    //
+    // El server LAN ya devuelve Access-Control-Allow-Origin correcto, asi
+    // que setear crossOrigin='anonymous' es seguro y no rompe la
+    // reproduccion normal. DEBE setearse ANTES de cualquier src=...
+    audio.crossOrigin = 'anonymous';
     audio.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;';
     document.body.appendChild(audio);
 
