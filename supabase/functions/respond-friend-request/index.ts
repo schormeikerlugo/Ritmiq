@@ -81,6 +81,11 @@ serve(async (req) => {
 
     const name = accepterProfile?.display_name ?? accepterProfile?.username ?? 'Alguien';
 
+    // Badge para el requester: aceptar no anade items pendientes
+    // (la aceptacion es informativa), pero refrescamos por si tenia
+    // shares no leidos de otros amigos.
+    const badgeCount = await computeBadgeCount(svc, friendship.requester);
+
     const pushUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`;
     fetch(pushUrl, {
       method: 'POST',
@@ -96,6 +101,7 @@ serve(async (req) => {
           type: 'friend_accepted',
           friendId: user.id,
           tag: `friend_acc:${user.id}`,
+          badgeCount,
         },
       }),
     }).catch(() => {});
@@ -103,6 +109,27 @@ serve(async (req) => {
 
   return json({ friendship: updated });
 });
+
+async function computeBadgeCount(
+  svc: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<number | null> {
+  try {
+    const [{ count: unreadShares }, { count: pendingReqs }] = await Promise.all([
+      svc.from('shared_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('receiver_id', userId)
+        .is('read_at', null),
+      svc.from('friendships')
+        .select('id', { count: 'exact', head: true })
+        .eq('addressee', userId)
+        .eq('status', 'pending'),
+    ]);
+    return (unreadShares ?? 0) + (pendingReqs ?? 0);
+  } catch {
+    return null;
+  }
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

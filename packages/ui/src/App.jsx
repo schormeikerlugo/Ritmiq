@@ -48,6 +48,7 @@ import { useSocialRealtime } from './lib/use-social-realtime.js';
 import { useShareReminder } from './lib/use-share-reminder.js';
 import { ShareReminderModal } from './components/ShareReminder/ShareReminderModal.jsx';
 import { usePushRegistration } from './lib/use-push.js';
+import { useAppBadge } from './lib/use-badge.js';
 import { useSettingsStore } from './stores/settings.js';
 import { initTheme } from './stores/theme.js';
 
@@ -94,6 +95,7 @@ export function App() {
   const sidebarOpen = useViewStore((s) => s.sidebarOpen);
   const closeSidebar = useViewStore((s) => s.closeSidebar);
   const nowPlayingOpen = useViewStore((s) => s.nowPlayingOpen);
+  const viewKind = useViewStore((s) => s.view.kind);
 
   // Presencia "Escuchando ahora" — publica el track actual a los amigos.
   const eqEnabled    = useSettingsStore((s) => s.eqEnabled);
@@ -108,6 +110,18 @@ export function App() {
   // Web Push: si el usuario ya concedio el permiso, re-registra el endpoint
   // (los push endpoints expiran y se rotan; el upsert mantiene la fila viva).
   usePushRegistration(user?.id ?? null);
+
+  // Badge nativo en el icono de la app (iOS PWA 16.4+, Android Chrome
+  // instalada, desktop PWA). Se sincroniza con incomingRequests +
+  // shares sin leer. Si el usuario esta viendo la pestana Amigos,
+  // forzamos clearAppBadge() porque ya los esta viendo en pantalla
+  // \u2014 mantener el badge rojo seria incoherente con su contexto.
+  const incomingCount = useSocialStore((s) => s.incomingRequests.length);
+  const unreadShares  = useSocialStore(
+    (s) => s.inbox.filter((i) => !i.readAt).length,
+  );
+  const viewingFriends = viewKind === 'friends';
+  useAppBadge(incomingCount + unreadShares, viewingFriends);
 
   // Inicializar sesión Supabase al montar
   useEffect(() => { init(); }, [init]);

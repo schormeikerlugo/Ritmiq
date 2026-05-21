@@ -111,6 +111,13 @@ serve(async (req) => {
     ? (body as TrackShareBody).title ?? 'un track'
     : (body as PlaylistShareBody).playlistName ?? 'una playlist';
 
+  // Calcular badge count para el receptor: shares no leidos +
+  // solicitudes de amistad pendientes. Esto va en el payload del
+  // push para que el SW lo aplique con setAppBadge() incluso si la
+  // app no esta abierta (unica forma de mantener el contador del
+  // icono sincronizado con el backend).
+  const badgeCount = await computeBadgeCount(svc, receiverId);
+
   const pushUrl = `${SUPABASE_URL}/functions/v1/send-push-notification`;
   fetch(pushUrl, {
     method: 'POST',
@@ -127,15 +134,41 @@ serve(async (req) => {
         kind,
         itemId: item.id,
         senderId: user.id,
-        // tag unico por share \u2014 evita que shares sucesivos se
-        // sobrescriban en el centro de notificaciones del device.
         tag: `share:${item.id}`,
+        badgeCount,
       },
     }),
   }).catch(() => {});
 
   return json({ item });
 });
+
+/**
+ * Cuenta items no leidos + solicitudes pendientes para mostrar como
+ * badge nativo. Best-effort: si falla, devolvemos null y el SW no
+ * aplica badge (el cliente lo refrescara al abrir la app via
+ * useAppBadge).
+ */
+async function computeBadgeCount(
+  svc: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<number | null> {
+  try {
+    const [{ count: unreadShares }, { count: pendingReqs }] = await Promise.all([
+      svc.from('shared_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('receiver_id', userId)
+        .is('read_at', null),
+      svc.from('friendships')
+        .select('id', { count: 'exact', head: true })
+        .eq('addressee', userId)
+        .eq('status', 'pending'),
+    ]);
+    return (unreadShares ?? 0) + (pendingReqs ?? 0);
+  } catch {
+    return null;
+  }
+}
 
 // ── tipos ──────────────────────────────────────────────────────────
 

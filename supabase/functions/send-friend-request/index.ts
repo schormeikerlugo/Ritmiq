@@ -110,6 +110,10 @@ async function notifyFriendRequest(
 
   const name = requesterProfile?.display_name ?? requesterProfile?.username ?? 'Alguien';
 
+  // Calcular badge para el destinatario (shares no leidos + solicitudes
+  // pendientes incluyendo la que acabamos de crear).
+  const badgeCount = await computeBadgeCount(svc, addresseeId);
+
   // Invocar send-push-notification (service role, llamada interna)
   const pushUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`;
   await fetch(pushUrl, {
@@ -125,12 +129,32 @@ async function notifyFriendRequest(
       data: {
         type: 'friend_request',
         requesterId,
-        // tag unico por requester \u2014 si re-envia tras reject solo
-        // se actualiza la notif, no se acumulan dos del mismo user.
         tag: `friend_req:${requesterId}`,
+        badgeCount,
       },
     }),
   }).catch(() => {}); // fire-and-forget
+}
+
+async function computeBadgeCount(
+  svc: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<number | null> {
+  try {
+    const [{ count: unreadShares }, { count: pendingReqs }] = await Promise.all([
+      svc.from('shared_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('receiver_id', userId)
+        .is('read_at', null),
+      svc.from('friendships')
+        .select('id', { count: 'exact', head: true })
+        .eq('addressee', userId)
+        .eq('status', 'pending'),
+    ]);
+    return (unreadShares ?? 0) + (pendingReqs ?? 0);
+  } catch {
+    return null;
+  }
 }
 
 function json(body: unknown, status = 200) {
