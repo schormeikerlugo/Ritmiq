@@ -115,6 +115,26 @@ export function App() {
     return startTunnelKeepalive();
   }, []);
 
+  // T5: refresca la cookie cross-context cada vez que la PWA vuelve a ser
+  // visible, throttled a una vez por dia. Garantiza que la cookie no quede
+  // stale si el usuario reinstala la PWA o cambia de device. Solo corre en
+  // PWA standalone (no en desktop ni en Safari normal).
+  useEffect(() => {
+    if (!isStandalonePWA()) return;
+    const THROTTLE_KEY = 'ritmiq.mark-installed-ts';
+    const ONE_DAY_MS = 86_400_000;
+    const handler = () => {
+      if (document.visibilityState !== 'visible') return;
+      const last = parseInt(localStorage.getItem(THROTTLE_KEY) ?? '0', 10);
+      if (Date.now() - last < ONE_DAY_MS) return;
+      localStorage.setItem(THROTTLE_KEY, String(Date.now()));
+      fetch('/api/mark-installed', { method: 'POST', credentials: 'same-origin' })
+        .catch(() => {});
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, []);
+
   // Recargar biblioteca y playlists al cambiar el usuario
   useEffect(() => {
     if (user) {
