@@ -11,8 +11,8 @@
  * Errores: 400 ya_amigos | 400 ya_pendiente | 400 bloqueado | 404 usuario_no_encontrado
  */
 
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+// Imports via 'npm:' specifier (ver send-push-notification).
+import { createClient } from 'npm:@supabase/supabase-js@2.45.0';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -24,7 +24,7 @@ const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'Method Not Allowed' }, 405);
 

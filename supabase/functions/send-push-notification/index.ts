@@ -10,8 +10,11 @@
  * Body: { userId: string, title: string, body: string, data?: object }
  */
 
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+// Imports via 'npm:' specifier \u2014 unica forma soportada cuando la
+// funcion se deploya via Management API PATCH (no permite imports
+// remotos esm.sh ni deno.land/std bajo --no-remote). Deno.serve es
+// nativo, sin import necesario.
+import { createClient } from 'npm:@supabase/supabase-js@2.45.0';
 
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -25,7 +28,7 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'Method Not Allowed' }, 405);
 
