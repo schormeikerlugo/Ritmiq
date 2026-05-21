@@ -61,18 +61,18 @@
 .cover {
   width: 56px;
   height: 56px;
+  /* Caratula SIEMPRE circular cuando hay imagen — el efecto vinilo
+     no se pierde al pausar, solo se detiene el giro. Si no hay cover
+     (placeholder) usamos radius-md para que el icono respire mejor. */
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--color-bg-2);
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  /* Cuando esta reproduciendo, el contenedor pasa a circular para
-     que el <img> interno gire como un vinilo. Transicion suave entre
-     cuadrado y circulo. */
   transition: border-radius 320ms var(--ease-emphasized);
 }
-.cover[data-spinning='true'] {
+.cover[data-has-cover='true'] {
   border-radius: 50%;
 }
 
@@ -82,11 +82,9 @@
   object-fit: cover;
 }
 
-/* Vinyl spin — la imagen rota dentro del contenedor (que ya esta
-   recortado en circulo cuando data-spinning='true'). Pausa en cuanto
-   se quita el flag (sin perder el angulo gracias a animation-play-state
-   en alguna ref no funciona aqui — usamos toggle de animation directo).
-   Mantenemos el angulo entre pauses: `paused` preserva la frame. */
+/* Vinyl spin — la imagen rota dentro del contenedor (siempre circular
+   cuando hay imagen). data-spinning controla SOLO la animacion, no la
+   forma. Pausa preserva el angulo gracias a animation-play-state. */
 .cover img {
   animation: ritmiq-vinyl-spin 16s linear infinite;
   animation-play-state: paused;
@@ -101,7 +99,6 @@
 /* Respetar la preferencia del usuario de movimiento reducido. */
 @media (prefers-reduced-motion: reduce) {
   .cover img { animation: none; }
-  .cover[data-spinning='true'] { border-radius: var(--radius-md); }
 }
 
 .coverPlaceholder {

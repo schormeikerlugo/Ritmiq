@@ -81,6 +81,7 @@ export function Player() {
         >
           <div
             className={styles.cover}
+            data-has-cover={!!currentTrack?.coverUrl}
             data-spinning={isPlaying && !!currentTrack?.coverUrl}
             aria-hidden="true"
           >

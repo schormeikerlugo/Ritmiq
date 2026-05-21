@@ -5,6 +5,26 @@
   padding-top: var(--space-5);
   padding-bottom: var(--space-8);
   animation: ritmiq-fade-in-up var(--dur-slow, 400ms) var(--ease-emphasized);
+  /* Empuja el panel hacia el fondo del viewport: al cargar la vista
+     NowPlaying, solo asoma ~10% del titulo 'ACERCA DEL ARTISTA' en la
+     parte inferior, invitando al scroll. Asi el cover + controles
+     respiran y ocupan toda la pantalla visible.
+     Calculo: 70vh deja que los controles ocupen casi todo el viewport
+     y el panel queda anclado abajo. El usuario hace scroll para ver
+     la info del artista. */
+  margin-top: 70vh;
+}
+
+@media (max-width: 380px) {
+  /* Pantallas mas pequenas (iPhone SE etc): empujamos un poco menos
+     para que el peek del titulo sea visible sin desbordar tanto. */
+  .panel { margin-top: 60vh; }
+}
+
+@media (min-height: 900px) {
+  /* Pantallas altas (tablets, desktop): la proporcion necesita ser
+     mayor para mantener el efecto de "peek". */
+  .panel { margin-top: 80vh; }
 }
 
 .heroSection,
