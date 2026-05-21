@@ -6,6 +6,7 @@ import { useViewStore } from '../../stores/view.js';
 import { isEphemeralTrack } from '../../lib/track-helpers.js';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
+import { hapticTap } from '../../lib/haptics.js';
 import styles from './Player.module.css';
 
 function fmt(sec) {
@@ -40,6 +41,9 @@ export function Player() {
   const onHeart = async (e) => {
     e?.stopPropagation();
     if (!currentTrack) return;
+    // Haptic confirmacion en Android \u2014 hace que el like se sienta
+    // tangible. iOS no-op (Apple no expone haptics a Web).
+    hapticTap();
     let id = currentTrack.id;
     if (ephemeral) {
       const persisted = await persistEphemeral(currentTrack);

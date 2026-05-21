@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { Modal } from '../Modal/Modal.jsx';
 import { useSocialStore } from '../../stores/social.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { hapticSuccess, hapticError } from '../../lib/haptics.js';
 import styles from './ShareToFriendModal.module.css';
 
 export function ShareToFriendModal({ track, playlist, onClose }) {
@@ -70,8 +71,13 @@ export function ShareToFriendModal({ track, playlist, onClose }) {
 
     setSending(false);
     if (errors.length > 0) {
+      // Haptic error pattern \u2014 Android, no-op iOS.
+      hapticError();
       setError(`Error al enviar a ${errors.length} amigo(s)`);
     } else {
+      // Haptic success \u2014 pulsos cortos crecientes para confirmar
+      // que el share llego. Refuerza la sensacion nativa.
+      hapticSuccess();
       setSent(true);
       setTimeout(onClose, 1500);
     }

@@ -22,6 +22,7 @@ import { buildShareLink, copyToClipboard } from '../../lib/share.js';
 import { getSharedBackend } from '../../lib/use-player.js';
 import { useBpmPulse } from '../../lib/use-bpm-pulse.js';
 import { useWakeLock } from '../../lib/use-wake-lock.js';
+import { hapticTap } from '../../lib/haptics.js';
 import { useSocialStore } from '../../stores/social.js';
 import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
 import styles from './NowPlaying.module.css';
@@ -132,6 +133,7 @@ export function NowPlaying() {
 
   const onHeart = async () => {
     if (!currentTrack) return;
+    hapticTap();
     let id = currentTrack.id;
     if (ephemeral) {
       const persisted = await persistEphemeral(currentTrack);
