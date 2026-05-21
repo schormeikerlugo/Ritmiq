@@ -190,22 +190,27 @@
 
   .sidebar { display: none; }
 
-  /* Main full-bleed en mobile — sin border-radius. */
+  /* Main full-bleed en mobile — sin border-radius. En landscape iPhone
+     con notch lateral, el navegador reserva safe-area-inset-left/right.
+     Sumamos esos insets al padding lateral para que el contenido no
+     quede debajo de la notch. */
   .main {
     grid-area: main;
     border-radius: 0;
     padding-top: env(safe-area-inset-top, 0px) !important;
-    padding-right: var(--space-3) !important;
+    padding-right: calc(var(--space-3) + var(--safe-right)) !important;
     padding-bottom: calc(var(--player-h) + var(--bottom-nav-h) + var(--space-3)) !important;
-    padding-left: var(--space-3) !important;
+    padding-left: calc(var(--space-3) + var(--safe-left)) !important;
     display: block;
   }
 
-  /* Player como pill flotante encima del bottom nav. */
+  /* Player como pill flotante encima del bottom nav. En landscape
+     iPhone con notch, el pill no debe quedar debajo \u2014 sumamos los
+     insets laterales al margen left/right. */
   .player {
     position: fixed;
-    left: var(--space-2);
-    right: var(--space-2);
+    left: calc(var(--space-2) + var(--safe-left));
+    right: calc(var(--space-2) + var(--safe-right));
     bottom: calc(var(--bottom-nav-h) + var(--space-2));
     width: auto;
     height: var(--player-h);
