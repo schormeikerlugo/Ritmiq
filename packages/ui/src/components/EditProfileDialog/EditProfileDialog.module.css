@@ -1,0 +1,231 @@
+/* EditProfileDialog */
+
+/* ── Avatar ────────────────────────────────────────────────────── */
+
+.avatarSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.avatarWrap {
+  position: relative;
+  width: 96px;
+  height: 96px;
+}
+
+.avatarImg {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255,255,255,.08);
+}
+
+.avatarPlaceholder {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent, #1db954), #5a3eff);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  font-weight: 700;
+  border: 2px solid rgba(255,255,255,.08);
+}
+
+.avatarEditBtn {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--color-accent, #1db954);
+  color: #000;
+  border: 2px solid var(--color-bg-1, #181818);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.avatarEditBtn:hover { transform: scale(1.08); }
+
+.avatarActions {
+  display: flex;
+  gap: 14px;
+}
+
+.linkBtn {
+  background: none;
+  border: none;
+  color: var(--color-accent, #1db954);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 4px 0;
+}
+.linkBtnDanger {
+  background: none;
+  border: none;
+  color: #fc8181;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 4px 0;
+}
+.linkBtnDanger:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Fields ─────────────────────────────────────────────────────── */
+
+.field {
+  margin-bottom: 14px;
+}
+
+.label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--color-text-secondary, rgba(255,255,255,.5));
+  margin-bottom: 6px;
+}
+
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  padding: 0 12px;
+  transition: border-color 0.15s;
+}
+.inputWrap:focus-within { border-color: var(--color-accent, #1db954); }
+
+.prefix {
+  color: var(--color-text-secondary, rgba(255,255,255,.4));
+  font-size: 14px;
+  font-weight: 500;
+  padding-right: 4px;
+  user-select: none;
+}
+
+.input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text-primary, #fff);
+  font-size: 14px;
+  padding: 10px 0;
+  font-family: inherit;
+}
+.inputWrap .input { padding-left: 0; }
+
+/* Input estandalone (sin wrap con prefix) */
+.field > .input {
+  width: 100%;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.field > .input:focus { border-color: var(--color-accent, #1db954); }
+
+.inputIconOk {
+  color: var(--color-accent, #1db954);
+  flex-shrink: 0;
+}
+
+.textarea {
+  width: 100%;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--color-text-primary, #fff);
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.textarea:focus { border-color: var(--color-accent, #1db954); }
+.textarea::placeholder, .input::placeholder { color: rgba(255,255,255,.3); }
+
+/* ── Hints ─────────────────────────────────────────────────────── */
+
+.hint {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.hint[data-tone='ok']   { color: var(--color-accent, #1db954); }
+.hint[data-tone='err']  { color: #fc8181; }
+.hint[data-tone='info'] { color: var(--color-text-secondary, rgba(255,255,255,.5)); }
+
+.hintNeutral {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--color-text-secondary, rgba(255,255,255,.35));
+}
+
+.errorMsg {
+  font-size: 12.5px;
+  color: #fc8181;
+  margin: 0 0 12px;
+  text-align: center;
+  padding: 8px;
+  background: rgba(229,62,62,.1);
+  border-radius: 6px;
+}
+
+/* ── Actions ─────────────────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.btnCancel {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.15);
+  color: var(--color-text-secondary, rgba(255,255,255,.6));
+  border-radius: 20px;
+  padding: 9px 18px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btnCancel:hover { background: rgba(255,255,255,.06); }
+.btnCancel:disabled { opacity: .5; cursor: not-allowed; }
+
+.btnSave {
+  background: var(--color-accent, #1db954);
+  color: #000;
+  border: none;
+  border-radius: 20px;
+  padding: 9px 22px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.btnSave:hover:not(:disabled) { opacity: 0.88; transform: scale(1.02); }
+.btnSave:disabled { opacity: 0.45; cursor: not-allowed; }

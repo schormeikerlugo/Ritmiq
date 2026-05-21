@@ -19,6 +19,7 @@
  */
 import { useEffect, useMemo } from 'react';
 import { useAuthStore } from '../../stores/auth.js';
+import { useSocialStore } from '../../stores/social.js';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useHistoryStore, selectRecentTracks, selectTopTracks, selectTopArtists, selectContinueListening } from '../../stores/history.js';
@@ -52,7 +53,13 @@ export function Home() {
   const goPlaylist = useViewStore((s) => s.goPlaylist);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
 
-  const name = user?.email?.split('@')[0] ?? '';
+  // Preferimos el nombre social (display_name) > @username > local-part del email.
+  // Asi el usuario controla como aparece su nombre en el saludo grande.
+  const socialProfile = useSocialStore((s) => s.profile);
+  const name = socialProfile?.displayName
+            || socialProfile?.username
+            || user?.email?.split('@')[0]
+            || '';
 
   /* ── Derivados del historial ─────────────────────────────────────────── */
   const recent     = useMemo(() => selectRecentTracks(events, 12),       [events]);
@@ -128,12 +135,21 @@ export function Home() {
     <section className={styles.wrap} {...ptrBind}>
       <PullIndicator pullDistance={pullDistance} refreshing={refreshing} />
       <header className={styles.header}>
-        <h1 className={styles.title}>
-          {getGreeting()}{name ? `, ${name}` : ''}
-        </h1>
-        <p className={styles.subtitle}>
-          ¿Qué quieres escuchar hoy?
-        </p>
+        {socialProfile?.avatarUrl && (
+          <img
+            src={socialProfile.avatarUrl}
+            alt=""
+            className={styles.heroAvatar}
+          />
+        )}
+        <div className={styles.headerText}>
+          <h1 className={styles.title}>
+            {getGreeting()}{name ? `, ${name}` : ''}
+          </h1>
+          <p className={styles.subtitle}>
+            ¿Qué quieres escuchar hoy?
+          </p>
+        </div>
       </header>
 
       {/* ─── Hero: accesos rápidos ─── */}

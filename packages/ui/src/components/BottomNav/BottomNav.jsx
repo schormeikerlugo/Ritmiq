@@ -24,6 +24,7 @@ export function BottomNav() {
   const goFriends  = useViewStore((s) => s.goFriends);
   const goSettings = useViewStore((s) => s.goSettings);
   const user       = useAuthStore((s) => s.user);
+  const profile    = useSocialStore((s) => s.profile);
   const pendingCount = useSocialStore((s) =>
     s.incomingRequests.length + s.inbox.filter((i) => !i.readAt).length
   );
@@ -50,9 +51,18 @@ export function BottomNav() {
         >
           <span className={styles.iconWrap}>
             {t.avatar && user ? (
-              <span className={styles.avatar} aria-hidden="true">
-                {(user.email ?? 'U').slice(0, 1).toUpperCase()}
-              </span>
+              profile?.avatarUrl ? (
+                <img
+                  src={profile.avatarUrl}
+                  alt=""
+                  className={styles.avatarImg}
+                  aria-hidden="true"
+                />
+              ) : (
+                <span className={styles.avatar} aria-hidden="true">
+                  {(profile?.displayName ?? profile?.username ?? user.email ?? 'U').slice(0, 1).toUpperCase()}
+                </span>
+              )
             ) : (
               <Icon name={t.icon} size={22} filled={t.isActive} />
             )}

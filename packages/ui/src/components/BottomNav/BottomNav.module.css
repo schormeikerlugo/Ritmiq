@@ -55,7 +55,15 @@
   font-weight: 700;
   margin-bottom: 1px;
 }
-.tab[data-active='true'] .avatar {
+.avatarImg {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 1px;
+}
+.tab[data-active='true'] .avatar,
+.tab[data-active='true'] .avatarImg {
   outline: 2px solid var(--color-text-1);
   outline-offset: 2px;
 }

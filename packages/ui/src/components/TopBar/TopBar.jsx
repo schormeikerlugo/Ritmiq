@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { useAuthStore } from '../../stores/auth.js';
+import { useSocialStore } from '../../stores/social.js';
 import { useViewStore } from '../../stores/view.js';
 import { api, isDesktop } from '../../lib/api.js';
 import { metaToCandidate } from '../../lib/track-helpers.js';
@@ -388,6 +389,7 @@ function UserMenu() {
   const online = conn.internet || conn.lan || conn.tunnel;
   const ref = useRef(null);
   const { user, signOut } = useAuthStore();
+  const profile = useSocialStore((s) => s.profile);
   const goSettings = useViewStore((s) => s.goSettings);
 
   useEffect(() => {
@@ -401,7 +403,7 @@ function UserMenu() {
   useEffect(() => onConnectivityChange(setConn), []);
   useEffect(() => onQueueSizeChange(setPending), []);
 
-  const initial = (user?.email ?? 'U').slice(0, 1).toUpperCase();
+  const initial = (profile?.displayName ?? profile?.username ?? user?.email ?? 'U').slice(0, 1).toUpperCase();
   const sourceLabel =
     conn.lan ? 'LAN'
     : conn.tunnel ? 'Tunnel'
@@ -418,7 +420,9 @@ function UserMenu() {
         aria-label="Cuenta"
         onClick={() => setOpen((v) => !v)}
       >
-        {initial}
+        {profile?.avatarUrl ? (
+          <img src={profile.avatarUrl} alt="" className={styles.avatarImg} />
+        ) : initial}
         <span
           className={styles.statusDot}
           data-online={online}

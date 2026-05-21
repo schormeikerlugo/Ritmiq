@@ -71,14 +71,37 @@ export const useSocialStore = create((set, get) => ({
       return null;
     }
     if (!data) {
-      // Perfil no existe aun — crear uno con username auto-generado
-      const defaultUsername = 'user_' + userId.replace(/-/g, '').slice(0, 8);
-      const { data: created } = await supabase
+      // Perfil no existe — crear uno. Si el usuario eligio username y/o
+      // display_name al registrarse (user_metadata desde signUp), los usamos.
+      // Si no, fallback a user_<8chars-del-uid>.
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const meta = authUser?.user_metadata ?? {};
+
+      let username = (meta.username ?? '').trim().toLowerCase();
+      if (!username || username.length < 3 || !/^[a-z0-9_]+$/.test(username)) {
+        username = 'user_' + userId.replace(/-/g, '').slice(0, 8);
+      }
+      const displayName = (meta.display_name ?? '').trim() || null;
+
+      // Intentar insertar. Si el username elegido por el usuario esta
+      // tomado (race), fallback a uno generico para no bloquear el login.
+      let insertResult = await supabase
         .from('profiles')
-        .insert({ user_id: userId, username: defaultUsername })
+        .insert({ user_id: userId, username, display_name: displayName })
         .select('user_id, username, display_name, avatar_url, bio, show_activity')
         .single();
-      const profile = created ? mapProfile(created) : null;
+
+      if (insertResult.error?.code === '23505') {
+        // Unique violation — username tomado. Reintentar con generico.
+        username = 'user_' + userId.replace(/-/g, '').slice(0, 8);
+        insertResult = await supabase
+          .from('profiles')
+          .insert({ user_id: userId, username, display_name: displayName })
+          .select('user_id, username, display_name, avatar_url, bio, show_activity')
+          .single();
+      }
+
+      const profile = insertResult.data ? mapProfile(insertResult.data) : null;
       set({ profile, profileLoading: false });
       return profile;
     }
@@ -87,23 +110,86 @@ export const useSocialStore = create((set, get) => ({
     return profile;
   },
 
+  /**
+   * Actualiza solo los campos presentes en `patch` (omite undefined).
+   * Asi una llamada parcial como `updateProfile({ showActivity: false })`
+   * no setea username/avatar a null por accidente.
+   *
+   * @param {{username?:string, displayName?:string, avatarUrl?:string|null, bio?:string, showActivity?:boolean}} patch
+   * @returns {Promise<Error|null>}
+   */
   async updateProfile(patch) {
     const { profile } = get();
-    if (!profile) return;
+    if (!profile) return null;
+
+    // Mapear solo los campos definidos a snake_case del schema
+    const update = {};
+    if (patch.username     !== undefined) update.username      = patch.username;
+    if (patch.displayName  !== undefined) update.display_name  = patch.displayName;
+    if (patch.avatarUrl    !== undefined) update.avatar_url    = patch.avatarUrl;
+    if (patch.bio          !== undefined) update.bio           = patch.bio;
+    if (patch.showActivity !== undefined) update.show_activity = patch.showActivity;
+    if (Object.keys(update).length === 0) return null;
+
     const { data, error } = await supabase
       .from('profiles')
-      .update({
-        username:      patch.username,
-        display_name:  patch.displayName,
-        avatar_url:    patch.avatarUrl,
-        bio:           patch.bio,
-        show_activity: patch.showActivity,
-      })
+      .update(update)
       .eq('user_id', profile.userId)
       .select('user_id, username, display_name, avatar_url, bio, show_activity')
       .single();
     if (!error && data) set({ profile: mapProfile(data) });
     return error;
+  },
+
+  /**
+   * Sube un archivo de imagen al bucket 'avatars' (path
+   * <user_id>/avatar.<ext>), obtiene la public URL y actualiza
+   * profile.avatar_url. Devuelve la URL nueva o null en error.
+   *
+   * @param {File} file - jpeg/png/webp, max 2MB.
+   * @returns {Promise<string|null>}
+   */
+  async uploadAvatar(file) {
+    const { profile } = get();
+    if (!profile || !file) return null;
+
+    // Validacion cliente (server tambien valida via bucket config)
+    if (file.size > 2 * 1024 * 1024) throw new Error('La imagen no debe superar 2 MB.');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      throw new Error('Formato no soportado. Usa JPG, PNG o WebP.');
+    }
+
+    const ext = file.type === 'image/png' ? 'png'
+              : file.type === 'image/webp' ? 'webp' : 'jpg';
+    const path = `${profile.userId}/avatar.${ext}`;
+
+    // Upload con upsert: sobrescribe la version anterior
+    const { error: upErr } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, contentType: file.type, cacheControl: '3600' });
+    if (upErr) throw upErr;
+
+    // Public URL con cache buster para que los amigos vean el cambio inmediato
+    const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+    const url = `${pub.publicUrl}?v=${Date.now()}`;
+
+    // Actualizar el campo avatar_url en el perfil
+    const err = await get().updateProfile({ avatarUrl: url });
+    if (err) throw err;
+    return url;
+  },
+
+  /** Elimina el avatar del bucket y limpia avatar_url del perfil. */
+  async removeAvatar() {
+    const { profile } = get();
+    if (!profile) return;
+    // No sabemos la extension exacta; intentamos las 3.
+    await supabase.storage.from('avatars').remove([
+      `${profile.userId}/avatar.jpg`,
+      `${profile.userId}/avatar.png`,
+      `${profile.userId}/avatar.webp`,
+    ]);
+    await get().updateProfile({ avatarUrl: null });
   },
 
   // ── Amigos ─────────────────────────────────────────────────────────

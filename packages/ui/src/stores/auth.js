@@ -55,9 +55,25 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  async signUp(email, password) {
+  /**
+   * Registra una cuenta nueva. Si se pasa username/displayName se guardan
+   * en user_metadata para que el primer loadProfile() los aplique al
+   * perfil social (en lugar del username random `user_<uid8>` que genera
+   * el trigger de la migracion).
+   *
+   * @param {string} email
+   * @param {string} password
+   * @param {{username?:string, displayName?:string}} [meta]
+   */
+  async signUp(email, password, meta = {}) {
     set({ error: null });
-    const { error } = await supabase.auth.signUp({ email, password });
+    const options = {};
+    const data = {};
+    if (meta.username)    data.username     = meta.username.trim().toLowerCase();
+    if (meta.displayName) data.display_name = meta.displayName.trim();
+    if (Object.keys(data).length > 0) options.data = data;
+
+    const { error } = await supabase.auth.signUp({ email, password, options });
     if (error) {
       set({ error: error.message });
       throw error;
