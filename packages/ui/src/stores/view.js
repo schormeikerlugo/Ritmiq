@@ -14,6 +14,8 @@ import { create } from 'zustand';
  *   | { kind: 'downloads' }
  *   | { kind: 'settings' }
  *   | { kind: 'stats' }
+ *   | { kind: 'friends' }
+ *   | { kind: 'profile', userId: string }
  *   | { kind: 'playlist', playlistId: string }
  *   | { kind: 'search', query: string }
  *   | { kind: 'artist', name: string }
@@ -62,6 +64,9 @@ export const useViewStore = create((set, get) => ({
   /** @param {null|'account'} sub */
   setSettingsSubview: (sub) => set({ settingsSubview: sub }),
   goStats:     () => set({ view: { kind: 'stats' }, history: [], sidebarOpen: false }),
+  goFriends:   () => set({ view: { kind: 'friends' }, history: [], sidebarOpen: false }),
+  /** @param {string} userId */
+  goProfile:   (userId) => navigateTo(set, get, { kind: 'profile', userId }),
   goSearchView: () => set({ view: { kind: 'search', query: '' }, history: [], sidebarOpen: false }),
   /** @param {string} playlistId */
   goPlaylist: (playlistId) =>
