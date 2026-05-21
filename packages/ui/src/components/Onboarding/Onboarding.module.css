@@ -62,11 +62,16 @@
   border-radius: 50%;
   background: linear-gradient(135deg, var(--color-accent), #5a3eff);
   color: white;
-  box-shadow: 0 8px 28px var(--color-accent-shadow);
+  box-shadow:
+    0 8px 28px var(--color-accent-shadow),
+    0 0 0 0 rgba(90, 62, 255, 0.55);
   position: relative;
+  /* Pasos no-sociales (default): halo morado-violeta latiendo al mismo
+     ritmo que los verdes — consistencia visual entre todos los pasos. */
+  animation: pulse-purple 2.2s ease-out infinite;
 }
-/* Pasos sociales (accent=true) — gradient distintivo + halo animado para
-   destacar que es una funcionalidad nueva e importante. */
+/* Pasos sociales (accent=true) — gradient distintivo + halo verde
+   para destacar que es una funcionalidad nueva e importante. */
 .iconCircle[data-accent='true'] {
   background: linear-gradient(135deg, #1db954 0%, #36d97c 50%, #5ed99b 100%);
   box-shadow:
@@ -78,6 +83,19 @@
   0%   { box-shadow: 0 8px 28px rgba(29, 185, 84, 0.45), 0 0 0 0 rgba(29, 185, 84, 0.5); }
   70%  { box-shadow: 0 8px 28px rgba(29, 185, 84, 0.45), 0 0 0 16px rgba(29, 185, 84, 0); }
   100% { box-shadow: 0 8px 28px rgba(29, 185, 84, 0.45), 0 0 0 0 rgba(29, 185, 84, 0); }
+}
+@keyframes pulse-purple {
+  0%   { box-shadow: 0 8px 28px var(--color-accent-shadow), 0 0 0 0 rgba(90, 62, 255, 0.45); }
+  70%  { box-shadow: 0 8px 28px var(--color-accent-shadow), 0 0 0 16px rgba(90, 62, 255, 0); }
+  100% { box-shadow: 0 8px 28px var(--color-accent-shadow), 0 0 0 0 rgba(90, 62, 255, 0); }
+}
+
+/* Respeta la preferencia del usuario de movimiento reducido. */
+@media (prefers-reduced-motion: reduce) {
+  .iconCircle,
+  .iconCircle[data-accent='true'] {
+    animation: none;
+  }
 }
 .logo {
   width: 96px;
