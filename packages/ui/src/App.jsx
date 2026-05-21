@@ -393,6 +393,33 @@ function MainView() {
   else if (view.kind === 'search') key = `search:${view.query}`;
   else if (view.kind === 'artist') key = `artist:${view.name}`;
   else if (view.kind === 'album') key = `album:${view.artist}::${view.album}`;
+
+  // Resetear scroll del contenedor principal al cambiar de vista.
+  // El <main className={styles.main}> NO se remonta entre vistas (solo
+  // su hijo .viewSlot via key); su scrollTop persiste si no lo
+  // reseteamos manualmente. Sin esto el usuario lleva a la siguiente
+  // vista la posicion de scroll de la anterior — mal UX.
+  //
+  // Tambien reseteamos contenedores de scroll interno: FriendsView
+  // (.content) y ProfileView (.body) tienen overflow propio porque sus
+  // headers son sticky-like. Buscamos cualquier elemento con el atributo
+  // data-scroll-reset='true' dentro del slot recien renderizado.
+  useEffect(() => {
+    const main = document.querySelector(`.${styles.main}`);
+    if (main && main.scrollTop > 0) {
+      // scrollTop = 0 directo (en vez de scrollTo({behavior:'instant'}))
+      // porque el CSS tiene scroll-behavior: smooth y queremos teleport
+      // inmediato al cambiar de vista, no animar el scroll de vuelta al top.
+      // Asignar scrollTop directamente bypasea el behavior CSS.
+      main.scrollTop = 0;
+    }
+    // Resetear contenedores internos marcados con data-scroll-reset
+    // (FriendsView, ProfileView tienen overflow propio).
+    document
+      .querySelectorAll('[data-scroll-reset="true"]')
+      .forEach((el) => { if (el.scrollTop > 0) el.scrollTop = 0; });
+  }, [key]);
+
   let content;
   if (view.kind === 'home') content = <Home />;
   else if (view.kind === 'library') content = <Library />;

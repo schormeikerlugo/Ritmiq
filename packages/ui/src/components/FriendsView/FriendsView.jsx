@@ -71,7 +71,7 @@ export function FriendsView() {
       </div>
 
       {/* Contenido del tab activo */}
-      <div className={styles.content} role="tabpanel">
+      <div className={styles.content} role="tabpanel" data-scroll-reset="true">
         {tab === 'friends'  && <FriendsTab />}
         {tab === 'requests' && <RequestsTab />}
         {tab === 'search'   && <SearchTab />}

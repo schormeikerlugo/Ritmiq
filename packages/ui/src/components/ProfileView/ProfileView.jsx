@@ -126,7 +126,7 @@ export function ProfileView({ userId }) {
         <span className={styles.headerTitle}>@{profile.username}</span>
       </header>
 
-      <div className={styles.body}>
+      <div className={styles.body} data-scroll-reset="true">
         {/* Avatar */}
         <div className={styles.avatarWrap}>
           {profile.avatar_url ? (
