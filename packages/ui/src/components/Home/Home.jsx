@@ -135,21 +135,12 @@ export function Home() {
     <section className={styles.wrap} {...ptrBind}>
       <PullIndicator pullDistance={pullDistance} refreshing={refreshing} />
       <header className={styles.header}>
-        {socialProfile?.avatarUrl && (
-          <img
-            src={socialProfile.avatarUrl}
-            alt=""
-            className={styles.heroAvatar}
-          />
-        )}
-        <div className={styles.headerText}>
-          <h1 className={styles.title}>
-            {getGreeting()}{name ? `, ${name}` : ''}
-          </h1>
-          <p className={styles.subtitle}>
-            ¿Qué quieres escuchar hoy?
-          </p>
-        </div>
+        <h1 className={styles.title}>
+          {getGreeting()}{name ? `, ${name}` : ''}
+        </h1>
+        <p className={styles.subtitle}>
+          ¿Qué quieres escuchar hoy?
+        </p>
       </header>
 
       {/* ─── Hero: accesos rápidos ─── */}

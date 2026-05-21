@@ -12,30 +12,8 @@
 
 .header {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-/* Texto del saludo. Wrappeado en su propio div para que el avatar
-   no se estire verticalmente cuando subtitle hace wrap en mobile. */
-.headerText {
-  display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  min-width: 0;
-  flex: 1;
-}
-
-/* Avatar grande en el saludo del Home — refuerza la identidad del
-   usuario al entrar a la app. Solo se renderiza si tiene avatar_url. */
-.heroAvatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid rgba(255,255,255,.08);
-  flex-shrink: 0;
 }
 
 .title {
