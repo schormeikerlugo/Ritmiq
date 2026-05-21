@@ -92,7 +92,11 @@ serve(async (req) => {
         userId: friendship.requester,
         title: 'Solicitud aceptada',
         body: `${name} aceptó tu solicitud de amistad`,
-        data: { type: 'friend_accepted', friendId: user.id },
+        data: {
+          type: 'friend_accepted',
+          friendId: user.id,
+          tag: `friend_acc:${user.id}`,
+        },
       }),
     }).catch(() => {});
   }

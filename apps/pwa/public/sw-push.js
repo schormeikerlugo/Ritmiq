@@ -22,12 +22,23 @@ self.addEventListener('push', (event) => {
     payload.body = event.data?.text() ?? '';
   }
 
+  // tag unico por notificacion individual, NO por categoria.
+  //
+  // Si usamos tag=data.type (ej. 'share'), dos shares seguidos se
+  // sobrescriben en el centro de notificaciones \u2014 el usuario solo ve
+  // el ultimo. Para preservar todas las notifs visibles a la vez,
+  // el backend envia un tag unico por evento:
+  //   share:<itemId>  \u2192 cada track/playlist compartido
+  //   friend_req:<userId>  \u2192 una solicitud por amigo
+  //   friend_acc:<userId>  \u2192 una aceptacion por amigo
+  // Fallback a data.type si el backend no envio tag (retrocompat con
+  // suscripciones legacy o llamadas internas que aun no actualicen).
   const options = {
     body: payload.body,
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     data: payload.data ?? {},
-    tag: payload.data?.type ?? 'ritmiq',
+    tag: payload.data?.tag ?? payload.data?.type ?? 'ritmiq',
     renotify: true,
   };
 

@@ -122,7 +122,15 @@ serve(async (req) => {
       userId: receiverId,
       title:  `${senderName} te compartio ${kind === 'track' ? 'un track' : 'una playlist'}`,
       body:   itemName,
-      data:   { type: 'share', kind, itemId: item.id, senderId: user.id },
+      data:   {
+        type: 'share',
+        kind,
+        itemId: item.id,
+        senderId: user.id,
+        // tag unico por share \u2014 evita que shares sucesivos se
+        // sobrescriban en el centro de notificaciones del device.
+        tag: `share:${item.id}`,
+      },
     }),
   }).catch(() => {});
 

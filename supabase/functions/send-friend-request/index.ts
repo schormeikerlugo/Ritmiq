@@ -122,7 +122,13 @@ async function notifyFriendRequest(
       userId: addresseeId,
       title: 'Nueva solicitud de amistad',
       body: `${name} quiere ser tu amigo en Ritmiq`,
-      data: { type: 'friend_request', requesterId },
+      data: {
+        type: 'friend_request',
+        requesterId,
+        // tag unico por requester \u2014 si re-envia tras reject solo
+        // se actualiza la notif, no se acumulan dos del mismo user.
+        tag: `friend_req:${requesterId}`,
+      },
     }),
   }).catch(() => {}); // fire-and-forget
 }
