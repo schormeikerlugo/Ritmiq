@@ -12,6 +12,7 @@ import { TopBar } from './components/TopBar/TopBar.jsx';
 import { BottomNav } from './components/BottomNav/BottomNav.jsx';
 import { SettingsView } from './components/SettingsView/SettingsView.jsx';
 import { StatsView } from './components/StatsView/StatsView.jsx';
+import { FriendsView } from './components/FriendsView/FriendsView.jsx';
 import { AuthScreen } from './components/Auth/AuthScreen.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
@@ -40,6 +41,9 @@ import { useDesktopNotifications } from './lib/use-desktop-notifications.js';
 import { useRadioAutoExtend } from './lib/use-radio.js';
 import { useCrossfade } from './lib/use-crossfade.js';
 import { useApplyAudioSettings } from './lib/use-apply-audio-settings.js';
+import { useSocialStore } from './stores/social.js';
+import { usePresence } from './lib/use-presence.js';
+import { useSettingsStore } from './stores/settings.js';
 import { initTheme } from './stores/theme.js';
 
 // Aplica el tema guardado en localStorage al <html> ANTES del primer render.
@@ -85,6 +89,11 @@ export function App() {
   const sidebarOpen = useViewStore((s) => s.sidebarOpen);
   const closeSidebar = useViewStore((s) => s.closeSidebar);
   const nowPlayingOpen = useViewStore((s) => s.nowPlayingOpen);
+
+  // Presencia "Escuchando ahora" — publica el track actual a los amigos.
+  const eqEnabled    = useSettingsStore((s) => s.eqEnabled);
+  const showActivity = useSocialStore((s) => s.profile?.showActivity ?? true);
+  usePresence(user?.id ?? null, showActivity);
 
   // Inicializar sesión Supabase al montar
   useEffect(() => { init(); }, [init]);
@@ -144,6 +153,7 @@ export function App() {
     } else {
       resetLibrary();
       resetPlaylists();
+      useSocialStore.getState().reset();
       useHistoryStore.getState().reset();
       useRecommendationsStore.getState().reset();
       useArtistStore.getState().reset();
@@ -365,6 +375,8 @@ function MainView() {
   else if (view.kind === 'downloads') content = <Downloads />;
   else if (view.kind === 'settings') content = <SettingsView />;
   else if (view.kind === 'stats') content = <StatsView />;
+  else if (view.kind === 'friends') content = <FriendsView />;
+  else if (view.kind === 'profile') content = <FriendsView />; // ProfileView en sprint ζ.5
   else if (view.kind === 'playlist') content = <PlaylistView playlistId={view.playlistId} />;
   else if (view.kind === 'search') content = <SearchView query={view.query} />;
   else if (view.kind === 'artist') content = <ArtistView name={view.name} />;

@@ -12,21 +12,27 @@
  */
 import { useAuthStore } from '../../stores/auth.js';
 import { useViewStore } from '../../stores/view.js';
+import { useSocialStore } from '../../stores/social.js';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './BottomNav.module.css';
 
 export function BottomNav() {
-  const view = useViewStore((s) => s.view);
-  const goHome = useViewStore((s) => s.goHome);
+  const view       = useViewStore((s) => s.view);
+  const goHome     = useViewStore((s) => s.goHome);
   const goSearchView = useViewStore((s) => s.goSearchView);
-  const goLibrary = useViewStore((s) => s.goLibrary);
+  const goLibrary  = useViewStore((s) => s.goLibrary);
+  const goFriends  = useViewStore((s) => s.goFriends);
   const goSettings = useViewStore((s) => s.goSettings);
-  const user = useAuthStore((s) => s.user);
+  const user       = useAuthStore((s) => s.user);
+  const pendingCount = useSocialStore((s) =>
+    s.incomingRequests.length + s.inbox.filter((i) => !i.readAt).length
+  );
 
   const tabs = [
-    { id: 'home',    label: 'Inicio',     icon: 'Home',    isActive: view.kind === 'home', onClick: goHome },
-    { id: 'search',  label: 'Buscar',     icon: 'Search',  isActive: view.kind === 'search', onClick: goSearchView },
+    { id: 'home',    label: 'Inicio',     icon: 'Home',    isActive: view.kind === 'home',    onClick: goHome },
+    { id: 'search',  label: 'Buscar',     icon: 'Search',  isActive: view.kind === 'search',  onClick: goSearchView },
     { id: 'library', label: 'Biblioteca', icon: 'Library', isActive: view.kind === 'library', onClick: goLibrary },
+    { id: 'friends', label: 'Amigos',     icon: 'Users',   isActive: view.kind === 'friends', onClick: goFriends, badge: pendingCount },
     { id: 'settings', label: 'Ajustes',   icon: 'Settings', isActive: view.kind === 'settings', onClick: goSettings, avatar: true },
   ];
 
@@ -42,13 +48,18 @@ export function BottomNav() {
           aria-label={t.label}
           aria-current={t.isActive ? 'page' : undefined}
         >
-          {t.avatar && user ? (
-            <span className={styles.avatar} aria-hidden="true">
-              {(user.email ?? 'U').slice(0, 1).toUpperCase()}
-            </span>
-          ) : (
-            <Icon name={t.icon} size={22} filled={t.isActive} />
-          )}
+          <span className={styles.iconWrap}>
+            {t.avatar && user ? (
+              <span className={styles.avatar} aria-hidden="true">
+                {(user.email ?? 'U').slice(0, 1).toUpperCase()}
+              </span>
+            ) : (
+              <Icon name={t.icon} size={22} filled={t.isActive} />
+            )}
+            {t.badge > 0 && (
+              <span className={styles.badge}>{t.badge > 9 ? '9+' : t.badge}</span>
+            )}
+          </span>
           <span className={styles.label}>{t.label}</span>
         </button>
       ))}
