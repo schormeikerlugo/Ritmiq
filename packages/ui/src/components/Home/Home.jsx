@@ -30,6 +30,7 @@ import { Icon } from '../Icon/Icon.jsx';
 import { HomeRow } from './HomeRow.jsx';
 import { TrackCard } from './TrackCard.jsx';
 import { ArtistCard } from './ArtistCard.jsx';
+import { HomeStats } from './HomeStats.jsx';
 import { playPlaylist } from '../../lib/play-helpers.js';
 import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
 import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
@@ -177,6 +178,9 @@ export function Home() {
           </button>
         ))}
       </div>
+
+      {/* ─── Tu actividad: horas escuchadas + racha animada ─── */}
+      <HomeStats />
 
       {/* ─── Continúa escuchando ─── */}
       <HomeRow

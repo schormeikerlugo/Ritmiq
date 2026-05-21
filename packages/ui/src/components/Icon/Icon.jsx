@@ -17,7 +17,7 @@ import {
   CornerDownRight, Share2, Send, Settings, LogOut, User,
   Users, UserPlus, UserCheck, UserMinus, UserX,
   Headphones, Inbox, FolderPlus,
-  MessageCircle, Bell, BellOff, Sparkles,
+  MessageCircle, Bell, BellOff, Sparkles, Flame,
   Wifi, WifiOff, Cloud, CloudOff, Cast, Disc3,
   Sun, Moon, Monitor,
 } from 'lucide-react';
@@ -37,7 +37,7 @@ const ICONS = {
   CornerDownRight, Share2, Send, Settings, LogOut, User,
   Users, UserPlus, UserCheck, UserMinus, UserX,
   Headphones, Inbox, FolderPlus,
-  MessageCircle, Bell, BellOff, Sparkles,
+  MessageCircle, Bell, BellOff, Sparkles, Flame,
   Wifi, WifiOff, Cloud, CloudOff, Cast, Disc3,
   Sun, Moon, Monitor,
 };
