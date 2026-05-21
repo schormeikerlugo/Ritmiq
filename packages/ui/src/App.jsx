@@ -44,6 +44,7 @@ import { useCrossfade } from './lib/use-crossfade.js';
 import { useApplyAudioSettings } from './lib/use-apply-audio-settings.js';
 import { useSocialStore } from './stores/social.js';
 import { usePresence } from './lib/use-presence.js';
+import { useSocialRealtime } from './lib/use-social-realtime.js';
 import { usePushRegistration } from './lib/use-push.js';
 import { useSettingsStore } from './stores/settings.js';
 import { initTheme } from './stores/theme.js';
@@ -96,6 +97,9 @@ export function App() {
   const eqEnabled    = useSettingsStore((s) => s.eqEnabled);
   const showActivity = useSocialStore((s) => s.profile?.showActivity ?? true);
   usePresence(user?.id ?? null, showActivity);
+  // Realtime social: presence de amigos, friendships, shared_items —
+  // mantiene el store fresco sin recargar la pagina.
+  useSocialRealtime(user?.id ?? null);
   // Web Push: si el usuario ya concedio el permiso, re-registra el endpoint
   // (los push endpoints expiran y se rotan; el upsert mantiene la fila viva).
   usePushRegistration(user?.id ?? null);

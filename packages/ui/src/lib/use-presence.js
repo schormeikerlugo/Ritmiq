@@ -91,7 +91,12 @@ export function usePresence(userId, showActivity) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, showActivity]);
 
-  // Reaccion rapida: si pausa/reanuda, publicar inmediatamente sin esperar el intervalo
+  // Reaccion rapida: publicar inmediatamente si:
+  //   - El usuario pausa/reanuda (cambio en isPlaying).
+  //   - Cambia el track actual (cambio en currentTrack.ytId/id).
+  // Si no esperaramos a esto, los amigos verian el track anterior hasta
+  // el siguiente tick del intervalo de 30s.
+  const trackKey = currentTrack?.ytId ?? currentTrack?.yt_id ?? currentTrack?.id ?? null;
   useEffect(() => {
     if (!userId || !showActivity) return;
     const track = trackRef.current;
@@ -103,7 +108,7 @@ export function usePresence(userId, showActivity) {
       publishNow(userId, track, positionRef.current);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, userId, showActivity]);
+  }, [isPlaying, userId, showActivity, trackKey]);
 }
 
 // ── helpers ──────────────────────────────────────────────────────────
