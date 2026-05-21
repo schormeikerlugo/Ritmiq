@@ -23,6 +23,8 @@ import { exportPlaylistJson, exportPlaylistCsv } from '../../lib/export.js';
 import { isDesktop } from '../../lib/api.js';
 import { prewarmStream } from '../../lib/lan-client.js';
 import { getDominantColor } from '../../lib/dominant-color.js';
+import { useSocialStore } from '../../stores/social.js';
+import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
 import { DownloadIndicator } from '../DownloadIndicator/DownloadIndicator.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import { HeroSkeleton, TrackRowSkeleton } from '../Skeleton/index.js';
@@ -82,6 +84,8 @@ export function PlaylistView({ playlistId }) {
   const [infoTrack, setInfoTrack] = useState(null);
   const [filter, setFilter] = useState('');
   const [heroBg, setHeroBg] = useState('var(--color-bg-1)');
+  const [sharePlaylistOpen, setSharePlaylistOpen] = useState(false);
+  const friends = useSocialStore((s) => s.friends);
 
   // Extraer color dominante del cover para el gradiente hero (estilo Spotify).
   useEffect(() => {
@@ -237,6 +241,13 @@ export function PlaylistView({ playlistId }) {
       onClick: undownloadAll,
     },
     { separator: true },
+    {
+      id: 'share-friend',
+      label: 'Compartir con amigo',
+      icon: <Icon name="UserPlus" size={16} />,
+      disabled: tracks.length === 0 || friends.length === 0,
+      onClick: () => setSharePlaylistOpen(true),
+    },
     {
       id: 'expJson',
       label: 'Exportar como JSON',
@@ -443,6 +454,24 @@ export function PlaylistView({ playlistId }) {
         <CoverUploadDialog
           playlist={playlist}
           onClose={() => setCoverOpen(false)}
+        />
+      )}
+
+      {sharePlaylistOpen && playlist && tracks.length > 0 && (
+        <ShareToFriendModal
+          playlist={{
+            id:       playlist.id,
+            name:     playlist.name,
+            coverUrl: playlist.coverUrl ?? null,
+            tracks:   tracks.map((t) => ({
+              ytId:            t.ytId ?? t.yt_id,
+              title:           t.title,
+              artist:          t.artist,
+              coverUrl:        t.coverUrl ?? t.cover_url,
+              durationSeconds: t.durationSeconds ?? t.duration_seconds,
+            })),
+          }}
+          onClose={() => setSharePlaylistOpen(false)}
         />
       )}
     </section>

@@ -1,12 +1,14 @@
 /**
- * ShareToFriendModal — modal para compartir un track con amigos.
+ * ShareToFriendModal — modal para compartir un track o playlist con amigos.
  *
+ * Acepta `track` O `playlist` (mutuamente excluyentes).
  * Muestra la lista de amigos mutuos. El usuario puede seleccionar uno o
  * varios y anadir un mensaje opcional (max 280 chars).
  *
  * Llama a useSocialStore.sendShare() via Edge Function send-share.
  *
- * @param {{ track: Track, onClose: () => void }} props
+ * @param {{ track?: Track, playlist?: PlaylistShare, onClose: () => void }} props
+ * @typedef {{ id:string, name:string, coverUrl:string|null, tracks: object[] }} PlaylistShare
  */
 
 import { useState } from 'react';
@@ -15,7 +17,8 @@ import { useSocialStore } from '../../stores/social.js';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './ShareToFriendModal.module.css';
 
-export function ShareToFriendModal({ track, onClose }) {
+export function ShareToFriendModal({ track, playlist, onClose }) {
+  const isPlaylist = !!playlist && !track;
   const friends  = useSocialStore((s) => s.friends);
   const [selected, setSelected] = useState(new Set());
   const [message, setMessage]   = useState('');
@@ -37,15 +40,22 @@ export function ShareToFriendModal({ track, onClose }) {
     setSending(true);
     setError(null);
 
-    const payload = {
-      kind:            'track',
-      ytId:            track.ytId ?? track.yt_id,
-      title:           track.title ?? null,
-      artist:          track.artist ?? null,
-      coverUrl:        track.coverUrl ?? track.cover_url ?? null,
-      durationSeconds: track.durationSeconds ?? track.duration_seconds ?? null,
-      message:         message.trim() || null,
-    };
+    const payload = isPlaylist
+      ? {
+          kind:             'playlist',
+          playlistName:     playlist.name,
+          playlistSnapshot: { tracks: playlist.tracks },
+          message:          message.trim() || null,
+        }
+      : {
+          kind:            'track',
+          ytId:            track.ytId ?? track.yt_id,
+          title:           track.title ?? null,
+          artist:          track.artist ?? null,
+          coverUrl:        track.coverUrl ?? track.cover_url ?? null,
+          durationSeconds: track.durationSeconds ?? track.duration_seconds ?? null,
+          message:         message.trim() || null,
+        };
 
     const errors = [];
     await Promise.all(
@@ -80,23 +90,34 @@ export function ShareToFriendModal({ track, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} title="Compartir con amigo" size="sm">
-      {/* Track preview */}
+    <Modal
+      onClose={onClose}
+      title={isPlaylist ? 'Compartir playlist con amigo' : 'Compartir con amigo'}
+      size="sm"
+    >
+      {/* Preview del item */}
       <div className={styles.trackPreview}>
-        {(track.coverUrl ?? track.cover_url) ? (
+        {(isPlaylist ? playlist.coverUrl : (track.coverUrl ?? track.cover_url)) ? (
           <img
-            src={track.coverUrl ?? track.cover_url}
+            src={isPlaylist ? playlist.coverUrl : (track.coverUrl ?? track.cover_url)}
             alt=""
             className={styles.trackCover}
           />
         ) : (
           <div className={styles.trackCoverFallback}>
-            <Icon name="Music" size={20} />
+            <Icon name={isPlaylist ? 'ListMusic' : 'Music'} size={20} />
           </div>
         )}
         <div className={styles.trackMeta}>
-          <span className={styles.trackTitle}>{track.title ?? 'Track'}</span>
-          {track.artist && <span className={styles.trackArtist}>{track.artist}</span>}
+          <span className={styles.trackTitle}>
+            {isPlaylist ? playlist.name : (track.title ?? 'Track')}
+          </span>
+          {isPlaylist && (
+            <span className={styles.trackArtist}>{playlist.tracks.length} tracks</span>
+          )}
+          {!isPlaylist && track.artist && (
+            <span className={styles.trackArtist}>{track.artist}</span>
+          )}
         </div>
       </div>
 
