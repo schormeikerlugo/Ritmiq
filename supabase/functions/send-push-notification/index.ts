@@ -59,13 +59,42 @@ serve(async (req) => {
     subs.map((sub) => sendWebPush(sub.endpoint, sub.p256dh, sub.auth_key, payload)),
   );
 
-  // Limpiar suscripciones expiradas (endpoint devuelve 404/410)
+  // Clasificar resultados:
+  //   - expired (404/410): borrar fila + NO loguear (comportamiento esperado).
+  //   - error (otro statusCode o exception): loguear para diagnostico.
+  //   - ok: no loguear (volumen alto, sin valor).
   const expiredEndpoints: string[] = [];
+  const errorLogs: Array<{
+    endpoint: string;
+    user_id: string;
+    status_code: number;
+    error_msg: string | null;
+  }> = [];
+
   results.forEach((r, i) => {
-    if (r.status === 'fulfilled' && r.value.expired) {
-      expiredEndpoints.push(subs[i].endpoint);
+    const sub = subs[i];
+    if (r.status === 'fulfilled') {
+      if (r.value.expired) {
+        expiredEndpoints.push(sub.endpoint);
+      } else if (r.value.error) {
+        errorLogs.push({
+          endpoint:    sub.endpoint,
+          user_id:     userId,
+          status_code: r.value.statusCode ?? 0,
+          error_msg:   r.value.error,
+        });
+      }
+    } else {
+      // Rejection (exception en sendWebPush).
+      errorLogs.push({
+        endpoint:    sub.endpoint,
+        user_id:     userId,
+        status_code: 0,
+        error_msg:   String(r.reason).slice(0, 500),
+      });
     }
   });
+
   if (expiredEndpoints.length > 0) {
     await svc
       .from('push_subscriptions')
@@ -73,18 +102,36 @@ serve(async (req) => {
       .in('endpoint', expiredEndpoints);
   }
 
-  const sent = results.filter((r) => r.status === 'fulfilled' && !r.value.expired).length;
-  return json({ sent, total: subs.length });
+  // Log de fallos para diagnostico operativo (best-effort, no
+  // bloqueante \u2014 si la tabla no existe aun la insercion falla
+  // silenciosamente y el push sigue funcionando).
+  if (errorLogs.length > 0) {
+    await svc
+      .from('push_delivery_log')
+      .insert(errorLogs)
+      .then(({ error: logErr }) => {
+        if (logErr) console.warn('[push] delivery log insert failed', logErr.message);
+      });
+  }
+
+  const sent = results.filter((r) => r.status === 'fulfilled' && !r.value.expired && !r.value.error).length;
+  return json({ sent, total: subs.length, errors: errorLogs.length });
 });
 
 // ── VAPID / Web Push ─────────────────────────────────────────────────
+
+interface PushResult {
+  expired: boolean;
+  error?: string;
+  statusCode?: number;
+}
 
 async function sendWebPush(
   endpoint: string,
   p256dh: string,
   authKey: string,
   payload: string,
-): Promise<{ expired: boolean }> {
+): Promise<PushResult> {
   // Importar la libreria web-push desde CDN de Deno
   // Usamos la implementacion nativa con SubtleCrypto para no depender
   // de Node.js crypto en Deno edge runtime.
@@ -100,10 +147,19 @@ async function sendWebPush(
     );
     return { expired: false };
   } catch (err: unknown) {
-    const status = (err as { statusCode?: number }).statusCode;
-    // 404 / 410 = endpoint expirado/invalido
+    const e = err as { statusCode?: number; body?: string; message?: string };
+    const status = e.statusCode;
+    // 404 / 410 = endpoint expirado/invalido (comportamiento esperado,
+    // el cliente perdio el SW o se reinstalo la PWA). NO se loguea.
     if (status === 404 || status === 410) return { expired: true };
-    throw err;
+    // Otros errores: 429 throttling, 4xx VAPID/payload, 5xx servicio.
+    // Devolvemos info para logging \u2014 NO re-throw para no romper el
+    // Promise.allSettled.
+    return {
+      expired: false,
+      statusCode: status,
+      error: (e.body ?? e.message ?? 'unknown').slice(0, 500),
+    };
   }
 }
 
