@@ -63,6 +63,21 @@
   background: linear-gradient(135deg, var(--color-accent), #5a3eff);
   color: white;
   box-shadow: 0 8px 28px var(--color-accent-shadow);
+  position: relative;
+}
+/* Pasos sociales (accent=true) — gradient distintivo + halo animado para
+   destacar que es una funcionalidad nueva e importante. */
+.iconCircle[data-accent='true'] {
+  background: linear-gradient(135deg, #1db954 0%, #36d97c 50%, #5ed99b 100%);
+  box-shadow:
+    0 8px 28px rgba(29, 185, 84, 0.45),
+    0 0 0 0 rgba(29, 185, 84, 0.6);
+  animation: pulse-accent 2.2s ease-out infinite;
+}
+@keyframes pulse-accent {
+  0%   { box-shadow: 0 8px 28px rgba(29, 185, 84, 0.45), 0 0 0 0 rgba(29, 185, 84, 0.5); }
+  70%  { box-shadow: 0 8px 28px rgba(29, 185, 84, 0.45), 0 0 0 16px rgba(29, 185, 84, 0); }
+  100% { box-shadow: 0 8px 28px rgba(29, 185, 84, 0.45), 0 0 0 0 rgba(29, 185, 84, 0); }
 }
 .logo {
   width: 96px;

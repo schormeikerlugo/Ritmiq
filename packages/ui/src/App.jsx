@@ -45,6 +45,8 @@ import { useApplyAudioSettings } from './lib/use-apply-audio-settings.js';
 import { useSocialStore } from './stores/social.js';
 import { usePresence } from './lib/use-presence.js';
 import { useSocialRealtime } from './lib/use-social-realtime.js';
+import { useShareReminder } from './lib/use-share-reminder.js';
+import { ShareReminderModal } from './components/ShareReminder/ShareReminderModal.jsx';
 import { usePushRegistration } from './lib/use-push.js';
 import { useSettingsStore } from './stores/settings.js';
 import { initTheme } from './stores/theme.js';
@@ -100,6 +102,9 @@ export function App() {
   // Realtime social: presence de amigos, friendships, shared_items —
   // mantiene el store fresco sin recargar la pagina.
   useSocialRealtime(user?.id ?? null);
+  // Recordatorio de shares no vistos — modal proactivo cuando un share
+  // lleva >2min sin abrirse. Complementa el push (que puede ignorarse).
+  useShareReminder(user?.id ?? null);
   // Web Push: si el usuario ya concedio el permiso, re-registra el endpoint
   // (los push endpoints expiran y se rotan; el upsert mantiene la fila viva).
   usePushRegistration(user?.id ?? null);
@@ -358,6 +363,9 @@ export function App() {
       {/* Onboarding 3 pasos al primer login en cada dispositivo. Se
           auto-cierra y persiste el flag de completado en localStorage. */}
       <Onboarding />
+      {/* Recordatorio: muestra shares no vistos >2min cuando el usuario
+          no esta en la bandeja. Se auto-cierra al ignorar o ver. */}
+      <ShareReminderModal />
     </div>
   );
 }

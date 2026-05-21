@@ -370,9 +370,17 @@ function InboxTab() {
               </span>
             )}
             <span className={styles.inboxSender}>
-              De @{item.senderUsername}
-              {item.message && ` · "${item.message}"`}
+              De <strong>@{item.senderUsername}</strong>
             </span>
+
+            {/* Burbuja con el mensaje personal — destacado para que no se
+                pierda visualmente entre el resto de metadatos. */}
+            {item.message && (
+              <div className={styles.messageBubble} role="note">
+                <Icon name="MessageCircle" size={13} className={styles.messageIcon} />
+                <span className={styles.messageText}>{item.message}</span>
+              </div>
+            )}
           </div>
 
           {/* Acciones */}

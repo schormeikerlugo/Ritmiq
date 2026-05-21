@@ -324,7 +324,7 @@
 
 .inboxRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 10px 16px;
   margin: 0 8px;
@@ -334,6 +334,7 @@
   position: relative;
 }
 .inboxRow:hover { background: rgba(255,255,255,.05); }
+.inboxCover, .inboxActions { margin-top: 2px; }
 
 /* Indicador de no leido */
 .inboxRow[data-unread='true']::before {
@@ -397,6 +398,43 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.inboxSender strong {
+  font-weight: 600;
+  color: var(--color-text-secondary, rgba(255,255,255,.6));
+}
+
+/* Burbuja del mensaje personal — estilo chat para destacar el texto
+   que el amigo escribio. Verde tenue + borde izquierdo acento + icono. */
+.messageBubble {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 7px 10px;
+  background: linear-gradient(135deg,
+    rgba(29, 185, 84, .14) 0%,
+    rgba(29, 185, 84, .07) 100%);
+  border-left: 2px solid var(--color-accent, #1db954);
+  border-radius: 4px 10px 10px 10px;
+  max-width: 100%;
+  word-break: break-word;
+}
+.messageIcon {
+  color: var(--color-accent, #1db954);
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+.messageText {
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--color-text-primary, #fff);
+  line-height: 1.35;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .inboxActions {

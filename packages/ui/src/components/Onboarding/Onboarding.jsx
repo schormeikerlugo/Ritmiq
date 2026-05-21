@@ -20,13 +20,17 @@ import { Icon } from '../Icon/Icon.jsx';
 import logotipoUrl from '../../assets/logotipo.png';
 import styles from './Onboarding.module.css';
 
-const LS_KEY = 'ritmiq.onboarding-completed';
+// Bumpeamos la version del key para que usuarios que ya completaron el
+// onboarding viejo (3 pasos) vean el nuevo flujo extendido con las
+// secciones sociales y push notifications.
+const LS_KEY = 'ritmiq.onboarding-completed.v2';
+const LS_KEY_V1 = 'ritmiq.onboarding-completed';  // limpieza del anterior
 
 const STEPS = [
   {
     icon: null, // usa el logo en vez de un icon
     title: 'Bienvenido a Ritmiq',
-    body: 'Tu musica, tu biblioteca, tu sonido. Esto es lo que tienes que saber para empezar.',
+    body: 'Tu musica, tu biblioteca, tu sonido. Te mostramos lo nuevo en 6 pasos rapidos.',
     cta: 'Continuar',
   },
   {
@@ -38,8 +42,29 @@ const STEPS = [
   {
     icon: 'Heart',
     title: 'Guarda lo que te gusta',
-    body: 'Pulsa el corazon para anadir a Favoritas, o el + para guardar en una playlist. Las canciones guardadas se sincronizan en todos tus dispositivos.',
+    body: 'Pulsa el corazon para anadir a Favoritas, o el + para guardar en una playlist. Tu biblioteca se sincroniza en todos tus dispositivos.',
+    cta: 'Continuar',
+  },
+  {
+    icon: 'Users',
+    title: 'Conecta con amigos',
+    body: 'Ve a la seccion Amigos para buscar personas por @usuario o email, enviar solicitudes y construir tu circulo musical.',
+    cta: 'Continuar',
+    accent: true,
+  },
+  {
+    icon: 'Send',
+    title: 'Comparte musica con un mensaje',
+    body: 'Desde cualquier cancion o playlist puedes compartirla directamente con un amigo. Anade un mensaje personal — sera el primer detalle que vea cuando le llegue.',
+    cta: 'Continuar',
+    accent: true,
+  },
+  {
+    icon: 'Bell',
+    title: 'Activa las notificaciones',
+    body: 'Recibe un aviso cuando un amigo te comparta musica o te envie una solicitud. Si no llegas a verlo, Ritmiq te recordara automaticamente. Activalo desde Ajustes → Cuenta.',
     cta: 'Empezar',
+    accent: true,
   },
 ];
 
@@ -48,7 +73,11 @@ function hasCompleted() {
   try { return localStorage.getItem(LS_KEY) === '1'; } catch { return true; }
 }
 function markCompleted() {
-  try { localStorage.setItem(LS_KEY, '1'); } catch {}
+  try {
+    localStorage.setItem(LS_KEY, '1');
+    // limpieza del flag viejo — ya no se usa.
+    localStorage.removeItem(LS_KEY_V1);
+  } catch {}
 }
 
 export function Onboarding() {
@@ -96,7 +125,7 @@ export function Onboarding() {
 
         <div className={styles.iconWrap}>
           {cur.icon ? (
-            <div className={styles.iconCircle}>
+            <div className={styles.iconCircle} data-accent={!!cur.accent}>
               <Icon name={cur.icon} size={36} />
             </div>
           ) : (

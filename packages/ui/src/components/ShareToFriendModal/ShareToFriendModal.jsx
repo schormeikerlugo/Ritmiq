@@ -145,11 +145,16 @@ export function ShareToFriendModal({ track, playlist, onClose }) {
         ))}
       </ul>
 
-      {/* Mensaje opcional */}
+      {/* Mensaje opcional — destacado para invitar a personalizar el share */}
       <div className={styles.messageBox}>
+        <label className={styles.messageLabel}>
+          <Icon name="MessageCircle" size={13} />
+          <span>Tu mensaje</span>
+          <span className={styles.messageHint}>recomendado</span>
+        </label>
         <textarea
           className={styles.messageInput}
-          placeholder="Agrega un mensaje... (opcional)"
+          placeholder="Escucha esto, te va a encantar..."
           maxLength={280}
           value={message}
           onChange={(e) => setMessage(e.target.value)}

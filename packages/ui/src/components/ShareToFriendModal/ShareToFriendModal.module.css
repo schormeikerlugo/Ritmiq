@@ -146,6 +146,29 @@
   margin-bottom: 12px;
 }
 
+.messageLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--color-accent, #1db954);
+  margin-bottom: 6px;
+}
+.messageHint {
+  background: rgba(29,185,84,.18);
+  color: var(--color-accent, #1db954);
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-left: auto;
+}
+
 .messageInput {
   width: 100%;
   background: rgba(255,255,255,.06);
