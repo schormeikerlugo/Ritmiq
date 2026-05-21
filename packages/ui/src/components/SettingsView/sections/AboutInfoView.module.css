@@ -1,0 +1,93 @@
+/* Acerca de \u2014 hero con icon + tagline + descripcion + features. */
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-accent) 8%, transparent),
+    color-mix(in srgb, var(--color-accent) 0%, transparent)
+  );
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  margin-bottom: var(--space-4);
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brandIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-accent) 28%, transparent);
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brandName {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text-1);
+  letter-spacing: -0.01em;
+}
+
+.tagline {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-2);
+}
+
+.description {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--color-text-2);
+}
+
+.featureList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.featureList li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-sm);
+  color: var(--color-text-1);
+}
+.featureList svg {
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent, #ffffff);
+  font-weight: 600;
+  font-size: var(--fs-xs);
+  border-radius: 999px;
+  text-decoration: none;
+  transition: filter var(--dur-fast) var(--ease-standard);
+}
+.linkBtn:hover { filter: brightness(1.1); }
+.linkBtn:active { filter: brightness(0.92); }

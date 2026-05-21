@@ -20,6 +20,7 @@ import {
   MessageCircle, Bell, BellOff, Sparkles, Flame,
   Wifi, WifiOff, Cloud, CloudOff, Cast, Disc3,
   Sun, Moon, Monitor,
+  ExternalLink,
 } from 'lucide-react';
 
 const ICONS = {
@@ -40,6 +41,7 @@ const ICONS = {
   MessageCircle, Bell, BellOff, Sparkles, Flame,
   Wifi, WifiOff, Cloud, CloudOff, Cast, Disc3,
   Sun, Moon, Monitor,
+  ExternalLink,
 };
 
 /**
