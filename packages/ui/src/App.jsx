@@ -13,6 +13,7 @@ import { BottomNav } from './components/BottomNav/BottomNav.jsx';
 import { SettingsView } from './components/SettingsView/SettingsView.jsx';
 import { StatsView } from './components/StatsView/StatsView.jsx';
 import { FriendsView } from './components/FriendsView/FriendsView.jsx';
+import { ProfileView } from './components/ProfileView/ProfileView.jsx';
 import { AuthScreen } from './components/Auth/AuthScreen.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
@@ -376,7 +377,7 @@ function MainView() {
   else if (view.kind === 'settings') content = <SettingsView />;
   else if (view.kind === 'stats') content = <StatsView />;
   else if (view.kind === 'friends') content = <FriendsView />;
-  else if (view.kind === 'profile') content = <FriendsView />; // ProfileView en sprint ζ.5
+  else if (view.kind === 'profile') content = <ProfileView userId={view.userId} />;
   else if (view.kind === 'playlist') content = <PlaylistView playlistId={view.playlistId} />;
   else if (view.kind === 'search') content = <SearchView query={view.query} />;
   else if (view.kind === 'artist') content = <ArtistView name={view.name} />;
