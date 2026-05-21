@@ -21,6 +21,7 @@ import { useBottomSheet } from '../../stores/bottom-sheet.js';
 import { buildShareLink, copyToClipboard } from '../../lib/share.js';
 import { getSharedBackend } from '../../lib/use-player.js';
 import { useBpmPulse } from '../../lib/use-bpm-pulse.js';
+import { useWakeLock } from '../../lib/use-wake-lock.js';
 import { useSocialStore } from '../../stores/social.js';
 import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
 import styles from './NowPlaying.module.css';
@@ -58,6 +59,16 @@ export function NowPlaying() {
 
   const radioMode = usePlayerStore((s) => s.radioMode);
   const startRadio = usePlayerStore((s) => s.startRadio);
+
+  // Mantener la pantalla encendida solo cuando NowPlaying esta abierto
+  // Y hay reproduccion activa. El cover gigante + el scrubber + los
+  // controles son la "vista cinema" \u2014 el usuario espera que no se
+  // apague la pantalla. Cuando se pausa o se cierra el panel, se
+  // libera el lock para no drenar bateria innecesariamente.
+  //
+  // iOS PWA 16.4+ soporta Screen Wake Lock. Sin instalar (browser tab)
+  // no, pero el hook silenciosamente no hace nada \u2014 sin crash.
+  useWakeLock(open && isPlaying);
   const stopRadio = usePlayerStore((s) => s.stopRadio);
   const openSheet = useBottomSheet((s) => s.open);
 
