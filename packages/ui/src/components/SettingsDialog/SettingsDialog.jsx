@@ -231,7 +231,7 @@ export function DesktopTunnelSection() {
                     : '⚪ Desconectado';
 
   return (
-    <div className={styles.field} style={{ marginTop: '1.25rem' }}>
+    <div className={styles.remoteBlock}>
       <label className={styles.label}>Acceso remoto (Cloudflare Tunnel)</label>
       <p className={styles.hint}>
         Dos opciones:
@@ -242,13 +242,12 @@ export function DesktopTunnelSection() {
           <code>Zero Trust → Networks → Tunnels → Create</code>.
       </p>
 
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', margin: '0.5rem 0' }}>
+      <div className={styles.statusRow}>
         <span>{statusBadge}</span>
         {state.url && (
           <button
             type="button"
-            className={styles.btnSecondary}
-            style={{ height: 28, padding: '0 0.5rem', fontSize: '0.75rem' }}
+            className={styles.btnGhost}
             onClick={() => navigator.clipboard.writeText(state.url)}
           >Copiar URL pública</button>
         )}
@@ -256,7 +255,7 @@ export function DesktopTunnelSection() {
 
       {state.url && (
         <p className={styles.hint}>
-          URL: <code style={{ wordBreak: 'break-all' }}>{state.url}</code>
+          URL: <code className={styles.codeInline}>{state.url}</code>
         </p>
       )}
       {state.error && (
@@ -273,30 +272,31 @@ export function DesktopTunnelSection() {
         autoComplete="off"
       />
 
-      <p className={styles.hint} style={{ marginTop: '0.75rem' }}>
-        <strong>URL pública (solo Named Tunnel con dominio propio)</strong>:
-        si tu Public Hostname es <code>ritmiq.tudominio.com</code>, escríbela
-        aquí. cloudflared no la imprime en los logs así que el AppImage no
-        puede detectarla sola.
-      </p>
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <input
-          className={styles.input}
-          type="url"
-          value={customUrl}
-          onChange={(e) => setCustomUrlInput(e.target.value)}
-          placeholder="https://ritmiq.tudominio.com"
-          disabled={busy}
-          style={{ flex: 1 }}
-        />
-        <button
-          type="button"
-          className={styles.btnSecondary}
-          onClick={onSaveCustomUrl}
-          disabled={busy}
-          style={{ height: 40, padding: '0 0.75rem' }}
-        >Guardar URL</button>
+      <div className={styles.subSection}>
+        <p className={styles.hint}>
+          <strong>URL pública (solo Named Tunnel con dominio propio)</strong>:
+          si tu Public Hostname es <code>ritmiq.tudominio.com</code>, escríbela
+          aquí. cloudflared no la imprime en los logs así que el AppImage no
+          puede detectarla sola.
+        </p>
+        <div className={styles.inlineRow}>
+          <input
+            className={styles.input}
+            type="url"
+            value={customUrl}
+            onChange={(e) => setCustomUrlInput(e.target.value)}
+            placeholder="https://ritmiq.tudominio.com"
+            disabled={busy}
+          />
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            onClick={onSaveCustomUrl}
+            disabled={busy}
+          >Guardar URL</button>
+        </div>
       </div>
+
       <div className={styles.actions}>
         {(state.status === 'connected' || state.status === 'connecting') && (
           <button
@@ -350,25 +350,21 @@ export function DesktopAccessTokenSection() {
   const masked = token ? token.slice(0, 4) + '•••••••••••••••••••••' + token.slice(-4) : '—';
 
   return (
-    <div className={styles.field} style={{ marginTop: '1.25rem' }}>
+    <div className={styles.remoteBlock}>
       <label className={styles.label}>Token de acceso para clientes externos</label>
       <p className={styles.hint}>
         Cópialo y pégalo en la PWA → Ajustes → "Token". Necesario sólo cuando
         accedes vía Tunnel; en la misma WiFi LAN no hace falta.
       </p>
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        <code style={{
-          flex: 1, padding: '0.5rem', background: 'var(--color-bg-2)',
-          borderRadius: 6, fontSize: '0.75rem', wordBreak: 'break-all',
-        }}>{revealed ? token : masked}</code>
+      <div className={styles.tokenRow}>
+        <code className={styles.tokenCode}>{revealed ? token : masked}</code>
         <button
           type="button"
           className={styles.btnSecondary}
-          style={{ height: 32, padding: '0 0.75rem' }}
           onClick={() => setRevealed((v) => !v)}
         >{revealed ? 'Ocultar' : 'Mostrar'}</button>
       </div>
-      <div className={styles.actions} style={{ marginTop: '0.5rem' }}>
+      <div className={styles.actions}>
         <button
           type="button"
           className={styles.btnSecondary}
@@ -445,7 +441,7 @@ export function PwaRemoteSection() {
   };
 
   return (
-    <div className={styles.field} style={{ marginTop: '1.25rem' }}>
+    <div className={styles.remoteBlock}>
       <label className={styles.label}>Acceso remoto (cuando estás fuera de tu WiFi)</label>
       <p className={styles.hint}>
         Si tu PC tiene un Cloudflare Tunnel configurado, pega aquí su URL
@@ -461,7 +457,6 @@ export function PwaRemoteSection() {
       />
       <input
         className={styles.input}
-        style={{ marginTop: '0.5rem' }}
         type="password"
         value={token}
         onChange={(e) => setTokenInput(e.target.value)}
