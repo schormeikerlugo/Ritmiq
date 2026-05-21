@@ -14,6 +14,17 @@ export default defineConfig({
         'apple-touch-icon.png',
         'icon-192.png', 'icon-512.png', 'icon-512-maskable.png',
         'logotipo.png',
+        // Apple touch startup images \u2014 splash screens iOS PWA.
+        // Cada uno se aplica a un device concreto via media query en
+        // index.html. Sin includirlos aqui, Vite no los copia a dist/.
+        'splash/iphone-se.png',
+        'splash/iphone-x.png',
+        'splash/iphone-12.png',
+        'splash/iphone-14pro.png',
+        'splash/iphone-12promax.png',
+        'splash/iphone-14promax.png',
+        'splash/ipad-air.png',
+        'splash/ipad-pro-12.png',
       ],
       manifest: {
         // id explicito recomendado para PWAs publicadas — sin esto iOS y
