@@ -1,0 +1,122 @@
+.intro {
+  margin-bottom: var(--space-4);
+  color: var(--color-text-2);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.intro p { margin: 0; }
+
+.steps {
+  list-style: none;
+  margin: 0 0 var(--space-4) 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--dur-fast) var(--ease-standard);
+}
+.step:hover { border-color: var(--color-accent); }
+
+.stepIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-accent) 22%, transparent),
+    color-mix(in srgb, var(--color-accent) 8%, transparent)
+  );
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.stepBody {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+}
+
+.stepNum {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-accent);
+  background: var(--color-bg-1);
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+}
+
+.stepTitle {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--color-text-1);
+  padding-right: 22px; /* deja sitio al stepNum */
+}
+
+.stepDesc {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-2);
+  line-height: 1.45;
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--color-text-2);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  margin-bottom: var(--space-4);
+}
+.note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-accent);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.btnPrimary {
+  appearance: none;
+  border: none;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent, #ffffff);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  padding: 10px 22px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: filter var(--dur-fast) var(--ease-standard);
+}
+.btnPrimary:hover { filter: brightness(1.08); }
+.btnPrimary:active { filter: brightness(0.95); }

@@ -14,11 +14,13 @@ import { useAuthStore } from '../../../stores/auth.js';
 import { useSocialStore } from '../../../stores/social.js';
 import { useViewStore } from '../../../stores/view.js';
 import { requestPushPermissionAndRegister, unregisterPush } from '../../../lib/use-push.js';
+import { isStandalonePWA, detectPlatform } from '../../../lib/share.js';
 import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { LinkButton } from '../controls/LinkButton.jsx';
 import { Toggle } from '../controls/Toggle.jsx';
 import { EditProfileDialog } from '../../EditProfileDialog/EditProfileDialog.jsx';
+import { IOSInstallHint } from '../../IOSInstallHint/IOSInstallHint.jsx';
 import { Icon } from '../../Icon/Icon.jsx';
 import accountStyles from './AccountSection.module.css';
 
@@ -40,6 +42,10 @@ export function AccountSection() {
   // la fila — no tiene sentido ofrecer activacion que va a fallar.
   const [pushState, setPushState] = useState(() => initialPushState());
   const [busy, setBusy] = useState(false);
+  // Modal de tutorial para iOS Safari (no standalone). En esa situacion
+  // Notification.requestPermission() es no-op silencioso en iOS \u2014
+  // tenemos que guiar al usuario a instalar primero.
+  const [iosHintOpen, setIosHintOpen] = useState(false);
 
   // Re-leer el estado del permiso cuando volvemos a foco (el usuario pudo
   // cambiarlo en la barra de URL del navegador sin recargar).
@@ -52,6 +58,13 @@ export function AccountSection() {
 
   async function handleEnable() {
     if (!user || busy) return;
+    // Pre-check iOS: requestPermission() en Safari iOS no-standalone
+    // devuelve 'default' silenciosamente \u2014 el API existe pero no
+    // funciona hasta que el usuario instale la PWA. Mostramos tutorial.
+    if (detectPlatform() === 'ios' && !isStandalonePWA()) {
+      setIosHintOpen(true);
+      return;
+    }
     setBusy(true);
     const ok = await requestPushPermissionAndRegister(user.id);
     setBusy(false);
@@ -151,6 +164,7 @@ export function AccountSection() {
       )}
 
       {editOpen && <EditProfileDialog onClose={() => setEditOpen(false)} />}
+      {iosHintOpen && <IOSInstallHint onClose={() => setIosHintOpen(false)} />}
     </SettingsGroup>
   );
 }
