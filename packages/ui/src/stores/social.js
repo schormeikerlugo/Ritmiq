@@ -62,7 +62,7 @@ export const useSocialStore = create((set, get) => ({
     set({ profileLoading: true, profileError: null });
     const { data, error } = await supabase
       .from('profiles')
-      .select('user_id, username, display_name, avatar_url, bio, show_activity')
+      .select('user_id, username, display_name, avatar_url, bio, show_activity, timezone')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -83,12 +83,15 @@ export const useSocialStore = create((set, get) => ({
       }
       const displayName = (meta.display_name ?? '').trim() || null;
 
-      // Intentar insertar. Si el username elegido por el usuario esta
-      // tomado (race), fallback a uno generico para no bloquear el login.
+      // Intentar insertar con timezone detectada del browser \u2014 asi
+      // los reminders de streak llegan en hora local desde el primer
+      // dia, sin esperar a que el usuario haga otra accion.
+      const tz = detectTimezone();
+
       let insertResult = await supabase
         .from('profiles')
-        .insert({ user_id: userId, username, display_name: displayName })
-        .select('user_id, username, display_name, avatar_url, bio, show_activity')
+        .insert({ user_id: userId, username, display_name: displayName, timezone: tz })
+        .select('user_id, username, display_name, avatar_url, bio, show_activity, timezone')
         .single();
 
       if (insertResult.error?.code === '23505') {
@@ -96,8 +99,8 @@ export const useSocialStore = create((set, get) => ({
         username = 'user_' + userId.replace(/-/g, '').slice(0, 8);
         insertResult = await supabase
           .from('profiles')
-          .insert({ user_id: userId, username, display_name: displayName })
-          .select('user_id, username, display_name, avatar_url, bio, show_activity')
+          .insert({ user_id: userId, username, display_name: displayName, timezone: tz })
+          .select('user_id, username, display_name, avatar_url, bio, show_activity, timezone')
           .single();
       }
 
@@ -105,8 +108,32 @@ export const useSocialStore = create((set, get) => ({
       set({ profile, profileLoading: false });
       return profile;
     }
+
     const profile = mapProfile(data);
     set({ profile, profileLoading: false });
+
+    // Sync de timezone: si el browser detecta una zona distinta a la
+    // guardada (ej. el usuario viajo, cambio de SO, o login desde otro
+    // device en otro pais), actualizar silenciosamente en background.
+    // No bloqueante \u2014 el profile ya esta en memoria con el valor
+    // antiguo, el proximo refresh leera el nuevo.
+    const browserTz = detectTimezone();
+    if (browserTz && browserTz !== profile.timezone) {
+      supabase
+        .from('profiles')
+        .update({ timezone: browserTz })
+        .eq('user_id', userId)
+        .then(({ error: tzErr }) => {
+          if (!tzErr) {
+            // Actualizar la copia en memoria sin re-fetch.
+            const current = get().profile;
+            if (current?.userId === userId) {
+              set({ profile: { ...current, timezone: browserTz } });
+            }
+          }
+        });
+    }
+
     return profile;
   },
 
@@ -506,7 +533,20 @@ function mapProfile(row) {
     avatarUrl:    row.avatar_url ?? null,
     bio:          row.bio ?? null,
     showActivity: row.show_activity ?? true,
+    timezone:     row.timezone ?? 'UTC',
   };
+}
+
+/**
+ * Detecta la IANA timezone del browser. Devuelve 'UTC' como fallback
+ * si Intl no esta disponible (entornos muy raros).
+ */
+function detectTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
 }
 
 function mapSharedItem(row, senderProfile) {
