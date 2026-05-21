@@ -17,6 +17,7 @@ import { requestPushPermissionAndRegister, unregisterPush } from '../../../lib/u
 import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { LinkButton } from '../controls/LinkButton.jsx';
+import { Toggle } from '../controls/Toggle.jsx';
 import { EditProfileDialog } from '../../EditProfileDialog/EditProfileDialog.jsx';
 import { Icon } from '../../Icon/Icon.jsx';
 import accountStyles from './AccountSection.module.css';
@@ -24,8 +25,14 @@ import accountStyles from './AccountSection.module.css';
 export function AccountSection() {
   const user = useAuthStore((s) => s.user);
   const profile = useSocialStore((s) => s.profile);
+  const updateProfile = useSocialStore((s) => s.updateProfile);
   const setSubview = useViewStore((s) => s.setSettingsSubview);
   const [editOpen, setEditOpen] = useState(false);
+
+  // Toggle social: "Escuchando ahora" visible para amigos.
+  // Ubicado aqui (en Cuenta) junto a Notificaciones porque ambos
+  // controlan visibilidad/privacidad social del usuario.
+  const showActivity = profile?.showActivity ?? true;
 
   // ── Web Push state ──────────────────────────────────────────────
   // Detectamos soporte y estado del permiso una vez al montar.
@@ -123,6 +130,22 @@ export function AccountSection() {
                 {busy ? '...' : 'Activar'}
               </LinkButton>
             )
+          }
+        />
+      )}
+
+      {/* Privacidad social — agrupado con Notificaciones porque ambos
+          controlan que comparte el usuario con sus amigos. */}
+      {user && (
+        <SettingRow
+          label="Compartir actividad"
+          description="Tus amigos en Ritmiq pueden ver que estas escuchando en tiempo real."
+          control={
+            <Toggle
+              checked={showActivity}
+              onChange={(next) => updateProfile({ showActivity: next })}
+              ariaLabel="Compartir actividad con amigos"
+            />
           }
         />
       )}
