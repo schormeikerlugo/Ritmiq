@@ -223,3 +223,18 @@
   height: 100%;
   object-fit: cover;
 }
+
+/* Badge de notificaciones (solicitudes + inbox no leido) */
+.badge {
+  margin-left: auto;
+  background: #e53e3e;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 1px 6px;
+  min-width: 18px;
+  text-align: center;
+  line-height: 1.5;
+  flex-shrink: 0;
+}

@@ -1,5 +1,6 @@
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useViewStore } from '../../stores/view.js';
+import { useSocialStore } from '../../stores/social.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { playPlaylist } from '../../lib/play-helpers.js';
 import logotipoUrl from '../../assets/logotipo.png';
@@ -8,7 +9,10 @@ import styles from './Sidebar.module.css';
 export function Sidebar() {
   const playlists = usePlaylistsStore((s) => s.playlists);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
-  const { view, goHome, goLibrary, goDownloads, goSettings, goPlaylist } = useViewStore();
+  const { view, goHome, goLibrary, goDownloads, goSettings, goFriends, goPlaylist } = useViewStore();
+  const pendingCount = useSocialStore((s) =>
+    s.incomingRequests.length + s.inbox.filter((i) => !i.readAt).length
+  );
 
   // Ordenar: Favoritas primero, luego por created_at.
   const sorted = playlists.slice().sort((a, b) => {
@@ -60,6 +64,19 @@ export function Sidebar() {
           >
             <span className={styles.icon}><Icon name="ArrowDownToLine" size={20} /></span>
             <span>Descargas</span>
+          </button>
+        </li>
+        <li>
+          <button
+            className={styles.link}
+            data-active={view.kind === 'friends'}
+            onClick={goFriends}
+          >
+            <span className={styles.icon}><Icon name="Users" size={20} /></span>
+            <span>Amigos</span>
+            {pendingCount > 0 && (
+              <span className={styles.badge}>{pendingCount > 9 ? '9+' : pendingCount}</span>
+            )}
           </button>
         </li>
         <li>

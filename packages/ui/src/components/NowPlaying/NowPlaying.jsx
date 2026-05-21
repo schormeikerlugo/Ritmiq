@@ -21,6 +21,8 @@ import { useBottomSheet } from '../../stores/bottom-sheet.js';
 import { buildShareLink, copyToClipboard } from '../../lib/share.js';
 import { getSharedBackend } from '../../lib/use-player.js';
 import { useBpmPulse } from '../../lib/use-bpm-pulse.js';
+import { useSocialStore } from '../../stores/social.js';
+import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
 import styles from './NowPlaying.module.css';
 
 function fmt(sec) {
@@ -67,6 +69,8 @@ export function NowPlaying() {
   const [bgColor, setBgColor] = useState('var(--color-bg-1)');
   const [closing, setClosing] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [shareToFriendOpen, setShareToFriendOpen] = useState(false);
+  const friends = useSocialStore((s) => s.friends);
   /** Posición que muestra el scrubber mientras el usuario arrastra. null = no drag. */
   const [scrubPos, setScrubPos] = useState(null);
 
@@ -222,10 +226,17 @@ export function NowPlaying() {
       },
       {
         id: 'share',
-        label: 'Compartir...',
+        label: 'Compartir link...',
         icon: 'Share2',
         disabled: !currentTrack?.ytId,
         onClick: () => { closeSelf(); shareCurrent(); },
+      },
+      {
+        id: 'share-friend',
+        label: 'Compartir con amigo',
+        icon: 'UserPlus',
+        disabled: !currentTrack?.ytId || friends.length === 0,
+        onClick: () => { closeSelf(); setShareToFriendOpen(true); },
       },
       radioMode
         ? {
@@ -388,6 +399,13 @@ export function NowPlaying() {
 
       {saveOpen && currentTrack && (
         <SaveDialog track={currentTrack} onClose={() => setSaveOpen(false)} />
+      )}
+
+      {shareToFriendOpen && currentTrack && (
+        <ShareToFriendModal
+          track={currentTrack}
+          onClose={() => setShareToFriendOpen(false)}
+        />
       )}
     </div>
   );

@@ -12,6 +12,8 @@ import { useState } from 'react';
 import { useSettingsStore, EQ_PRESETS } from '../../../stores/settings.js';
 import { EQ_BANDS } from '../../../lib/html-audio-backend.js';
 import { getSharedBackend } from '../../../lib/use-player.js';
+import { useSocialStore } from '../../../stores/social.js';
+import { useAuthStore } from '../../../stores/auth.js';
 import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { Toggle } from '../controls/Toggle.jsx';
@@ -40,6 +42,11 @@ export function PlaybackSection() {
   const eqPreset = useSettingsStore((s) => s.eqPreset);
   const setEqPreset = useSettingsStore((s) => s.setEqPreset);
   const [eqError, setEqError] = useState(null);
+
+  // Actividad social: "Escuchando ahora" visible para amigos
+  const user         = useAuthStore((s) => s.user);
+  const showActivity = useSocialStore((s) => s.profile?.showActivity ?? true);
+  const updateProfile = useSocialStore((s) => s.updateProfile);
 
   // Toggle del EQ. CRITICO iOS PWA: initGraphFromGesture() debe
   // ejecutarse SINCRONICAMENTE como primera operacion del handler para
@@ -120,6 +127,18 @@ export function PlaybackSection() {
           <span>{eqError}</span>
         </div>
       )}
+
+      <SettingRow
+        label="Compartir actividad"
+        description="Tus amigos en Ritmiq pueden ver que estas escuchando en tiempo real."
+        control={
+          <Toggle
+            checked={showActivity}
+            onChange={(next) => user && updateProfile({ showActivity: next })}
+            ariaLabel="Compartir actividad con amigos"
+          />
+        }
+      />
 
       {eqEnabled && (
         <div className={styles.subBlock}>

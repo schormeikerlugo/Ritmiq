@@ -43,6 +43,10 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         navigateFallback: '/index.html',
+        // Inyecta handlers de Web Push y notification click en el SW
+        // auto-generado por VitePWA. El archivo vive en public/ y se sirve
+        // como /sw-push.js junto al sw.js de workbox.
+        importScripts: ['/sw-push.js'],
         // El Service Worker NUNCA debe interceptar peticiones de audio:
         // los `<audio>` con Range requests rompen si el SW responde con
         // cuerpos completos, y en iOS eso suspende la reproducción en
