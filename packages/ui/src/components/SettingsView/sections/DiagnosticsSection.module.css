@@ -1,0 +1,48 @@
+/* Badge con icono ok/fail + label corto. Se usa en el control de cada
+   SettingRow del DiagnosticsSection. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  /* Estado por defecto: fail (rojo tenue). El [data-ok] lo cambia. */
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: var(--color-danger);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 28%, transparent);
+}
+
+.badge[data-ok] {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 32%, transparent);
+}
+
+/* PermissionBadge tiene tres variantes (ok/fail/neutral) */
+.badge[data-variant='ok'] {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 32%, transparent);
+}
+.badge[data-variant='fail'] {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 28%, transparent);
+}
+.badge[data-variant='neutral'] {
+  background: var(--color-bg-2);
+  color: var(--color-text-2);
+  border-color: var(--color-border);
+}
+
+/* Texto monoespaciado para el user_id truncado. */
+.value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-xs);
+  color: var(--color-text-2);
+}

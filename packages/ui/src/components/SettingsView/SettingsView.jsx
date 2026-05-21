@@ -16,6 +16,7 @@ import { PlaybackSection } from './sections/PlaybackSection.jsx';
 import { ConnectionSection } from './sections/ConnectionSection.jsx';
 import { StorageSection } from './sections/StorageSection.jsx';
 import { AboutSection } from './sections/AboutSection.jsx';
+import { DiagnosticsSection } from './sections/DiagnosticsSection.jsx';
 import { AccountInfoView } from './sections/AccountInfoView.jsx';
 import styles from './SettingsView.module.css';
 
@@ -42,6 +43,7 @@ export function SettingsView() {
       <ConnectionSection />
       <StorageSection />
       <AboutSection />
+      <DiagnosticsSection />
     </section>
   );
 }
