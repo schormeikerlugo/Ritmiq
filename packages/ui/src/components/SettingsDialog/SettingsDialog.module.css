@@ -172,16 +172,81 @@
 }
 .section h3 { margin: 0 0 8px 0; font-size: 16px; }
 .section h4 { margin: 12px 0 6px 0; font-size: 13px; opacity: 0.85; }
-.subBlock { margin-top: 12px; }
+.subBlock { margin-top: 20px; }
 .muted { color: var(--color-text-2, #888); font-size: 12px; }
 .success { color: var(--color-success, #38c172); font-size: 13px; padding: 6px 0; }
 .error { color: var(--color-error, #e3342f); font-size: 13px; padding: 6px 0; }
+
+/* ── Device item: row + panel inline opcional ─────────────────────────
+   .deviceItem envuelve cada device para que el panel inline (acordeon
+   de Actividad) quede dentro del flujo del item, no al final del
+   componente. */
+.deviceItem {
+  border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.05));
+}
+.deviceItem:last-child { border-bottom: none; }
+
 .deviceRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.05));
+  gap: 16px;
+  padding: 14px 0;
 }
-.deviceRow:last-child { border-bottom: none; }
+
+.deviceActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Boton 'Actividad' cuando esta abierto el panel — variante visual
+   para indicar el toggle activo. */
+.btnSecondary[data-active='true'] {
+  background: var(--color-accent-soft, rgba(29, 185, 84, 0.18));
+  border-color: var(--color-accent, #1db954);
+  color: var(--color-accent, #1db954);
+}
+
+/* Panel inline de actividad — aparece DEBAJO del .deviceRow del device
+   que tiene activityFor === device_id. Visualmente conectado al row
+   (no se siente como un elemento separado) gracias al padding negativo
+   y al background sutil. */
+.activityPanel {
+  padding: 12px 14px 14px;
+  margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border-left: 2px solid var(--color-accent, #1db954);
+  animation: ritmiq-fade-in 200ms ease-out;
+}
+@keyframes ritmiq-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.activityList {
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.12) transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.activityItem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-2, #888);
+  padding: 3px 0;
+}
+.activityTime { font-variant-numeric: tabular-nums; opacity: 0.7; flex-shrink: 0; }
+.activityAction { color: var(--color-text-1, #fff); font-weight: 500; }
+.activityYt {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10.5px;
+  opacity: 0.55;
+}

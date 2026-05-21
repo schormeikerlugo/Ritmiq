@@ -576,8 +576,20 @@ export function DevicesSection() {
     }
   };
 
+  /**
+   * Toggle del panel inline de actividad para un device.
+   * Si ya esta abierto para este device, lo cierra. Si esta cerrado o
+   * abierto en otro device, lo abre para el solicitado.
+   */
   const onViewActivity = async (deviceId) => {
+    // Cerrar si ya estaba abierto en este mismo device
+    if (activityFor === deviceId) {
+      setActivityFor(null);
+      setActivity([]);
+      return;
+    }
     setActivityFor(deviceId);
+    setActivity([]);  // limpiar mientras carga (UX: skeleton/empty inmediato)
     try {
       const log = await api.devicesActivity(deviceId, 50);
       setActivity(log ?? []);
@@ -632,22 +644,51 @@ export function DevicesSection() {
             <div className={styles.subBlock}>
               <h4>Aprobados ({approved.length})</h4>
               {approved.length === 0 && <div className={styles.muted}>Sin dispositivos aprobados.</div>}
-              {approved.map((d) => (
-                <div key={d.device_id} className={styles.deviceRow}>
-                  <div>
-                    <strong>{d.display_name}</strong>
-                    <div className={styles.muted}>
-                      {d.last_seen_at ? `Visto ${new Date(d.last_seen_at).toLocaleString()}` : 'Sin uso aun'}
-                      {d.cookies_updated_at ? ' · cookies subidas' : ' · cookies del owner'}
+              {approved.map((d) => {
+                const isOpen = activityFor === d.device_id;
+                return (
+                  <div key={d.device_id} className={styles.deviceItem}>
+                    <div className={styles.deviceRow}>
+                      <div>
+                        <strong>{d.display_name}</strong>
+                        <div className={styles.muted}>
+                          {d.last_seen_at ? `Visto ${new Date(d.last_seen_at).toLocaleString()}` : 'Sin uso aun'}
+                          {d.cookies_updated_at ? ' · cookies subidas' : ' · cookies del owner'}
+                        </div>
+                      </div>
+                      <div className={styles.deviceActions}>
+                        <button
+                          className={styles.btnSecondary}
+                          data-active={isOpen}
+                          onClick={() => onViewActivity(d.device_id)}
+                        >
+                          {isOpen ? 'Ocultar actividad' : 'Actividad'}
+                        </button>
+                        <button className={styles.btnSecondary} onClick={() => onRename(d.device_id, d.display_name)}>Renombrar</button>
+                        <button className={styles.btnSecondary} onClick={() => onRevoke(d.device_id)}>Revocar</button>
+                      </div>
                     </div>
+                    {isOpen && (
+                      <div className={styles.activityPanel}>
+                        <div className={styles.activityList}>
+                          {activity.length === 0 && (
+                            <div className={styles.muted}>Sin eventos.</div>
+                          )}
+                          {activity.map((a) => (
+                            <div key={a.id} className={styles.activityItem}>
+                              <span className={styles.activityTime}>
+                                {new Date(a.created_at).toLocaleString()}
+                              </span>
+                              <span className={styles.activityAction}>{a.action}</span>
+                              {a.yt_id && <span className={styles.activityYt}>({a.yt_id})</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className={styles.btnSecondary} onClick={() => onViewActivity(d.device_id)}>Actividad</button>
-                    <button className={styles.btnSecondary} onClick={() => onRename(d.device_id, d.display_name)}>Renombrar</button>
-                    <button className={styles.btnSecondary} onClick={() => onRevoke(d.device_id)}>Revocar</button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {revoked.length > 0 && (
@@ -655,43 +696,54 @@ export function DevicesSection() {
                 <summary style={{ cursor: 'pointer', fontSize: 13, marginBottom: 6 }}>
                   Revocados ({revoked.length}) — click para ver
                 </summary>
-                {revoked.map((d) => (
-                  <div key={d.device_id} className={styles.deviceRow}>
-                    <div>
-                      <strong style={{ textDecoration: 'line-through' }}>{d.display_name}</strong>
-                      <div className={styles.muted}>
-                        Revocado {d.revoked_at ? new Date(d.revoked_at).toLocaleString() : ''}
+                {revoked.map((d) => {
+                  const isOpen = activityFor === d.device_id;
+                  return (
+                    <div key={d.device_id} className={styles.deviceItem}>
+                      <div className={styles.deviceRow}>
+                        <div>
+                          <strong style={{ textDecoration: 'line-through' }}>{d.display_name}</strong>
+                          <div className={styles.muted}>
+                            Revocado {d.revoked_at ? new Date(d.revoked_at).toLocaleString() : ''}
+                          </div>
+                        </div>
+                        <div className={styles.deviceActions}>
+                          <button
+                            className={styles.btnSecondary}
+                            data-active={isOpen}
+                            onClick={() => onViewActivity(d.device_id)}
+                          >
+                            {isOpen ? 'Ocultar actividad' : 'Actividad'}
+                          </button>
+                          <button className={styles.btnSecondary} onClick={() => onForget(d.device_id)}>Borrar registro</button>
+                        </div>
                       </div>
+                      {isOpen && (
+                        <div className={styles.activityPanel}>
+                          <div className={styles.activityList}>
+                            {activity.length === 0 && (
+                              <div className={styles.muted}>Sin eventos.</div>
+                            )}
+                            {activity.map((a) => (
+                              <div key={a.id} className={styles.activityItem}>
+                                <span className={styles.activityTime}>
+                                  {new Date(a.created_at).toLocaleString()}
+                                </span>
+                                <span className={styles.activityAction}>{a.action}</span>
+                                {a.yt_id && <span className={styles.activityYt}>({a.yt_id})</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className={styles.btnSecondary} onClick={() => onViewActivity(d.device_id)}>Actividad</button>
-                      <button className={styles.btnSecondary} onClick={() => onForget(d.device_id)}>Borrar registro</button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </details>
             )}
           </>
         );
       })()}
-
-      {activityFor && (
-        <div className={styles.subBlock}>
-          <h4>Actividad del dispositivo</h4>
-          <div style={{ maxHeight: 240, overflow: 'auto', fontSize: 12 }}>
-            {activity.length === 0 && <div className={styles.muted}>Sin eventos.</div>}
-            {activity.map((a) => (
-              <div key={a.id} className={styles.muted}>
-                {new Date(a.created_at).toLocaleString()} — {a.action}
-                {a.yt_id ? ` (${a.yt_id})` : ''}
-              </div>
-            ))}
-          </div>
-          <button className={styles.btnSecondary} onClick={() => { setActivityFor(null); setActivity([]); }}>
-            Cerrar
-          </button>
-        </div>
-      )}
 
       {msg && (
         <div className={msg.ok ? styles.success : styles.error}>{msg.text}</div>
