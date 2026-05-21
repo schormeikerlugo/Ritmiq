@@ -37,6 +37,23 @@
   100% { transform: translate3d(0, 100%, 0); }
 }
 
+/* ── Main area: envuelve todo el header/cover/controles/footer ──────── */
+/* Cuando hay panel de artista debajo, este wrapper ocupa el alto del
+   viewport menos ~12vh — asi el ArtistInfoPanel queda anclado justo
+   despues del fold y solo asoma su titulo como hint de scroll. Si no
+   hay panel, fluye natural sin min-height (los controles se centran
+   por el flex del .root). */
+.mainArea {
+  display: contents;  /* default: hereda flex del .root sin caja propia */
+}
+.mainArea[data-with-panel='true'] {
+  display: flex;
+  flex-direction: column;
+  /* 100vh - padding vertical del root - peek del panel.
+     Calculo: --safe-top + --space-3 + --safe-bottom + --space-5 + ~10vh peek. */
+  min-height: calc(100vh - var(--safe-top) - var(--safe-bottom) - var(--space-3) - var(--space-5) - 10vh);
+}
+
 /* ── Header ──────────────────────────────────────────────────────────── */
 .header {
   display: grid;

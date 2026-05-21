@@ -261,6 +261,13 @@ export function NowPlaying() {
 
   if (!open && !closing) return null;
 
+  // Cuando hay artista, envolvemos los controles principales en un wrapper
+  // que ocupa casi todo el viewport (calc(100vh - 12vh)). Esto empuja el
+  // ArtistInfoPanel justo despues del fold, dejando que asome solo ~10%
+  // del titulo "Acerca del artista" como hint de scroll. Sin artista,
+  // los controles fluyen naturalmente sin necesidad de min-height.
+  const hasArtistPanel = !!currentTrack?.artist;
+
   return (
     <div
       ref={rootRef}
@@ -270,6 +277,10 @@ export function NowPlaying() {
       role="dialog"
       aria-label="Reproductor"
     >
+      <div
+        className={styles.mainArea}
+        data-with-panel={hasArtistPanel}
+      >
       <header
         className={styles.header}
         onTouchStart={onTouchStart}
@@ -391,9 +402,13 @@ export function NowPlaying() {
         </button>
       </div>
 
+      </div>{/* /.mainArea */}
+
       {/* Acerca del artista + Explora [Artist]. Solo se carga si hay
-          artista — el ArtistInfoPanel decide internamente que mostrar. */}
-      {currentTrack?.artist && (
+          artista — el ArtistInfoPanel decide internamente que mostrar.
+          Posicionado tras .mainArea (con min-height ~100vh) de modo que
+          solo asoma ~10% del titulo en el fold inicial, invitando al scroll. */}
+      {hasArtistPanel && (
         <ArtistInfoPanel artistName={currentTrack.artist} />
       )}
 
