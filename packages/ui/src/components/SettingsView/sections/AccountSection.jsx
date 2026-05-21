@@ -146,8 +146,16 @@ export function AccountSection() {
         control={<LinkButton onClick={() => setSubview('account')}>Ver detalles</LinkButton>}
       />
 
-      {/* Web Push: solo si hay soporte Y hay sesion activa */}
-      {pushState !== 'unsupported' && user && (
+      {/* Notificaciones: mostrar siempre que haya sesion. El control
+          varia segun el estado:
+            - browser-unsupported: mensaje 'no soportado' (raro).
+            - missing-vapid:       mensaje 'falta config servidor' \u2014
+              apunta al usuario a Diagnostico para detalles.
+            - granted/denied/default: comportamiento normal.
+          Antes ocultabamos la fila si pushState === 'unsupported',
+          pero eso esconde tambien el caso 'VAPID vacia' \u2014 el usuario
+          no sabia por que no podia activar. */}
+      {user && (
         <SettingRow
           label="Notificaciones"
           description={pushDescription(pushState)}
@@ -160,6 +168,10 @@ export function AccountSection() {
               // Si el usuario las denegio, ya no podemos pedir permiso
               // programaticamente — tiene que cambiarlas en ajustes del SO.
               <LinkButton onClick={() => {}} disabled>Bloqueadas</LinkButton>
+            ) : pushState === 'unsupported' ? (
+              // Browser sin APIs Push, o build sin VAPID key. El detalle
+              // exacto esta en Ajustes > Diagnostico.
+              <LinkButton onClick={() => {}} disabled>No disponible</LinkButton>
             ) : (
               <LinkButton onClick={handleEnable} disabled={busy}>
                 {busy ? '...' : 'Activar'}
@@ -208,6 +220,13 @@ function pushDescription(state) {
   }
   if (state === 'denied') {
     return 'Bloqueadas. Cambia el permiso desde los ajustes de tu navegador.';
+  }
+  if (state === 'unsupported') {
+    // Distinguimos los dos motivos posibles para guiar al usuario:
+    //   - APIs no expuestas por el navegador (browser viejo, iOS Safari
+    //     no instalado, etc.) \u2014 ver Diagnostico.
+    //   - VAPID key vacia en el build \u2014 ver Diagnostico.
+    return 'No disponible en este dispositivo o falta configuracion del servidor. Ver Ajustes > Diagnostico.';
   }
   return 'Activa para recibir avisos cuando un amigo te comparta musica.';
 }

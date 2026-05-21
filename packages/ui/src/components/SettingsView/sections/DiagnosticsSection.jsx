@@ -106,9 +106,27 @@ export function DiagnosticsSection() {
         description={
           diag.hasVapid
             ? 'Configurada \u2014 el cliente puede suscribirse a push.'
-            : 'Vacia en el build. Sin esto Push no funciona aunque haya soporte.'
+            : 'Vacia. Configura VITE_VAPID_PUBLIC_KEY en Vercel > Settings > Environment Variables y redeploya.'
         }
         control={<FlagBadge ok={diag.hasVapid} okLabel="configurada" failLabel="vacia" />}
+      />
+      <SettingRow
+        label="Supabase URL"
+        description={
+          diag.hasSupabaseUrl
+            ? 'Configurada.'
+            : 'Vacia. Configura VITE_SUPABASE_URL en Vercel.'
+        }
+        control={<FlagBadge ok={diag.hasSupabaseUrl} okLabel="configurada" failLabel="vacia" />}
+      />
+      <SettingRow
+        label="Supabase anon key"
+        description={
+          diag.hasSupabaseKey
+            ? 'Configurada.'
+            : 'Vacia. Configura VITE_SUPABASE_ANON_KEY en Vercel.'
+        }
+        control={<FlagBadge ok={diag.hasSupabaseKey} okLabel="configurada" failLabel="vacia" />}
       />
       <SettingRow
         label="Suscripcion push activa"
@@ -170,6 +188,8 @@ function readDiagnostics() {
       permission: null,
       displayMode: 'browser',
       hasVapid: false,
+      hasSupabaseUrl: false,
+      hasSupabaseKey: false,
       swScope: null,
       subscriptionEndpoint: null,
     };
@@ -181,6 +201,8 @@ function readDiagnostics() {
     permission:       'Notification' in window ? Notification.permission : null,
     displayMode:      detectDisplayMode(),
     hasVapid:         !!import.meta.env.VITE_VAPID_PUBLIC_KEY,
+    hasSupabaseUrl:   !!import.meta.env.VITE_SUPABASE_URL,
+    hasSupabaseKey:   !!import.meta.env.VITE_SUPABASE_ANON_KEY,
     swScope:          null,
     subscriptionEndpoint: null,
   };
