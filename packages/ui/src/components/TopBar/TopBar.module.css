@@ -245,13 +245,18 @@
   font-size: var(--fs-sm);
   display: grid;
   place-items: center;
-  overflow: hidden;
+  /* IMPORTANTE: NO usar overflow:hidden aqui. El .statusDot tiene
+     position:absolute con bottom/right:-1px para sobresalir del
+     circulo \u2014 si el padre lo clippea, el dot verde de presencia
+     queda cortado (bug reportado en desktop). El clipping circular
+     de la img se hace con border-radius:50% en .avatarImg directamente. */
   padding: 0;
   border: none;
   cursor: pointer;
 }
 
-/* Img dentro del avatar — fill completo manteniendo el clipping circular. */
+/* Img dentro del avatar — fill completo manteniendo el clipping circular
+   sin necesidad de overflow:hidden en el contenedor. */
 .avatarImg {
   width: 100%;
   height: 100%;

@@ -149,10 +149,20 @@
 .songMeta {
   display: flex;
   flex-direction: column;
+  /* min-width:0 + overflow hidden son obligatorios para que un hijo
+     grid (1fr) recorte texto en lugar de empujar el contenedor.
+     Sin esto, titulos largos desbordan la card en SearchView. */
   min-width: 0;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 .songTitle {
+  /* display:block requerido para que text-overflow ellipsis funcione
+     en un <span>. Default inline ignora overflow. */
+  display: block;
+  width: 100%;
   font-weight: var(--fw-semibold);
   font-size: var(--fs-sm);
   white-space: nowrap;
@@ -161,6 +171,8 @@
 }
 
 .songSub {
+  display: block;
+  width: 100%;
   font-size: var(--fs-xs);
   color: var(--color-text-3);
   white-space: nowrap;

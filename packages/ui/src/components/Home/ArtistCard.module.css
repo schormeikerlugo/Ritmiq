@@ -11,11 +11,12 @@
   transition: background 220ms var(--ease-emphasized),
               transform 220ms var(--ease-emphasized);
   width: 100%;
-  /* Ver TrackCard.module.css — mismo motivo (overflow en Electron). */
+  /* Ver TrackCard.module.css \u2014 NO usar overflow:hidden aqui. Corta
+     las sombras del playBtn al hover. El ellipsis del titulo se
+     maneja en .meta + .title con su propio overflow. */
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  overflow: hidden;
 }
 .card:hover {
   background: rgba(255, 255, 255, 0.05);
@@ -84,7 +85,11 @@
   text-align: center;
   gap: 2px;
   min-width: 0;
+  /* overflow:hidden aqui (no en .card) para que el ellipsis del
+     .title funcione sin clipear sombras del playBtn. */
+  overflow: hidden;
   width: 100%;
+  max-width: 100%;
 }
 
 .title {

@@ -10,15 +10,16 @@
   cursor: pointer;
   transition: background 220ms var(--ease-emphasized),
               transform 220ms var(--ease-emphasized);
-  /* Fijar el ancho exacto del grid track. `width: 100%` por sí solo no
+  /* Fijar el ancho exacto del grid track. `width: 100%` por si solo no
    * basta en Electron/Chromium: el <button> nativo conserva un
-   * `min-width: auto` implícito que lo expande al ancho del título.
-   * `min-width: 0` + `overflow: hidden` recortan a la fuerza. */
+   * `min-width: auto` implicito que lo expande al ancho del titulo.
+   * `min-width: 0` recorta. NO usar overflow:hidden aqui \u2014 corta
+   * sombras del playBtn al hacer hover, y el ellipsis del titulo ya
+   * se maneja en .meta + .title con su propio overflow. */
   width: 100%;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  overflow: hidden;
 }
 .card:hover {
   background: rgba(255, 255, 255, 0.08);
