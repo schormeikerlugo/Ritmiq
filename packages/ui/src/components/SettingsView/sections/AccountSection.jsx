@@ -47,14 +47,36 @@ export function AccountSection() {
   // tenemos que guiar al usuario a instalar primero.
   const [iosHintOpen, setIosHintOpen] = useState(false);
 
-  // Re-leer el estado del permiso cuando volvemos a foco (el usuario pudo
-  // cambiarlo en la barra de URL del navegador sin recargar).
+  // Re-leer el estado del permiso periodicamente. Tres triggers:
+  //
+  //   1. focus: el usuario pudo cambiar el permiso desde la barra de
+  //      URL del navegador y volver a la pestana sin recargar.
+  //   2. visibilitychange visible: PWA standalone iOS no dispara focus
+  //      al salir de background \u2014 visibilitychange si.
+  //   3. timeout 500ms tras mount: iOS PWA 16.4 puede exponer PushManager
+  //      con delay tras el primer paint. Sin esto, si initialPushState()
+  //      corre antes de que iOS termine de inicializar las APIs, queda
+  //      'unsupported' permanentemente \u2014 la fila no aparece nunca.
+  //
+  // CLAVE: NO usar `if (pushState === 'unsupported') return` aqui. El
+  // bug previo era ese return temprano \u2014 una vez 'unsupported', nunca
+  // se re-evaluaba. Ahora reevaluamos siempre.
   useEffect(() => {
-    if (pushState === 'unsupported') return;
-    const onFocus = () => setPushState(initialPushState());
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [pushState]);
+    const recheck = () => setPushState(initialPushState());
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') recheck();
+    };
+    window.addEventListener('focus', recheck);
+    document.addEventListener('visibilitychange', onVisibility);
+    // Re-check tardio para iOS PWA \u2014 las APIs Push pueden tardar
+    // ~100-500ms en estar disponibles tras el mount.
+    const t = setTimeout(recheck, 500);
+    return () => {
+      window.removeEventListener('focus', recheck);
+      document.removeEventListener('visibilitychange', onVisibility);
+      clearTimeout(t);
+    };
+  }, []);
 
   async function handleEnable() {
     if (!user || busy) return;
