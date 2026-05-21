@@ -75,8 +75,14 @@ $$;
 
 -- Cron: limpia filas expiradas cada 5 minutos para no acumular basura.
 -- Requiere pg_cron (ya habilitado en migracion de rec_cache).
-select cron.unschedule('presence-cleanup')
-  where exists (select 1 from cron.job where jobname = 'presence-cleanup');
+-- Envuelto en DO block para hacer el unschedule condicional.
+do $$
+begin
+  if exists (select 1 from cron.job where jobname = 'presence-cleanup') then
+    perform cron.unschedule('presence-cleanup');
+  end if;
+end;
+$$;
 
 select cron.schedule(
   'presence-cleanup',

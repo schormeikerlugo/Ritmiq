@@ -42,7 +42,11 @@ create policy "profiles: update own"
 
 -- Trigger: actualiza updated_at en cada UPDATE.
 create or replace function public.handle_profile_updated_at()
-returns trigger language plpgsql as $$
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
 begin
   new.updated_at = now();
   return new;
@@ -56,12 +60,21 @@ create trigger profile_updated_at
 -- Trigger: genera un username por defecto al crear un perfil si no
 -- se pasa uno. Toma los primeros 8 chars del UUID del usuario.
 -- El cliente DEBERA actualizar esto en el flujo de onboarding social.
+--
+-- NOTA: usamos substring() en lugar de slice syntax [:N] — esta ultima
+-- no es PostgreSQL valido para text, solo para arrays.
 create or replace function public.handle_new_profile()
-returns trigger language plpgsql security definer as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
 begin
   -- Solo auto-genera username si no se paso uno valido
   if new.username is null or length(new.username) < 3 then
-    new.username := 'user_' || lower(replace(new.user_id::text, '-', ''))[:8];
+    new.username := 'user_' || substring(
+      lower(replace(new.user_id::text, '-', '')) from 1 for 8
+    );
   end if;
   return new;
 end;
@@ -70,3 +83,13 @@ $$;
 create trigger new_profile_username
   before insert on public.profiles
   for each row execute function public.handle_new_profile();
+
+-- ── FK explicito para PostgREST embedding ────────────────────────────
+-- Los embedded selects de supabase-js (`select(... profiles(...))`)
+-- requieren un FK desde la tabla padre hacia profiles. Como friendships
+-- y shared_items referencian auth.users (no profiles), exponemos
+-- profiles.user_id como una clave alternativa que PostgREST puede
+-- detectar via las foreign tables que crearemos despues.
+--
+-- Por ahora exponemos la tabla en el schema public via RLS — los joins
+-- a profiles se haran via .select('user_id') + manual lookup en el cliente.

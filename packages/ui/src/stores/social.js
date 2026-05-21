@@ -110,19 +110,36 @@ export const useSocialStore = create((set, get) => ({
 
   async loadFriends(userId) {
     set({ friendsLoading: true });
-    // mutual_friends view: filas donde user_id = userId, join con profiles del friend
-    const { data } = await supabase
+    // mutual_friends es una VIEW (no tabla) por lo que PostgREST no puede
+    // hacer embedded joins. Hacemos dos pasos: 1) IDs de amigos, 2) lookup
+    // de perfiles. Mas robusto que confiar en hidden FK.
+    const { data: friendRows } = await supabase
       .from('mutual_friends')
-      .select('friend_id, profiles!mutual_friends_friend_id_fkey(username, display_name, avatar_url)')
+      .select('friend_id')
       .eq('user_id', userId);
 
-    const friends = (data ?? []).map((row) => ({
-      id:          row.friend_id,
-      userId:      row.friend_id,
-      username:    row.profiles?.username ?? '',
-      displayName: row.profiles?.display_name ?? null,
-      avatarUrl:   row.profiles?.avatar_url ?? null,
-    }));
+    const ids = (friendRows ?? []).map((r) => r.friend_id);
+    if (ids.length === 0) {
+      set({ friends: [], friendsLoading: false });
+      return;
+    }
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, username, display_name, avatar_url')
+      .in('user_id', ids);
+
+    const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
+    const friends = ids.map((id) => {
+      const p = profileMap.get(id);
+      return {
+        id,
+        userId:      id,
+        username:    p?.username ?? '',
+        displayName: p?.display_name ?? null,
+        avatarUrl:   p?.avatar_url ?? null,
+      };
+    });
     set({ friends, friendsLoading: false });
   },
 
@@ -131,38 +148,61 @@ export const useSocialStore = create((set, get) => ({
   async loadRequests(userId) {
     set({ requestsLoading: true });
 
+    // friendships.requester/addressee referencian auth.users (no profiles),
+    // por lo que PostgREST no puede joinar profiles automaticamente.
+    // Hacemos dos pasos: 1) traer friendships, 2) lookup de perfiles.
     const [incoming, outgoing] = await Promise.all([
-      // Entrantes: addressee = yo, status = pending
       supabase
         .from('friendships')
-        .select('id, requester, created_at, profiles!friendships_requester_fkey(username, display_name, avatar_url)')
+        .select('id, requester, created_at')
         .eq('addressee', userId)
         .eq('status', 'pending'),
-      // Enviadas: requester = yo, status = pending
       supabase
         .from('friendships')
-        .select('id, addressee, created_at, profiles!friendships_addressee_fkey(username, display_name, avatar_url)')
+        .select('id, addressee, created_at')
         .eq('requester', userId)
         .eq('status', 'pending'),
     ]);
 
+    const inRows  = incoming.data ?? [];
+    const outRows = outgoing.data ?? [];
+    const allIds = [
+      ...inRows.map((r) => r.requester),
+      ...outRows.map((r) => r.addressee),
+    ];
+
+    let profileMap = new Map();
+    if (allIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, username, display_name, avatar_url')
+        .in('user_id', allIds);
+      profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
+    }
+
     set({
-      incomingRequests: (incoming.data ?? []).map((r) => ({
-        id:          r.id,
-        requesterId: r.requester,
-        username:    r.profiles?.username ?? '',
-        displayName: r.profiles?.display_name ?? null,
-        avatarUrl:   r.profiles?.avatar_url ?? null,
-        createdAt:   r.created_at,
-      })),
-      outgoingRequests: (outgoing.data ?? []).map((r) => ({
-        id:          r.id,
-        requesterId: r.addressee,
-        username:    r.profiles?.username ?? '',
-        displayName: r.profiles?.display_name ?? null,
-        avatarUrl:   r.profiles?.avatar_url ?? null,
-        createdAt:   r.created_at,
-      })),
+      incomingRequests: inRows.map((r) => {
+        const p = profileMap.get(r.requester);
+        return {
+          id:          r.id,
+          requesterId: r.requester,
+          username:    p?.username ?? '',
+          displayName: p?.display_name ?? null,
+          avatarUrl:   p?.avatar_url ?? null,
+          createdAt:   r.created_at,
+        };
+      }),
+      outgoingRequests: outRows.map((r) => {
+        const p = profileMap.get(r.addressee);
+        return {
+          id:          r.id,
+          requesterId: r.addressee,
+          username:    p?.username ?? '',
+          displayName: p?.display_name ?? null,
+          avatarUrl:   p?.avatar_url ?? null,
+          createdAt:   r.created_at,
+        };
+      }),
       requestsLoading: false,
     });
   },
@@ -227,20 +267,33 @@ export const useSocialStore = create((set, get) => ({
 
   async loadInbox(userId) {
     set({ inboxLoading: true });
-    const { data } = await supabase
+    // shared_items.sender_id referencia auth.users, no profiles. Hacemos
+    // dos queries: 1) items, 2) profiles de los senders.
+    const { data: items } = await supabase
       .from('shared_items')
       .select(`
-        id, kind, yt_id, title, artist, cover_url, duration_seconds,
+        id, sender_id, kind, yt_id, title, artist, cover_url, duration_seconds,
         playlist_name, playlist_snapshot, message,
-        read_at, saved_at, played_at, created_at,
-        sender:sender_id(user_id, username, display_name, avatar_url)
+        read_at, saved_at, played_at, created_at
       `)
       .eq('receiver_id', userId)
       .order('created_at', { ascending: false })
       .limit(50);
 
+    const rows = items ?? [];
+    const senderIds = [...new Set(rows.map((r) => r.sender_id))];
+
+    let profileMap = new Map();
+    if (senderIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, username, display_name, avatar_url')
+        .in('user_id', senderIds);
+      profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
+    }
+
     set({
-      inbox: (data ?? []).map(mapSharedItem),
+      inbox: rows.map((row) => mapSharedItem(row, profileMap.get(row.sender_id))),
       inboxLoading: false,
     });
   },
@@ -363,26 +416,25 @@ function mapProfile(row) {
   };
 }
 
-function mapSharedItem(row) {
-  const sender = Array.isArray(row.sender) ? row.sender[0] : row.sender;
+function mapSharedItem(row, senderProfile) {
   return {
-    id:               row.id,
-    kind:             row.kind,
-    senderId:         sender?.user_id ?? '',
-    senderUsername:   sender?.username ?? '',
-    senderDisplayName: sender?.display_name ?? null,
-    senderAvatarUrl:  sender?.avatar_url ?? null,
-    ytId:             row.yt_id ?? null,
-    title:            row.title ?? null,
-    artist:           row.artist ?? null,
-    coverUrl:         row.cover_url ?? null,
-    durationSeconds:  row.duration_seconds ?? null,
-    playlistName:     row.playlist_name ?? null,
-    playlistSnapshot: row.playlist_snapshot ?? null,
-    message:          row.message ?? null,
-    readAt:           row.read_at ?? null,
-    savedAt:          row.saved_at ?? null,
-    playedAt:         row.played_at ?? null,
-    createdAt:        row.created_at,
+    id:                row.id,
+    kind:              row.kind,
+    senderId:          row.sender_id ?? senderProfile?.user_id ?? '',
+    senderUsername:    senderProfile?.username ?? '',
+    senderDisplayName: senderProfile?.display_name ?? null,
+    senderAvatarUrl:   senderProfile?.avatar_url ?? null,
+    ytId:              row.yt_id ?? null,
+    title:             row.title ?? null,
+    artist:            row.artist ?? null,
+    coverUrl:          row.cover_url ?? null,
+    durationSeconds:   row.duration_seconds ?? null,
+    playlistName:      row.playlist_name ?? null,
+    playlistSnapshot:  row.playlist_snapshot ?? null,
+    message:           row.message ?? null,
+    readAt:            row.read_at ?? null,
+    savedAt:           row.saved_at ?? null,
+    playedAt:          row.played_at ?? null,
+    createdAt:         row.created_at,
   };
 }

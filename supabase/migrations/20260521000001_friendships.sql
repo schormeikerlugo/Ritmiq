@@ -48,7 +48,11 @@ create policy "friendships: delete as participant"
 
 -- Trigger: updated_at
 create or replace function public.handle_friendship_updated_at()
-returns trigger language plpgsql as $$
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
 begin
   new.updated_at = now();
   return new;
