@@ -49,8 +49,14 @@ export function Library() {
   const loadPlaylists = usePlaylistsStore((s) => s.load);
   const playlists = usePlaylistsStore((s) => s.playlists);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
+  const contents = usePlaylistsStore((s) => s.contents);
   const events = useHistoryStore((s) => s.events);
   const playNow = usePlayerStore((s) => s.playNow);
+  // Track actual + playing flag para resaltar el play overlay de la
+  // playlist activa (morado + pulso). Si pause, el overlay queda
+  // morado pero sin animacion \u2014 reanudable con un tap.
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlaying    = usePlayerStore((s) => s.isPlaying);
   const goPlaylist = useViewStore((s) => s.goPlaylist);
   const goArtist = useViewStore((s) => s.goArtist);
   const goAccount = useViewStore((s) => s.goAccount);
@@ -177,6 +183,29 @@ export function Library() {
     else if (item.kind === 'track') onItemClick(item);
   };
 
+  /**
+   * \u00bfEsta sonando algo de esta playlist/artista ahora mismo?
+   * Para playlist: si el currentTrack.id esta en contents[plId].
+   * Para artist: si currentTrack.artist coincide case-insensitive.
+   * Solo importa la igualdad \u2014 'active' incluye pause (mostramos
+   * morado solido) y solo 'playing' anade la animacion de pulso.
+   */
+  const isItemActive = (item) => {
+    if (!currentTrack) return false;
+    if (item.kind === 'playlist') {
+      const ids = contents[item.rawId] ?? [];
+      return ids.includes(currentTrack.id);
+    }
+    if (item.kind === 'artist') {
+      const a = (currentTrack.artist ?? '').toLowerCase().trim();
+      return a && a === (item.rawId ?? '').toLowerCase().trim();
+    }
+    if (item.kind === 'track') {
+      return currentTrack.id === item.rawId;
+    }
+    return false;
+  };
+
   const initial = (user?.email ?? 'U').slice(0, 1).toUpperCase();
 
   return (
@@ -300,8 +329,11 @@ export function Library() {
             <p>No hay items en esta categoría.</p>
           </li>
         )}
-        {sorted.map((item) => (
-          <li key={item.id} className={styles.row}>
+        {sorted.map((item) => {
+          const active  = isItemActive(item);
+          const playing = active && isPlaying;
+          return (
+            <li key={item.id} className={styles.row}>
             <button
               type="button"
               className={styles.rowBtn}
@@ -320,16 +352,28 @@ export function Library() {
                       filled={item.isFavorites}
                     />
                 }
-                {/* Quick-play overlay — visible en hover (desktop)
-                    o siempre visible en tactil (mobile via CSS). */}
+                {/* Quick-play overlay:
+                      - default (mobile): semi-transparente para no tapar
+                        la caratula. Hover/active en desktop sube opacidad.
+                      - data-active='true' (la playlist contiene el track
+                        actual): morado solido.
+                      - data-playing='true' (ademas esta sonando): pulso
+                        animado tipo equalizer. */}
                 <span
                   className={styles.quickPlay}
+                  data-active={active || undefined}
+                  data-playing={playing || undefined}
                   role="button"
                   tabIndex={-1}
                   aria-label={`Reproducir ${item.title}`}
                   onClick={(e) => onQuickPlay(e, item)}
                 >
-                  <Icon name="Play" size={14} filled />
+                  {playing
+                    ? <span className={styles.pulseBars} aria-hidden="true">
+                        <span /><span /><span />
+                      </span>
+                    : <Icon name="Play" size={14} filled />
+                  }
                 </span>
               </div>
               <div className={styles.meta}>
@@ -338,7 +382,8 @@ export function Library() {
               </div>
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       {importOpen && (

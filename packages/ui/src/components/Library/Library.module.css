@@ -6,11 +6,23 @@
   position: relative;
 }
 
-/* Header + chips sticky — se quedan arriba al scrollear la lista de
+/* Header + chips sticky \u2014 se quedan arriba al scrollear la lista de
    biblioteca. Fondo translucido con blur estilo iOS: 10% del contenido
    detras visible (background a 0.72 de opacidad + backdrop-filter blur
    y saturate). Estira lateralmente con margin-inline negativo para
-   cubrir todo el ancho del panel sin dejar franjas. */
+   cubrir todo el ancho del panel sin dejar franjas.
+
+   IMPORTANTE PWA iOS: el contenedor padre .main tiene
+   padding-top: env(safe-area-inset-top) para no quedar bajo la notch.
+   Eso deja una franja entre el borde fisico superior y el inicio del
+   sticky donde el scroll se ve pasar (bug reportado).
+
+   Fix: el .stickyHeader hace margin-top negativo del mismo valor del
+   safe-area-inset-top, asi su background se extiende hasta el borde
+   fisico del device. Compensamos con padding-top equivalente para
+   que el contenido visual (header row + chips) siga por debajo de la
+   notch. Resultado: background continuo desde el borde superior fisico
+   hasta el final del header sticky, sin franjas. */
 .stickyHeader {
   position: sticky;
   top: 0;
@@ -18,13 +30,25 @@
   background: rgba(10, 10, 12, 0.72);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
-  margin-inline: calc(var(--space-3) * -1);
-  padding-inline: var(--space-3);
+  /* Estiramos lateralmente compensando tambien el safe-area lateral
+     que .main aplica como padding (notch en landscape iPhone). */
+  margin-left:  calc((var(--space-3) + var(--safe-left)) * -1);
+  margin-right: calc((var(--space-3) + var(--safe-right)) * -1);
+  padding-left:  calc(var(--space-3) + var(--safe-left));
+  padding-right: calc(var(--space-3) + var(--safe-right));
+  /* Cobertura del notch superior en mobile (PWA standalone iOS). */
+  margin-top: calc(var(--safe-top) * -1);
+  padding-top: var(--safe-top);
 }
 @media (min-width: 769px) {
   .stickyHeader {
-    margin-inline: calc(var(--space-5) * -1);
-    padding-inline: var(--space-5);
+    margin-left:  calc(var(--space-5) * -1);
+    margin-right: calc(var(--space-5) * -1);
+    padding-left:  var(--space-5);
+    padding-right: var(--space-5);
+    /* Desktop: sin notch ni status bar \u2014 reset del compensador. */
+    margin-top: 0;
+    padding-top: 0;
   }
 }
 
@@ -189,10 +213,15 @@
   color: var(--color-text-2);
 }
 
-/* Quick-play overlay sobre el cover. Aparece al hacer hover en la fila;
-   en mobile/tactil aparece siempre (no hay hover). Tamaño compacto
-   apropiado al cover de 56px. stopPropagation en el handler JS evita
-   que pase el click al boton padre que navega. */
+/* Quick-play overlay sobre el cover. Tres estados:
+   1. Default (idle): semi-transparente oscuro \u2014 deja ver la caratula
+      por debajo, no la tapa. En desktop oculto, aparece en hover.
+   2. data-active='true': la playlist contiene el track que esta
+      sonando ahora mismo (en pause o playing). Morado solido,
+      glow accent. Indica "fuente activa".
+   3. data-active + data-playing: ademas esta reproduciendo. Mismo
+      morado + animacion de pulso interna (3 barras tipo equalizer)
+      reemplaza al icono Play. */
 .quickPlay {
   position: absolute;
   inset: 0;
@@ -202,14 +231,18 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--color-accent);
-  color: #fff;
-  box-shadow: 0 4px 12px var(--color-accent-shadow);
+  /* Idle desktop: invisible hasta hover. */
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   opacity: 0;
   transform: scale(0.85);
   transition:
     opacity var(--dur-fast) var(--ease-standard),
-    transform var(--dur-fast) var(--ease-standard);
+    transform var(--dur-fast) var(--ease-standard),
+    background var(--dur-fast) var(--ease-standard);
   cursor: pointer;
   z-index: 1;
 }
@@ -218,21 +251,80 @@
   transform: scale(1);
 }
 .quickPlay:hover {
-  background: var(--color-accent-hover);
+  background: rgba(0, 0, 0, 0.75);
   transform: scale(1.08);
 }
 .quickPlay:active {
   transform: scale(0.92);
 }
+
+/* Estado: la playlist/artista esta cargada en el player (active). */
+.quickPlay[data-active] {
+  background: var(--color-accent);
+  color: #fff;
+  box-shadow: 0 4px 12px var(--color-accent-shadow);
+  opacity: 1;
+  transform: scale(1);
+}
+.quickPlay[data-active]:hover {
+  background: var(--color-accent-hover);
+  transform: scale(1.08);
+}
+/* Estado: ademas esta reproduciendo. Sutil glow pulsante alrededor
+   del overlay para llamar la atencion sin distraer. Las barras
+   tipo equalizer (.pulseBars) viven dentro y se animan aparte. */
+.quickPlay[data-playing] {
+  animation: quickPlayGlow 1.4s ease-in-out infinite;
+}
+@keyframes quickPlayGlow {
+  0%, 100% { box-shadow: 0 4px 12px var(--color-accent-shadow); }
+  50%      { box-shadow: 0 4px 22px var(--color-accent), 0 0 0 4px color-mix(in srgb, var(--color-accent) 22%, transparent); }
+}
+
+/* Equalizer bars dentro del overlay cuando data-playing. 3 barras
+   con animaciones desfasadas \u2014 evoca el icono de musica sonando
+   de iOS/Spotify lock screen. */
+.pulseBars {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  width: 14px;
+  height: 12px;
+}
+.pulseBars span {
+  display: block;
+  width: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  transform-origin: bottom;
+  animation: pulseBar 0.9s ease-in-out infinite;
+}
+.pulseBars span:nth-child(1) { height: 60%; animation-delay: 0s; }
+.pulseBars span:nth-child(2) { height: 100%; animation-delay: 0.18s; }
+.pulseBars span:nth-child(3) { height: 70%; animation-delay: 0.36s; }
+@keyframes pulseBar {
+  0%, 100% { transform: scaleY(0.45); }
+  50%      { transform: scaleY(1);    }
+}
+
+/* Respeto prefers-reduced-motion: sin animacion, solo color estatico. */
+@media (prefers-reduced-motion: reduce) {
+  .quickPlay[data-playing] { animation: none; }
+  .pulseBars span { animation: none; transform: scaleY(0.7); }
+}
+
 @media (max-width: 768px) {
-  /* En tactil no hay hover — el overlay vive siempre visible pero un
-     poco mas sutil para no taparlo todo. */
+  /* En tactil no hay hover \u2014 el overlay vive siempre visible pero
+     sutil para no tapar la caratula. */
   .quickPlay {
-    opacity: 0.92;
+    opacity: 0.85;
     transform: scale(1);
     width: 26px;
     height: 26px;
   }
+  /* Active/playing mantienen opacidad full incluso en mobile. */
+  .quickPlay[data-active] { opacity: 1; }
 }
 .cover[data-shape='square'] { border-radius: var(--radius-md); }
 .cover[data-shape='circle'] { border-radius: 50%; }
