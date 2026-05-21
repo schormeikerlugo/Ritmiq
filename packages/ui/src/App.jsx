@@ -47,12 +47,16 @@ import { initTheme } from './stores/theme.js';
 initTheme();
 
 // Si la app arranca en modo PWA standalone, marca un flag en localStorage
-// para que las visitas posteriores desde el navegador puedan saber que
-// este device tiene la PWA instalada y mostrar el banner "Abrir en Ritmiq".
-// Limitacion iOS: Safari y la PWA standalone tienen storage segregado, asi
-// que esta deteccion solo funciona en Android/desktop. En iOS la landing
-// igualmente muestra instrucciones genericas de instalacion.
-if (isStandalonePWA()) markPwaInstalled();
+// Y llama al endpoint /api/mark-installed para setear una cookie de primer
+// origen. En iOS, localStorage es SEGREGADO entre Safari y la PWA standalone,
+// pero las cookies del mismo origen SI se comparten — esto permite que la
+// SharedView en Safari detecte correctamente si el device ya tiene la PWA.
+if (isStandalonePWA()) {
+  markPwaInstalled();
+  // fire-and-forget: no bloquear el arranque, no reportar errores al usuario.
+  fetch('/api/mark-installed', { method: 'POST', credentials: 'same-origin' })
+    .catch(() => {});
+}
 import {
   autoDetectLanFromHost, setLanBaseUrl, getLanBaseUrlSync, setAccessToken,
   startTunnelKeepalive,
