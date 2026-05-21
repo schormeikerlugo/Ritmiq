@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "VERCEL=1 pnpm install --frozen-lockfile",
+  "installCommand": "VERCEL=1 pnpm install --frozen-lockfile --filter @ritmiq/pwa... --ignore-scripts",
   "buildCommand": "pnpm --filter @ritmiq/pwa build && node ../../scripts/vercel-postbuild.js",
   "outputDirectory": "dist",
   "rewrites": [

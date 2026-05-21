@@ -106,4 +106,14 @@ export default defineConfig({
     host: true,        // expone 0.0.0.0 para que el iPhone en LAN llegue
     strictPort: true,
   },
+  build: {
+    // Subir el limite del warning a 1000 KB \u2014 nuestro bundle actual es
+    // ~850 KB (251 KB gzip) lo cual es aceptable para una PWA con audio
+    // engine + queue + 11 vistas + 5 stores. Code-splitting agresivo
+    // a nivel ruta romperia el flow de navegacion instantanea SPA.
+    //
+    // Cuando el bundle supere 1100 KB se podra splittear por rutas
+    // dinamicas (Stats, Friends) que son visitas menos frecuentes.
+    chunkSizeWarningLimit: 1000,
+  },
 });
