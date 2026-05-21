@@ -173,6 +173,27 @@ export function hasPwaInstalledFlag() {
 }
 
 /**
+ * Detecta si la PWA esta instalada via cookie de primer origen.
+ *
+ * En iOS, localStorage esta SEGREGADO entre Safari y la PWA standalone —
+ * hasPwaInstalledFlag() solo funciona dentro de la propia PWA. Las cookies
+ * del mismo origen SI se comparten entre contextos en iOS. El endpoint
+ * POST /api/mark-installed setea esta cookie cuando la PWA arranca en
+ * standalone, haciendola visible en Safari para que SharedView muestre el
+ * banner correcto ("Abrir en Ritmiq" vs "Instala Ritmiq").
+ *
+ * NO es HttpOnly a proposito — necesitamos leerla desde JS del cliente.
+ */
+export function hasPwaInstalledCookie() {
+  if (typeof document === 'undefined') return false;
+  try {
+    return document.cookie.split(';').some((c) => c.trim().startsWith('ritmiq_installed=1'));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Detecta la plataforma para mostrar instrucciones especificas en la
  * landing publica. Solo distinguimos iOS / Android / Desktop — suficiente
  * para tomar decisiones de UX.

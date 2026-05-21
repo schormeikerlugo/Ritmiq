@@ -32,7 +32,7 @@ import { useEffect, useState } from 'react';
 import logotipoUrl from '../../assets/logotipo.png';
 import { Icon } from '../Icon/Icon.jsx';
 import {
-  isStandalonePWA, hasPwaInstalledFlag, detectPlatform,
+  isStandalonePWA, hasPwaInstalledFlag, hasPwaInstalledCookie, detectPlatform,
   copyToClipboard, buildShareLink,
 } from '../../lib/share.js';
 import styles from './SharedView.module.css';
@@ -51,7 +51,11 @@ export function SharedView({ share, onOpenInApp, isAuthed }) {
 
   // Detecciones one-shot al montar.
   const [platform] = useState(() => detectPlatform());
-  const [hasInstalled] = useState(() => hasPwaInstalledFlag());
+  // hasPwaInstalledFlag: localStorage (funciona en Android/desktop y en la
+  // propia PWA standalone). hasPwaInstalledCookie: cookie cross-context que
+  // la PWA setea via /api/mark-installed — la unica forma de detectar en
+  // Safari iOS que la PWA esta instalada, dado el storage segregado de iOS.
+  const [hasInstalled] = useState(() => hasPwaInstalledFlag() || hasPwaInstalledCookie());
   const [inStandalone] = useState(() => isStandalonePWA());
 
   // Si por alguna razon esto se renderiza dentro de la PWA standalone,
