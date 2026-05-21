@@ -36,9 +36,14 @@ create policy "profiles: insert own"
   on public.profiles for insert
   with check (auth.uid() = user_id);
 
+-- UPDATE: tanto `using` (que filas son visibles para update) como
+-- `with check` (que valor final esta permitido) deben referenciar el
+-- propio user_id. Sin `with check` algunos drivers PostgREST devuelven
+-- 200 con array vacio pero el update no aplica → silent failure.
 create policy "profiles: update own"
   on public.profiles for update
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 -- Trigger: actualiza updated_at en cada UPDATE.
 create or replace function public.handle_profile_updated_at()

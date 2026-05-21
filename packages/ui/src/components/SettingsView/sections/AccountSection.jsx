@@ -11,15 +11,21 @@
  */
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../../stores/auth.js';
+import { useSocialStore } from '../../../stores/social.js';
 import { useViewStore } from '../../../stores/view.js';
 import { requestPushPermissionAndRegister, unregisterPush } from '../../../lib/use-push.js';
 import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { LinkButton } from '../controls/LinkButton.jsx';
+import { EditProfileDialog } from '../../EditProfileDialog/EditProfileDialog.jsx';
+import { Icon } from '../../Icon/Icon.jsx';
+import accountStyles from './AccountSection.module.css';
 
 export function AccountSection() {
   const user = useAuthStore((s) => s.user);
+  const profile = useSocialStore((s) => s.profile);
   const setSubview = useViewStore((s) => s.setSettingsSubview);
+  const [editOpen, setEditOpen] = useState(false);
 
   // ── Web Push state ──────────────────────────────────────────────
   // Detectamos soporte y estado del permiso una vez al montar.
@@ -53,12 +59,49 @@ export function AccountSection() {
     setPushState('default');
   }
 
+  const displayName = profile?.displayName ?? profile?.username ?? '';
+  const initial = (displayName || user?.email || '?').slice(0, 1).toUpperCase();
+
   return (
     <SettingsGroup title="Cuenta">
+      {/* Hero row clickable: avatar + nombre + boton Editar perfil
+          siempre visible. En desktop y mobile, el usuario tiene acceso
+          directo al modal de edicion sin tener que entrar a subview. */}
+      {user && (
+        <div className={accountStyles.profileRow}>
+          {profile?.avatarUrl ? (
+            <img
+              src={profile.avatarUrl}
+              alt=""
+              className={accountStyles.avatar}
+            />
+          ) : (
+            <div className={accountStyles.avatarInitial}>{initial}</div>
+          )}
+          <div className={accountStyles.profileMeta}>
+            <span className={accountStyles.displayName}>
+              {displayName || <span className={accountStyles.muted}>Sin nombre</span>}
+            </span>
+            <span className={accountStyles.handleOrEmail}>
+              {profile?.username ? `@${profile.username}` : (user.email ?? '')}
+            </span>
+          </div>
+          <button
+            type="button"
+            className={accountStyles.editBtn}
+            onClick={() => setEditOpen(true)}
+            aria-label="Editar perfil"
+          >
+            <Icon name="Pencil" size={14} />
+            <span>Editar</span>
+          </button>
+        </div>
+      )}
+
       <SettingRow
-        label="Iniciar sesion"
+        label="Correo electronico"
         description={user?.email ?? 'Sin sesion'}
-        control={<LinkButton onClick={() => setSubview('account')}>Editar</LinkButton>}
+        control={<LinkButton onClick={() => setSubview('account')}>Ver detalles</LinkButton>}
       />
 
       {/* Web Push: solo si hay soporte Y hay sesion activa */}
@@ -83,6 +126,8 @@ export function AccountSection() {
           }
         />
       )}
+
+      {editOpen && <EditProfileDialog onClose={() => setEditOpen(false)} />}
     </SettingsGroup>
   );
 }

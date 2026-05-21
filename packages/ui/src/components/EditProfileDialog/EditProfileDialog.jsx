@@ -134,12 +134,18 @@ export function EditProfileDialog({ onClose }) {
             setUsernameStatus('taken');
             throw new Error('Ese @usuario ya esta tomado.');
           }
-          throw err;
+          // PGRST116 = "0 rows returned" — generalmente RLS bloqueando
+          // el SELECT post-UPDATE. Mensaje user-friendly.
+          if (err.code === 'PGRST116') {
+            throw new Error('No tienes permiso para actualizar este perfil.');
+          }
+          throw new Error(err.message ?? 'No se pudo guardar el perfil.');
         }
       }
 
       onClose();
     } catch (e) {
+      console.error('[edit-profile] save failed', e);
       setError(e?.message ?? 'Error al guardar el perfil.');
     } finally {
       setSaving(false);

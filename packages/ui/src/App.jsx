@@ -164,6 +164,13 @@ export function App() {
       loadLibrary();
       loadPlaylists();
       useHistoryStore.getState().load();
+      // Cargar el perfil social a nivel App para que este disponible
+      // en todas las vistas (Home, TopBar, BottomNav, AccountInfoView)
+      // sin tener que abrir FriendsView primero. Antes este load solo
+      // ocurria al montar FriendsView — en desktop, si el usuario nunca
+      // entraba a Amigos, profile quedaba null y el dialog de editar
+      // perfil no funcionaba.
+      useSocialStore.getState().loadProfile(user.id);
     } else {
       resetLibrary();
       resetPlaylists();

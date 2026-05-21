@@ -137,8 +137,12 @@ export const useSocialStore = create((set, get) => ({
       .eq('user_id', profile.userId)
       .select('user_id, username, display_name, avatar_url, bio, show_activity')
       .single();
-    if (!error && data) set({ profile: mapProfile(data) });
-    return error;
+    if (error) {
+      console.warn('[social] updateProfile error', error);
+      return error;
+    }
+    if (data) set({ profile: mapProfile(data) });
+    return null;
   },
 
   /**
@@ -167,7 +171,10 @@ export const useSocialStore = create((set, get) => ({
     const { error: upErr } = await supabase.storage
       .from('avatars')
       .upload(path, file, { upsert: true, contentType: file.type, cacheControl: '3600' });
-    if (upErr) throw upErr;
+    if (upErr) {
+      console.warn('[social] avatar upload error', upErr);
+      throw new Error(upErr.message ?? 'No se pudo subir la imagen.');
+    }
 
     // Public URL con cache buster para que los amigos vean el cambio inmediato
     const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);

@@ -169,10 +169,19 @@ function rowToEvent(r) {
   };
 }
 
+// UUID v4 regex — usado para validar track_id antes de mandarlo al server.
+// Postgres rechaza con 400 'invalid input syntax for type uuid' si recibe
+// cualquier otra cosa. Componentes sociales antiguos a veces crean tracks
+// con id = ytId raw (ej. 'zG-hiBaCk0I'); validamos aqui para que el
+// fallback (null + yt_id) siempre funcione, sin depender de que cada
+// origen use el prefijo 'yt:' correctamente.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function eventToRow(e, userId) {
+  const isValidUuid = typeof e.trackId === 'string' && UUID_RE.test(e.trackId);
   return {
     user_id: userId,
-    track_id: e.trackId ?? null,
+    track_id: isValidUuid ? e.trackId : null,
     yt_id: e.ytId ?? null,
     title: e.title,
     artist: e.artist ?? null,
