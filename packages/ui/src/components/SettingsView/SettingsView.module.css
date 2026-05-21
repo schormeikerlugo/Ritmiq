@@ -24,6 +24,15 @@
   letter-spacing: -0.02em;
 }
 
+/* Subtitulo bajo el .title de subvistas (ej. Diagnostico). Opcional. */
+.subtitle {
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-3);
+  line-height: 1.5;
+  max-width: 60ch;
+}
+
 /* Back button (subvistas tipo Cuenta) */
 .backRow {
   display: flex;
@@ -141,6 +150,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  /* min-width:0 dentro de un flex parent permite que el SegmentedControl
+     hijo respete su max-width:100% y haga scroll horizontal en mobile
+     en vez de empujar el padre fuera del viewport. */
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 /* ── Acerca de — items planos sin border-bottom (info row) ────── */
@@ -181,11 +196,27 @@
   color: var(--color-accent);
 }
 
-/* ── Embed wrapper para subsecciones legacy de SettingsDialog ─── */
+/* ── Embed wrapper para subsecciones legacy de SettingsDialog ───
+   Vivian dentro de un Modal con su propio padding; en subvistas
+   estandar les damos un padding consistente para que respiren igual
+   que el resto de SettingRows del Settings principal. */
 .embed {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+/* Inputs/textareas dentro de embed deben respetar el ancho del padre,
+   no desbordarse \u2014 algunos formularios legacy del SettingsDialog
+   tenian min-width fijos pensados para el modal. */
+.embed input,
+.embed textarea {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* ── Sign-out button (Cuenta subview) ─────────────────────────── */

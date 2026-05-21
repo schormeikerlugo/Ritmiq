@@ -30,12 +30,23 @@
 
 /* ── SegmentedControl ──────────────────────────────────────────── */
 .segmented {
-  display: inline-flex;
+  /* En mobile, 7 presets de EQ no caben en el ancho del viewport.
+     display:flex + overflow-x:auto + max-width:100% permite scroll
+     horizontal en lugar de desbordar fuera de la card. El
+     scrollbar se oculta con scrollbar-width:none / ::-webkit. */
+  display: flex;
+  flex-wrap: nowrap;
   padding: 3px;
   background: var(--color-bg-2);
   border-radius: var(--radius-pill);
   gap: 2px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
+.segmented::-webkit-scrollbar { display: none; }
+
 .segment {
   display: inline-flex;
   align-items: center;
@@ -48,6 +59,10 @@
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);
   cursor: pointer;
+  /* flex-shrink:0 evita que los items se comprimen y queden
+     ilegibles. Mejor scroll que squish. */
+  flex-shrink: 0;
+  white-space: nowrap;
   transition: color var(--dur-fast) var(--ease-standard),
               background var(--dur-fast) var(--ease-standard);
 }
