@@ -101,6 +101,33 @@ export function createHtmlAudioBackend() {
   let eqFilters = [];
   let eqEnabled = false;
 
+  // Listener global para auto-resume del AudioContext cuando la
+  // ventana vuelve a foreground. Capa de defensa contra el bug
+  // 'audio en silencio al minimizar desktop' \u2014 Electron/Chromium
+  // suspende el AudioContext en background y el <audio> sigue
+  // ticking pero sus muestras pasan por el graph que esta silenciado.
+  //
+  // Eventos cubiertos:
+  //   visibilitychange visible \u2014 user vuelve a la pestana/ventana.
+  //   focus           \u2014 user hace alt-tab a la ventana desktop.
+  //   pageshow        \u2014 navegacion back/forward que reactiva la PWA.
+  //
+  // El closure captura ctx por referencia \u2014 cuando se cree mas
+  // tarde en ensureGraphSync, el listener vera el nuevo valor.
+  if (typeof document !== 'undefined') {
+    const resumeIfNeeded = () => {
+      if (!ctx) return;
+      if (ctx.state === 'suspended' && audio && !audio.paused) {
+        try { ctx.resume().catch(() => {}); } catch {}
+      }
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') resumeIfNeeded();
+    });
+    window.addEventListener('focus', resumeIfNeeded);
+    window.addEventListener('pageshow', resumeIfNeeded);
+  }
+
   /**
    * Crea SINCRONICAMENTE el AudioContext + nodos + conexiones, y
    * dispara `resume()` sin await. Devuelve la Promise del resume para
@@ -133,6 +160,22 @@ export function createHtmlAudioBackend() {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
       ctx = new AC();
+
+      // Auto-resume si el ctx cae a 'suspended' mientras el <audio>
+      // sigue reproduciendo. Pasa en Electron/Chromium cuando la
+      // ventana se minimiza (background throttling). Sin este listener
+      // los siguientes tracks suenan en silencio hasta que el usuario
+      // trae la ventana a foreground.
+      try {
+        ctx.addEventListener('statechange', () => {
+          if (ctx?.state === 'suspended' && audio && !audio.paused) {
+            // El <audio> esta intentando reproducir pero el graph
+            // esta silenciado. Resume sin await \u2014 fire and forget.
+            try { ctx.resume().catch(() => {}); } catch {}
+          }
+        });
+      } catch {}
+
       source = ctx.createMediaElementSource(el);
 
       masterGain = ctx.createGain();
@@ -294,6 +337,25 @@ export function createHtmlAudioBackend() {
 
     async play() {
       const el = ensureAudio();
+      // FIX bug audio mute en background:
+      //
+      // Sintoma: estando la ventana desktop minimizada, cuando termina un
+      // track y carga el siguiente, suena en SILENCIO. Al traer la ventana
+      // a foreground, vuelve el audio.
+      //
+      // Causa raiz: Chromium/Electron en background entra al AudioContext
+      // en estado 'suspended' como parte del aggressive throttling. El
+      // <audio> sigue ticking (timeupdate, ended) porque es HTMLMediaElement
+      // independiente, pero sus muestras pasan por el WebAudio graph
+      // (source \u2192 masterGain \u2192 analyser \u2192 destination). Con el ctx
+      // suspended, ese graph silencia la salida.
+      //
+      // Fix: resume el ctx siempre antes de play(). Si no hay ctx aun,
+      // no hay graph que activar \u2014 el <audio> va directo a la salida
+      // del sistema (sin WebAudio en medio) y suena normal.
+      if (ctx && ctx.state === 'suspended') {
+        try { await ctx.resume(); } catch {}
+      }
       await el.play();
     },
 
@@ -309,13 +371,26 @@ export function createHtmlAudioBackend() {
     duration() { return audio?.duration ?? 0; },
 
     /**
-     * Cambio SÍNCRONO de src + play, pensado para llamarse dentro del
+     * Cambio SINCRONO de src + play, pensado para llamarse dentro del
      * timeupdate (~0.4s antes del `ended` de la actual). Permite que iOS
-     * conserve la autorización para reproducir en background.
+     * conserve la autorizacion para reproducir en background.
      * Acepta URL HTTP o blob URL.
+     *
+     * IMPORTANTE: el resume() del ctx debe correr en paralelo (sin
+     * await) porque esta funcion es sincrona y se llama desde un
+     * timeupdate \u2014 no hay gesto del usuario que perder, pero el
+     * await rompe el patron sincrono que permite a iOS preservar la
+     * sesion de background.
      */
     swapAndPlay(url) {
       const el = ensureAudio();
+      // Resume del ctx en paralelo. Sin esto, si la ventana esta
+      // minimizada cuando se hace el swap, el siguiente track suena
+      // en silencio (bug reportado en desktop). Ver play() para
+      // explicacion detallada.
+      if (ctx && ctx.state === 'suspended') {
+        try { ctx.resume().catch(() => {}); } catch {}
+      }
       el.src = url;
       revokeAllExcept(url);
       currentSrc = url;

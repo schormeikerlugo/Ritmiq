@@ -38,6 +38,27 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       zoomFactor: 1,
+      // CRITICO: deshabilitar el background throttling de Electron.
+      //
+      // Sin esto, cuando el usuario minimiza la ventana o cambia a
+      // otra app, Chromium aplica throttling agresivo:
+      //   - AudioContext pasa a 'suspended' \u2014 silencia el graph
+      //     WebAudio (source\u2192masterGain\u2192analyser\u2192destination).
+      //   - Timers (setTimeout, setInterval, requestAnimationFrame)
+      //     se ejecutan a 1Hz max o se pausan.
+      //   - Bug reportado: al cambiar de track con la app minimizada,
+      //     el siguiente suena EN SILENCIO. Al traer la ventana a
+      //     foreground, vuelve el audio.
+      //
+      // backgroundThrottling: false permite que:
+      //   - El <audio> y su graph WebAudio sigan funcionando normal.
+      //   - El pre-end swap (timeupdate handler que cambia src antes
+      //     del 'ended') siga disparando puntual.
+      //   - Los timers de prewarm/precache no se aletarguen.
+      //
+      // Trade-off: ligero aumento de CPU/RAM en background, pero
+      // es un reproductor de musica \u2014 ese ES su trabajo en background.
+      backgroundThrottling: false,
     },
   });
 
