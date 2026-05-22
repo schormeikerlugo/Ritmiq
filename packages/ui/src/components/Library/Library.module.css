@@ -23,30 +23,43 @@
    que el contenido visual (header row + chips) siga por debajo de la
    notch. Resultado: background continuo desde el borde superior fisico
    hasta el final del header sticky, sin franjas. */
-/* Bloque opaco fijo al viewport que cubre la zona de la status bar
-   (hora, bateria, notch) del iPhone PERMANENTEMENTE. Position: fixed
-   al viewport \u2014 nunca scrollea, nunca depende del padre, siempre
-   cubre los safe-top px superiores con el color del shell.
+/* Sticky header con safe-area absorbida internamente.
 
-   Esta es la unica forma fiable de garantizar que la zona del
-   status bar nunca deje ver items scrolleando detras en PWA
-   standalone iOS. El sticky por si solo no basta porque el padre
-   .main tiene padding-top: env(safe-area-inset-top), creando una
-   franja transparente entre el borde fisico y el inicio del sticky
-   donde el scroll se ve pasar (bug reportado en captura iPhone).
+   .main[data-view='library'] tiene padding-top:0 (override del
+   safe-area-inset-top que aplica a otras vistas). Asi Library
+   maneja la safe-area completamente desde su sticky header:
 
-   z-index: 11 lo coloca encima del sticky (z:10) para que cubra
-   incluso el padding-top del header si hubiera contenido alli. */
-.wrap::before {
-  content: '';
-  position: fixed;
+     padding-top: var(--safe-top)   \u2192 empuja el contenido visual
+                                      (avatar+titulo+chips) por
+                                      debajo del status bar.
+     top: 0 sticky                  \u2192 el header se pega arriba
+                                      del .main, cubriendo desde
+                                      el borde fisico hasta el
+                                      final de los chips.
+
+   El scroll de items empieza JUSTO debajo del sticky \u2014 nunca
+   suben por encima del header ni se ven en la zona del status
+   bar (porque no hay franja transparente: el sticky cubre todo
+   desde el borde fisico).
+
+   Lateralmente compensamos el safe-area-inset-left/right que
+   .main aplica como padding (notch landscape iPhone) para que
+   el background del sticky cubra ancho completo del viewport. */
+.stickyHeader {
+  position: -webkit-sticky;
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
-  height: var(--safe-top);
+  z-index: 10;
   background: var(--color-bg-0);
-  z-index: 11;
-  pointer-events: none;
+  margin-left:  calc((var(--space-3) + var(--safe-left)) * -1);
+  margin-right: calc((var(--space-3) + var(--safe-right)) * -1);
+  padding-left:  calc(var(--space-3) + var(--safe-left));
+  padding-right: calc(var(--space-3) + var(--safe-right));
+  /* Absorbe la safe-area-inset-top que el .main YA NO aplica
+     (data-view='library' la pone en 0). El padding-top empuja
+     el contenido visual por debajo del status bar. */
+  padding-top: var(--safe-top);
+  border-bottom: 1px solid var(--color-border);
 }
 @media (min-width: 769px) {
   /* Desktop: sin safe-area, sin necesidad de cubrir. */

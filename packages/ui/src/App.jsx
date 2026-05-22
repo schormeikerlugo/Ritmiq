@@ -354,7 +354,7 @@ export function App() {
       <header className={styles.topbar}>
         <TopBar />
       </header>
-      <main className={styles.main}>
+      <main className={styles.main} data-view={viewKind}>
         <MainView />
       </main>
       <aside className={styles.queue}>

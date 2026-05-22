@@ -203,6 +203,17 @@
     padding-left: calc(var(--space-3) + var(--safe-left)) !important;
     display: block;
   }
+  /* Library tiene su propio sticky header que ABSORBE la safe-area
+     superior internamente (padding-top: var(--safe-top) en el header).
+     Si el .main agrega tambien padding-top: safe-top, la franja queda
+     duplicada y se ve el scroll de items pasar por la zona del
+     status bar. Solucion: neutralizar el padding-top del .main solo
+     cuando la view activa es Library \u2014 la propia view se encarga.
+     Tambien horizontal: Library aplica internamente el safe-area
+     lateral en su sticky header. */
+  .main[data-view='library'] {
+    padding-top: 0 !important;
+  }
 
   /* Player como pill flotante encima del bottom nav. En landscape
      iPhone con notch, el pill no debe quedar debajo \u2014 sumamos los
