@@ -149,7 +149,8 @@
   cursor: pointer;
   box-shadow: 0 8px 20px var(--color-accent-shadow);
   transition: transform var(--dur-fast) var(--ease-emphasized),
-              box-shadow var(--dur-fast) var(--ease-emphasized);
+              box-shadow var(--dur-fast) var(--ease-emphasized),
+              background var(--dur-fast) var(--ease-emphasized);
 }
 .playFab:hover {
   transform: scale(1.06);
@@ -160,6 +161,69 @@
   opacity: 0.4;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+/* Estado: la playlist esta cargada en el player (en pause o playing).
+   Tono accent ligeramente mas vivo + ring sutil para distinguirlo
+   visualmente del estado idle. */
+.playFab[data-active] {
+  background: var(--color-accent-hover, var(--color-accent));
+  box-shadow:
+    0 8px 22px var(--color-accent-shadow),
+    0 0 0 3px color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+/* Estado: ademas esta sonando. Glow pulsante con ring que se expande
+   y contrae \u2014 senal visual de "fuente activa" a distancia. Las
+   pulseBars internas (.fabPulseBars) muestran la animacion estilo eq. */
+.playFab[data-playing] {
+  animation: fabGlow 1.4s ease-in-out infinite;
+}
+@keyframes fabGlow {
+  0%, 100% {
+    box-shadow:
+      0 8px 22px var(--color-accent-shadow),
+      0 0 0 3px color-mix(in srgb, var(--color-accent) 25%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 12px 34px var(--color-accent),
+      0 0 0 8px color-mix(in srgb, var(--color-accent) 14%, transparent);
+  }
+}
+
+/* 4 barras estilo equalizer dentro del FAB. 4 (no 3 como en Library)
+   porque el FAB es mas grande (56px vs 28px) y se ven mejor proporcionadas.
+   ScaleY animada con delays escalonados para efecto eq natural. */
+.fabPulseBars {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  width: 26px;
+  height: 22px;
+}
+.fabPulseBars span {
+  display: block;
+  width: 4px;
+  background: currentColor;
+  border-radius: 2px;
+  transform-origin: bottom;
+  animation: fabPulseBar 0.9s ease-in-out infinite;
+}
+.fabPulseBars span:nth-child(1) { height: 55%; animation-delay: 0s; }
+.fabPulseBars span:nth-child(2) { height: 100%; animation-delay: 0.15s; }
+.fabPulseBars span:nth-child(3) { height: 75%; animation-delay: 0.30s; }
+.fabPulseBars span:nth-child(4) { height: 90%; animation-delay: 0.45s; }
+@keyframes fabPulseBar {
+  0%, 100% { transform: scaleY(0.4); }
+  50%      { transform: scaleY(1);   }
+}
+
+/* prefers-reduced-motion: sin glow ni eq animado. */
+@media (prefers-reduced-motion: reduce) {
+  .playFab[data-playing] { animation: none; }
+  .fabPulseBars span { animation: none; transform: scaleY(0.7); }
 }
 
 .filterWrap {

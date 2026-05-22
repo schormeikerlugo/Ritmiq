@@ -71,6 +71,11 @@ export function PlaylistView({ playlistId }) {
   const playNext = usePlayerStore((s) => s.playNext);
   const enqueue = usePlayerStore((s) => s.enqueue);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
+  // isPlaying necesario para el FAB de Play con estado activo: si la
+  // playlist actual contiene el track sonando, el boton cambia de play
+  // a animacion de eq + pulso (mismo patron que Library).
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const togglePlay = usePlayerStore((s) => s.togglePlay);
   const setShuffle = usePlayerStore((s) => s.toggleShuffle);
   const playerShuffle = usePlayerStore((s) => s.shuffle);
 
@@ -159,8 +164,25 @@ export function PlaylistView({ playlistId }) {
   const isFavs = playlist.id === favoritesId;
   const filtering = filter.trim().length > 0;
 
+  // \u00bfEsta esta playlist actualmente cargada en el player?
+  // Detectamos comprobando si el currentTrack.id pertenece a contents.
+  // 'active'  \u2192 morado solido + eq bars.
+  // 'playing' \u2192 ademas suena \u2192 anade animacion glow.
+  // Comparamos contra `tracks` (no filteredTracks) porque el filtro
+  // visual de busqueda no afecta lo que esta cargado en la queue.
+  const playlistActive  = !!currentTrack && tracks.some((t) => t.id === currentTrack.id);
+  const playlistPlaying = playlistActive && isPlaying;
+
   const playAll = () => {
     if (filteredTracks.length === 0) return;
+    // Si ya esta sonando algo de esta playlist, el FAB actua como
+    // toggle play/pause \u2014 patron Spotify. Si esta pausada, reanuda;
+    // si esta sonando, pausa. Solo si NO esta activa la playlist,
+    // arrancamos desde el inicio.
+    if (playlistActive) {
+      togglePlay();
+      return;
+    }
     if (playerShuffle) setShuffle();
     playNow(filteredTracks, 0);
   };
@@ -322,10 +344,27 @@ export function PlaylistView({ playlistId }) {
       <div className={styles.actionsBar}>
         <button
           className={styles.playFab}
+          data-active={playlistActive || undefined}
+          data-playing={playlistPlaying || undefined}
           onClick={playAll}
           disabled={filteredTracks.length === 0}
-          aria-label="Reproducir"
-        ><Icon name="Play" size={28} filled /></button>
+          aria-label={
+            playlistPlaying ? 'Pausar' :
+            playlistActive  ? 'Reanudar' : 'Reproducir'
+          }
+        >
+          {playlistPlaying ? (
+            <span className={styles.fabPulseBars} aria-hidden="true">
+              <span /><span /><span /><span />
+            </span>
+          ) : playlistActive ? (
+            // Pausada pero cargada \u2014 mostramos icono de Play normal,
+            // el data-active mantiene el morado mas vivido.
+            <Icon name="Play" size={28} filled />
+          ) : (
+            <Icon name="Play" size={28} filled />
+          )}
+        </button>
         <div className={styles.actionsLeft}>
           <button
             className={styles.iconAction}
