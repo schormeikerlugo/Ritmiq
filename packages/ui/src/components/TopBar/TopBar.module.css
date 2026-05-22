@@ -238,7 +238,16 @@
   position: relative;
   width: 36px;
   height: 36px;
-  border-radius: var(--radius-pill);
+  /* Tamano fijo + flex-shrink:0 + aspect-ratio asegura que NUNCA se
+     deforme en elipse, ni siquiera si el padre flex/grid intenta
+     comprimirlo (bug reportado: avatar distorsionado en desktop).
+     border-radius:50% (no pill) para circulo perfecto independiente
+     de width/height. */
+  min-width: 36px;
+  min-height: 36px;
+  flex-shrink: 0;
+  aspect-ratio: 1;
+  border-radius: 50%;
   background: var(--color-accent-soft);
   color: var(--color-accent);
   font-weight: var(--fw-semibold);
