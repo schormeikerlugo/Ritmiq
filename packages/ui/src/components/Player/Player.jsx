@@ -5,6 +5,7 @@ import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useViewStore } from '../../stores/view.js';
 import { isEphemeralTrack } from '../../lib/track-helpers.js';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
+import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import { hapticTap } from '../../lib/haptics.js';
 import styles from './Player.module.css';
@@ -31,6 +32,7 @@ export function Player() {
   const openNowPlaying = useViewStore((s) => s.openNowPlaying);
 
   const [saveOpen, setSaveOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const progress = durationSeconds ? (positionSeconds / durationSeconds) * 100 : 0;
   const ephemeral = currentTrack ? isEphemeralTrack(currentTrack) : false;
@@ -60,6 +62,13 @@ export function Player() {
     e?.stopPropagation();
     if (!currentTrack) return;
     setSaveOpen(true);
+  };
+
+  const onShare = (e) => {
+    e?.stopPropagation();
+    if (!currentTrack) return;
+    hapticTap();
+    setShareOpen(true);
   };
 
   // Tap en la zona del cover/meta en mobile → abrir NowPlaying.
@@ -122,6 +131,14 @@ export function Player() {
               title={inLibrary ? 'Añadir a playlist…' : 'Guardar…'}
             >
               <Icon name="Plus" size={18} />
+            </button>
+            <button
+              className={styles.iconBtn}
+              onClick={onShare}
+              aria-label="Compartir con un amigo"
+              title="Compartir con un amigo"
+            >
+              <Icon name="Share2" size={18} />
             </button>
           </div>
         )}
@@ -204,6 +221,12 @@ export function Player() {
         <SaveDialog
           track={currentTrack}
           onClose={() => setSaveOpen(false)}
+        />
+      )}
+      {shareOpen && currentTrack && (
+        <ShareToFriendModal
+          track={currentTrack}
+          onClose={() => setShareOpen(false)}
         />
       )}
     </div>
