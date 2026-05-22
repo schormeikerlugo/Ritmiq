@@ -304,9 +304,15 @@ function InboxTab() {
 
   function handlePlay(item) {
     useSocialStore.getState().markInboxItemRead(item.id);
+    // CRITICO: el id del track debe ser 'yt:<ytId>' (no el ytId raw)
+    // para que isEphemeralTrack() lo reconozca como efimero. Sin el
+    // prefix, el Player asume que es un track persistido y al pulsar
+    // Like / Anadir a playlist falla porque trata el ytId como UUID.
+    // Bug reportado: 'no puedo agregar a favoritos una cancion que
+    // me han compartido'.
     if (item.kind === 'track' && item.ytId) {
       playNow({
-        id:              item.ytId,
+        id:              `yt:${item.ytId}`,
         ytId:            item.ytId,
         yt_id:           item.ytId,
         title:           item.title ?? 'Track compartido',
@@ -315,10 +321,11 @@ function InboxTab() {
         cover_url:       item.coverUrl,
         durationSeconds: item.durationSeconds,
         source:          'youtube',
+        createdAt:       new Date().toISOString(),
       });
     } else if (item.kind === 'playlist' && item.playlistSnapshot?.tracks?.length) {
       const tracks = item.playlistSnapshot.tracks.map((t) => ({
-        id:              t.ytId,
+        id:              `yt:${t.ytId}`,
         ytId:            t.ytId,
         yt_id:           t.ytId,
         title:           t.title ?? '',
@@ -327,6 +334,7 @@ function InboxTab() {
         cover_url:       t.coverUrl,
         durationSeconds: t.durationSeconds,
         source:          'youtube',
+        createdAt:       new Date().toISOString(),
       }));
       playNow(tracks);
     }

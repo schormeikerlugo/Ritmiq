@@ -38,9 +38,13 @@ export function ShareReminderModal() {
 
   function handlePlayItem(item) {
     useSocialStore.getState().markInboxItemRead(item.id);
+    // id con prefix 'yt:' \u2014 imprescindible para que isEphemeralTrack()
+    // lo reconozca y el Player permita Like / Anadir a playlist
+    // (persistEphemeral primero genera un UUID real). Ver el mismo
+    // patron en FriendsView InboxTab.handlePlay.
     if (item.kind === 'track' && item.ytId) {
       usePlayerStore.getState().playNow({
-        id:              item.ytId,
+        id:              `yt:${item.ytId}`,
         ytId:            item.ytId,
         yt_id:           item.ytId,
         title:           item.title ?? 'Track compartido',
@@ -49,10 +53,11 @@ export function ShareReminderModal() {
         cover_url:       item.coverUrl,
         durationSeconds: item.durationSeconds,
         source:          'youtube',
+        createdAt:       new Date().toISOString(),
       });
     } else if (item.kind === 'playlist' && item.playlistSnapshot?.tracks?.length) {
       const tracks = item.playlistSnapshot.tracks.map((t) => ({
-        id:              t.ytId,
+        id:              `yt:${t.ytId}`,
         ytId:            t.ytId,
         yt_id:           t.ytId,
         title:           t.title ?? '',
@@ -61,6 +66,7 @@ export function ShareReminderModal() {
         cover_url:       t.coverUrl,
         durationSeconds: t.durationSeconds,
         source:          'youtube',
+        createdAt:       new Date().toISOString(),
       }));
       usePlayerStore.getState().playNow(tracks);
     }
