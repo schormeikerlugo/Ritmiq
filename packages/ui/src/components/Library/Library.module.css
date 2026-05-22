@@ -27,18 +27,60 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(10, 10, 12, 0.72);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-  /* Estiramos lateralmente compensando tambien el safe-area lateral
+  /* Background OPACO solido \u2014 NO translucido. Antes era rgba(.72)
+     con blur, pero al scrollear se veian las filas pasar por detras
+     en la zona del header (bug reportado en captura iPhone). El bg
+     debe ser el mismo --color-bg-0 que el resto del shell para
+     que parezca un bloque solido. */
+  background: var(--color-bg-0);
+  /* Estiramos lateralmente compensando el safe-area lateral
      que .main aplica como padding (notch en landscape iPhone). */
   margin-left:  calc((var(--space-3) + var(--safe-left)) * -1);
   margin-right: calc((var(--space-3) + var(--safe-right)) * -1);
   padding-left:  calc(var(--space-3) + var(--safe-left));
   padding-right: calc(var(--space-3) + var(--safe-right));
-  /* Cobertura del notch superior en mobile (PWA standalone iOS). */
+  /* Cobertura del notch superior en mobile (PWA standalone iOS):
+     margin-top negativo \u2014 el sticky sube hasta el borde fisico
+     superior cubriendo la zona del status bar (hora, bateria, etc).
+     padding-top compensa para que el contenido interno (.header)
+     siga visualmente debajo de la notch. */
   margin-top: calc(var(--safe-top) * -1);
   padding-top: var(--safe-top);
+  /* Borde inferior sutil para separar visualmente del contenido
+     scrolleable. Sin esto, el header se confunde con la lista
+     cuando los items son del mismo tono. */
+  border-bottom: 1px solid var(--color-border);
+}
+@media (min-width: 769px) {
+  .stickyHeader {
+    margin-left:  calc(var(--space-5) * -1);
+    margin-right: calc(var(--space-5) * -1);
+    padding-left:  var(--space-5);
+    padding-right: var(--space-5);
+    /* Desktop: sin notch ni status bar \u2014 reset del compensador. */
+    margin-top: 0;
+    padding-top: 0;
+    border-bottom: none;
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  /* En mobile el sticky ya aporta su propio padding-top (var(--safe-top))
+     para compensar la zona del status bar. Si .header ademas anade
+     padding-top:space-3, el contenido (avatar, titulo) baja demasiado
+     respecto a su posicion original. Reducimos a space-2 para
+     mantener el mismo offset visual percibido. */
+  padding: var(--space-2) 0 var(--space-2) 0;
+}
+@media (min-width: 769px) {
+  .header {
+    /* Desktop: como no hay safe-top, mantenemos el padding original
+       que daba el ritmo vertical correcto. */
+    padding: var(--space-3) 0 var(--space-2) 0;
+  }
 }
 @media (min-width: 769px) {
   .stickyHeader {
