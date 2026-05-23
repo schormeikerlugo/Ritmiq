@@ -178,6 +178,12 @@ export function App() {
       loadLibrary();
       loadPlaylists();
       useHistoryStore.getState().load();
+      // Realtime sync de play_history para multidevice. Sin esto, si el
+      // usuario reproduce en iPhone y luego abre la app en iPad/Desktop,
+      // el segundo device ve un snapshot viejo de events y la racha
+      // aparece DISMINUIDA. La suscripcion mantiene events sincronizados
+      // entre todos los devices del mismo user en tiempo real.
+      useHistoryStore.getState().subscribeRealtime(user.id);
       // Cargar el perfil social a nivel App para que este disponible
       // en todas las vistas (Home, TopBar, BottomNav, AccountInfoView)
       // sin tener que abrir FriendsView primero. Antes este load solo

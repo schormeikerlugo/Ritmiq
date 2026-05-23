@@ -51,6 +51,8 @@ export const useHistoryStore = create((set, get) => ({
   // dentro de los últimos 60s — para no contar 5 veces si el usuario repite
   // el mismo track manualmente.
   _recentlyRecorded: new Map(),
+  /** @type {import('@supabase/supabase-js').RealtimeChannel|null} */
+  _channel: null,
 
   /** Carga inicial: pull desde Supabase + flush de cola offline si hay red. */
   async load() {
@@ -149,9 +151,114 @@ export const useHistoryStore = create((set, get) => ({
   },
 
   reset() {
-    set({ events: [], loading: false, error: null, _recentlyRecorded: new Map() });
+    const ch = get()._channel;
+    if (ch) { try { supabase.removeChannel(ch); } catch {} }
+    set({ events: [], loading: false, error: null, _recentlyRecorded: new Map(), _channel: null });
+  },
+
+  /**
+   * Suscribe a Realtime de `play_history` para multidevice sync.
+   *
+   * Problema que resuelve: cuando un mismo user reproduce en device A
+   * (iPhone) y luego abre la app en device B (iPad/Desktop), el device B
+   * tenia un snapshot viejo de events (cargado al login). Sin Realtime,
+   * device B no veia las nuevas plays de device A hasta que recargara la
+   * app o llamara explicitamente a load(). Consecuencia: la racha se
+   * calculaba con dayMap incompleto y aparecia DISMINUIDA hasta el
+   * proximo refresh.
+   *
+   * Con esta suscripcion, cualquier INSERT en play_history del user
+   * llega en <1s a todos sus devices abiertos y los events se mantienen
+   * sincronizados.
+   *
+   * Dedup: si el evento llega desde Realtime y ya esta en local (porque
+   * lo grabe yo y luego el server me lo eco), no se duplica — comparamos
+   * por (yt_id||track_id) + playedAt cercano.
+   *
+   * @param {string} userId
+   * @returns {() => void} unsubscribe
+   */
+  subscribeRealtime(userId) {
+    if (!userId) return () => {};
+    // Si ya hay un canal activo, ciérralo primero (cambio de user, etc.)
+    const existing = get()._channel;
+    if (existing) {
+      try { supabase.removeChannel(existing); } catch {}
+    }
+
+    const channel = supabase
+      .channel(`history:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'play_history', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const row = payload?.new;
+          if (!row) return;
+          const event = rowToEvent(row);
+          set((s) => {
+            // Dedup: mismo fingerprint con playedAt a <5s ya esta en local.
+            const fp = event.ytId || event.trackId;
+            const eventT = new Date(event.playedAt).getTime();
+            const dup = s.events.some((e) => {
+              const efp = e.ytId || e.trackId;
+              if (efp !== fp) return false;
+              const dt = Math.abs(new Date(e.playedAt).getTime() - eventT);
+              return dt < 5000;
+            });
+            if (dup) return s;
+            const next = [event, ...s.events].slice(0, HISTORY_LIMIT);
+            // Mantener orden descendente por playedAt — Realtime puede
+            // entregar eventos fuera de orden si hay latencia.
+            next.sort((a, b) => new Date(b.playedAt) - new Date(a.playedAt));
+            return { events: next };
+          });
+        }
+      )
+      .subscribe();
+
+    set({ _channel: channel });
+
+    return () => {
+      try { supabase.removeChannel(channel); } catch {}
+      set({ _channel: null });
+    };
   },
 }));
+
+/* ─── Helpers fecha LOCAL (no UTC) ───────────────────────────────────── */
+
+/**
+ * Devuelve la clave 'YYYY-MM-DD' del dia LOCAL para `date`. A diferencia de
+ * `.toISOString().slice(0,10)` (que usa UTC), esta funcion respeta el
+ * timezone del device — clave para que la racha refleje lo que el usuario
+ * percibe como "hoy" / "ayer".
+ *
+ * Ejemplo en UTC-4 (Dominicana):
+ *   2026-05-20T02:00Z (= 21:00 local del 19) → '2026-05-19'
+ *
+ * @param {Date} date
+ * @returns {string}
+ */
+export function localDayKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Devuelve un Date posicionado en 00:00:00.000 LOCAL del mismo dia que
+ * `date`. Util como ancla para iterar dias hacia atras sin que el offset
+ * de timezone deslice el calculo.
+ *
+ * @param {Date} date
+ * @returns {Date}
+ */
+export function startOfLocalDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 /* ─── Mappers ────────────────────────────────────────────────────────── */
 
@@ -304,7 +411,19 @@ export function selectStatsForPeriod(events, { days = 30, topLimit = 5 } = {}) {
       }
     }
     // Daily distribution para racha de dias activos.
-    const day = new Date(e.playedAt).toISOString().slice(0, 10);
+    //
+    // CRITICO: usar fecha LOCAL del usuario, NO UTC.
+    // Bug previo: .toISOString().slice(0,10) devuelve la fecha UTC. En zonas
+    // con offset negativo (Americas) las plays nocturnas (8-11 PM local)
+    // caen al dia siguiente en UTC. Resultado: un usuario en Dominicana
+    // (UTC-4) que escucha lun/mar/mie a las 9 PM local veria dayMap con
+    // claves mar/mie/jue UTC y la racha se desincroniza con la percepcion
+    // real del usuario.
+    //
+    // Solucion: localDayKey(date) usa el calendario local del device para
+    // generar 'YYYY-MM-DD'. Coincide con lo que el usuario llama "hoy"
+    // mentalmente.
+    const day = localDayKey(new Date(e.playedAt));
     dayMap.set(day, (dayMap.get(day) ?? 0) + 1);
   }
 
@@ -322,15 +441,36 @@ export function selectStatsForPeriod(events, { days = 30, topLimit = 5 } = {}) {
       playCount: x.count,
     }));
 
-  // Racha consecutiva: dias seguidos con al menos 1 play, contando hacia
-  // atras desde hoy.
+  // Racha consecutiva: dias seguidos (en hora LOCAL del usuario) con al
+  // menos 1 play, contando hacia atras desde hoy.
+  //
+  // Reglas precisas:
+  //   - Si HOY (local) tiene plays → cuenta y avanza al dia anterior.
+  //   - Si HOY no tiene plays todavia → no rompe. Permite que el usuario
+  //     abra la app de manana y vea su racha de N dias previos intacta
+  //     hasta que escuche algo nuevo o hasta que termine el dia local.
+  //   - Si AYER (local) no tiene plays → rompe la racha (perdida real).
+  //   - Buscamos hacia atras usando dias LOCALES (no UTC) para que
+  //     coincida con localDayKey() usado al construir dayMap.
+  //
+  // Bug previo: usaba toISOString().slice(0,10) (UTC) tanto en dayMap
+  // como en el loop. Mezclado con offsets negativos (Americas) la racha
+  // "se corria" segun la hora del dia y aparecia disminuida.
   let streak = 0;
-  const today = new Date();
+  const todayLocal = startOfLocalDay(new Date());
   for (let i = 0; i < days; i++) {
-    const d = new Date(today.getTime() - i * 86400_000);
-    const iso = d.toISOString().slice(0, 10);
-    if (dayMap.has(iso)) streak++;
-    else if (i > 0) break;
+    const d = new Date(todayLocal.getTime() - i * 86400_000);
+    const key = localDayKey(d);
+    if (dayMap.has(key)) {
+      streak++;
+    } else if (i === 0) {
+      // Hoy aun sin plays — no rompe la racha. El usuario tiene todo el
+      // dia para sumar. Saltamos a ayer y seguimos comprobando.
+      continue;
+    } else {
+      // Dia previo sin plays → racha terminada.
+      break;
+    }
   }
 
   return {
