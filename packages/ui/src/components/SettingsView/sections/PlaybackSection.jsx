@@ -39,6 +39,8 @@ export function PlaybackSection() {
   const setEqBand = useSettingsStore((s) => s.setEqBand);
   const eqPreset = useSettingsStore((s) => s.eqPreset);
   const setEqPreset = useSettingsStore((s) => s.setEqPreset);
+  const publishUrlCache = useSettingsStore((s) => s.publishUrlCache);
+  const setPublishUrlCache = useSettingsStore((s) => s.setPublishUrlCache);
   const [eqError, setEqError] = useState(null);
 
   // Toggle del EQ. CRITICO iOS PWA: initGraphFromGesture() debe
@@ -151,6 +153,18 @@ export function PlaybackSection() {
           </div>
         </div>
       )}
+
+      <SettingRow
+        label="Compartir resoluciones con la red Ritmiq"
+        description="Cuando tu PC resuelve una cancion con yt-dlp, otros usuarios sin acceso a tu equipo podran reproducirla al instante durante las proximas horas. No se comparte tu identidad ni que escuchas."
+        control={
+          <Toggle
+            checked={publishUrlCache}
+            onChange={setPublishUrlCache}
+            ariaLabel="Compartir URLs resueltas anonimamente"
+          />
+        }
+      />
     </SettingsGroup>
   );
 }

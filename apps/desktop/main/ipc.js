@@ -135,6 +135,18 @@ export function registerIpc({ db, lan, accessToken }) {
     accessToken,
   }));
 
+  // Toggle del cache global de URLs (Fase 1). El renderer llama a este
+  // handler cuando el user activa/desactiva el switch en Ajustes ->
+  // Reproduccion. Surte efecto en la siguiente resolucion de yt-dlp sin
+  // reiniciar la app.
+  ipcMain.handle('settings:setPublishUrlCache', async (_e, enabled) => {
+    const mod = await import('./lan-server.js');
+    if (typeof mod.setPublishUrlCacheEnabled === 'function') {
+      mod.setPublishUrlCacheEnabled(!!enabled);
+    }
+    return { ok: true, enabled: !!enabled };
+  });
+
   // ─── Cloudflare Tunnel ───────────────────────────────────────────────
   ipcMain.handle('tunnel:status', () => ({
     ...cloudflared.state,

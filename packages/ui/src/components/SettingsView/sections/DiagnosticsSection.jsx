@@ -31,6 +31,7 @@ import styles from './DiagnosticsSection.module.css';
 export function DiagnosticsSection() {
   const user = useAuthStore((s) => s.user);
   const [diag, setDiag] = useState(() => readDiagnostics());
+  const [cacheTestResult, setCacheTestResult] = useState(null);
 
   // Re-leer las flags en triggers que pueden cambiar el estado.
   useEffect(() => {
@@ -144,12 +145,53 @@ export function DiagnosticsSection() {
       />
 
       <SettingRow
+        label="Cache global de URLs (Fase 1)"
+        description={cacheTestResult ?? 'Toca Probar para hacer un lookup de un ytId conocido contra Supabase Edge.'}
+        control={<LinkButton onClick={() => testCacheLookup(setCacheTestResult)}>Probar</LinkButton>}
+      />
+
+      <SettingRow
         label="Forzar re-evaluacion"
         description="Re-lee todas las flags. Util si iOS expuso APIs con delay tras instalar la PWA."
         control={<LinkButton onClick={handleRefresh}>Refrescar</LinkButton>}
       />
     </SettingsGroup>
   );
+}
+
+/**
+ * Lanza un GET /get-stream-url con un ytId conocido para verificar que
+ * la Edge Function esta deployada y responde. Reporta HIT/MISS/ERROR.
+ */
+async function testCacheLookup(setResult) {
+  const sup = import.meta.env.VITE_SUPABASE_URL;
+  if (!sup) { setResult('VITE_SUPABASE_URL no configurado'); return; }
+  setResult('Probando...');
+  try {
+    const { supabase } = await import('../../../lib/supabase.js');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setResult('Sin sesion Supabase'); return; }
+    // Track de prueba: ytId publico cualquiera. Cualquier resultado nos
+    // dice si la Edge responde (HIT 200, MISS 404, otro = error).
+    const testYtId = 'dQw4w9WgXcQ';
+    const t0 = performance.now();
+    const r = await fetch(
+      `${sup}/functions/v1/get-stream-url?ytId=${encodeURIComponent(testYtId)}`,
+      { headers: { Authorization: `Bearer ${session.access_token}` } }
+    );
+    const dt = Math.round(performance.now() - t0);
+    if (r.status === 200) {
+      const body = await r.json();
+      setResult(`HIT en ${dt}ms — source=${body?.source ?? '?'}`);
+    } else if (r.status === 404) {
+      setResult(`MISS en ${dt}ms — Edge responde, cache vacio para ${testYtId}`);
+    } else {
+      const text = await r.text().catch(() => '');
+      setResult(`HTTP ${r.status} en ${dt}ms — ${text.slice(0, 80)}`);
+    }
+  } catch (err) {
+    setResult(`Error: ${err?.message ?? String(err)}`);
+  }
 }
 
 // ── Subcomponentes ──────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import { usePlayerStore } from '../stores/player.js';
 import { useHistoryStore } from '../stores/history.js';
 import { api, isDesktop } from './api.js';
 import { isEphemeralTrack } from './track-helpers.js';
+import { supabase } from './supabase.js';
 import {
   getLanBaseUrlSync, pingLan, getTunnelUrlSync, withTokenInUrl,
   getSignedStreamUrl,
@@ -143,6 +144,28 @@ function buildResolveDeps(track) {
         }
         return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}${ytQs}`);
       });
+    },
+    // FASE 1 CACHE GLOBAL: lookup en stream_url_cache. Si otro desktop
+    // ya resolvio este ytId con yt-dlp, lo reusamos sin tocar Edge
+    // resolve-stream. Latencia ~50-100ms vs 1-3s del fallback. Si falla
+    // (sin red, sin sesion, sin Edge deployed), audio-source.js cae
+    // transparente al siguiente paso. Cero regresion.
+    getGlobalCachedUrl: async (ytId) => {
+      if (!ytId) return null;
+      const sup = import.meta.env.VITE_SUPABASE_URL;
+      if (!sup) return null;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return null;
+        const r = await fetch(
+          `${sup}/functions/v1/get-stream-url?ytId=${encodeURIComponent(ytId)}`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } }
+        );
+        if (!r.ok) return null;
+        return await r.json();
+      } catch {
+        return null;
+      }
     },
     // CONTEXTO HISTÓRICO: aquí vivía `getDirectStreamUrl` que pedía la URL
     // firmada directa de googlevideo al lan-server. Se removió porque

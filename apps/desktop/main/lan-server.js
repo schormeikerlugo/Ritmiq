@@ -35,6 +35,70 @@ import {
 import { getCookieFileForDevice, invalidateDeviceCookies } from './device-cookies.js';
 
 /**
+ * Cache global de URLs (Fase 1): publica a Supabase Edge cada resolucion
+ * exitosa de yt-dlp. Toggle via env var + override en runtime (IPC).
+ * Cuando NO esta activo, todo funciona exactamente como antes — el cache
+ * local sigue siendo el unico path de reuso.
+ *
+ * El override en runtime es necesario para que el toggle de Settings
+ * UI surta efecto sin reiniciar la app. Se mantiene null hasta que el
+ * renderer hace IPC con su valor; mientras tanto vale la env var.
+ *
+ * @type {boolean|null}
+ */
+let publishUrlCacheRuntime = null;
+
+export function setPublishUrlCacheEnabled(enabled) {
+  publishUrlCacheRuntime = !!enabled;
+}
+
+function publishUrlCacheEnabled() {
+  if (publishUrlCacheRuntime !== null) return publishUrlCacheRuntime;
+  // Default ON. Para desactivar via env: RITMIQ_PUBLISH_URL_CACHE=false
+  const v = String(process.env.RITMIQ_PUBLISH_URL_CACHE ?? 'true').toLowerCase();
+  return v === 'true' || v === '1' || v === 'yes' || v === 'on';
+}
+
+/**
+ * Publica una URL resuelta al cache global de Supabase.
+ * Fire-and-forget: nunca propaga errores al caller.
+ *
+ * Requiere RITMIQ_SUPABASE_PUBLISH_TOKEN (JWT del owner) en env para
+ * autenticarse contra la Edge Function. Si no esta configurado, no
+ * publica (sin error visible).
+ *
+ * @param {string} ytId
+ * @param {string} url
+ * @param {number} expiresAtMs  Timestamp (Date.now() + TTL)
+ */
+async function publishToGlobalCache(ytId, url, expiresAtMs) {
+  const SUP = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
+  const TOKEN = process.env.RITMIQ_SUPABASE_PUBLISH_TOKEN ?? process.env.SUPABASE_ANON_KEY ?? '';
+  if (!SUP || !TOKEN) return;
+  if (!ytId || !url || !expiresAtMs) return;
+
+  const expiresAt = new Date(expiresAtMs).toISOString();
+  const res = await fetch(`${SUP}/functions/v1/publish-stream-url`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${TOKEN}`,
+    },
+    body: JSON.stringify({
+      ytId,
+      url,
+      contentType: 'audio/mp4',
+      expiresAt,
+      source: 'desktop',
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status} ${text.slice(0, 120)}`);
+  }
+}
+
+/**
  * Orígenes permitidos para CORS. Se refleja el `Origin` del request si
  * coincide; si no, se cae a '*'. Modo permisivo aceptable porque
  * los endpoints sensibles requieren Bearer token.
@@ -425,8 +489,18 @@ export async function startLanServer({ port, db, accessToken }) {
           const url = await cp;
           const dt = Date.now() - t0;
           console.log(`[lan-server] resolve ${ytId} OK en ${dt}ms`);
-          streamCache.set(ytId, { url, expiresAt: Date.now() + TTL_MS });
+          const expiresAt = Date.now() + TTL_MS;
+          streamCache.set(ytId, { url, expiresAt });
           resolveFn(url);
+          // FASE 1 CACHE GLOBAL: publicar al cache de Supabase para que
+          // otros users sin LAN propio puedan reutilizar esta URL.
+          // Fire-and-forget — si falla por red o auth, NO bloquea el
+          // flujo local. Toggle via RITMIQ_PUBLISH_URL_CACHE env var.
+          if (publishUrlCacheEnabled()) {
+            publishToGlobalCache(ytId, url, expiresAt).catch((err) => {
+              console.warn(`[lan-server] publish stream-url fallo (no fatal): ${err?.message ?? err}`);
+            });
+          }
         } catch (err) {
           console.warn(`[lan-server] resolve ${ytId} FAIL`, err.message);
           streamCache.delete(ytId);

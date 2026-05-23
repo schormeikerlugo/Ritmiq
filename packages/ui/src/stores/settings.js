@@ -34,6 +34,11 @@ const DEFAULTS = {
   eqEnabled: false,
   eqGains: EQ_PRESETS.flat.slice(),
   eqPreset: 'flat',
+  // Cache global de URLs (Fase 1). Default ON: cuando este desktop
+  // resuelve una URL con yt-dlp, la publica al cache compartido para
+  // que otros users sin desktop propio puedan reproducir al instante.
+  // Opt-out via toggle en Settings -> Reproduccion.
+  publishUrlCache: true,
 };
 
 function readInitial() {
@@ -49,6 +54,9 @@ function readInitial() {
         ? parsed.eqGains.map((g) => clamp(Number(g) || 0, -12, 12))
         : DEFAULTS.eqGains.slice(),
       eqPreset: typeof parsed.eqPreset === 'string' ? parsed.eqPreset : 'flat',
+      publishUrlCache: typeof parsed.publishUrlCache === 'boolean'
+        ? parsed.publishUrlCache
+        : DEFAULTS.publishUrlCache,
     };
   } catch {
     return { ...DEFAULTS };
@@ -66,6 +74,7 @@ function persist(state) {
       eqEnabled: state.eqEnabled,
       eqGains: state.eqGains,
       eqPreset: state.eqPreset,
+      publishUrlCache: state.publishUrlCache,
     }));
   } catch {}
 }
@@ -112,5 +121,21 @@ export const useSettingsStore = create((set, get) => ({
   resetAudio() {
     set({ ...DEFAULTS, eqGains: DEFAULTS.eqGains.slice() });
     persist(get());
+  },
+
+  /**
+   * @param {boolean} enabled — toggle de cache global de URLs (Fase 1).
+   * En desktop tambien notifica al main process via IPC para que el
+   * lan-server pare/reanude el upsert remoto sin reiniciar la app.
+   */
+  setPublishUrlCache(enabled) {
+    const v = !!enabled;
+    set({ publishUrlCache: v });
+    persist(get());
+    try {
+      if (typeof window !== 'undefined' && window.ritmiq?.settings?.setPublishUrlCache) {
+        window.ritmiq.settings.setPublishUrlCache(v).catch(() => {});
+      }
+    } catch {}
   },
 }));

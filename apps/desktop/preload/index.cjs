@@ -3,6 +3,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('ritmiq', {
   appInfo: () => ipcRenderer.invoke('app:info'),
+  settings: {
+    setPublishUrlCache: (enabled) => ipcRenderer.invoke('settings:setPublishUrlCache', enabled),
+  },
   yt: {
     metadata: (idOrUrl) => ipcRenderer.invoke('yt:metadata', idOrUrl),
     streamUrl: (idOrUrl) => ipcRenderer.invoke('yt:streamUrl', idOrUrl),

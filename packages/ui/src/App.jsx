@@ -138,6 +138,15 @@ export function App() {
         // autenticarse contra su propio LAN server.
         if (info?.accessToken) setAccessToken(info.accessToken);
       }).catch(() => {});
+      // Sincronizar al main process el valor inicial del toggle de
+      // cache global de URLs (Fase 1). Asi el lan-server respeta la
+      // preferencia persistida del user desde el arranque.
+      try {
+        const enabled = useSettingsStore.getState().publishUrlCache;
+        if (typeof window !== 'undefined' && window.ritmiq?.settings?.setPublishUrlCache) {
+          window.ritmiq.settings.setPublishUrlCache(enabled).catch(() => {});
+        }
+      } catch {}
     } else {
       autoDetectLanFromHost().then((url) => {
         if (url) console.info('[lan] auto-conectado:', url);
