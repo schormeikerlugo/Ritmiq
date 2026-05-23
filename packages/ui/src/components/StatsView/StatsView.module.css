@@ -218,3 +218,64 @@
   }
   .statValue { font-size: var(--fs-lg); }
 }
+
+/* ── Trofeos ─────────────────────────────────────────────────────────── */
+.trophyHint {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  margin: -8px 0 12px 0;
+}
+.trophyGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.trophyCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 10px;
+  background: var(--color-bg-2);
+  border-radius: 14px;
+  border: 1px solid var(--color-border-soft, rgba(255,255,255,0.06));
+  text-align: center;
+  transition: transform 160ms ease, border-color 160ms ease;
+}
+.trophyCard[data-unlocked="false"] {
+  opacity: 0.45;
+  filter: grayscale(0.8);
+}
+.trophyCard[data-unlocked="true"] {
+  border-color: transparent;
+  background: linear-gradient(140deg, var(--color-bg-2), var(--color-bg-3, var(--color-bg-2)));
+}
+.trophyCard[data-unlocked="true"][data-tier="bronze"]  { box-shadow: 0 0 0 1px rgba(205,127,50,0.45) inset, 0 4px 14px rgba(205,127,50,0.16); }
+.trophyCard[data-unlocked="true"][data-tier="silver"]  { box-shadow: 0 0 0 1px rgba(192,192,192,0.55) inset, 0 4px 14px rgba(192,192,192,0.18); }
+.trophyCard[data-unlocked="true"][data-tier="gold"]    { box-shadow: 0 0 0 1px rgba(255,215,0,0.65) inset, 0 4px 18px rgba(255,215,0,0.22); }
+.trophyCard[data-unlocked="true"][data-tier="diamond"] { box-shadow: 0 0 0 1px rgba(120,220,255,0.7) inset, 0 4px 22px rgba(120,220,255,0.28); }
+.trophyIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-2);
+}
+.trophyCard[data-unlocked="true"][data-tier="bronze"]  .trophyIcon { color: #cd7f32; }
+.trophyCard[data-unlocked="true"][data-tier="silver"]  .trophyIcon { color: #c0c0c0; }
+.trophyCard[data-unlocked="true"][data-tier="gold"]    .trophyIcon { color: #ffd700; }
+.trophyCard[data-unlocked="true"][data-tier="diamond"] .trophyIcon { color: #78dcff; }
+.trophyLabel {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-1);
+}
+.trophyState {
+  font-size: 10px;
+  color: var(--color-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+@media (max-width: 480px) {
+  .trophyGrid { grid-template-columns: repeat(2, 1fr); }
+}

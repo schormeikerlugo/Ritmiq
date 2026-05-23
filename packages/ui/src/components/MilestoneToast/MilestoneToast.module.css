@@ -1,0 +1,122 @@
+/* MilestoneToast — toast con confetti CSS al desbloquear trofeo. */
+
+.wrap {
+  position: fixed;
+  top: env(safe-area-inset-top, 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: none;
+  animation: slideDown 240ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  min-width: 280px;
+  max-width: 92vw;
+  background: linear-gradient(140deg, rgba(20,20,26,0.96), rgba(36,36,48,0.96));
+  color: var(--color-text-1, #fff);
+  border-radius: 18px;
+  box-shadow:
+    0 16px 48px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(255,255,255,0.05) inset;
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+
+.wrap[data-tier="bronze"]  .toast { box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(205,127,50,0.5) inset, 0 0 32px rgba(205,127,50,0.25); }
+.wrap[data-tier="silver"]  .toast { box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(192,192,192,0.55) inset, 0 0 32px rgba(192,192,192,0.25); }
+.wrap[data-tier="gold"]    .toast { box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,215,0,0.65) inset, 0 0 40px rgba(255,215,0,0.32); }
+.wrap[data-tier="diamond"] .toast { box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(120,220,255,0.7) inset, 0 0 44px rgba(120,220,255,0.35); }
+
+.iconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: radial-gradient(circle at center, currentColor 0%, transparent 70%);
+}
+.iconWrap[data-tier="bronze"]  { color: #cd7f32; }
+.iconWrap[data-tier="silver"]  { color: #c0c0c0; }
+.iconWrap[data-tier="gold"]    { color: #ffd700; }
+.iconWrap[data-tier="diamond"] { color: #78dcff; }
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.subtitle {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.close {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 0;
+  background: rgba(255,255,255,0.05);
+  color: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 120ms;
+}
+.close:hover { background: rgba(255,255,255,0.12); }
+
+/* ── Confetti ────────────────────────────────────────────────────────── */
+.confettiLayer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.particle {
+  position: absolute;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  background: hsl(var(--hue), 90%, 60%);
+  opacity: 0;
+  transform-origin: center;
+  animation: burst 1400ms ease-out var(--delay) both;
+}
+@keyframes burst {
+  0%   { opacity: 0; transform: translate(0, 0) rotate(0deg) scale(0.4); }
+  20%  { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform:
+      translate(calc(var(--x) * 2.5), calc(var(--x) * 0.6 + 220px))
+      rotate(calc(var(--rot) * 4))
+      scale(1);
+  }
+}
+
+@keyframes slideDown {
+  from { transform: translate(-50%, -120%); opacity: 0; }
+  to   { transform: translate(-50%, 0);     opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .particle { animation: none; opacity: 0; }
+  .wrap { animation: none; }
+}

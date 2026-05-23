@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "03-PWA/index.md",
+                "file": "05-Core/audio-source.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "index"
+              "title": "audio-source"
             }
           }
         ]
@@ -184,12 +184,12 @@
       "bases:Crear nueva base": false
     }
   },
-  "active": "4f5428cac78d9e54",
+  "active": "ed620bd3e5b952e7",
   "lastOpenFiles": [
+    "03-PWA/index.md",
     "03-PWA/apple-touch-startup.md",
     "03-PWA/sw-push.md",
     "03-PWA/main.md",
-    "03-PWA/index.md",
     "03-PWA/manifest-y-service-worker.md",
     "README.md",
     "Sin título.base",

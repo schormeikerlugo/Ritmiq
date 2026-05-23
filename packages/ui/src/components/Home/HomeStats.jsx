@@ -23,23 +23,25 @@ import styles from './HomeStats.module.css';
 
 export function HomeStats() {
   const events = useHistoryStore((s) => s.events);
+  const streakSnapshot = useHistoryStore((s) => s.streakSnapshot);
   const goStats = useViewStore((s) => s.goStats);
 
   const stats = useMemo(
-    () => selectStatsForPeriod(events, { days: 30 }),
-    [events],
+    () => selectStatsForPeriod(events, { days: 30, streakSnapshot }),
+    [events, streakSnapshot],
   );
 
-  const totalMinutes = stats.totalMinutes ?? 0;
-  const streak       = stats.streak ?? 0;
+  const totalMinutes  = stats.totalMinutes ?? 0;
+  const streak        = stats.streak ?? 0;
+  const longestStreak = stats.longestStreak ?? 0;
 
   // No mostrar las cards si el usuario aun no tiene actividad.
-  if (totalMinutes === 0 && streak === 0) return null;
+  if (totalMinutes === 0 && streak === 0 && longestStreak === 0) return null;
 
   return (
     <div className={styles.grid}>
       <HoursCard minutes={totalMinutes} onClick={goStats} />
-      <StreakCard streak={streak} onClick={goStats} />
+      <StreakCard streak={streak} longestStreak={longestStreak} onClick={goStats} />
     </div>
   );
 }
@@ -83,7 +85,7 @@ function HoursCard({ minutes, onClick }) {
 
 // ── Card: Racha ────────────────────────────────────────────────────────
 
-function StreakCard({ streak, onClick }) {
+function StreakCard({ streak, longestStreak = 0, onClick }) {
   // Tier de intensidad: ajusta el visual segun la racha.
   // 0     → gris, sin animacion (mensaje "Empieza tu racha")
   // 1-2   → naranja base, animacion lenta
@@ -94,8 +96,16 @@ function StreakCard({ streak, onClick }) {
   else if (streak >= 3) tier = 'mid';
   else if (streak >= 1) tier = 'low';
 
+  // Detectar empate con record historico (igualando record).
+  // Si current === longest Y longest >= 3, lo marcamos visualmente.
+  const matchingRecord = streak > 0 && streak === longestStreak && longestStreak >= 3;
+  // Hay record historico mayor que la racha actual.
+  const hasHigherRecord = longestStreak > streak && longestStreak >= 3;
+
   const label = (() => {
-    if (streak === 0) return 'Empieza tu racha hoy';
+    if (streak === 0 && longestStreak === 0) return 'Empieza tu racha hoy';
+    if (streak === 0 && longestStreak > 0) return 'Recupera tu racha';
+    if (matchingRecord) return '¡Igualas tu récord!';
     if (streak === 1) return '¡Primer día!';
     if (streak === 2) return 'Sigue así';
     if (streak >= 7)  return 'En racha';
@@ -109,7 +119,7 @@ function StreakCard({ streak, onClick }) {
       data-variant="streak"
       data-tier={tier}
       onClick={onClick}
-      aria-label={`Racha de ${streak} ${streak === 1 ? 'día' : 'días'}`}
+      aria-label={`Racha de ${streak} ${streak === 1 ? 'día' : 'días'}${longestStreak > 0 ? `. Récord: ${longestStreak}` : ''}`}
     >
       <div className={styles.iconWrap} data-variant="streak" data-tier={tier}>
         <Icon name="Flame" size={20} filled={streak >= 1} />
@@ -121,8 +131,13 @@ function StreakCard({ streak, onClick }) {
             {streak === 1 ? 'día' : 'días'}
           </span>
         </span>
-        {streak >= 1 && (
-          <span className={styles.subValue}>consecutivos</span>
+        {hasHigherRecord && (
+          <span className={styles.subValue}>récord: {longestStreak}</span>
+        )}
+        {!hasHigherRecord && streak >= 1 && (
+          <span className={styles.subValue}>
+            {matchingRecord ? '¡tu mejor racha!' : 'consecutivos'}
+          </span>
         )}
       </div>
     </button>

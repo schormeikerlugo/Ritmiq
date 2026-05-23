@@ -32,16 +32,31 @@ function fmtMinutes(min) {
   return m > 0 ? `${h} h ${m} min` : `${h} h`;
 }
 
+const MILESTONES_DEFS = [
+  { value: 7,   icon: 'Flame',     label: '7 dias',   tier: 'bronze' },
+  { value: 30,  icon: 'Star',      label: '30 dias',  tier: 'silver' },
+  { value: 100, icon: 'Trophy',    label: '100 dias', tier: 'gold' },
+  { value: 365, icon: 'Award',     label: '1 ano',    tier: 'diamond' },
+];
+
 export function StatsView() {
   const events = useHistoryStore((s) => s.events);
+  const streakSnapshot = useHistoryStore((s) => s.streakSnapshot);
+  const milestones = useHistoryStore((s) => s.milestones);
   const playNow = usePlayerStore((s) => s.playNow);
   const goArtist = useViewStore((s) => s.goArtist);
   const [period, setPeriod] = useState(30);
 
   const stats = useMemo(
-    () => selectStatsForPeriod(events, { days: period, topLimit: 5 }),
-    [events, period]
+    () => selectStatsForPeriod(events, { days: period, topLimit: 5, streakSnapshot }),
+    [events, period, streakSnapshot]
   );
+
+  const unlockedSet = useMemo(
+    () => new Set(milestones.map((m) => m.milestone)),
+    [milestones]
+  );
+  const longestStreak = stats.longestStreak ?? 0;
 
   const periodLabel = PERIODS.find((p) => p.id === period)?.label.toLowerCase() ?? 'periodo';
 
@@ -110,7 +125,51 @@ export function StatsView() {
               label={stats.streak === 1 ? 'dia de racha' : 'dias de racha'}
               highlight={stats.streak >= 3}
             />
+            {longestStreak > 0 && (
+              <StatCard
+                icon="Trophy"
+                value={String(longestStreak)}
+                label={longestStreak === 1 ? 'dia record' : 'dias record'}
+                highlight={longestStreak >= 7}
+              />
+            )}
           </div>
+
+          {/* ── Trofeos ─────────────────────────────────────────────── */}
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>Trofeos</h2>
+            <p className={styles.trophyHint}>
+              Desbloquea hitos manteniendo tu racha viva.
+            </p>
+            <div className={styles.trophyGrid}>
+              {MILESTONES_DEFS.map((m) => {
+                const unlocked = unlockedSet.has(m.value);
+                const achieved = milestones.find((x) => x.milestone === m.value);
+                const remaining = Math.max(0, m.value - (stats.streak ?? 0));
+                return (
+                  <div
+                    key={m.value}
+                    className={styles.trophyCard}
+                    data-tier={m.tier}
+                    data-unlocked={unlocked}
+                    title={
+                      unlocked
+                        ? `Desbloqueado el ${achieved?.achievedAt ?? ''}`
+                        : `Te faltan ${remaining} ${remaining === 1 ? 'dia' : 'dias'}`
+                    }
+                  >
+                    <span className={styles.trophyIcon} aria-hidden="true">
+                      <Icon name={m.icon} size={22} filled={unlocked} />
+                    </span>
+                    <span className={styles.trophyLabel}>{m.label}</span>
+                    <span className={styles.trophyState}>
+                      {unlocked ? 'Desbloqueado' : `Faltan ${remaining}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
 
           {stats.topTracks.length > 0 && (
             <section className={styles.section}>

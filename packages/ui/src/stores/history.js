@@ -54,6 +54,39 @@ export const useHistoryStore = create((set, get) => ({
   /** @type {import('@supabase/supabase-js').RealtimeChannel|null} */
   _channel: null,
 
+  /**
+   * Snapshot autoritativo de la racha desde user_streaks (BD).
+   * Se hidrata al login + via Realtime.
+   *
+   * Estructura:
+   *   { currentStreak: number, longestStreak: number,
+   *     longestAt: string|null, lastPlayedDate: string|null }
+   *
+   * null = no cargado todavia. Fallback al calculo local desde events.
+   * @type {{ currentStreak:number, longestStreak:number, longestAt:string|null, lastPlayedDate:string|null }|null}
+   */
+  streakSnapshot: null,
+
+  /**
+   * Lista de trofeos desbloqueados desde streak_milestones.
+   * Cada item: { milestone: 7|30|100|365, achievedAt: 'YYYY-MM-DD', streakValue: number }
+   * @type {Array<{ milestone:number, achievedAt:string, streakValue:number }>}
+   */
+  milestones: [],
+
+  /**
+   * Cola FIFO de toasts pendientes de mostrar (milestones nuevos llegados
+   * via Realtime mientras la app esta activa).
+   * UI consume con popMilestoneToast().
+   * @type {Array<{ milestone:number, streakValue:number }>}
+   */
+  milestoneToastQueue: [],
+
+  /** @type {import('@supabase/supabase-js').RealtimeChannel|null} */
+  _streakChannel: null,
+  /** @type {import('@supabase/supabase-js').RealtimeChannel|null} */
+  _milestonesChannel: null,
+
   /** Carga inicial: pull desde Supabase + flush de cola offline si hay red. */
   async load() {
     set({ loading: true, error: null });
@@ -151,9 +184,169 @@ export const useHistoryStore = create((set, get) => ({
   },
 
   reset() {
-    const ch = get()._channel;
-    if (ch) { try { supabase.removeChannel(ch); } catch {} }
-    set({ events: [], loading: false, error: null, _recentlyRecorded: new Map(), _channel: null });
+    const s = get();
+    if (s._channel) { try { supabase.removeChannel(s._channel); } catch {} }
+    if (s._streakChannel) { try { supabase.removeChannel(s._streakChannel); } catch {} }
+    if (s._milestonesChannel) { try { supabase.removeChannel(s._milestonesChannel); } catch {} }
+    set({
+      events: [],
+      loading: false,
+      error: null,
+      _recentlyRecorded: new Map(),
+      _channel: null,
+      streakSnapshot: null,
+      milestones: [],
+      milestoneToastQueue: [],
+      _streakChannel: null,
+      _milestonesChannel: null,
+    });
+  },
+
+  /**
+   * Hidrata el snapshot autoritativo de racha + milestones desde Supabase.
+   *
+   * - user_streaks: 1 fila por user con current_streak + longest_streak.
+   * - streak_milestones: N filas con trofeos desbloqueados.
+   *
+   * Si la tabla no existe (migration no aplicada) o el SELECT falla,
+   * el state queda en null/[] y el frontend usa el calculo local desde
+   * events como fallback. Cero regresion.
+   *
+   * @param {string} userId
+   */
+  async loadStreakSnapshot(userId) {
+    if (!userId) return;
+    try {
+      // Pull paralelo de las dos tablas.
+      const [streakRes, milestonesRes] = await Promise.allSettled([
+        supabase
+          .from('user_streaks')
+          .select('current_streak, longest_streak, longest_at, last_played_date')
+          .eq('user_id', userId)
+          .maybeSingle(),
+        supabase
+          .from('streak_milestones')
+          .select('milestone, achieved_at, streak_value')
+          .eq('user_id', userId)
+          .order('milestone', { ascending: true }),
+      ]);
+
+      if (streakRes.status === 'fulfilled' && streakRes.value.data) {
+        const d = streakRes.value.data;
+        set({
+          streakSnapshot: {
+            currentStreak: d.current_streak ?? 0,
+            longestStreak: d.longest_streak ?? 0,
+            longestAt: d.longest_at ?? null,
+            lastPlayedDate: d.last_played_date ?? null,
+          },
+        });
+      }
+
+      if (milestonesRes.status === 'fulfilled' && milestonesRes.value.data) {
+        const ms = milestonesRes.value.data.map((r) => ({
+          milestone: r.milestone,
+          achievedAt: r.achieved_at,
+          streakValue: r.streak_value,
+        }));
+        set({ milestones: ms });
+      }
+    } catch (err) {
+      console.warn('[history] loadStreakSnapshot fallo (no fatal):', err?.message);
+    }
+  },
+
+  /**
+   * Suscribe a Realtime de user_streaks + streak_milestones del usuario.
+   *
+   * - user_streaks UPDATE/INSERT -> hidrata streakSnapshot.
+   * - streak_milestones INSERT  -> push al milestoneToastQueue para que
+   *   la UI muestre confetti con el nuevo trofeo.
+   *
+   * @param {string} userId
+   * @returns {() => void} unsubscribe
+   */
+  subscribeStreak(userId) {
+    if (!userId) return () => {};
+
+    // Cleanup previos.
+    const existingStreak = get()._streakChannel;
+    if (existingStreak) { try { supabase.removeChannel(existingStreak); } catch {} }
+    const existingMs = get()._milestonesChannel;
+    if (existingMs) { try { supabase.removeChannel(existingMs); } catch {} }
+
+    const streakCh = supabase
+      .channel(`user_streaks:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_streaks', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const row = payload?.new;
+          if (!row || payload.eventType === 'DELETE') {
+            set({ streakSnapshot: null });
+            return;
+          }
+          set({
+            streakSnapshot: {
+              currentStreak: row.current_streak ?? 0,
+              longestStreak: row.longest_streak ?? 0,
+              longestAt: row.longest_at ?? null,
+              lastPlayedDate: row.last_played_date ?? null,
+            },
+          });
+        }
+      )
+      .subscribe();
+
+    const msCh = supabase
+      .channel(`streak_milestones:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'streak_milestones', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const row = payload?.new;
+          if (!row) return;
+          set((s) => {
+            // Anadir a lista de milestones desbloqueados.
+            const alreadyIn = s.milestones.some((m) => m.milestone === row.milestone);
+            const nextMilestones = alreadyIn
+              ? s.milestones
+              : [...s.milestones, {
+                  milestone: row.milestone,
+                  achievedAt: row.achieved_at,
+                  streakValue: row.streak_value,
+                }].sort((a, b) => a.milestone - b.milestone);
+
+            // Push al queue para que la UI muestre el toast.
+            const nextQueue = [
+              ...s.milestoneToastQueue,
+              { milestone: row.milestone, streakValue: row.streak_value },
+            ];
+            return { milestones: nextMilestones, milestoneToastQueue: nextQueue };
+          });
+        }
+      )
+      .subscribe();
+
+    set({ _streakChannel: streakCh, _milestonesChannel: msCh });
+
+    return () => {
+      try { supabase.removeChannel(streakCh); } catch {}
+      try { supabase.removeChannel(msCh); } catch {}
+      set({ _streakChannel: null, _milestonesChannel: null });
+    };
+  },
+
+  /**
+   * UI consume el siguiente toast pendiente. Devuelve { milestone, streakValue }
+   * o null si la cola esta vacia.
+   */
+  popMilestoneToast() {
+    const queue = get().milestoneToastQueue;
+    if (queue.length === 0) return null;
+    const [head, ...rest] = queue;
+    set({ milestoneToastQueue: rest });
+    return head;
   },
 
   /**
@@ -370,9 +563,13 @@ export function selectTopArtists(events, { days = 30, limit = 10 } = {}) {
  * "Tu mes en Ritmiq" (F2.11). Devuelve totales + top tracks/artistas.
  *
  * @param {Array} events
- * @param {{ days?: number, topLimit?: number }} opts
+ * @param {{ days?: number, topLimit?: number, streakSnapshot?: object|null }} opts
+ *   - streakSnapshot: si se pasa, se usa como fallback autoritativo para
+ *     casos donde events esta truncado al HISTORY_LIMIT (500). El longest
+ *     siempre se toma del snapshot si existe (mantiene record historico).
  */
-export function selectStatsForPeriod(events, { days = 30, topLimit = 5 } = {}) {
+export function selectStatsForPeriod(events, opts = {}) {
+  const { days = 30, topLimit = 5 } = opts;
   const cutoff = Date.now() - days * 86400_000;
   let totalPlays = 0;
   let totalSeconds = 0;
@@ -473,6 +670,26 @@ export function selectStatsForPeriod(events, { days = 30, topLimit = 5 } = {}) {
     }
   }
 
+  // Si tenemos snapshot autoritativo desde BD (user_streaks) Y el calculo
+  // local podria estar truncado (events.length llego al HISTORY_LIMIT),
+  // preferir el valor autoritativo. Resuelve el caso de rachas >500 events.
+  // El snapshot es siempre >= que el local (calculado por trigger con la
+  // tabla completa).
+  let longestStreak = streak;
+  let longestAt = null;
+  const snap = opts.streakSnapshot;
+  if (snap && typeof snap.currentStreak === 'number') {
+    longestStreak = Math.max(snap.longestStreak ?? 0, streak);
+    longestAt = snap.longestAt ?? null;
+    // Solo usar el current snapshot si nuestro calculo local podria estar
+    // incompleto (events truncados). Si tenemos < HISTORY_LIMIT events,
+    // el calculo local es definitorio (mas fresco que el snapshot, que
+    // se actualiza por trigger con potencial delay de Realtime).
+    if (events.length >= 500) {
+      streak = Math.max(streak, snap.currentStreak);
+    }
+  }
+
   return {
     totalPlays,
     totalSeconds,
@@ -481,6 +698,8 @@ export function selectStatsForPeriod(events, { days = 30, topLimit = 5 } = {}) {
     uniqueArtists: artistCounts.size,
     activeDays: dayMap.size,
     streak,
+    longestStreak,
+    longestAt,
     topTracks,
     topArtists,
   };

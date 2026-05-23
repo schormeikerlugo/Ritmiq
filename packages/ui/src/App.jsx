@@ -16,6 +16,7 @@ import { FriendsView } from './components/FriendsView/FriendsView.jsx';
 import { ProfileView } from './components/ProfileView/ProfileView.jsx';
 import { AuthScreen } from './components/Auth/AuthScreen.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
+import { MilestoneToast } from './components/MilestoneToast/MilestoneToast.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
 import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
 import { BottomSheetHost } from './components/BottomSheet/BottomSheetHost.jsx';
@@ -184,6 +185,12 @@ export function App() {
       // aparece DISMINUIDA. La suscripcion mantiene events sincronizados
       // entre todos los devices del mismo user en tiempo real.
       useHistoryStore.getState().subscribeRealtime(user.id);
+      // Snapshot autoritativo desde user_streaks (BD) + lista de trofeos
+      // desbloqueados desde streak_milestones. Sobrevive a reinstall de
+      // la app: la racha se ve en el primer render sin necesidad de
+      // esperar al load() paginado de play_history.
+      useHistoryStore.getState().loadStreakSnapshot(user.id);
+      useHistoryStore.getState().subscribeStreak(user.id);
       // Cargar el perfil social a nivel App para que este disponible
       // en todas las vistas (Home, TopBar, BottomNav, AccountInfoView)
       // sin tener que abrir FriendsView primero. Antes este load solo
@@ -393,6 +400,10 @@ export function App() {
       {/* Recordatorio: muestra shares no vistos >2min cuando el usuario
           no esta en la bandeja. Se auto-cierra al ignorar o ver. */}
       <ShareReminderModal />
+      {/* Toast con confetti cuando se desbloquea trofeo de racha
+          (7d, 30d, 100d, 365d). Consume cola del useHistoryStore que
+          recibe INSERTs de streak_milestones via Realtime. */}
+      <MilestoneToast />
     </div>
   );
 }
