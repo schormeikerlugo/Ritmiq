@@ -198,7 +198,15 @@ export function App() {
       // desbloqueados desde streak_milestones. Sobrevive a reinstall de
       // la app: la racha se ve en el primer render sin necesidad de
       // esperar al load() paginado de play_history.
-      useHistoryStore.getState().loadStreakSnapshot(user.id);
+      useHistoryStore.getState().loadStreakSnapshot(user.id).then(() => {
+        // Welcome milestone: tras hidratar la lista de trofeos, mostrar
+        // al user el de mayor nivel desbloqueado como saludo. Con un
+        // delay para no chocar con el splash/login y dar tiempo al
+        // primer render. Idempotente por sesion (flag _welcomeShown).
+        setTimeout(() => {
+          try { useHistoryStore.getState().showWelcomeMilestone(); } catch {}
+        }, 1500);
+      });
       useHistoryStore.getState().subscribeStreak(user.id);
       // Cargar el perfil social a nivel App para que este disponible
       // en todas las vistas (Home, TopBar, BottomNav, AccountInfoView)

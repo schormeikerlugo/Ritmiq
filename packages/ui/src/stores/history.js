@@ -82,6 +82,15 @@ export const useHistoryStore = create((set, get) => ({
    */
   milestoneToastQueue: [],
 
+  /**
+   * Flag interno: `true` cuando ya mostramos el toast de bienvenida con
+   * el trofeo mas alto en esta sesion. Se resetea en reset() (logout) y
+   * en cada hard reload de la app (porque el store vive en memoria).
+   * Evita re-disparar el welcome si el user navega entre vistas o si
+   * subscribeStreak recibe un update.
+   */
+  _welcomeShown: false,
+
   /** @type {import('@supabase/supabase-js').RealtimeChannel|null} */
   _streakChannel: null,
   /** @type {import('@supabase/supabase-js').RealtimeChannel|null} */
@@ -197,6 +206,7 @@ export const useHistoryStore = create((set, get) => ({
       streakSnapshot: null,
       milestones: [],
       milestoneToastQueue: [],
+      _welcomeShown: false,
       _streakChannel: null,
       _milestonesChannel: null,
     });
@@ -364,6 +374,59 @@ export const useHistoryStore = create((set, get) => ({
     const streakValue = found?.streakValue ?? milestone;
     set((s) => ({
       milestoneToastQueue: [...s.milestoneToastQueue, { milestone, streakValue }],
+    }));
+  },
+
+  /**
+   * Muestra al usuario el trofeo de mayor nivel que tiene desbloqueado
+   * como saludo al iniciar la app. Idempotente por sesion: solo se
+   * dispara una vez (flag _welcomeShown).
+   *
+   * REGLAS:
+   *   - Si el user no tiene milestones desbloqueados, no hace nada.
+   *   - Si el mas alto es 365 (Legend = modal), bajamos al siguiente
+   *     mas alto. El modal cada arranque seria intrusivo. Si solo
+   *     tiene 365, no mostramos welcome (lo veria como modal todos
+   *     los dias, mejor que se quede como hito ocasional).
+   *   - Si hay items en la cola pendientes (e.g. un milestone nuevo
+   *     llego en este arranque via Realtime), NO inyectamos welcome
+   *     encima — el nuevo es prioritario.
+   *
+   * Tras ejecutar marca _welcomeShown=true para evitar re-disparos
+   * cuando subscribeStreak entregue actualizaciones de milestones.
+   */
+  showWelcomeMilestone() {
+    const s = get();
+    if (s._welcomeShown) return;
+    if (s.milestoneToastQueue.length > 0) {
+      // Hay algo mas urgente en la cola — no contamines el welcome.
+      // Marcamos como mostrado igualmente para no insistir.
+      set({ _welcomeShown: true });
+      return;
+    }
+    const ms = s.milestones;
+    if (!Array.isArray(ms) || ms.length === 0) {
+      // Sin trofeos: silencio, sin marcar shown para que si el user
+      // alcanza su primer milestone en esta sesion via Realtime el
+      // welcome NO se dispare encima (el nuevo trofeo es lo unico
+      // que verá).
+      return;
+    }
+    // Ordenar desc por milestone, ignorar 365 (Legend modal).
+    const sorted = [...ms].sort((a, b) => b.milestone - a.milestone);
+    const pick = sorted.find((m) => m.milestone !== 365);
+    if (!pick) {
+      // El user solo tiene Legend (365). No mostramos welcome para no
+      // bloquear con modal cada arranque. Marcamos shown.
+      set({ _welcomeShown: true });
+      return;
+    }
+    set((st) => ({
+      _welcomeShown: true,
+      milestoneToastQueue: [
+        ...st.milestoneToastQueue,
+        { milestone: pick.milestone, streakValue: pick.streakValue },
+      ],
     }));
   },
 
