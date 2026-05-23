@@ -1,0 +1,414 @@
+/* LegendVariant — 365 dias. Modal epico con boton Continuar. */
+
+@property --legendHue {
+  syntax: '<number>';
+  initial-value: 200;
+  inherits: false;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(20, 16, 36, 0.78) 0%,
+    rgba(8, 4, 18, 0.92) 75%
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: auto;
+  animation: legendBackdropIn 600ms ease-out both;
+  overflow: hidden;
+}
+
+/* ── TOAST CARD ─────────────────────────────────────────────────────── */
+.toast {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 36px 40px 32px;
+  min-width: 320px;
+  max-width: min(92vw, 460px);
+  background:
+    linear-gradient(140deg, rgba(28, 18, 48, 0.94), rgba(16, 12, 40, 0.96)),
+    radial-gradient(circle at 30% 0%, rgba(150, 90, 255, 0.25), transparent 60%);
+  color: #f6f0ff;
+  border-radius: 28px;
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.65),
+    0 0 0 1.5px rgba(170, 120, 255, 0.45) inset,
+    0 0 80px rgba(120, 220, 255, 0.4);
+  pointer-events: auto;
+  text-align: center;
+  animation:
+    legendToastIn 900ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    legendToastGlow 6000ms linear infinite;
+  overflow: visible;
+}
+
+/* ── Icono Award con anillo conic giratorio ─────────────────────────── */
+.iconWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  margin-bottom: 4px;
+  color: #ffe5a8;
+}
+.iconRing {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #78dcff,
+    #a978ff,
+    #ff78f0,
+    #ffe066,
+    #78dcff
+  );
+  filter: blur(2px);
+  opacity: 0.85;
+  animation: legendRingSpin 4000ms linear infinite;
+  -webkit-mask: radial-gradient(
+    circle at center,
+    transparent 38px,
+    black 40px,
+    black 50px,
+    transparent 52px
+  );
+  mask: radial-gradient(
+    circle at center,
+    transparent 38px,
+    black 40px,
+    black 50px,
+    transparent 52px
+  );
+}
+.iconCore {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 240, 200, 0.3) 0%,
+    rgba(120, 220, 255, 0.15) 60%,
+    transparent 100%
+  );
+  filter: drop-shadow(0 0 12px rgba(255, 230, 100, 0.8));
+  animation: legendIconBob 3500ms ease-in-out infinite;
+}
+
+/* ── Capas de particulas ────────────────────────────────────────────── */
+
+/* Dots flotando suaves al fondo. */
+.dotsLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.dot {
+  position: absolute;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: hsl(var(--hue), 90%, 70%);
+  opacity: 0;
+  filter: drop-shadow(0 0 4px currentColor);
+  animation: legendDotFloat var(--dur) ease-in-out var(--delay) infinite;
+}
+
+/* Laser diagonales. */
+.lasersLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.laser {
+  position: absolute;
+  left: -10%;
+  width: 120%;
+  height: 2px;
+  transform-origin: center;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--hue), 95%, 70%) 40%,
+    hsl(var(--hue), 100%, 85%) 50%,
+    hsl(var(--hue), 95%, 70%) 60%,
+    transparent
+  );
+  opacity: 0;
+  filter: blur(0.5px) drop-shadow(0 0 6px hsl(var(--hue), 100%, 60%));
+  mix-blend-mode: screen;
+  animation: legendLaser var(--dur) ease-out var(--delay) both;
+}
+
+/* Ondas concentricas. */
+.wavesLayer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.wave {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100px;
+  height: 100px;
+  margin: -50px 0 0 -50px;
+  border-radius: 50%;
+  border: 2px solid rgba(170, 200, 255, 0.6);
+  opacity: 0;
+  animation: legendWave 2200ms ease-out infinite;
+}
+
+/* Prismas (dentro del toast). */
+.prismLayer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.prism {
+  position: absolute;
+  display: inline-block;
+  width: var(--size);
+  height: calc(var(--size) * 1.2);
+  color: hsl(var(--hue), 90%, 72%);
+  filter: drop-shadow(0 0 6px hsl(var(--hue), 100%, 65%));
+  opacity: 0;
+  transform-origin: center;
+  animation: legendPrismFall var(--dur) ease-in var(--delay) both;
+}
+.prism svg { display: block; width: 100%; height: 100%; }
+
+/* Cometas estrella. */
+.cometsLayer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.comet {
+  position: absolute;
+  display: inline-block;
+  width: 50px;
+  height: 12px;
+  opacity: 0;
+  transform-origin: right center;
+  animation: legendComet var(--dur) ease-out var(--delay) both;
+}
+.comet svg { display: block; width: 100%; height: 100%; }
+
+/* ── Texto ──────────────────────────────────────────────────────────── */
+.title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  position: relative;
+}
+.titleText {
+  background: linear-gradient(
+    90deg,
+    #78dcff 0%,
+    #a978ff 25%,
+    #ffe066 50%,
+    #ff78f0 75%,
+    #78dcff 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 20px rgba(170, 200, 255, 0.4);
+  animation: legendTitleShine 3000ms ease-in-out 300ms infinite;
+}
+.subtitle {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.85;
+  color: #d8d0f0;
+  animation: legendSubtitleShake 600ms ease-out 700ms 2;
+}
+
+/* ── Boton Continuar ────────────────────────────────────────────────── */
+.continueBtn {
+  margin-top: 14px;
+  padding: 12px 32px;
+  background: linear-gradient(
+    100deg,
+    #78dcff 0%,
+    #a978ff 50%,
+    #ff78f0 100%
+  );
+  background-size: 200% 100%;
+  border: 0;
+  border-radius: 999px;
+  color: #0a0a0c;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    0 8px 24px rgba(120, 200, 255, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  animation:
+    legendContinueIn 600ms cubic-bezier(0.34, 1.56, 0.64, 1) 1100ms both,
+    legendBtnShine 3000ms linear 1700ms infinite;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.continueBtn:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow:
+    0 12px 32px rgba(120, 200, 255, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+}
+.continueBtn:active {
+  transform: translateY(0) scale(0.98);
+}
+.continueBtnText {
+  position: relative;
+  z-index: 2;
+}
+
+/* ── KEYFRAMES ──────────────────────────────────────────────────────── */
+@keyframes legendBackdropIn {
+  from { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
+  to   { opacity: 1; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+}
+@keyframes legendToastIn {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes legendToastGlow {
+  0%, 100% {
+    box-shadow:
+      0 32px 80px rgba(0, 0, 0, 0.65),
+      0 0 0 1.5px rgba(170, 120, 255, 0.45) inset,
+      0 0 80px rgba(120, 220, 255, 0.4);
+  }
+  33% {
+    box-shadow:
+      0 32px 80px rgba(0, 0, 0, 0.65),
+      0 0 0 1.5px rgba(255, 120, 240, 0.45) inset,
+      0 0 80px rgba(255, 230, 100, 0.4);
+  }
+  66% {
+    box-shadow:
+      0 32px 80px rgba(0, 0, 0, 0.65),
+      0 0 0 1.5px rgba(120, 220, 255, 0.45) inset,
+      0 0 80px rgba(170, 120, 255, 0.4);
+  }
+}
+@keyframes legendRingSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes legendIconBob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+@keyframes legendDotFloat {
+  0%   { opacity: 0; transform: translate(0, 0); }
+  20%  { opacity: 0.7; }
+  80%  { opacity: 0.7; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)); }
+}
+@keyframes legendLaser {
+  0%   { opacity: 0; transform: scaleX(0.3) rotate(inherit); }
+  30%  { opacity: 1; transform: scaleX(1) rotate(inherit); }
+  100% { opacity: 0; transform: scaleX(1.2) rotate(inherit); }
+}
+@keyframes legendWave {
+  0%   { opacity: 0; transform: scale(0.3); border-width: 4px; }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(6); border-width: 1px; }
+}
+@keyframes legendPrismFall {
+  0%   { opacity: 0; transform: translate(0,0) rotate(0deg) scale(0.4); }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x), var(--y)) rotate(var(--rot)) scale(0.7); }
+}
+@keyframes legendComet {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  20%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(0.8); }
+}
+@keyframes legendTitleShine {
+  0%, 100% { background-position: 200% 0; }
+  50%      { background-position: -100% 0; }
+}
+@keyframes legendSubtitleShake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-2px); }
+  75%      { transform: translateX(2px); }
+}
+@keyframes legendContinueIn {
+  0%   { opacity: 0; transform: translateY(20px) scale(0.7); }
+  60%  { opacity: 1; transform: translateY(-2px) scale(1.06); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes legendBtnShine {
+  0%, 100% { background-position: 200% 0; }
+  50%      { background-position: -100% 0; }
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .backdrop  { animation: legendBackdropIn 200ms ease-out both; }
+  .toast,
+  .iconRing,
+  .iconCore,
+  .titleText,
+  .subtitle,
+  .continueBtn { animation: none; }
+  .dotsLayer, .lasersLayer, .wavesLayer,
+  .prismLayer, .cometsLayer { display: none; }
+  .titleText {
+    color: #d8c4ff;
+    -webkit-text-fill-color: #d8c4ff;
+    background: none;
+  }
+}
+
+/* ── Mobile ─────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .toast {
+    padding: 28px 24px 24px;
+    min-width: auto;
+    width: 88vw;
+  }
+  .title { font-size: 22px; }
+  .iconWrap { width: 80px; height: 80px; }
+  .iconCore { width: 64px; height: 64px; }
+}

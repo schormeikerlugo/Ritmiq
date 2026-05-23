@@ -43,6 +43,7 @@ export function StatsView() {
   const events = useHistoryStore((s) => s.events);
   const streakSnapshot = useHistoryStore((s) => s.streakSnapshot);
   const milestones = useHistoryStore((s) => s.milestones);
+  const replayMilestone = useHistoryStore((s) => s.replayMilestone);
   const playNow = usePlayerStore((s) => s.playNow);
   const goArtist = useViewStore((s) => s.goArtist);
   const [period, setPeriod] = useState(30);
@@ -158,6 +159,17 @@ export function StatsView() {
                         : `Te faltan ${remaining} ${remaining === 1 ? 'dia' : 'dias'}`
                     }
                   >
+                    {unlocked && (
+                      <button
+                        type="button"
+                        className={styles.trophyReplay}
+                        onClick={() => replayMilestone(m.value)}
+                        aria-label={`Volver a ver animacion de ${m.label}`}
+                        title="Volver a ver"
+                      >
+                        <Icon name="Repeat" size={12} />
+                      </button>
+                    )}
                     <span className={styles.trophyIcon} aria-hidden="true">
                       <Icon name={m.icon} size={22} filled={unlocked} />
                     </span>

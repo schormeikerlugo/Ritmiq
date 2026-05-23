@@ -350,6 +350,24 @@ export const useHistoryStore = create((set, get) => ({
   },
 
   /**
+   * Re-encola un milestone ya desbloqueado para que el MilestoneToast lo
+   * vuelva a animar. Usado por el boton "Volver a ver" en StatsView.
+   *
+   * Toma streakValue del milestones cacheado para que el subtitulo muestre
+   * el valor real con el que se desbloqueo (no la racha actual). Si no
+   * esta cacheado, usa el milestone como fallback.
+   *
+   * @param {number} milestone
+   */
+  replayMilestone(milestone) {
+    const found = get().milestones.find((m) => m.milestone === milestone);
+    const streakValue = found?.streakValue ?? milestone;
+    set((s) => ({
+      milestoneToastQueue: [...s.milestoneToastQueue, { milestone, streakValue }],
+    }));
+  },
+
+  /**
    * Suscribe a Realtime de `play_history` para multidevice sync.
    *
    * Problema que resuelve: cuando un mismo user reproduce en device A

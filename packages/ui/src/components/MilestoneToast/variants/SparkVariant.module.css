@@ -1,0 +1,162 @@
+/* SparkVariant — 7 dias. Llama playful, calida, 4s. */
+
+.wrap {
+  position: fixed;
+  top: env(safe-area-inset-top, 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: none;
+  /* Entrada elastica con rebote. */
+  animation: sparkEnter 360ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px 14px 18px;
+  min-width: 280px;
+  max-width: 92vw;
+  background: linear-gradient(140deg, rgba(28, 18, 10, 0.96), rgba(40, 24, 14, 0.96));
+  color: #ffe7c8;
+  border-radius: 18px;
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 145, 60, 0.5) inset,
+    0 0 32px rgba(255, 107, 53, 0.35);
+  pointer-events: auto;
+  position: relative;
+  /* Borde palpitante naranja. */
+  animation: sparkBorderPulse 1500ms ease-in-out 0s 3;
+}
+
+/* ── Icono Flame con glow flickering ───────────────────────────────── */
+.iconWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  color: #ff9528;
+  animation: sparkFlicker 600ms ease-in-out infinite alternate;
+}
+.flameGlow {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 140, 40, 0.55) 0%,
+    rgba(255, 80, 20, 0.25) 40%,
+    transparent 70%
+  );
+  filter: blur(6px);
+  z-index: -1;
+  animation: sparkGlowBreath 1200ms ease-in-out infinite alternate;
+}
+
+/* ── Partículas chispa ──────────────────────────────────────────────── */
+.sparksLayer {
+  position: absolute;
+  top: 60%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.spark {
+  position: absolute;
+  width: 6px;
+  height: 10px;
+  /* Gota de fuego asimetrica. */
+  border-radius: 60% 60% 70% 70% / 80% 80% 40% 40%;
+  background: hsl(var(--hue), 95%, 62%);
+  opacity: 0;
+  transform-origin: bottom center;
+  filter: drop-shadow(0 0 6px hsl(var(--hue), 95%, 55%));
+  animation: sparkRise var(--dur) ease-out var(--delay) both;
+  will-change: transform, opacity;
+}
+
+@keyframes sparkRise {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.5) rotate(0deg); }
+  15%  { opacity: 1; }
+  60%  { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform:
+      translate(var(--x), var(--y))
+      scale(0.2)
+      rotate(calc(var(--x) * 1deg));
+  }
+}
+
+@keyframes sparkEnter {
+  from { transform: translate(-50%, -120%); opacity: 0; }
+  to   { transform: translate(-50%, 0);     opacity: 1; }
+}
+
+@keyframes sparkFlicker {
+  0%   { transform: scale(1)    rotate(-2deg); }
+  100% { transform: scale(1.08) rotate(2deg); }
+}
+
+@keyframes sparkGlowBreath {
+  0%   { opacity: 0.7; transform: scale(0.9); }
+  100% { opacity: 1;   transform: scale(1.15); }
+}
+
+@keyframes sparkBorderPulse {
+  0%, 100% { box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,145,60,0.5) inset, 0 0 32px rgba(255,107,53,0.35); }
+  50%      { box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,165,80,0.75) inset, 0 0 44px rgba(255,107,53,0.55); }
+}
+
+/* ── Texto y close ──────────────────────────────────────────────────── */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff4dc;
+}
+.subtitle {
+  font-size: 12px;
+  opacity: 0.75;
+}
+.close {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 0;
+  background: rgba(255, 200, 120, 0.08);
+  color: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 120ms;
+}
+.close:hover { background: rgba(255, 200, 120, 0.18); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wrap        { animation: sparkFadeIn 200ms ease-out both; }
+  .toast       { animation: none; }
+  .iconWrap    { animation: none; }
+  .flameGlow   { animation: none; opacity: 0.6; }
+  .spark       { display: none; }
+}
+@keyframes sparkFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

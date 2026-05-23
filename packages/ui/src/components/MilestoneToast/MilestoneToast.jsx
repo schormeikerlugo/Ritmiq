@@ -1,13 +1,16 @@
 /**
- * MilestoneToast — confetti + mensaje cuando se desbloquea un trofeo.
+ * MilestoneToast — orquestador de animaciones unicas por hito de racha.
  *
- * Consume la cola `milestoneToastQueue` del useHistoryStore. Cuando llega
- * un INSERT a `streak_milestones` via Realtime, el store hace push al
- * queue. Este componente toma el head, muestra un toast 6s con confetti
- * CSS puro, y al cerrar consume el siguiente si existe.
+ * Consume `milestoneToastQueue` del useHistoryStore. Cuando llega un
+ * milestone, delega al variant correspondiente (Spark/Bloom/Fanfare/
+ * Legend). Cada variant tiene identidad visual y duracion propia.
  *
- * No requiere librerias externas: confetti es div absolutos con
- * `transform` + `opacity` animados, ~30 particulas. Bajo CPU.
+ *  7d  → SparkVariant    (4s)    playful — llama
+ * 30d  → BloomVariant    (5s)    playful — estrella florece
+ * 100d → FanfareVariant  (6.5s)  cinematografico — trofeo
+ * 365d → LegendVariant   (modal) epico — Continuar manual
+ *
+ * Si falla un variant (excepcion en render), fallback al toast generico.
  *
  * @module @ritmiq/ui/components/MilestoneToast
  */
@@ -15,23 +18,31 @@
 import { useEffect, useState } from 'react';
 import { useHistoryStore } from '../../stores/history.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { SparkVariant, SPARK_DURATION_MS } from './variants/SparkVariant.jsx';
+import { BloomVariant, BLOOM_DURATION_MS } from './variants/BloomVariant.jsx';
+import { FanfareVariant, FANFARE_DURATION_MS } from './variants/FanfareVariant.jsx';
+import { LegendVariant, LEGEND_DURATION_MS, LEGEND_IS_MODAL } from './variants/LegendVariant.jsx';
 import styles from './MilestoneToast.module.css';
 
-const DURATION_MS = 6000;
-
-const COPY = {
-  7:   { title: '¡Primera semana!', subtitle: '7 dias seguidos escuchando.',  icon: 'Flame',  tier: 'bronze' },
-  30:  { title: '¡Un mes completo!', subtitle: '30 dias de musica diaria.',    icon: 'Star',   tier: 'silver' },
-  100: { title: '¡100 dias!',        subtitle: 'Logro impresionante.',          icon: 'Trophy', tier: 'gold' },
-  365: { title: '¡Un ano entero!',   subtitle: 'Eres una leyenda de Ritmiq.',  icon: 'Award',  tier: 'diamond' },
+/**
+ * Mapeo milestone -> componente variant + duracion. Si `duration` es
+ * null el variant es modal (no auto-dismiss).
+ */
+const VARIANTS = {
+  7:   { Component: SparkVariant,   duration: SPARK_DURATION_MS,   isModal: false },
+  30:  { Component: BloomVariant,   duration: BLOOM_DURATION_MS,   isModal: false },
+  100: { Component: FanfareVariant, duration: FANFARE_DURATION_MS, isModal: false },
+  365: { Component: LegendVariant,  duration: LEGEND_DURATION_MS,  isModal: LEGEND_IS_MODAL },
 };
+
+const FALLBACK_DURATION_MS = 5000;
 
 export function MilestoneToast() {
   const queue = useHistoryStore((s) => s.milestoneToastQueue);
   const pop = useHistoryStore((s) => s.popMilestoneToast);
   const [current, setCurrent] = useState(null);
 
-  // Cuando entra algo a la cola y no hay toast activo, popea el head.
+  // Pop del head cuando hay queue y no hay toast activo.
   useEffect(() => {
     if (!current && queue.length > 0) {
       const next = pop();
@@ -39,59 +50,70 @@ export function MilestoneToast() {
     }
   }, [queue, current, pop]);
 
-  // Auto-dismiss tras DURATION_MS.
+  // Auto-dismiss segun duracion del variant (skip si modal).
   useEffect(() => {
     if (!current) return undefined;
-    const id = setTimeout(() => setCurrent(null), DURATION_MS);
+    const cfg = VARIANTS[current.milestone];
+    const duration = cfg?.duration ?? FALLBACK_DURATION_MS;
+    // Modal: duration es null -> no auto-dismiss.
+    if (duration == null) return undefined;
+    const id = setTimeout(() => setCurrent(null), duration);
     return () => clearTimeout(id);
   }, [current]);
 
   if (!current) return null;
 
-  const copy = COPY[current.milestone] ?? {
-    title: `¡${current.milestone} dias de racha!`,
-    subtitle: 'Sigue asi.',
-    icon: 'Flame',
-    tier: 'bronze',
-  };
+  const cfg = VARIANTS[current.milestone];
+  const handleClose = () => setCurrent(null);
 
-  // ~24 particulas de confetti.
-  const particles = Array.from({ length: 24 }, (_, i) => i);
+  // Render del variant correspondiente. Si no hay variant definido para
+  // este milestone (e.g. el equipo anade 500d sin variant), cae al
+  // fallback generico abajo.
+  if (cfg?.Component) {
+    try {
+      return (
+        <cfg.Component
+          streakValue={current.streakValue}
+          onClose={handleClose}
+        />
+      );
+    } catch (err) {
+      // El variant exploto en render. Loguea y cae al fallback.
+      console.warn('[MilestoneToast] variant fallo, usando fallback:', err?.message);
+    }
+  }
 
+  // Fallback generico — mantiene el comportamiento previo a las variantes.
   return (
-    <div
-      className={styles.wrap}
-      data-tier={copy.tier}
-      role="status"
-      aria-live="polite"
-    >
-      <div className={styles.confettiLayer} aria-hidden="true">
-        {particles.map((i) => (
-          <span
-            key={i}
-            className={styles.particle}
-            style={{
-              '--delay': `${(i * 47) % 800}ms`,
-              '--x': `${((i * 37) % 200) - 100}px`,
-              '--rot': `${(i * 73) % 360}deg`,
-              '--hue': `${(i * 53) % 360}`,
-            }}
-          />
-        ))}
-      </div>
+    <FallbackToast
+      milestone={current.milestone}
+      streakValue={current.streakValue}
+      onClose={handleClose}
+    />
+  );
+}
 
+/**
+ * Fallback simple cuando no hay variant para el milestone o el variant
+ * fallo en render. Mantiene la apariencia minima del toast original.
+ */
+function FallbackToast({ milestone, streakValue, onClose }) {
+  return (
+    <div className={styles.wrap} role="status" aria-live="polite">
       <div className={styles.toast}>
-        <div className={styles.iconWrap} data-tier={copy.tier}>
-          <Icon name={copy.icon} size={28} filled />
+        <div className={styles.iconWrap}>
+          <Icon name="Flame" size={28} filled />
         </div>
         <div className={styles.body}>
-          <span className={styles.title}>{copy.title}</span>
-          <span className={styles.subtitle}>{copy.subtitle}</span>
+          <span className={styles.title}>¡{milestone} dias de racha!</span>
+          <span className={styles.subtitle}>
+            {streakValue ?? milestone} dias seguidos.
+          </span>
         </div>
         <button
           type="button"
           className={styles.close}
-          onClick={() => setCurrent(null)}
+          onClick={onClose}
           aria-label="Cerrar"
         >
           <Icon name="X" size={16} />
