@@ -1087,15 +1087,54 @@ export async function startLanServer({ port, db, accessToken }) {
       if (url.pathname.startsWith('/stream/')) {
         const trackId = decodeURIComponent(url.pathname.slice('/stream/'.length));
 
-        // Track efímero: el id viene como "yt:<ytId>". Resolvemos vía yt-dlp
-        // y proxieamos los bytes (no redirect — las URLs de googlevideo van
-        // atadas a la IP del cliente original, así que el iPhone no podría
-        // consumirlas directamente).
+        // Track efímero: el id viene como "yt:<ytId>". Antes de invocar
+        // yt-dlp (que tarda 1-6s), comprobamos si la cancion ya esta
+        // descargada localmente en este desktop:
+        //
+        //   1. tracks(yt_id = ytId, is_downloaded = 1) — descargada por
+        //      el OWNER de este desktop. Caso comun: el user reproduce
+        //      desde su PWA una cancion que ya tiene en disco.
+        //   2. shared_audio(yt_id = ytId) — cualquier archivo indexado
+        //      por la app (incluye Library propia, no solo cache compartido).
+        //
+        // BUG ANTERIOR: el path ephemeral iba DIRECTO a resolveCached →
+        // yt-dlp invocado innecesariamente cuando el archivo estaba
+        // en disco. Esto pasaba siempre que la PWA pedia un track por
+        // ?yt:<ytId> y el owner ya lo tenia descargado — el ID interno
+        // de tracks() no se conoce desde la PWA, asi que cae al prefijo
+        // efimero pero el archivo SI existe localmente.
         if (trackId.startsWith('yt:')) {
           const ytId = trackId.slice(3);
           const tStart = Date.now();
-          // Prioridad MÁXIMA (10): el usuario YA pulsó play. Si hay otros
-          // prewarms encolados, este se cuela al frente.
+
+          // 1. Tracks descargados del owner (lookup por yt_id).
+          try {
+            const localRow = db
+              .prepare('SELECT file_path FROM tracks WHERE yt_id = ? AND is_downloaded = 1 LIMIT 1')
+              .get(ytId);
+            if (localRow?.file_path && existsSync(localRow.file_path)) {
+              console.log(`[lan-server] stream yt:${ytId} LOCAL HIT (owner download) ${Date.now() - tStart}ms`);
+              return serveLocalFile(req, res, localRow.file_path);
+            }
+          } catch (err) {
+            console.warn(`[lan-server] lookup tracks by yt_id fallo (no fatal): ${err?.message ?? err}`);
+          }
+
+          // 2. shared_audio (cache compartido + indice de todos los
+          //    archivos descargados de la app via backfill al arranque).
+          try {
+            const shared = findSharedAudio(db, ytId);
+            if (shared?.filePath && existsSync(shared.filePath)) {
+              console.log(`[lan-server] stream yt:${ytId} SHARED HIT ${Date.now() - tStart}ms`);
+              return serveLocalFile(req, res, shared.filePath);
+            }
+          } catch (err) {
+            console.warn(`[lan-server] findSharedAudio fallo (no fatal): ${err?.message ?? err}`);
+          }
+
+          // 3. Fallback: yt-dlp. Prioridad MAXIMA (10): el usuario YA
+          //    pulso play. Si hay otros prewarms encolados, este se
+          //    cuela al frente.
           const streamUrl = await resolveCached(ytId, 10);
           const tResolved = Date.now();
           console.log(
