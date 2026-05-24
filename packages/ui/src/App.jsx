@@ -30,6 +30,7 @@ import { usePlayerStore } from './stores/player.js';
 import { metaToCandidate } from './lib/track-helpers.js';
 import logotipoUrl from './assets/logotipo.png';
 import { useAuthStore } from './stores/auth.js';
+import { supabase } from './lib/supabase.js';
 import { useLibraryStore } from './stores/library.js';
 import { usePlaylistsStore } from './stores/playlists.js';
 import { useHistoryStore } from './stores/history.js';
@@ -160,6 +161,30 @@ export function App() {
   useEffect(() => {
     if (isDesktop) return;
     return startTunnelKeepalive();
+  }, []);
+
+  // Desktop: sincronizar al main process el JWT del usuario autenticado
+  // (Supabase access_token). Necesario para que publishToGlobalCache
+  // pueda autenticarse contra la Edge publish-stream-url, que valida con
+  // auth.getUser() y NO acepta el ANON_KEY.
+  //
+  // Push inicial al montar + suscripcion a onAuthStateChange (cubre login,
+  // refresh automatico cada hora, logout). Al logout enviamos null para
+  // que el main descarte el token (no publish hasta nueva sesion).
+  useEffect(() => {
+    if (!isDesktop) return;
+    const push = (token) => {
+      try {
+        window.ritmiq?.settings?.setSupabaseToken?.(token ?? null);
+      } catch {}
+    };
+    supabase.auth.getSession().then(({ data }) => {
+      push(data?.session?.access_token ?? null);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      push(session?.access_token ?? null);
+    });
+    return () => { try { sub?.subscription?.unsubscribe?.(); } catch {} };
   }, []);
 
   // T5: refresca la cookie cross-context cada vez que la PWA vuelve a ser

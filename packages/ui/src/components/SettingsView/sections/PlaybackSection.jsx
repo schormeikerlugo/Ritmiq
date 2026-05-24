@@ -308,8 +308,10 @@ function PublishStatsPanel({
 }) {
   // Estados criticos primero — un panel rojo es mas informativo que
   // un mensaje verde vacio.
-  const noEnv = stats && (!stats.hasUrl || !stats.hasToken);
-  const skipNoToken = stats?.skippedReason === 'no_token' || stats?.skippedReason === 'no_url';
+  const noEnv = stats && !stats.hasUrl;
+  const noSession = stats && !stats.hasSession;
+  const skipReason = stats?.skippedReason;
+  const skipConfig = skipReason === 'no_url' || skipReason === 'no_apikey';
 
   let tone = 'info';
   let icon = 'Info';
@@ -324,13 +326,18 @@ function PublishStatsPanel({
     icon = 'Pause';
     headline = 'Publicacion desactivada';
     detail = 'Activa el toggle para contribuir al cache global cuando resuelvas canciones.';
-  } else if (noEnv || skipNoToken) {
+  } else if (noEnv || skipConfig) {
     tone = 'err';
     icon = 'AlertTriangle';
     headline = 'Falta configuracion de Supabase';
-    detail = !stats.hasUrl
+    detail = skipReason === 'no_url' || !stats.hasUrl
       ? 'VITE_SUPABASE_URL no llego al proceso main. Revisa .env.production empaquetado.'
-      : 'No hay token de publicacion (RITMIQ_SUPABASE_PUBLISH_TOKEN, SUPABASE_ANON_KEY o VITE_SUPABASE_ANON_KEY). Las URLs no se publican.';
+      : 'No hay ANON_KEY del proyecto en el proceso main.';
+  } else if (noSession || skipReason === 'no_session') {
+    tone = 'err';
+    icon = 'AlertTriangle';
+    headline = 'Sin sesion de usuario';
+    detail = 'Inicia sesion en Ritmiq para que tu JWT autorice la publicacion. La Edge publish-stream-url solo acepta tokens de usuarios reales (anti-spam).';
   } else if (stats.successes > 0) {
     tone = 'ok';
     icon = 'CheckCircle2';
@@ -438,7 +445,7 @@ function PublishStatsPanel({
           {stats.skippedReason && (
             <span>skip: <b style={{ color: 'var(--color-warning, #fbbf24)' }}>{stats.skippedReason}</b></span>
           )}
-          <span>env: {stats.hasUrl ? '✓url' : '✗url'} {stats.hasToken ? '✓tok' : '✗tok'}</span>
+          <span>env: {stats.hasUrl ? '✓url' : '✗url'} {stats.hasSession ? '✓sesion' : '✗sesion'}</span>
         </div>
       )}
     </div>

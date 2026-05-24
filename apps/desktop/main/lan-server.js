@@ -90,18 +90,35 @@ const publishStats = {
   hasUrl: false,
 };
 
+/**
+ * JWT del usuario autenticado, sincronizado desde el renderer via IPC
+ * settings:setSupabaseToken cada vez que la sesion cambia.
+ *
+ * Necesario porque la Edge Function publish-stream-url valida con
+ * auth.getUser() — exige JWT de USUARIO real, no acepta el ANON_KEY.
+ * Antes el main intentaba publicar con ANON_KEY -> 401 invalid token.
+ *
+ * Null hasta que el renderer haga el primer push. El gate de publish
+ * lo trata como skippedReason: 'no_session'.
+ *
+ * @type {string|null}
+ */
+let supabaseUserJwt = null;
+
+/** Setter llamado desde IPC tras login/refresh/logout del renderer. */
+export function setSupabaseUserJwt(token) {
+  supabaseUserJwt = token && typeof token === 'string' ? token : null;
+}
+
 export function getPublishStats() {
   // Recalcula has* en cada llamada por si las envs se cargaron tarde.
   publishStats.hasUrl = !!(process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL);
-  publishStats.hasToken = !!(
-    process.env.RITMIQ_SUPABASE_PUBLISH_TOKEN
-    ?? process.env.SUPABASE_ANON_KEY
-    ?? process.env.VITE_SUPABASE_ANON_KEY
-  );
+  publishStats.hasToken = !!supabaseUserJwt;
   return {
     ...publishStats,
     toggleEnabled: publishUrlCacheEnabled(),
     streamCacheSize: streamCacheRef?.size ?? 0,
+    hasSession: !!supabaseUserJwt,
   };
 }
 
@@ -170,18 +187,19 @@ export function publishResolvedUrl(ytId, url, ttlMs = 30 * 60 * 1000) {
  * Publica una URL resuelta al cache global de Supabase.
  * Fire-and-forget: nunca propaga errores al caller.
  *
- * Cascada de TOKEN (en orden de preferencia):
- *   1. RITMIQ_SUPABASE_PUBLISH_TOKEN  — token dedicado (service_role o JWT custom)
- *   2. SUPABASE_ANON_KEY              — fallback sin prefijo (entornos Node)
- *   3. VITE_SUPABASE_ANON_KEY         — fallback con prefijo VITE_ (es lo que
- *                                       el monorepo expone en .env.production
- *                                       porque tambien lo consume el renderer).
+ * AUTENTICACION:
+ *   Edge Function publish-stream-url valida con `userClient.auth.getUser()`,
+ *   que solo acepta un JWT de USUARIO real autenticado contra Supabase Auth.
+ *   El ANON_KEY del proyecto NO sirve: la function lo rechaza con 401
+ *   "invalid token" (verificado live).
  *
- * El #3 era el bug latente desde el commit b0e4df3: el .env.production
- * solo declara VITE_SUPABASE_ANON_KEY (sin SUPABASE_ANON_KEY), por lo
- * que TOKEN quedaba vacio y la publicacion retornaba en silencio en
- * el guard de la linea 77 — la tabla stream_url_cache nunca recibio
- * un solo insert hasta este fix.
+ *   Por eso usamos `supabaseUserJwt`, sincronizado desde el renderer via
+ *   IPC settings:setSupabaseToken cada vez que la sesion cambia (login,
+ *   refresh automatico, logout). El header apikey lleva el ANON_KEY del
+ *   proyecto (necesario para que el reverse proxy de Supabase Functions
+ *   identifique el proyecto) y Authorization lleva el JWT del usuario.
+ *
+ *   Si no hay sesion, publishStats.skippedReason = 'no_session'.
  *
  * @param {string} ytId
  * @param {string} url
@@ -189,12 +207,13 @@ export function publishResolvedUrl(ytId, url, ttlMs = 30 * 60 * 1000) {
  */
 async function publishToGlobalCache(ytId, url, expiresAtMs) {
   const SUP = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
-  const TOKEN = process.env.RITMIQ_SUPABASE_PUBLISH_TOKEN
+  const ANON = process.env.VITE_SUPABASE_ANON_KEY
     ?? process.env.SUPABASE_ANON_KEY
-    ?? process.env.VITE_SUPABASE_ANON_KEY
     ?? '';
+  const USER_JWT = supabaseUserJwt;
   if (!SUP) { publishStats.skippedReason = 'no_url'; return; }
-  if (!TOKEN) { publishStats.skippedReason = 'no_token'; return; }
+  if (!ANON) { publishStats.skippedReason = 'no_apikey'; return; }
+  if (!USER_JWT) { publishStats.skippedReason = 'no_session'; return; }
   if (!ytId || !url || !expiresAtMs) return;
 
   publishStats.attempts++;
@@ -206,8 +225,14 @@ async function publishToGlobalCache(ytId, url, expiresAtMs) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${TOKEN}`,
-        apikey: TOKEN,
+        // Authorization: JWT del usuario logueado (Edge lo valida con
+        // auth.getUser para asociar el publish a un user real).
+        Authorization: `Bearer ${USER_JWT}`,
+        // apikey: el ANON_KEY del proyecto, necesario para que el gateway
+        // de Supabase Functions identifique el proyecto antes de rutear
+        // a la Edge. Sin esto, el proxy devuelve 401 antes incluso de
+        // ejecutar el codigo de la function.
+        apikey: ANON,
       },
       body: JSON.stringify({
         ytId,

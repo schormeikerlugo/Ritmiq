@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('ritmiq', {
   settings: {
     setPublishUrlCache: (enabled) => ipcRenderer.invoke('settings:setPublishUrlCache', enabled),
     getPublishStats: () => ipcRenderer.invoke('settings:getPublishStats'),
+    setSupabaseToken: (token) => ipcRenderer.invoke('settings:setSupabaseToken', token),
   },
   lan: {
     clearStreamCache: () => ipcRenderer.invoke('lan:clearStreamCache'),

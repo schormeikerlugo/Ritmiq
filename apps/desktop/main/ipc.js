@@ -163,6 +163,18 @@ export function registerIpc({ db, lan, accessToken }) {
     return null;
   });
 
+  // Recibe el JWT del usuario autenticado en Supabase (sincronizado por
+  // el renderer al login, al refresh automatico, y al logout con null).
+  // Sin esto el publish-stream-url Edge devuelve 401 invalid token
+  // porque exige user JWT real, no acepta ANON_KEY.
+  ipcMain.handle('settings:setSupabaseToken', async (_e, token) => {
+    const mod = await import('./lan-server.js');
+    if (typeof mod.setSupabaseUserJwt === 'function') {
+      mod.setSupabaseUserJwt(token);
+    }
+    return { ok: true, hasToken: !!token };
+  });
+
   // Invalida el cache local de URLs resueltas del LAN server. El usuario
   // lo dispara desde el panel del toggle "Compartir resoluciones" cuando
   // quiere ver el siguiente publish en vivo sin esperar 30min de TTL.
