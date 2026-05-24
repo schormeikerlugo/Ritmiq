@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "05-Core/audio-source.md",
+                "file": "10-Flujos/Recomendaciones.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "audio-source"
+              "title": "Recomendaciones"
             }
           }
         ]
@@ -186,6 +186,10 @@
   },
   "active": "ed620bd3e5b952e7",
   "lastOpenFiles": [
+    "10-Flujos/Push-Notifications.md",
+    "99-Mantenimiento/Como-actualizar-esta-doc.md",
+    "10-Flujos/Sincronizacion-Offline.md",
+    "05-Core/audio-source.md",
     "03-PWA/index.md",
     "03-PWA/apple-touch-startup.md",
     "03-PWA/sw-push.md",
@@ -212,10 +216,6 @@
     "02-Desktop/Main-Process/access-token.md",
     "02-Desktop/Renderer/main.md",
     "00-Index/MOC - PWA.md",
-    "00-Index/MOC - Ritmiq.md",
-    "00-Index/MOC - UI Compartida.md",
-    "10-Flujos/Sincronizacion-Offline.md",
-    "10-Flujos/Push-Notifications.md",
     "Sin título.canvas",
     "Sin título 1.canvas",
     "Sin título 2.canvas"

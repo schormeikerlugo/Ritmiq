@@ -225,54 +225,82 @@ function getLocalDate(timezone: string): string {
   }
 }
 
+/**
+ * Genera los mensajes de push ALINEADOS con los estados visuales del
+ * frontend (selectStreakState en packages/ui/src/lib/streak-state.js).
+ *
+ * Por hora local del slot:
+ *   - noon (12:00)   coincide con estado 'danger' en el frontend.
+ *                    Mensaje: "Te quedan ~12h para tu racha".
+ *   - evening (21:00) coincide con estado 'urgent' del frontend.
+ *                    Mensaje: "Quedan ~3h para salvar tu racha".
+ *
+ * Asi el user que abre el push ve EXACTAMENTE el mismo tono y numero
+ * de horas en la card del Home que en la notif. Coherencia narrativa.
+ */
 function buildMessage(slot: 'noon' | 'evening', streakDays: number): { title: string; body: string } {
+  const dayWord = streakDays === 1 ? 'dia' : 'dias';
+
   if (slot === 'evening') {
+    // Estado 'urgent' en el frontend: 18-23h. Quedan ~3h aprox.
     if (streakDays === 1) {
       return {
-        title: 'Tu primera racha en juego',
-        body:  'Escucha algo hoy para empezar a construirla.',
+        title: 'Quedan pocas horas',
+        body:  'Tu primera racha se apaga esta noche. Escucha algo ya.',
       };
     }
     if (streakDays < 7) {
       return {
-        title: `\u00bfVas a perder tu racha de ${streakDays} dias?`,
-        body:  'Pon un track antes de medianoche para mantenerla.',
+        title: `\u00a1Quedan ~3h para tu racha!`,
+        body:  `Salva tus ${streakDays} ${dayWord} antes de medianoche.`,
       };
     }
     if (streakDays < 30) {
       return {
-        title: `Tu racha de ${streakDays} dias esta en peligro`,
-        body:  'Solo unos minutos de musica para no romperla.',
+        title: `${streakDays} ${dayWord} en juego`,
+        body:  'Tu racha se apaga en pocas horas. Pon una cancion.',
+      };
+    }
+    if (streakDays < 100) {
+      return {
+        title: `\u26a0\ufe0f ${streakDays} ${dayWord} a punto de romperse`,
+        body:  'Una racha tan larga merece un ultimo track esta noche.',
       };
     }
     return {
-      title: `\u26a0\ufe0f ${streakDays} dias seguidos en juego`,
-      body:  'Una racha tan larga merece un ultimo track del dia.',
+      title: `${streakDays} ${dayWord} \u2014 no la pierdas`,
+      body:  'Quedan pocas horas. Una sola cancion la mantiene viva.',
     };
   }
 
-  // slot === 'noon' \u2014 motivacional, no urgente.
+  // slot === 'noon' \u2014 estado 'danger' en frontend: 12-18h. Quedan ~12h.
   if (streakDays === 1) {
     return {
-      title: 'Sigue tu racha',
-      body:  'Llevas 1 dia. \u00bfQue sonara hoy en Ritmiq?',
+      title: 'Mantén tu racha hoy',
+      body:  'Llevas 1 dia. Una cancion lo prolonga.',
     };
   }
   if (streakDays < 7) {
     return {
-      title: `Racha de ${streakDays} dias`,
-      body:  'Ven a por mas. Tu top diario te espera.',
+      title: `Te quedan unas horas`,
+      body:  `Mantén tu racha de ${streakDays} ${dayWord} con una cancion.`,
     };
   }
   if (streakDays < 30) {
     return {
-      title: `${streakDays} dias seguidos en Ritmiq`,
-      body:  '\u00bfQue artista nuevo descubrimos hoy?',
+      title: `Racha de ${streakDays} ${dayWord}`,
+      body:  '\u00bfQue suena hoy? Mantenla viva antes de medianoche.',
+    };
+  }
+  if (streakDays < 100) {
+    return {
+      title: `${streakDays} ${dayWord} seguidos`,
+      body:  'Tu racha sigue en pie. Una cancion la mantiene.',
     };
   }
   return {
-    title: `\ud83d\udd25 ${streakDays} dias \u2014 imparable`,
-    body:  'Otro dia de buena musica te espera.',
+    title: `\ud83d\udd25 ${streakDays} ${dayWord} \u2014 imparable`,
+    body:  'Mantén tu legado con cualquier cancion hoy.',
   };
 }
 

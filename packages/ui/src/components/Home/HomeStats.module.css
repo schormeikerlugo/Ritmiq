@@ -1,4 +1,4 @@
-/* HomeStats — grid 2-col responsive */
+/* HomeStats — grid 2-col responsive + racha estilo TikTok con estados horarios. */
 
 .grid {
   display: grid;
@@ -7,8 +7,6 @@
 }
 
 @media (max-width: 380px) {
-  /* Pantallas muy pequenas: una columna vertical para que el valor
-     siga siendo legible sin truncarse. */
   .grid { grid-template-columns: 1fr; }
 }
 
@@ -26,6 +24,8 @@
   text-align: left;
   font: inherit;
   color: inherit;
+  position: relative;
+  overflow: hidden;
   transition:
     background var(--dur-fast) var(--ease-standard),
     border-color var(--dur-fast) var(--ease-standard),
@@ -39,7 +39,7 @@
   transform: scale(0.985);
 }
 
-/* ── Icon wrap ────────────────────────────────────────────────────── */
+/* ── Icon wrap base ───────────────────────────────────────────────── */
 
 .iconWrap {
   width: 44px;
@@ -55,50 +55,322 @@
 
 .iconWrap[data-variant='hours'] {
   background: linear-gradient(135deg, rgba(90, 62, 255, 0.25), rgba(29, 185, 84, 0.15));
-  color: #c4b5fd;  /* lavender claro */
+  color: #c4b5fd;
 }
 
-/* Streak: el icono cambia color y animacion segun el tier */
-.iconWrap[data-variant='streak'][data-tier='zero'] {
+.flameCore {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  transform-origin: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ESTADOS DE LA RACHA — visual + animacion segun el "humor" del dia
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── INACTIVE: sin actividad ───────────────────────────────────────── */
+.iconWrap[data-variant='streak'][data-status='inactive'] {
   background: rgba(255, 255, 255, 0.05);
   color: rgba(255, 255, 255, 0.35);
 }
-.iconWrap[data-variant='streak'][data-tier='low'] {
-  background: linear-gradient(135deg, rgba(251, 146, 60, 0.25), rgba(245, 158, 11, 0.15));
-  color: #fdba74;  /* orange-300 */
-  animation: flame-flicker 3s ease-in-out infinite;
-}
-.iconWrap[data-variant='streak'][data-tier='mid'] {
-  background: linear-gradient(135deg, rgba(249, 115, 22, 0.35), rgba(239, 68, 68, 0.25));
-  color: #fb923c;  /* orange-400 */
-  box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.5);
-  animation: flame-flicker 1.6s ease-in-out infinite;
-}
-.iconWrap[data-variant='streak'][data-tier='hot'] {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.45), rgba(217, 70, 239, 0.3));
-  color: #f87171;  /* red-400 */
+
+/* ── FULFILLED: ya escucho hoy. Calida, viva, satisfecha. ─────────── */
+.iconWrap[data-variant='streak'][data-status='fulfilled'] {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.42), rgba(239, 68, 68, 0.28));
+  color: #fb923c;
   box-shadow:
-    0 0 0 0 rgba(239, 68, 68, 0.6),
-    0 4px 20px rgba(239, 68, 68, 0.25);
-  animation: flame-flicker 1.1s ease-in-out infinite;
+    0 0 0 0 rgba(249, 115, 22, 0.55),
+    0 4px 18px rgba(249, 115, 22, 0.18);
+}
+.iconWrap[data-variant='streak'][data-status='fulfilled'] .flameCore {
+  animation:
+    flame-bright 1.4s ease-in-out infinite,
+    flame-breathe 3.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(255, 160, 60, 0.55));
 }
 
-/* Animacion flicker: oscila scale ligero + rotacion sutil + box-shadow
-   pulse (cuando aplica). El timing del scale/rotate es desfasado del
-   pulse para sentirse mas organico. */
+/* ── CALM: hora < 12 sin play. Tono mas sobrio. ───────────────────── */
+.iconWrap[data-variant='streak'][data-status='calm'] {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(251, 146, 60, 0.18));
+  color: #fbbf66;
+}
+.iconWrap[data-variant='streak'][data-status='calm'] .flameCore {
+  animation: flame-calm 2.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 3px rgba(251, 191, 102, 0.5));
+}
+
+/* ── DANGER: 12-18 sin play. Halo azul + hue-rotate sutil + micro-jitter. */
+.iconWrap[data-variant='streak'][data-status='danger'] {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.32), rgba(96, 165, 250, 0.2));
+  color: #fcaa6e;
+}
+.iconWrap[data-variant='streak'][data-status='danger'] .flameCore {
+  animation:
+    flame-shiver 0.18s ease-in-out infinite alternate,
+    flame-cool-shift 1.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 3px rgba(255, 160, 80, 0.5));
+}
+.coldHalo {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(96, 165, 250, 0.4) 0%,
+    rgba(96, 165, 250, 0.15) 45%,
+    transparent 75%
+  );
+  filter: blur(4px);
+  pointer-events: none;
+  z-index: 1;
+  animation: cold-halo-breath 1.4s ease-in-out infinite;
+}
+
+/* ── URGENT: 18-23 sin play. Jitter aumentado + ceniza + ring rojo apagado. */
+.iconWrap[data-variant='streak'][data-status='urgent'] {
+  background: linear-gradient(135deg, rgba(220, 100, 50, 0.32), rgba(96, 145, 220, 0.22));
+  color: #f4946c;
+  box-shadow: 0 0 0 1px rgba(220, 70, 50, 0.35) inset;
+  animation: urgent-ring 1.1s ease-in-out infinite;
+}
+.iconWrap[data-variant='streak'][data-status='urgent'] .flameCore {
+  animation:
+    flame-anxious 0.14s ease-in-out infinite alternate,
+    flame-cool-shift 0.9s ease-in-out infinite;
+  filter: drop-shadow(0 0 3px rgba(255, 130, 70, 0.45));
+}
+.iconWrap[data-variant='streak'][data-status='urgent'] .coldHalo {
+  background: radial-gradient(
+    circle at center,
+    rgba(120, 150, 220, 0.4) 0%,
+    rgba(220, 80, 50, 0.18) 45%,
+    transparent 75%
+  );
+  animation: cold-halo-breath 1.0s ease-in-out infinite;
+}
+
+/* ── LAST-HOUR: 23-23:59. Flama apagandose. Scale 0.85, opacity 0.6. */
+.iconWrap[data-variant='streak'][data-status='last-hour'] {
+  background: linear-gradient(135deg, rgba(150, 90, 60, 0.32), rgba(80, 100, 130, 0.25));
+  color: #c89880;
+  box-shadow:
+    0 0 0 1px rgba(220, 70, 50, 0.5) inset,
+    0 0 18px rgba(220, 70, 50, 0.3);
+}
+.iconWrap[data-variant='streak'][data-status='last-hour'] .flameCore {
+  animation: flame-fading 2.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 2px rgba(180, 120, 80, 0.4));
+}
+
+/* ── BROKEN: racha perdida. Gris + humo continuo. ─────────────────── */
+.iconWrap[data-variant='streak'][data-status='broken'] {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(180, 180, 180, 0.5);
+}
+.iconWrap[data-variant='streak'][data-status='broken'] .flameCore {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   KEYFRAMES
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Flicker original (mantenido por si algun consumidor antiguo lo usa). */
 @keyframes flame-flicker {
-  0%   { transform: scale(1) rotate(0deg);    box-shadow: 0 0 0 0 var(--flame-glow, rgba(249, 115, 22, 0.45)); }
+  0%   { transform: scale(1) rotate(0deg); }
   35%  { transform: scale(1.08) rotate(-2deg); }
-  50%  { transform: scale(1.04) rotate(1deg); box-shadow: 0 0 0 8px rgba(249, 115, 22, 0); }
+  50%  { transform: scale(1.04) rotate(1deg); }
   65%  { transform: scale(1.1) rotate(-1deg); }
-  100% { transform: scale(1) rotate(0deg);    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+  100% { transform: scale(1) rotate(0deg); }
 }
 
-/* Respeta movimiento reducido: sin animacion (mantenemos color/glow base). */
-@media (prefers-reduced-motion: reduce) {
-  .iconWrap[data-variant='streak'] {
-    animation: none !important;
-  }
+/* Bright: flama llena y vivida (fulfilled). */
+@keyframes flame-bright {
+  0%, 100% { transform: scale(1) rotate(0deg);     filter: saturate(1) drop-shadow(0 0 4px rgba(255, 160, 60, 0.55)); }
+  35%      { transform: scale(1.07) rotate(-1.5deg); filter: saturate(1.15) drop-shadow(0 0 6px rgba(255, 160, 60, 0.7)); }
+  65%      { transform: scale(1.05) rotate(1deg);  filter: saturate(1.1) drop-shadow(0 0 5px rgba(255, 160, 60, 0.6)); }
+}
+/* Breathe lenta del fulfilled (cada 3.6s). */
+@keyframes flame-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.035); }
+}
+
+/* Calm: animacion lenta y suave (hora < 12 sin play). */
+@keyframes flame-calm {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50%      { transform: scale(1.04) rotate(-1deg); }
+}
+
+/* Shiver: micro-jitter horizontal continuo (danger). */
+@keyframes flame-shiver {
+  from { transform: translateX(-0.5px) scale(1); }
+  to   { transform: translateX(0.5px)  scale(1.02); }
+}
+
+/* Cool-shift: hue-rotate ciclico hacia azul y vuelta. */
+@keyframes flame-cool-shift {
+  0%, 100% { filter: hue-rotate(0deg)   drop-shadow(0 0 3px rgba(255, 160, 80, 0.5)); }
+  50%      { filter: hue-rotate(-25deg) drop-shadow(0 0 4px rgba(180, 200, 240, 0.45)); }
+}
+
+/* Anxious: jitter mas agresivo (urgent). */
+@keyframes flame-anxious {
+  from { transform: translateX(-1.5px) scale(1) rotate(-1deg); }
+  to   { transform: translateX(1.5px)  scale(1.04) rotate(1deg); }
+}
+
+/* Ring del urgent: outline rojo pulsante. */
+@keyframes urgent-ring {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(220, 70, 50, 0.35) inset; }
+  50%      { box-shadow: 0 0 0 2px rgba(240, 90, 60, 0.55) inset; }
+}
+
+/* Cold halo: respiracion del halo azul alrededor. */
+@keyframes cold-halo-breath {
+  0%, 100% { opacity: 0.6; transform: scale(0.9); }
+  50%      { opacity: 1;   transform: scale(1.2); }
+}
+
+/* Fading: flama se reduce y pierde opacidad (last-hour). */
+@keyframes flame-fading {
+  0%, 100% { transform: scale(0.85); opacity: 0.55; }
+  50%      { transform: scale(0.78); opacity: 0.4; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PARTICULAS — chispas duales, ceniza, humo, transicion floral
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Particulas duales danger/urgent: chispas calidas arriba + motas azules abajo. */
+.dualParticles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.sparkUp {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  width: 3px;
+  height: 5px;
+  margin-left: -1.5px;
+  border-radius: 60% 60% 70% 70% / 80% 80% 40% 40%;
+  background: hsl(28, 95%, 65%);
+  filter: drop-shadow(0 0 3px hsl(28, 95%, 55%));
+  opacity: 0;
+  animation: sparkUp 1500ms ease-out var(--delay, 0ms) infinite;
+}
+.coldDown {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 2.5px;
+  height: 2.5px;
+  margin-left: -1.25px;
+  border-radius: 50%;
+  background: rgba(160, 200, 240, 0.85);
+  filter: drop-shadow(0 0 3px rgba(120, 170, 230, 0.7));
+  opacity: 0;
+  animation: coldDown 1800ms ease-in var(--delay, 0ms) infinite;
+}
+@keyframes sparkUp {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.6); }
+  20%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x, 0), -28px) scale(0.3); }
+}
+@keyframes coldDown {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  20%  { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(var(--x, 0), 22px) scale(0.6); }
+}
+
+/* Cenizas urgent/last-hour: motas grises cayendo. */
+.ashLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.ash {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  width: 2.5px;
+  height: 2.5px;
+  margin-left: -1.25px;
+  border-radius: 50%;
+  background: rgba(180, 170, 160, 0.7);
+  opacity: 0;
+  animation: ashFall 1700ms ease-in var(--delay, 0ms) infinite;
+}
+@keyframes ashFall {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  25%  { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(var(--x, 0), 26px) scale(0.3); }
+}
+
+/* Humo last-hour/broken: humo subiendo continuo. */
+.smokeLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.smoke {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  border-radius: 50%;
+  background: rgba(180, 180, 180, 0.4);
+  opacity: 0;
+  filter: blur(3px);
+  animation: smokeRise 2400ms ease-out var(--delay, 0ms) infinite;
+}
+@keyframes smokeRise {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  20%  { opacity: 0.55; }
+  100% { opacity: 0; transform: translate(4px, -28px) scale(2); }
+}
+
+/* ── TRANSICION a fulfilled: chispas doradas radiales (720ms) ──────── */
+.card[data-transitioning='true'] .iconWrap {
+  animation: bloom-pulse 700ms ease-out both;
+}
+.bloomBurst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.bloomSpark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: #ffd166;
+  box-shadow: 0 0 6px #ffd166;
+  opacity: 0;
+  animation: bloomSpark 720ms ease-out var(--delay, 0ms) both;
+}
+@keyframes bloom-pulse {
+  0%   { transform: scale(0.92); filter: brightness(0.8); }
+  35%  { transform: scale(1.22); filter: brightness(1.4) saturate(1.3); }
+  100% { transform: scale(1);    filter: brightness(1)   saturate(1); }
+}
+@keyframes bloomSpark {
+  0%   { opacity: 0; transform: rotate(var(--angle)) translateX(0) scale(0.4); }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--angle)) translateX(26px) scale(1); }
 }
 
 /* ── Body / textos ────────────────────────────────────────────────── */
@@ -109,6 +381,8 @@
   gap: 1px;
   min-width: 0;
   flex: 1;
+  position: relative;
+  z-index: 2;
 }
 
 .label {
@@ -120,6 +394,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.card[data-status='danger'] .label,
+.card[data-status='urgent'] .label,
+.card[data-status='last-hour'] .label {
+  color: #f4a87f;
+}
+.card[data-status='broken'] .label {
+  color: rgba(200, 200, 200, 0.55);
 }
 
 .value {
@@ -143,8 +425,58 @@
   margin-top: 1px;
 }
 
-/* Card en tier hot (racha de 7+ dias) — borde sutil para reforzar */
-.card[data-variant='streak'][data-tier='hot'] {
-  border-color: rgba(239, 68, 68, 0.25);
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05), rgba(255, 255, 255, 0.03));
+/* Countdown digital MM:SS (last-hour) */
+.countdown {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ff8a6c;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 6px rgba(255, 100, 70, 0.4);
+  animation: countdown-pulse 1s ease-in-out infinite;
+}
+@keyframes countdown-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.75; }
+}
+
+/* ── Card borders por status para reforzar mood ───────────────────── */
+.card[data-variant='streak'][data-status='fulfilled'] {
+  border-color: rgba(249, 115, 22, 0.22);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.06), rgba(255, 255, 255, 0.03));
+}
+.card[data-variant='streak'][data-status='danger'] {
+  border-color: rgba(120, 160, 220, 0.18);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.04), rgba(96, 165, 250, 0.05));
+}
+.card[data-variant='streak'][data-status='urgent'] {
+  border-color: rgba(220, 90, 60, 0.3);
+  background: linear-gradient(135deg, rgba(220, 90, 60, 0.05), rgba(96, 145, 220, 0.05));
+}
+.card[data-variant='streak'][data-status='last-hour'] {
+  border-color: rgba(220, 80, 50, 0.45);
+  background: linear-gradient(135deg, rgba(220, 80, 50, 0.07), rgba(60, 80, 110, 0.06));
+  box-shadow: 0 0 20px rgba(220, 80, 50, 0.18);
+}
+.card[data-variant='streak'][data-status='broken'] {
+  border-color: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .iconWrap[data-variant='streak'],
+  .iconWrap[data-variant='streak'] .flameCore,
+  .coldHalo,
+  .sparkUp,
+  .coldDown,
+  .ash,
+  .smoke,
+  .bloomSpark,
+  .countdown {
+    animation: none !important;
+  }
+  .dualParticles, .ashLayer, .smokeLayer, .bloomBurst { display: none; }
+  /* Mantenemos colores e iconos para que el estado siga siendo claro. */
 }

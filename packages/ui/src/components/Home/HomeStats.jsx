@@ -3,21 +3,29 @@
  *
  * Dos cards horizontales:
  *   1. Horas escuchadas en el ultimo mes (Headphones icon).
- *   2. Dias de racha consecutivos (Flame icon, animado).
+ *   2. Racha estilo TikTok con estados horarios (Flame icon animado).
  *
- * Reutiliza selectStatsForPeriod del store de history (sin duplicar
- * logica). Click en cualquier card navega a la vista de Stats completa.
+ * Estados de la racha (selectStreakState):
+ *   - inactive     gris, sin animacion (mensaje "Empieza tu racha")
+ *   - fulfilled    naranja vivo, pulse calido (ya escucho hoy)
+ *   - calm         naranja-amarillo, mensaje suave (hora < 12 sin play)
+ *   - danger       halo azul + jitter (12-18 sin play)
+ *   - urgent       jitter aumentado + ceniza cayendo (18-23 sin play)
+ *   - last-hour    flama apagandose + countdown MM:SS (23-23:59)
+ *   - broken       gris + humo, mensaje "empieza de nuevo"
  *
- * Si el usuario no tiene historial todavia (totalMinutes === 0 &&
- * streak === 0), el componente no se renderiza — evita mostrar zeros
- * desmoralizantes en cuentas nuevas.
+ * Transicion a fulfilled: cuando snapshot.lastPlayedDate cambia a hoy
+ * y el estado anterior NO era fulfilled, disparamos animacion de 700ms
+ * con chispas doradas (flame-flora keyframe).
  *
  * @module @ritmiq/ui/components/Home/HomeStats
  */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useHistoryStore, selectStatsForPeriod } from '../../stores/history.js';
 import { useViewStore } from '../../stores/view.js';
+import { selectStreakState } from '../../lib/streak-state.js';
+import { useStreakTick } from '../../lib/use-streak-tick.js';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './HomeStats.module.css';
 
@@ -31,17 +39,19 @@ export function HomeStats() {
     [events, streakSnapshot],
   );
 
-  const totalMinutes  = stats.totalMinutes ?? 0;
-  const streak        = stats.streak ?? 0;
-  const longestStreak = stats.longestStreak ?? 0;
+  const totalMinutes = stats.totalMinutes ?? 0;
 
-  // No mostrar las cards si el usuario aun no tiene actividad.
-  if (totalMinutes === 0 && streak === 0 && longestStreak === 0) return null;
+  // No mostrar nada si el user nunca tuvo actividad ni record historico.
+  const longestStreak = streakSnapshot?.longestStreak ?? stats.longestStreak ?? 0;
+  const currentStreak = streakSnapshot?.currentStreak ?? stats.streak ?? 0;
+  if (totalMinutes === 0 && currentStreak === 0 && longestStreak === 0) {
+    return null;
+  }
 
   return (
     <div className={styles.grid}>
       <HoursCard minutes={totalMinutes} onClick={goStats} />
-      <StreakCard streak={streak} longestStreak={longestStreak} onClick={goStats} />
+      <StreakCard onClick={goStats} />
     </div>
   );
 }
@@ -52,9 +62,8 @@ function HoursCard({ minutes, onClick }) {
   const hours = Math.floor(minutes / 60);
   const remainingMin = minutes % 60;
 
-  // Valor principal: prefiere horas si >= 1, sino minutos.
   const mainValue = hours >= 1 ? hours : minutes;
-  const mainUnit  = hours >= 1 ? (hours === 1 ? 'hora' : 'horas') : (minutes === 1 ? 'minuto' : 'minutos');
+  const mainUnit = hours >= 1 ? (hours === 1 ? 'hora' : 'horas') : (minutes === 1 ? 'minuto' : 'minutos');
 
   return (
     <button
@@ -75,69 +84,135 @@ function HoursCard({ minutes, onClick }) {
         {hours >= 1 && remainingMin > 0 && (
           <span className={styles.subValue}>y {remainingMin} min</span>
         )}
-        {hours === 0 && (
-          <span className={styles.subValue}>de musica</span>
-        )}
+        {hours === 0 && <span className={styles.subValue}>de musica</span>}
       </div>
     </button>
   );
 }
 
-// ── Card: Racha ────────────────────────────────────────────────────────
+// ── Card: Racha (TikTok-style con estados horarios) ───────────────────
 
-function StreakCard({ streak, longestStreak = 0, onClick }) {
-  // Tier de intensidad: ajusta el visual segun la racha.
-  // 0     → gris, sin animacion (mensaje "Empieza tu racha")
-  // 1-2   → naranja base, animacion lenta
-  // 3-6   → naranja-rojo, animacion normal
-  // 7+    → rojo intenso, glow grande, animacion rapida
-  let tier = 'zero';
-  if (streak >= 7)      tier = 'hot';
-  else if (streak >= 3) tier = 'mid';
-  else if (streak >= 1) tier = 'low';
+function StreakCard({ onClick }) {
+  const streakSnapshot = useHistoryStore((s) => s.streakSnapshot);
+  const events = useHistoryStore((s) => s.events);
 
-  // Detectar empate con record historico (igualando record).
-  // Si current === longest Y longest >= 3, lo marcamos visualmente.
-  const matchingRecord = streak > 0 && streak === longestStreak && longestStreak >= 3;
-  // Hay record historico mayor que la racha actual.
-  const hasHigherRecord = longestStreak > streak && longestStreak >= 3;
+  // Fallback local desde events si snapshot todavia no cargado.
+  const fallbackStreak = useMemo(() => {
+    const s = selectStatsForPeriod(events, { days: 30 });
+    return s.streak ?? 0;
+  }, [events]);
 
-  const label = (() => {
-    if (streak === 0 && longestStreak === 0) return 'Empieza tu racha hoy';
-    if (streak === 0 && longestStreak > 0) return 'Recupera tu racha';
-    if (matchingRecord) return '¡Igualas tu récord!';
-    if (streak === 1) return '¡Primer día!';
-    if (streak === 2) return 'Sigue así';
-    if (streak >= 7)  return 'En racha';
-    return 'En racha';
-  })();
+  // Calculo en cada render — useStreakTick fuerza re-renders cada 60s
+  // (o 1s en last-hour) para que el estado cruce los umbrales horarios
+  // sin que el user toque nada. No usamos useMemo porque la fecha
+  // implicita (new Date()) cambia entre renders y necesitamos esa
+  // frescura para selectStreakState.
+  const liveState = selectStreakState({ streakSnapshot, fallbackStreak });
+  useStreakTick(liveState.status);
+
+  // Transicion a fulfilled cuando viene de otro estado.
+  const prevStatusRef = useRef(liveState.status);
+  const [transitioning, setTransitioning] = useState(false);
+
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    const next = liveState.status;
+    if (prev !== 'fulfilled' && next === 'fulfilled' && prev !== undefined) {
+      setTransitioning(true);
+      const id = setTimeout(() => setTransitioning(false), 720);
+      prevStatusRef.current = next;
+      return () => clearTimeout(id);
+    }
+    prevStatusRef.current = next;
+    return undefined;
+  }, [liveState.status]);
+
+  const status = liveState.status;
+  const showDualParticles = status === 'danger' || status === 'urgent';
+  const showAshFall = status === 'urgent' || status === 'last-hour';
+  const showSmoke = status === 'last-hour' || status === 'broken';
+  const showCountdown = status === 'last-hour' && liveState.countdown;
 
   return (
     <button
       type="button"
       className={styles.card}
       data-variant="streak"
-      data-tier={tier}
+      data-status={status}
+      data-transitioning={transitioning ? 'true' : undefined}
       onClick={onClick}
-      aria-label={`Racha de ${streak} ${streak === 1 ? 'día' : 'días'}${longestStreak > 0 ? `. Récord: ${longestStreak}` : ''}`}
+      aria-label={`Racha: ${liveState.label}. ${liveState.subLabel}`}
     >
-      <div className={styles.iconWrap} data-variant="streak" data-tier={tier}>
-        <Icon name="Flame" size={20} filled={streak >= 1} />
+      <div className={styles.iconWrap} data-variant="streak" data-status={status}>
+        {/* Halo azul-frio para danger/urgent */}
+        {(status === 'danger' || status === 'urgent') && (
+          <span className={styles.coldHalo} aria-hidden="true" />
+        )}
+
+        {/* Flama principal */}
+        <span className={styles.flameCore} aria-hidden="true">
+          <Icon name="Flame" size={20} filled={liveState.currentStreak >= 1} />
+        </span>
+
+        {/* Humo (last-hour / broken) */}
+        {showSmoke && (
+          <span className={styles.smokeLayer} aria-hidden="true">
+            <span className={styles.smoke} style={{ '--delay': '0ms' }} />
+            <span className={styles.smoke} style={{ '--delay': '350ms' }} />
+            <span className={styles.smoke} style={{ '--delay': '700ms' }} />
+          </span>
+        )}
+
+        {/* Particulas duales para danger/urgent: chispas arriba + motas azules abajo */}
+        {showDualParticles && (
+          <span className={styles.dualParticles} aria-hidden="true">
+            <span className={styles.sparkUp} style={{ '--delay': '0ms', '--x': '-6px' }} />
+            <span className={styles.sparkUp} style={{ '--delay': '300ms', '--x': '4px' }} />
+            <span className={styles.sparkUp} style={{ '--delay': '600ms', '--x': '-2px' }} />
+            <span className={styles.coldDown} style={{ '--delay': '150ms', '--x': '-5px' }} />
+            <span className={styles.coldDown} style={{ '--delay': '500ms', '--x': '6px' }} />
+          </span>
+        )}
+
+        {/* Cenizas cayendo (urgent / last-hour) */}
+        {showAshFall && (
+          <span className={styles.ashLayer} aria-hidden="true">
+            <span className={styles.ash} style={{ '--delay': '0ms', '--x': '-4px' }} />
+            <span className={styles.ash} style={{ '--delay': '400ms', '--x': '5px' }} />
+            <span className={styles.ash} style={{ '--delay': '800ms', '--x': '-2px' }} />
+          </span>
+        )}
+
+        {/* Chispas doradas de transicion a fulfilled */}
+        {transitioning && (
+          <span className={styles.bloomBurst} aria-hidden="true">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <span
+                key={i}
+                className={styles.bloomSpark}
+                style={{
+                  '--angle': `${(i * 60)}deg`,
+                  '--delay': `${i * 40}ms`,
+                }}
+              />
+            ))}
+          </span>
+        )}
       </div>
+
       <div className={styles.cardBody}>
-        <span className={styles.label}>{label}</span>
+        <span className={styles.label}>{liveState.label}</span>
         <span className={styles.value}>
-          {streak} <span className={styles.unit}>
-            {streak === 1 ? 'día' : 'días'}
+          {liveState.currentStreak} <span className={styles.unit}>
+            {liveState.currentStreak === 1 ? 'día' : 'días'}
           </span>
         </span>
-        {hasHigherRecord && (
-          <span className={styles.subValue}>récord: {longestStreak}</span>
-        )}
-        {!hasHigherRecord && streak >= 1 && (
-          <span className={styles.subValue}>
-            {matchingRecord ? '¡tu mejor racha!' : 'consecutivos'}
+        {showCountdown ? (
+          <span className={styles.countdown} aria-live="polite">
+            {liveState.countdown}
           </span>
+        ) : (
+          <span className={styles.subValue}>{liveState.subLabel}</span>
         )}
       </div>
     </button>
