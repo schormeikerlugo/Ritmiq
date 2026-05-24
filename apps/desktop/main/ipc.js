@@ -11,6 +11,7 @@ import { pipeline } from 'node:stream/promises';
 import { createWriteStream } from 'node:fs';
 import { getMetadata, downloadAudio, getStreamUrl, search } from '@ritmiq/yt/ytdlp';
 import { translateYtdlpError } from '@ritmiq/yt';
+import { cleanYoutubeTitle, cleanUploader } from '@ritmiq/core';
 import {
   upsertTrack, listTracks,
   registerSharedAudio, sharedAudioStats, clearSharedAudio,
@@ -33,6 +34,34 @@ const ID_RE = /^[\w-]{11}$/;
 
 function isYoutubeRef(s) {
   return YT_RE.test(s) || ID_RE.test(s);
+}
+
+/**
+ * Aplica la utility de cleaning canonica al meta antes de pasarlo a
+ * persistTrack. NO muta el original — devuelve un objeto nuevo con
+ * `title` y `uploader` (o `artist`) limpios.
+ *
+ * Idempotente: si ya viene limpio, no cambia nada.
+ *
+ * Ver packages/core/src/clean-track-meta/ para los patrones aplicados.
+ *
+ * @param {object} meta  Forma cruda: { id, title, uploader, artist?,
+ *                                       duration, thumbnail, album?, ... }
+ * @returns {object} Mismo shape con title/uploader/artist normalizados.
+ */
+function cleanMetaInPlace(meta) {
+  if (!meta || typeof meta !== 'object') return meta;
+  const rawTitle = meta.title ?? '';
+  const rawUploader = meta.uploader ?? meta.artist ?? null;
+  const cleaned = cleanYoutubeTitle({ rawTitle, rawUploader });
+  return {
+    ...meta,
+    title: cleaned.title || rawTitle,
+    uploader: cleaned.artist ?? cleanUploader(rawUploader) ?? rawUploader,
+    // Si tenemos un meta.artist explicito de fuente confiable (ej.
+    // Spotify), lo respetamos por encima de la heuristica.
+    artist: meta.artist ?? cleaned.artist ?? cleanUploader(rawUploader) ?? rawUploader,
+  };
 }
 
 /**
@@ -309,13 +338,19 @@ export function registerIpc({ db, lan, accessToken }) {
   ipcMain.handle('library:addFromYoutube', async (_e, payload) => {
     const { idOrUrl, userId } = payload;
     const meta = await getMetadata(idOrUrl, ytOpts);
-    return persistTrack(db, meta, userId);
+    // Limpieza canonica antes de persistir: cubre el caso de pegar URL
+    // de YouTube directo (no pasa por Edge search-youtube). Ver
+    // packages/core/src/clean-track-meta/.
+    return persistTrack(db, cleanMetaInPlace(meta), userId);
   });
 
   // Añadir a partir de un resultado de búsqueda (ya tenemos metadata, sin re-fetch).
   ipcMain.handle('library:addFromMetadata', async (_e, payload) => {
     const { meta, userId } = payload;
-    return persistTrack(db, meta, userId);
+    // El meta puede venir ya limpio de Edge search-youtube, pero
+    // aplicamos la utility otra vez por idempotencia (es no-op si ya
+    // esta limpio) y para defender ante caches viejos del PWA.
+    return persistTrack(db, cleanMetaInPlace(meta), userId);
   });
 
   ipcMain.handle('library:syncRemote', (_e, track) => syncRemoteTrack(db, track));

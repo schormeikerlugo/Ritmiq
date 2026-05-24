@@ -13,6 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { cleanYoutubeTitle, cleanUploader } from '../_shared/clean-track-meta.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -130,13 +131,21 @@ function extractItems(data: any) {
       if (it?.videoRenderer) {
         const v = it.videoRenderer;
         if (!v.videoId) continue;
-        videos.push({
-          id: v.videoId,
-          title: v.title?.runs?.[0]?.text ?? v.title?.simpleText ?? '',
-          uploader:
+        const rawTitle = v.title?.runs?.[0]?.text ?? v.title?.simpleText ?? '';
+        const rawUploader =
             v.ownerText?.runs?.[0]?.text ??
             v.longBylineText?.runs?.[0]?.text ??
-            null,
+            null;
+        // Limpieza canonica en la RAIZ: ningun cliente recibe nunca
+        // mas un title como "Waiting For The End (Official Music Video)
+        // [4K Upgrade]". Si la heuristica detecta un canal generico
+        // (VEVO, Records, etc) tambien separa "Artist - Title" en sus
+        // campos correctos. Ver supabase/functions/_shared/clean-track-meta.ts.
+        const cleaned = cleanYoutubeTitle({ rawTitle, rawUploader });
+        videos.push({
+          id: v.videoId,
+          title: cleaned.title || rawTitle,    // fallback si cleanup dejo vacio
+          uploader: cleaned.artist ?? cleanUploader(rawUploader) ?? rawUploader,
           duration: parseDuration(
             v.lengthText?.simpleText ?? v.lengthText?.runs?.[0]?.text ?? null
           ),

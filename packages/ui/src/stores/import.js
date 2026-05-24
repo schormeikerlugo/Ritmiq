@@ -3,6 +3,7 @@ import { lanSpotifyPlaylist } from '../lib/lan-client.js';
 import { api, isDesktop } from '../lib/api.js';
 import { supabase } from '../lib/supabase.js';
 import { randomId } from '../lib/id.js';
+import { cleanYoutubeTitle } from '@ritmiq/core';
 import { usePlaylistsStore } from './playlists.js';
 import { useLibraryStore } from './library.js';
 
@@ -92,8 +93,11 @@ export const useImportStore = create((set, get) => ({
     /**
      * Persiste un track en Supabase de forma idempotente. Devuelve el track.id.
      * Mutex por yt_id para que workers paralelos compartan la misma promesa.
+     *
+     * @param {object} best  Resultado de YouTube (id, title, uploader, ...)
+     * @param {object} item  Item original de Spotify con artist + album CONFIABLES
      */
-    async function persistByYtId(best) {
+    async function persistByYtId(best, item) {
       const ytId = best.id;
 
       const cached = persistInflight.get(ytId);
@@ -117,15 +121,29 @@ export const useImportStore = create((set, get) => ({
         }
 
         // 2. Insertar nuevo (con id propio para evitar tener que SELECT después).
+        //
+        // PRIORIZAR datos de Spotify (item.artist, item.album) sobre los
+        // de YouTube (best.uploader): Spotify es la fuente autoritativa
+        // del playlist importado. El title se LIMPIA con la utility para
+        // remover markers de YouTube ("Official Music Video", etc).
+        //
+        // Ver packages/core/src/clean-track-meta/.
+        const cleaned = cleanYoutubeTitle({
+          rawTitle: best.title,
+          rawUploader: best.uploader,
+        });
         const newId = randomId();
         const row = {
           id: newId,
           user_id: userId,
           source: 'youtube',
           yt_id: ytId,
-          title: best.title,
-          artist: best.uploader ?? null,
-          album: null,
+          title: cleaned.title || best.title,
+          // Spotify gana sobre uploader de YouTube (que suele ser "X - Topic"
+          // o el nombre del sello). Solo si Spotify no nos lo da, caemos
+          // a la heuristica de cleaning.
+          artist: item?.artist ?? cleaned.artist ?? best.uploader ?? null,
+          album: item?.album ?? null,
           duration_seconds: best.duration ?? null,
           cover_url: best.thumbnail ?? null,
           is_downloaded: false,
@@ -199,8 +217,9 @@ export const useImportStore = create((set, get) => ({
 
           updateItem(idx, { status: 'matched', ytId: best.id });
 
-          // Persistir track (idempotente, con mutex por yt_id).
-          const trackId = await persistByYtId(best);
+          // Persistir track (idempotente, con mutex por yt_id). Pasamos
+          // item para que tenga acceso al artist + album confiables de Spotify.
+          const trackId = await persistByYtId(best, item);
 
           // Añadir a la playlist. Tolerante a duplicados (race entre workers).
           const { error: pteErr } = await supabase

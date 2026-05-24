@@ -9,6 +9,7 @@ import { supabase } from './supabase.js';
 import { lanSearch, lanMetadata, getLanBaseUrlSync, getTunnelUrlSync } from './lan-client.js';
 import { randomId } from './id.js';
 import { rewriteHost } from './url-rewrite.js';
+import { cleanYoutubeTitle, cleanUploader } from '@ritmiq/core';
 import {
   downloadTrackToLocal, removeLocal, getLocalSize,
 } from './local-downloads.js';
@@ -329,13 +330,23 @@ async function persistFromMeta(meta, userId) {
     return rowToTrack(existing);
   }
 
+  // Limpieza canonica antes de persistir. Si meta.artist viene explicito
+  // (fuente confiable: Spotify, Last.fm), respetamos ese valor por
+  // encima de la heuristica. Ver packages/core/src/clean-track-meta/.
+  const cleaned = cleanYoutubeTitle({
+    rawTitle: meta.title,
+    rawUploader: meta.uploader ?? meta.artist,
+  });
+  const finalTitle = cleaned.title || meta.title;
+  const finalArtist = meta.artist ?? cleaned.artist ?? cleanUploader(meta.uploader) ?? meta.uploader ?? null;
+
   const row = {
     id: randomId(),
     user_id: userId,
     source: 'youtube',
     yt_id: meta.id,
-    title: meta.title,
-    artist: meta.artist ?? meta.uploader ?? null,
+    title: finalTitle,
+    artist: finalArtist,
     album: meta.album ?? null,
     duration_seconds: meta.duration ?? null,
     cover_url: meta.thumbnail ?? null,

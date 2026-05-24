@@ -18,6 +18,7 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { cleanYoutubeTitle } from '../_shared/clean-track-meta.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -99,8 +100,8 @@ serve(async (req) => {
   }
 
   const ytId = clean(body.ytId, 32);
-  const title = clean(body.title, 500);
-  const artist = clean(body.artist, 500);
+  const rawTitle = clean(body.title, 500);
+  const rawArtist = clean(body.artist, 500);
   const album = clean(body.album, 500);
   const coverUrl = clean(body.coverUrl, 1000);
   const durationSeconds = typeof body.durationSeconds === 'number'
@@ -113,8 +114,17 @@ serve(async (req) => {
   if (!ytId || !/^[\w-]{11}$/.test(ytId)) {
     return json({ error: 'invalid ytId' }, 400);
   }
-  if (!title) return json({ error: 'invalid title' }, 400);
-  if (!artist) return json({ error: 'invalid artist' }, 400);
+  if (!rawTitle) return json({ error: 'invalid title' }, 400);
+  if (!rawArtist) return json({ error: 'invalid artist' }, 400);
+
+  // DEFENSA EN PROFUNDIDAD: incluso si el cliente envia title/artist
+  // sucios (ej. desktop legacy, o publishTrackMetaFromMain que lee de
+  // SQLite con datos previos al fix de cleaning), normalizamos antes
+  // de canonizar. Es idempotente: si ya viene limpio, no cambia nada.
+  // Ver supabase/functions/_shared/clean-track-meta.ts.
+  const cleaned = cleanYoutubeTitle({ rawTitle, rawUploader: rawArtist });
+  const title = cleaned.title || rawTitle;
+  const artist = cleaned.artist || rawArtist;
 
   // UPSERT canonicalizante: la primera contribucion define los campos,
   // las subsecuentes solo incrementan counter y refrescan last_seen_at.
