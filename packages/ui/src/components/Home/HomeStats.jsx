@@ -74,7 +74,17 @@ function HoursCard({ minutes, onClick }) {
       aria-label={`${mainValue} ${mainUnit} escuchadas este mes`}
     >
       <div className={styles.iconWrap} data-variant="hours">
-        <Icon name="Headphones" size={20} />
+        {/* Halo violeta-verde palpitante detras del icono */}
+        <span className={styles.hoursHalo} aria-hidden="true" />
+        {/* Notas musicales flotando alrededor */}
+        <span className={styles.notesLayer} aria-hidden="true">
+          <span className={styles.note} style={{ '--delay': '0ms', '--x': '-14px', '--y': '-18px' }}>♪</span>
+          <span className={styles.note} style={{ '--delay': '900ms', '--x': '14px', '--y': '-12px' }}>♫</span>
+          <span className={styles.note} style={{ '--delay': '1800ms', '--x': '-8px', '--y': '-22px' }}>♪</span>
+        </span>
+        <span className={styles.hoursIcon}>
+          <Icon name="Headphones" size={20} />
+        </span>
       </div>
       <div className={styles.cardBody}>
         <span className={styles.label}>Este mes</span>
@@ -132,6 +142,12 @@ function StreakCard({ onClick }) {
   const showAshFall = status === 'urgent' || status === 'last-hour';
   const showSmoke = status === 'last-hour' || status === 'broken';
   const showCountdown = status === 'last-hour' && liveState.countdown;
+  // Estados "calidos" con chispas subiendo: fulfilled (vivo) y calm (sereno).
+  const showWarmSparks = status === 'fulfilled' || status === 'calm';
+  // Estado inactivo: motas tenues parpadeando alrededor.
+  const showIdleDust = status === 'inactive';
+  // Estado broken: ceniza gris cayendo + humo (humo ya esta arriba).
+  const showBrokenAsh = status === 'broken';
 
   return (
     <button
@@ -160,6 +176,35 @@ function StreakCard({ onClick }) {
             <span className={styles.smoke} style={{ '--delay': '0ms' }} />
             <span className={styles.smoke} style={{ '--delay': '350ms' }} />
             <span className={styles.smoke} style={{ '--delay': '700ms' }} />
+          </span>
+        )}
+
+        {/* Chispas calidas: fulfilled (doradas vivas) / calm (suaves) */}
+        {showWarmSparks && (
+          <span className={styles.warmSparksLayer} aria-hidden="true">
+            <span className={styles.warmSpark} style={{ '--delay': '0ms', '--x': '-6px' }} />
+            <span className={styles.warmSpark} style={{ '--delay': '500ms', '--x': '5px' }} />
+            <span className={styles.warmSpark} style={{ '--delay': '1000ms', '--x': '-2px' }} />
+            <span className={styles.warmSpark} style={{ '--delay': '1500ms', '--x': '6px' }} />
+          </span>
+        )}
+
+        {/* Motas tenues parpadeando para estado inactivo */}
+        {showIdleDust && (
+          <span className={styles.idleDustLayer} aria-hidden="true">
+            <span className={styles.idleDust} style={{ '--delay': '0ms', '--x': '-10px', '--y': '-8px' }} />
+            <span className={styles.idleDust} style={{ '--delay': '700ms', '--x': '10px', '--y': '-6px' }} />
+            <span className={styles.idleDust} style={{ '--delay': '1400ms', '--x': '-4px', '--y': '8px' }} />
+            <span className={styles.idleDust} style={{ '--delay': '2100ms', '--x': '8px', '--y': '6px' }} />
+          </span>
+        )}
+
+        {/* Ceniza para racha rota (broken) */}
+        {showBrokenAsh && (
+          <span className={styles.brokenAshLayer} aria-hidden="true">
+            <span className={styles.brokenAsh} style={{ '--delay': '0ms', '--x': '-5px' }} />
+            <span className={styles.brokenAsh} style={{ '--delay': '900ms', '--x': '4px' }} />
+            <span className={styles.brokenAsh} style={{ '--delay': '1800ms', '--x': '-2px' }} />
           </span>
         )}
 

@@ -25,7 +25,11 @@
   font: inherit;
   color: inherit;
   position: relative;
-  overflow: hidden;
+  /* overflow visible permite que las particulas del icono respiren un
+     poco fuera del icono (notas musicales subiendo, chispas, humo).
+     El recorte visual lo da el border-radius via clip de hijos cuando
+     lo necesitamos puntualmente. */
+  overflow: visible;
   transition:
     background var(--dur-fast) var(--ease-standard),
     border-color var(--dur-fast) var(--ease-standard),
@@ -479,4 +483,176 @@
   }
   .dualParticles, .ashLayer, .smokeLayer, .bloomBurst { display: none; }
   /* Mantenemos colores e iconos para que el estado siga siendo claro. */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PARTICULAS NUEVAS — calidas (fulfilled/calm), tenues (inactive),
+   ceniza broken, notas hours
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Chispas calidas: fulfilled (doradas vivas) + calm (suaves) ─────── */
+.warmSparksLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.warmSpark {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  width: 3px;
+  height: 5px;
+  margin-left: -1.5px;
+  border-radius: 60% 60% 70% 70% / 80% 80% 40% 40%;
+  background: hsl(35, 100%, 65%);
+  filter: drop-shadow(0 0 4px hsl(28, 100%, 60%));
+  opacity: 0;
+  animation: warmSparkRise 2000ms ease-out var(--delay, 0ms) infinite;
+}
+/* En fulfilled: chispas mas doradas y luminosas. */
+.iconWrap[data-status='fulfilled'] ~ * .warmSpark,
+.card[data-status='fulfilled'] .warmSpark {
+  background: hsl(40, 100%, 68%);
+  filter: drop-shadow(0 0 6px hsl(35, 100%, 60%));
+}
+/* En calm: chispas mas tenues y amarillas. */
+.card[data-status='calm'] .warmSpark {
+  background: hsl(42, 85%, 65%);
+  filter: drop-shadow(0 0 3px hsl(40, 75%, 55%));
+  opacity: 0;
+  animation-duration: 2600ms;
+}
+@keyframes warmSparkRise {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  18%  { opacity: 1; }
+  85%  { opacity: 0.7; }
+  100% { opacity: 0; transform: translate(var(--x, 0), -30px) scale(0.2); }
+}
+
+/* ── Motas tenues parpadeando: estado inactivo ─────────────────────── */
+.idleDustLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.idleDust {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2.5px;
+  height: 2.5px;
+  margin: -1.25px 0 0 -1.25px;
+  border-radius: 50%;
+  background: rgba(220, 220, 220, 0.55);
+  filter: drop-shadow(0 0 3px rgba(200, 200, 200, 0.45));
+  opacity: 0;
+  animation: idleDustBlink 3200ms ease-in-out var(--delay, 0ms) infinite;
+}
+@keyframes idleDustBlink {
+  0%, 100% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  30%      { opacity: 0.6; transform: translate(var(--x, 0), var(--y, 0)) scale(0.9); }
+  60%      { opacity: 0.3; transform: translate(var(--x, 0), var(--y, 0)) scale(1.1); }
+}
+
+/* ── Ceniza para racha rota (broken): mas oscura y mas lenta ────────── */
+.brokenAshLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.brokenAsh {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  width: 2.5px;
+  height: 2.5px;
+  margin-left: -1.25px;
+  border-radius: 50%;
+  background: rgba(140, 135, 130, 0.55);
+  filter: drop-shadow(0 0 2px rgba(120, 115, 110, 0.4));
+  opacity: 0;
+  animation: brokenAshFall 2800ms ease-in var(--delay, 0ms) infinite;
+}
+@keyframes brokenAshFall {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  25%  { opacity: 0.55; }
+  100% { opacity: 0; transform: translate(var(--x, 0), 30px) scale(0.3); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CARD DE HORAS — notas musicales flotando + halo + pulse del icono
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.hoursIcon {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  animation: hoursIconPulse 2400ms ease-in-out infinite;
+}
+@keyframes hoursIconPulse {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  35%      { transform: scale(1.08) rotate(-3deg); }
+  65%      { transform: scale(1.05) rotate(3deg); }
+}
+
+.hoursHalo {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(140, 110, 255, 0.4) 0%,
+    rgba(80, 200, 130, 0.18) 45%,
+    transparent 75%
+  );
+  filter: blur(4px);
+  pointer-events: none;
+  z-index: 1;
+  animation: hoursHaloBreath 2800ms ease-in-out infinite;
+}
+@keyframes hoursHaloBreath {
+  0%, 100% { opacity: 0.55; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1.15); }
+}
+
+.notesLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.note {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: -7px 0 0 -5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c4b5fd;
+  filter: drop-shadow(0 0 4px rgba(140, 110, 255, 0.6));
+  opacity: 0;
+  animation: noteFloat 2700ms ease-out var(--delay, 0ms) infinite;
+  font-family: serif;  /* mejor render de simbolos musicales */
+  user-select: none;
+}
+@keyframes noteFloat {
+  0%   { opacity: 0; transform: translate(0, 4px) scale(0.6) rotate(0deg); }
+  20%  { opacity: 1; }
+  60%  { opacity: 0.85; }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x, 0), var(--y, -22px)) scale(1.1) rotate(-12deg);
+  }
+}
+
+/* Reduced motion: desactivar todas las nuevas particulas */
+@media (prefers-reduced-motion: reduce) {
+  .warmSpark, .idleDust, .brokenAsh,
+  .hoursIcon, .hoursHalo, .note {
+    animation: none !important;
+  }
+  .warmSparksLayer, .idleDustLayer, .brokenAshLayer, .notesLayer { display: none; }
 }
