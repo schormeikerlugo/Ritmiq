@@ -118,9 +118,13 @@
   display: flex;
   align-items: center;
   position: relative;
-  /* dnd-kit ya aplica touch-action: none al activarse el TouchSensor; lo
-     dejamos manipulation por defecto para que el scroll de la cola siga
-     fluido antes de iniciar drag. */
+  /* touch-action: pan-y -> el navegador permite scroll vertical de la
+     lista, pero NO captura gestos horizontales ni reclama la pista para
+     pinch-zoom. dnd-kit aplica touch-action: none cuando el TouchSensor
+     se activa tras el long-press, y libera al soltar. Esto sustituye al
+     global * { touch-action: manipulation } que estaba "ganando" la
+     gesticulacion antes de los 220ms y haciendo scroll en lugar de drag. */
+  touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -129,6 +133,8 @@
   background: var(--color-bg-2);
   border-radius: var(--radius-sm);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  /* Refuerzo explicito por si dnd-kit no consigue aplicarlo a tiempo */
+  touch-action: none;
 }
 .li > .row {
   flex: 1;

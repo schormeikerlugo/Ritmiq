@@ -89,7 +89,19 @@ html, body {
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
 }
-* { touch-action: manipulation; }
+/* touch-action: manipulation elimina el double-tap-to-zoom de iOS y el
+ * 300ms tap delay. Lo aplicamos SOLO a elementos interactivos (botones,
+ * links, inputs) en vez del universal *. Antes la regla `* { ... }`
+ * pisaba el touch-action: none que dnd-kit aplica internamente a las
+ * filas draggables y bloqueaba el long-press para reordenar — el
+ * navegador ganaba la pista para scroll antes de que el TouchSensor
+ * cumpliera su delay. Los contenedores neutros (div, ul, li, section)
+ * ya no estan en la lista, asi que dnd-kit puede hacer su trabajo. */
+button, [role='button'], a, input, select, textarea, label,
+[role='slider'], [role='switch'], [role='checkbox'], [role='radio'],
+[role='tab'], [role='menuitem'] {
+  touch-action: manipulation;
+}
 /* iOS hace zoom-on-focus si el input es < 16px. Forzamos 16px en inputs */
 input, textarea, select { font-size: 16px; }
 

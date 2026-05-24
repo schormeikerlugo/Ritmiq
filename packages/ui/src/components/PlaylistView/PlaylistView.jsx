@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  DndContext, closestCenter, KeyboardSensor, PointerSensor,
+  DndContext, closestCenter, KeyboardSensor, MouseSensor, TouchSensor,
   useSensor, useSensors,
 } from '@dnd-kit/core';
 import {
@@ -106,8 +106,19 @@ export function PlaylistView({ playlistId }) {
     return () => { cancelled = true; };
   }, [playlists, playlistId]);
 
+  // Sensores separados por dispositivo:
+  //   - Mouse: arranca con 4px de movimiento (precisa, sin delay).
+  //   - Touch: long-press de 220ms con tolerancia de 6px. Esto evita
+  //     que un scroll vertical normal se confunda con un drag y permite
+  //     al usuario distinguir "scrollear lista" vs "mantener para mover".
+  //     Antes habia un solo PointerSensor sin delay -> en mobile el
+  //     navegador ganaba la gesticulacion (touch-action: manipulation)
+  //     y la pagina hacia scroll antes de que dnd-kit detectara el drag.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 6 },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -568,12 +579,22 @@ function PlaylistRow({
       className={styles.row}
       data-playing={playing}
       data-dragging={draggable ? sortable.isDragging : false}
+      data-draggable={draggable || undefined}
+      // Listeners y attributes en TODA la fila: en touch el TouchSensor
+      // (delay 220ms) discrimina long-press vs scroll; en mouse el
+      // MouseSensor exige 4px de drag asi que un click normal nunca
+      // activa el drag y el boton interior sigue clickable.
+      // touch-action: none lo aplica dnd-kit automaticamente al activarse,
+      // pero ademas lo forzamos via CSS .row[data-draggable] (override
+      // del global * { touch-action: manipulation }) para que el
+      // long-press se mantenga estatico sin scrollear la pagina.
+      {...(draggable ? sortable.attributes : {})}
+      {...(draggable ? sortable.listeners : {})}
     >
       <span
         className={styles.handle}
-        {...(draggable ? sortable.attributes : {})}
-        {...(draggable ? sortable.listeners : {})}
-        title={draggable ? 'Arrastrar para reordenar' : ''}
+        title={draggable ? 'Mantener para reordenar' : ''}
+        aria-hidden={draggable ? 'true' : undefined}
       >
         {playing ? <Icon name="Disc3" size={14} /> : (draggable ? <Icon name="MoreVertical" size={14} /> : displayIndex + 1)}
       </span>

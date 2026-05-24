@@ -349,6 +349,27 @@
 
 .row[data-playing='true'] .rowTitle { color: var(--color-accent); }
 
+/* Filas draggables: touch-action: pan-y permite que el scroll vertical
+ * de la lista funcione normalmente mientras el dedo se desliza, pero
+ * cuando el usuario MANTIENE presionado 220ms (TouchSensor.delay) el
+ * dnd-kit aplica internamente touch-action: none y captura el drag.
+ * El override es necesario porque tokens.css linea 92 declara
+ * `* { touch-action: manipulation }` globalmente y ese valor "gana"
+ * la pista del navegador antes que el delay del TouchSensor dispare.
+ * Tambien evitamos seleccion accidental de texto en el long-press. */
+.row[data-draggable] {
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.row[data-dragging='true'] {
+  /* Durante el drag activo, bloqueamos cualquier gesticulacion del
+     navegador (refuerzo explicito por si dnd-kit no consigue aplicar
+     touch-action: none a tiempo en algunos engines). */
+  touch-action: none;
+}
+
 .idx {
   text-align: center;
   color: var(--color-text-3);
