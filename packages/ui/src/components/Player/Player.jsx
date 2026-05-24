@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { usePlayerStore } from '../../stores/player.js';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
@@ -34,7 +34,106 @@ export function Player() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
-  const progress = durationSeconds ? (positionSeconds / durationSeconds) * 100 : 0;
+  // Estado de scrub: cuando el usuario esta arrastrando, mostramos su
+  // posicion tentativa en vez del positionSeconds real, asi la UI no
+  // "salta hacia atras" entre el render del drag y el commit del seek.
+  const [scrubPos, setScrubPos] = useState(null);
+  const barRef = useRef(null);
+  const draggingRef = useRef(false);
+
+  const effectivePos = scrubPos != null ? scrubPos : positionSeconds;
+  const progress = durationSeconds
+    ? Math.max(0, Math.min(100, (effectivePos / durationSeconds) * 100))
+    : 0;
+
+  /* ── Seek por click/drag en la barra de progreso ────────────────────
+   * Antes el `<div className={styles.bar}>` solo tenia `cursor: pointer`
+   * pero ningun handler — el click no hacia nada ni en PWA ni en Electron.
+   * Usamos pointer events (cubren mouse + touch + pen en una sola API)
+   * con setPointerCapture para que el drag fuera de la barra siga
+   * actualizando posicion. El seek real se dispara via el mismo evento
+   * `ritmiq:seek` que ya consume use-player.js -> backend.seek(). */
+  const computeSecondsFromEvent = useCallback(
+    (clientX) => {
+      const el = barRef.current;
+      if (!el || !durationSeconds) return null;
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0) return null;
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      return ratio * durationSeconds;
+    },
+    [durationSeconds],
+  );
+
+  const commitSeek = useCallback((sec) => {
+    if (typeof sec !== 'number' || !Number.isFinite(sec)) return;
+    window.dispatchEvent(
+      new CustomEvent('ritmiq:seek', { detail: { seconds: sec } }),
+    );
+  }, []);
+
+  const onBarPointerDown = useCallback(
+    (e) => {
+      if (!currentTrack || !durationSeconds) return;
+      // Solo boton primario para mouse; touch/pen siempre OK.
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const sec = computeSecondsFromEvent(e.clientX);
+      if (sec == null) return;
+      draggingRef.current = true;
+      setScrubPos(sec);
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* navegadores raros — seguimos sin capture */
+      }
+      e.preventDefault();
+    },
+    [currentTrack, durationSeconds, computeSecondsFromEvent],
+  );
+
+  const onBarPointerMove = useCallback(
+    (e) => {
+      if (!draggingRef.current) return;
+      const sec = computeSecondsFromEvent(e.clientX);
+      if (sec != null) setScrubPos(sec);
+    },
+    [computeSecondsFromEvent],
+  );
+
+  const onBarPointerEnd = useCallback(
+    (e) => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      const sec = computeSecondsFromEvent(e.clientX);
+      const finalSec = sec != null ? sec : scrubPos;
+      setScrubPos(null);
+      commitSeek(finalSec);
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* noop */
+      }
+    },
+    [computeSecondsFromEvent, scrubPos, commitSeek],
+  );
+
+  // Accesibilidad: ←/→ mueven 5s, Shift+←/→ mueven 15s, Home/End saltan a 0/dur.
+  const onBarKeyDown = useCallback(
+    (e) => {
+      if (!currentTrack || !durationSeconds) return;
+      const step = e.shiftKey ? 15 : 5;
+      let next = positionSeconds;
+      if (e.key === 'ArrowRight') next = positionSeconds + step;
+      else if (e.key === 'ArrowLeft') next = positionSeconds - step;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = durationSeconds;
+      else return;
+      e.preventDefault();
+      next = Math.max(0, Math.min(durationSeconds, next));
+      commitSeek(next);
+    },
+    [currentTrack, durationSeconds, positionSeconds, commitSeek],
+  );
   const ephemeral = currentTrack ? isEphemeralTrack(currentTrack) : false;
   const inLibrary = !!currentTrack && !ephemeral &&
                     tracks.some((t) => t.id === currentTrack.id);
@@ -173,9 +272,28 @@ export function Player() {
           ><Icon name={repeat === 'one' ? 'Repeat1' : 'Repeat'} size={18} /></button>
         </div>
         <div className={styles.progress}>
-          <span className={styles.time}>{fmt(positionSeconds)}</span>
-          <div className={styles.bar}>
-            <div className={styles.barFill} style={{ width: `${progress}%` }} />
+          <span className={styles.time}>{fmt(effectivePos)}</span>
+          <div
+            ref={barRef}
+            className={styles.bar}
+            role="slider"
+            tabIndex={currentTrack ? 0 : -1}
+            aria-label="Posicion de la cancion"
+            aria-valuemin={0}
+            aria-valuemax={durationSeconds || 0}
+            aria-valuenow={Math.floor(effectivePos)}
+            aria-valuetext={`${fmt(effectivePos)} de ${fmt(durationSeconds)}`}
+            aria-disabled={!currentTrack || !durationSeconds}
+            data-scrubbing={scrubPos != null || undefined}
+            onPointerDown={onBarPointerDown}
+            onPointerMove={onBarPointerMove}
+            onPointerUp={onBarPointerEnd}
+            onPointerCancel={onBarPointerEnd}
+            onKeyDown={onBarKeyDown}
+          >
+            <div className={styles.barFill} style={{ width: `${progress}%` }}>
+              <span className={styles.barThumb} aria-hidden="true" />
+            </div>
           </div>
           <span className={styles.time}>{fmt(durationSeconds)}</span>
         </div>

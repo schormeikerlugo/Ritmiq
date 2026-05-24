@@ -205,23 +205,95 @@
   min-width: 36px;
 }
 
+/* Barra de progreso interactiva: la "barra visual" es de 4px pero la
+ * zona clickable es mas alta (16px total via padding vertical) para
+ * que arrastrar/clickar sea facil con mouse o touch. El track real
+ * lo dibujamos como ::before; el padding amplia el hit-area sin
+ * cambiar el aspecto visual. */
 .bar {
   flex: 1;
+  position: relative;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;           /* evita scroll durante drag en touch */
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  align-items: center;
+}
+.bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
   height: 4px;
+  margin-top: -2px;
   background: var(--color-bg-3);
   border-radius: var(--radius-pill);
-  overflow: hidden;
-  cursor: pointer;
+  transition: height 120ms var(--ease-standard);
 }
 
 .barFill {
-  height: 100%;
+  position: relative;
+  height: 4px;
   background: var(--color-text-1);
-  transition: width 80ms linear;
+  border-radius: var(--radius-pill);
+  transition: width 80ms linear, height 120ms var(--ease-standard),
+              background 120ms var(--ease-standard);
+  z-index: 1;
 }
 
-.bar:hover .barFill {
+.barThumb {
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  background: var(--color-text-1);
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 120ms var(--ease-standard),
+              transform 120ms var(--ease-standard),
+              background 120ms var(--ease-standard);
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Hover / focus / scrubbing: engrosamos visualmente la barra y
+ * mostramos el thumb para feedback claro. */
+.bar:hover .barFill,
+.bar:focus-visible .barFill,
+.bar[data-scrubbing] .barFill {
   background: var(--color-accent);
+  height: 6px;
+}
+.bar:hover::before,
+.bar:focus-visible::before,
+.bar[data-scrubbing]::before {
+  height: 6px;
+  margin-top: -3px;
+}
+.bar:hover .barThumb,
+.bar:focus-visible .barThumb,
+.bar[data-scrubbing] .barThumb {
+  opacity: 1;
+  transform: scale(1);
+  background: var(--color-accent);
+}
+
+.bar:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-pill);
+}
+
+.bar[aria-disabled='true'] {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.6;
 }
 
 .right {
