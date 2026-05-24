@@ -234,7 +234,31 @@ export function registerIpc({ db, lan, accessToken }) {
   ipcMain.handle('auth:regenerateToken', () => regenerateAccessToken());
 
   ipcMain.handle('yt:metadata', (_e, idOrUrl) => getMetadata(idOrUrl, ytOpts));
-  ipcMain.handle('yt:streamUrl', (_e, idOrUrl) => getStreamUrl(idOrUrl, ytOpts));
+
+  // yt:streamUrl — bypass directo a yt-dlp usado por audio-source.js
+  // -> resolveCloudStream cuando el track es ephemeral (no esta en
+  // SQLite local). Antes este handler NO publicaba al cache global
+  // porque solo resolveCached() del lan-server.js tenia el hook. Ahora
+  // tambien publicamos aqui: el toggle "Compartir resoluciones"
+  // funciona independiente de por que ruta yt-dlp se invoque.
+  ipcMain.handle('yt:streamUrl', async (_e, idOrUrl) => {
+    const url = await getStreamUrl(idOrUrl, ytOpts);
+    try {
+      // Extraer ytId del input. Si viene como URL completa, parsear.
+      // getStreamUrl acepta ambos formatos.
+      let ytId = String(idOrUrl ?? '').trim();
+      const ytUrlMatch = ytId.match(/(?:v=|youtu\.be\/|\/embed\/)([\w-]{11})/);
+      if (ytUrlMatch) ytId = ytUrlMatch[1];
+      if (ytId && /^[\w-]{11}$/.test(ytId) && url) {
+        const mod = await import('./lan-server.js');
+        mod.publishResolvedUrl?.(ytId, url);
+      }
+    } catch {
+      /* fire-and-forget: no afectar la respuesta del IPC */
+    }
+    return url;
+  });
+
   ipcMain.handle('yt:search', async (_e, query) => search(query, { ...ytOpts, max: 15 }));
 
   // Información y actualización del binario yt-dlp.

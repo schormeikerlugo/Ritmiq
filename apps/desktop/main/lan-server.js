@@ -132,6 +132,41 @@ export function clearStreamCache() {
 }
 
 /**
+ * API publica para que otras rutas (IPC yt:streamUrl, library:download,
+ * etc.) puedan publicar URLs resueltas al cache global sin tener que
+ * conocer el detalle del gate del toggle ni del TTL.
+ *
+ * Antes solo publishToGlobalCache se llamaba desde dentro del closure
+ * de startLanServer (resolveCached -> hook tras getStreamUrl OK). El
+ * problema: el IPC handler yt:streamUrl en ipc.js invoca getStreamUrl
+ * directamente bypaseando ese hook -> tracks ephemeral (busqueda
+ * fresca en desktop) nunca publicaban porque audio-source.js los
+ * routea por resolveCloudStream -> api.ytStreamUrl -> IPC, no por LAN.
+ *
+ * Esta funcion expone el hook a esos call sites para que el publish
+ * ocurra independientemente de la ruta de entrada a yt-dlp.
+ *
+ * @param {string} ytId
+ * @param {string} url     URL fresca de googlevideo recien resuelta
+ * @param {number} [ttlMs] TTL del cache local (default 30min). Sirve
+ *                         para calcular expires_at coherente con el
+ *                         cache de memoria del LAN server.
+ */
+export function publishResolvedUrl(ytId, url, ttlMs = 30 * 60 * 1000) {
+  if (!publishUrlCacheEnabled()) {
+    if (!publishStats.skippedReason) publishStats.skippedReason = 'toggle_off';
+    return;
+  }
+  if (!ytId || !url) return;
+  const expiresAt = Date.now() + ttlMs;
+  // Fire-and-forget: no esperamos, no propagamos. publishToGlobalCache
+  // ya wrap-ea con try/catch interno y actualiza publishStats.
+  publishToGlobalCache(ytId, url, expiresAt).catch((err) => {
+    console.warn(`[lan-server] publishResolvedUrl fallo (no fatal): ${err?.message ?? err}`);
+  });
+}
+
+/**
  * Publica una URL resuelta al cache global de Supabase.
  * Fire-and-forget: nunca propaga errores al caller.
  *
