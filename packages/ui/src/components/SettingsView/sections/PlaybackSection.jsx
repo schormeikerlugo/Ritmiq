@@ -8,10 +8,11 @@
  *
  * @module @ritmiq/ui/components/SettingsView/sections/PlaybackSection
  */
-import { useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSettingsStore, EQ_PRESETS } from '../../../stores/settings.js';
 import { EQ_BANDS } from '../../../lib/html-audio-backend.js';
 import { getSharedBackend } from '../../../lib/use-player.js';
+import { isDesktop } from '../../../lib/api.js';
 import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { Toggle } from '../controls/Toggle.jsx';
@@ -19,6 +20,17 @@ import { Slider } from '../controls/Slider.jsx';
 import { SegmentedControl } from '../controls/SegmentedControl.jsx';
 import { Icon } from '../../Icon/Icon.jsx';
 import styles from '../SettingsView.module.css';
+
+/** Formatea "hace X" de forma compacta y honesta. */
+function relTimeShort(ms) {
+  if (!ms) return '—';
+  const d = Date.now() - ms;
+  if (d < 0) return 'ahora';
+  if (d < 60_000) return `hace ${Math.floor(d / 1000)}s`;
+  if (d < 3_600_000) return `hace ${Math.floor(d / 60_000)} min`;
+  if (d < 86_400_000) return `hace ${Math.floor(d / 3_600_000)} h`;
+  return `hace ${Math.floor(d / 86_400_000)} d`;
+}
 
 const PRESETS = [
   { id: 'flat',    label: 'Plano' },
@@ -154,17 +166,196 @@ export function PlaybackSection() {
         </div>
       )}
 
+      {/* Toggle "Compartir resoluciones" — solo en Desktop. En PWA no
+       * aplica porque el navegador no puede ejecutar yt-dlp: el usuario
+       * PWA solo CONSUME del cache, no contribuye. Mostrarlo ahi seria
+       * deshonesto. */}
+      {isDesktop ? (
+        <PublishUrlCacheRow
+          publishUrlCache={publishUrlCache}
+          setPublishUrlCache={setPublishUrlCache}
+        />
+      ) : (
+        <SettingRow
+          label="Compartir resoluciones con la red Ritmiq"
+          description="Esta funcion solo aplica a la version Desktop (puede ejecutar yt-dlp). En PWA reproduces desde el cache global compartido sin contribuir — sin contar nada extra."
+          control={null}
+        />
+      )}
+    </SettingsGroup>
+  );
+}
+
+/**
+ * Fila del toggle "Compartir resoluciones" con panel de telemetria
+ * observable: contador de publicaciones, ultimo timestamp, alerta si
+ * faltan envs en el main process, boton de prueba de conexion.
+ *
+ * Polling cada 5s mientras el componente esta montado. Se desmonta
+ * cuando el usuario sale de Settings → cero impacto en background.
+ */
+function PublishUrlCacheRow({ publishUrlCache, setPublishUrlCache }) {
+  const [stats, setStats] = useState(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null); // { ok, message, ms }
+
+  const refreshStats = useCallback(async () => {
+    try {
+      const s = await window.ritmiq?.settings?.getPublishStats?.();
+      if (s) setStats(s);
+    } catch {
+      /* fallo IPC — no propagamos, el UI muestra "Cargando..." */
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshStats();
+    const id = setInterval(refreshStats, 5_000);
+    return () => clearInterval(id);
+  }, [refreshStats]);
+
+  // Refresh inmediato cuando se cambia el toggle: el feedback "publicacion
+  // desactivada" tiene que aparecer instantaneo para que el usuario lo
+  // perciba como reactivo.
+  const handleToggle = useCallback((v) => {
+    setPublishUrlCache(v);
+    setTimeout(refreshStats, 200);
+  }, [setPublishUrlCache, refreshStats]);
+
+  const handleTest = useCallback(async () => {
+    setTesting(true);
+    setTestResult(null);
+    const t0 = performance.now();
+    try {
+      const url = import.meta.env.VITE_SUPABASE_URL;
+      const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (!url || !key) throw new Error('Faltan VITE_SUPABASE_URL/ANON_KEY en build');
+      // ytId de prueba estable (Rick Astley) — alto chance de HIT si
+      // alguien lo ha resuelto en las ultimas 24h. Sino MISS limpio.
+      const res = await fetch(`${url}/functions/v1/get-stream-url?ytId=dQw4w9WgXcQ`, {
+        headers: { Authorization: `Bearer ${key}`, apikey: key },
+      });
+      const dt = Math.round(performance.now() - t0);
+      if (res.status === 200) {
+        setTestResult({ ok: true, message: `HIT (${dt} ms) — el cache global responde`, ms: dt });
+      } else if (res.status === 404) {
+        setTestResult({ ok: true, message: `MISS (${dt} ms) — Edge Function viva, cache vacio para ese ID`, ms: dt });
+      } else {
+        setTestResult({ ok: false, message: `HTTP ${res.status} (${dt} ms)`, ms: dt });
+      }
+    } catch (err) {
+      const dt = Math.round(performance.now() - t0);
+      setTestResult({ ok: false, message: `${err?.message ?? err} (${dt} ms)`, ms: dt });
+    } finally {
+      setTesting(false);
+    }
+  }, []);
+
+  return (
+    <>
       <SettingRow
         label="Compartir resoluciones con la red Ritmiq"
         description="Cuando tu PC resuelve una cancion con yt-dlp, otros usuarios sin acceso a tu equipo podran reproducirla al instante durante las proximas horas. No se comparte tu identidad ni que escuchas."
         control={
           <Toggle
             checked={publishUrlCache}
-            onChange={setPublishUrlCache}
+            onChange={handleToggle}
             ariaLabel="Compartir URLs resueltas anonimamente"
           />
         }
       />
-    </SettingsGroup>
+
+      {/* Panel de telemetria — siempre visible cuando es Desktop para
+       * que el usuario VEA si la cosa funciona o esta silenciosamente
+       * rota. Sin esto el toggle era un acto de fe. */}
+      <PublishStatsPanel
+        stats={stats}
+        toggleEnabled={publishUrlCache}
+        onTest={handleTest}
+        testing={testing}
+        testResult={testResult}
+      />
+    </>
+  );
+}
+
+function PublishStatsPanel({ stats, toggleEnabled, onTest, testing, testResult }) {
+  // Estados criticos primero — un panel rojo es mas informativo que
+  // un mensaje verde vacio.
+  const noEnv = stats && (!stats.hasUrl || !stats.hasToken);
+  const skipNoToken = stats?.skippedReason === 'no_token' || stats?.skippedReason === 'no_url';
+
+  let tone = 'info';
+  let icon = 'Info';
+  let headline;
+  let detail;
+
+  if (!stats) {
+    headline = 'Cargando estado...';
+    detail = null;
+  } else if (!toggleEnabled) {
+    tone = 'info';
+    icon = 'Pause';
+    headline = 'Publicacion desactivada';
+    detail = 'Activa el toggle para contribuir al cache global cuando resuelvas canciones.';
+  } else if (noEnv || skipNoToken) {
+    tone = 'err';
+    icon = 'AlertTriangle';
+    headline = 'Falta configuracion de Supabase';
+    detail = !stats.hasUrl
+      ? 'VITE_SUPABASE_URL no llego al proceso main. Revisa .env.production empaquetado.'
+      : 'No hay token de publicacion (RITMIQ_SUPABASE_PUBLISH_TOKEN, SUPABASE_ANON_KEY o VITE_SUPABASE_ANON_KEY). Las URLs no se publican.';
+  } else if (stats.successes > 0) {
+    tone = 'ok';
+    icon = 'CheckCircle2';
+    headline = `${stats.successes} ${stats.successes === 1 ? 'URL publicada' : 'URLs publicadas'}`;
+    const parts = [`ultima ${relTimeShort(stats.lastSuccessAt)}`];
+    if (stats.failures > 0) parts.push(`${stats.failures} fallos`);
+    detail = parts.join(' · ');
+  } else if (stats.failures > 0) {
+    tone = 'err';
+    icon = 'AlertTriangle';
+    headline = `${stats.failures} ${stats.failures === 1 ? 'intento fallido' : 'intentos fallidos'}`;
+    detail = stats.lastError?.message ?? 'Sin detalles.';
+  } else {
+    tone = 'info';
+    icon = 'Loader';
+    headline = 'Esperando primera resolucion con yt-dlp';
+    detail = 'Reproduce una cancion de YouTube que no este en cache local para disparar el primer publish.';
+  }
+
+  return (
+    <div className={styles.subBlock} style={{ gap: 'var(--space-2)' }}>
+      <div className={styles.statusMsg} data-tone={tone} style={{ margin: 0 }}>
+        <Icon name={icon} size={14} />
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+          <span style={{ fontWeight: 600 }}>{headline}</span>
+          {detail && <span style={{ opacity: 0.85, marginTop: 2 }}>{detail}</span>}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={onTest}
+          disabled={testing}
+          className={styles.testBtn}
+        >
+          {testing ? 'Probando...' : 'Probar conexion'}
+        </button>
+        {testResult && (
+          <span
+            className={styles.statusMsg}
+            data-tone={testResult.ok ? 'ok' : 'err'}
+            style={{ margin: 0, flex: 1, minWidth: 0 }}
+          >
+            <Icon name={testResult.ok ? 'CheckCircle2' : 'X'} size={14} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {testResult.message}
+            </span>
+          </span>
+        )}
+      </div>
+    </div>
   );
 }

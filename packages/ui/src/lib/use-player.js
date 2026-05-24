@@ -28,6 +28,39 @@ import {
 import { getLocalBlobUrl } from './local-downloads.js';
 
 /**
+ * Telemetria de orígenes de stream — singleton in-memory. Cuenta cuantas
+ * reproducciones de la sesion actual se sirvieron desde cada origen del
+ * cascade de resolveAudioSource. Sirve para que DiagnosticsSection
+ * exhiba al usuario el reparto local vs LAN vs cache global vs cloud
+ * — hace tangible el beneficio del cache global compartido.
+ *
+ * Solo cuenta el TRACK ACTUAL (no las precargas del siguiente — esas
+ * podrian no llegar a sonar nunca).
+ *
+ * Se exporta para que la UI lo consulte; no se persiste entre arranques.
+ *
+ * @type {Record<string, number>}
+ */
+export const streamOriginCounts = {
+  'local-file': 0,
+  'local-blob': 0,
+  'lan': 0,
+  'cache-global-url': 0,
+  'cloud-stream': 0,
+};
+
+/** @type {{ origin: string|null, at: number|null }} */
+export const lastStreamOrigin = { origin: null, at: null };
+
+function recordStreamOrigin(origin) {
+  if (!origin) return;
+  if (origin in streamOriginCounts) streamOriginCounts[origin]++;
+  else streamOriginCounts[origin] = 1;
+  lastStreamOrigin.origin = origin;
+  lastStreamOrigin.at = Date.now();
+}
+
+/**
  * Devuelve la duración "real" a usar para barra de progreso y pre-end swap.
  *
  * Algunas respuestas de googlevideo vía Cloudflare Tunnel reportan a Safari
@@ -514,8 +547,10 @@ export function usePlayerEngine() {
     (async () => {
       try {
         setState({ error: null });
-        const { url } = await resolveAudioSource(currentTrack, buildResolveDeps(currentTrack));
+        const resolved = await resolveAudioSource(currentTrack, buildResolveDeps(currentTrack));
+        const { url } = resolved;
         if (cancelled) return;
+        recordStreamOrigin(resolved.origin);
         await backend.load(url);
         if (cancelled) return;
         loadedTrackIdRef.current = currentTrack.id;

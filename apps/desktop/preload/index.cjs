@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('ritmiq', {
   appInfo: () => ipcRenderer.invoke('app:info'),
   settings: {
     setPublishUrlCache: (enabled) => ipcRenderer.invoke('settings:setPublishUrlCache', enabled),
+    getPublishStats: () => ipcRenderer.invoke('settings:getPublishStats'),
   },
   yt: {
     metadata: (idOrUrl) => ipcRenderer.invoke('yt:metadata', idOrUrl),

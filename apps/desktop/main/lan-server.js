@@ -60,12 +60,63 @@ function publishUrlCacheEnabled() {
 }
 
 /**
+ * Telemetria del cache global — solo en memoria, NO se persiste ni se
+ * reporta a Supabase. Sirve para que la UI del toggle pueda mostrar
+ * "X publicaciones hoy, ultima hace Y" y avisar si falta token.
+ *
+ * Antes este modulo era una caja negra; si el publish fallaba en
+ * silencio (token vacio, 401, 500 transitorio) el usuario nunca se
+ * enteraba. Con esto el toggle puede ser honesto sobre su estado.
+ *
+ * @type {{
+ *   attempts: number,
+ *   successes: number,
+ *   failures: number,
+ *   lastSuccessAt: number|null,
+ *   lastError: { message: string, at: number }|null,
+ *   skippedReason: 'no_token'|'no_url'|'toggle_off'|null,
+ *   hasToken: boolean,
+ *   hasUrl: boolean,
+ * }}
+ */
+const publishStats = {
+  attempts: 0,
+  successes: 0,
+  failures: 0,
+  lastSuccessAt: null,
+  lastError: null,
+  skippedReason: null,
+  hasToken: false,
+  hasUrl: false,
+};
+
+export function getPublishStats() {
+  // Recalcula has* en cada llamada por si las envs se cargaron tarde.
+  publishStats.hasUrl = !!(process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL);
+  publishStats.hasToken = !!(
+    process.env.RITMIQ_SUPABASE_PUBLISH_TOKEN
+    ?? process.env.SUPABASE_ANON_KEY
+    ?? process.env.VITE_SUPABASE_ANON_KEY
+  );
+  return { ...publishStats, toggleEnabled: publishUrlCacheEnabled() };
+}
+
+/**
  * Publica una URL resuelta al cache global de Supabase.
  * Fire-and-forget: nunca propaga errores al caller.
  *
- * Requiere RITMIQ_SUPABASE_PUBLISH_TOKEN (JWT del owner) en env para
- * autenticarse contra la Edge Function. Si no esta configurado, no
- * publica (sin error visible).
+ * Cascada de TOKEN (en orden de preferencia):
+ *   1. RITMIQ_SUPABASE_PUBLISH_TOKEN  — token dedicado (service_role o JWT custom)
+ *   2. SUPABASE_ANON_KEY              — fallback sin prefijo (entornos Node)
+ *   3. VITE_SUPABASE_ANON_KEY         — fallback con prefijo VITE_ (es lo que
+ *                                       el monorepo expone en .env.production
+ *                                       porque tambien lo consume el renderer).
+ *
+ * El #3 era el bug latente desde el commit b0e4df3: el .env.production
+ * solo declara VITE_SUPABASE_ANON_KEY (sin SUPABASE_ANON_KEY), por lo
+ * que TOKEN quedaba vacio y la publicacion retornaba en silencio en
+ * el guard de la linea 77 — la tabla stream_url_cache nunca recibio
+ * un solo insert hasta este fix.
  *
  * @param {string} ytId
  * @param {string} url
@@ -73,28 +124,48 @@ function publishUrlCacheEnabled() {
  */
 async function publishToGlobalCache(ytId, url, expiresAtMs) {
   const SUP = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
-  const TOKEN = process.env.RITMIQ_SUPABASE_PUBLISH_TOKEN ?? process.env.SUPABASE_ANON_KEY ?? '';
-  if (!SUP || !TOKEN) return;
+  const TOKEN = process.env.RITMIQ_SUPABASE_PUBLISH_TOKEN
+    ?? process.env.SUPABASE_ANON_KEY
+    ?? process.env.VITE_SUPABASE_ANON_KEY
+    ?? '';
+  if (!SUP) { publishStats.skippedReason = 'no_url'; return; }
+  if (!TOKEN) { publishStats.skippedReason = 'no_token'; return; }
   if (!ytId || !url || !expiresAtMs) return;
 
-  const expiresAt = new Date(expiresAtMs).toISOString();
-  const res = await fetch(`${SUP}/functions/v1/publish-stream-url`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${TOKEN}`,
-    },
-    body: JSON.stringify({
-      ytId,
-      url,
-      contentType: 'audio/mp4',
-      expiresAt,
-      source: 'desktop',
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`HTTP ${res.status} ${text.slice(0, 120)}`);
+  publishStats.attempts++;
+  publishStats.skippedReason = null;
+
+  try {
+    const expiresAt = new Date(expiresAtMs).toISOString();
+    const res = await fetch(`${SUP}/functions/v1/publish-stream-url`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${TOKEN}`,
+        apikey: TOKEN,
+      },
+      body: JSON.stringify({
+        ytId,
+        url,
+        contentType: 'audio/mp4',
+        expiresAt,
+        source: 'desktop',
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status} ${text.slice(0, 120)}`);
+    }
+    publishStats.successes++;
+    publishStats.lastSuccessAt = Date.now();
+  } catch (err) {
+    publishStats.failures++;
+    publishStats.lastError = {
+      message: String(err?.message ?? err).slice(0, 200),
+      at: Date.now(),
+    };
+    // Re-throw para que el .catch() del caller registre en consola.
+    throw err;
   }
 }
 
@@ -500,6 +571,10 @@ export async function startLanServer({ port, db, accessToken }) {
             publishToGlobalCache(ytId, url, expiresAt).catch((err) => {
               console.warn(`[lan-server] publish stream-url fallo (no fatal): ${err?.message ?? err}`);
             });
+          } else {
+            // Solo registrar el motivo si NO hay otro motivo de skip ya
+            // anotado (no_token / no_url ganan en prioridad informativa).
+            if (!publishStats.skippedReason) publishStats.skippedReason = 'toggle_off';
           }
         } catch (err) {
           console.warn(`[lan-server] resolve ${ytId} FAIL`, err.message);

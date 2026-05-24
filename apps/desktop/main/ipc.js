@@ -147,6 +147,22 @@ export function registerIpc({ db, lan, accessToken }) {
     return { ok: true, enabled: !!enabled };
   });
 
+  // Stats observable del cache global. El renderer la lee desde
+  // PlaybackSection.jsx cada ~5s para mostrar al usuario:
+  //   - cuantas URLs ha publicado este desktop
+  //   - cuando fue la ultima exitosa
+  //   - si hay un error reciente
+  //   - si esta skipped por falta de token (o de URL de Supabase)
+  // La info es 100% local (in-memory en el main process); no se reporta
+  // a Supabase ni a ningun servicio externo.
+  ipcMain.handle('settings:getPublishStats', async () => {
+    const mod = await import('./lan-server.js');
+    if (typeof mod.getPublishStats === 'function') {
+      return mod.getPublishStats();
+    }
+    return null;
+  });
+
   // ─── Cloudflare Tunnel ───────────────────────────────────────────────
   ipcMain.handle('tunnel:status', () => ({
     ...cloudflared.state,

@@ -23,10 +23,20 @@
  */
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../../stores/auth.js';
+import { streamOriginCounts, lastStreamOrigin } from '../../../lib/use-player.js';
 import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { LinkButton } from '../controls/LinkButton.jsx';
 import styles from './DiagnosticsSection.module.css';
+
+/** Etiquetas legibles para cada origen del cascade de resolveAudioSource. */
+const ORIGIN_LABELS = {
+  'local-file':        'Local (descargado)',
+  'local-blob':        'Local (IndexedDB)',
+  'lan':               'LAN propio',
+  'cache-global-url':  'Cache global Ritmiq',
+  'cloud-stream':      'Cloud (yt-dlp)',
+};
 
 export function DiagnosticsSection() {
   const user = useAuthStore((s) => s.user);
@@ -150,6 +160,8 @@ export function DiagnosticsSection() {
         control={<LinkButton onClick={() => testCacheLookup(setCacheTestResult)}>Probar</LinkButton>}
       />
 
+      <StreamOriginsRow />
+
       <SettingRow
         label="Forzar re-evaluacion"
         description="Re-lee todas las flags. Util si iOS expuso APIs con delay tras instalar la PWA."
@@ -195,6 +207,74 @@ async function testCacheLookup(setResult) {
 }
 
 // ── Subcomponentes ──────────────────────────────────────────────────
+
+/**
+ * Tabla compacta con cuantas reproducciones de la sesion actual se
+ * sirvieron desde cada origen del cascade. Hace tangible el beneficio
+ * del cache global: si el usuario ve un 5/12 desde "Cache global Ritmiq"
+ * entiende que esta ahorrando llamadas a yt-dlp tanto suyas como ajenas.
+ *
+ * Polling cada 3s mientras esta visible. Los datos son in-memory en
+ * use-player.js — al reiniciar la app se ponen a cero.
+ */
+function StreamOriginsRow() {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => force((n) => n + 1), 3_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const entries = Object.entries(streamOriginCounts);
+  const total = entries.reduce((acc, [, v]) => acc + v, 0);
+  const last = lastStreamOrigin.origin
+    ? `${ORIGIN_LABELS[lastStreamOrigin.origin] ?? lastStreamOrigin.origin}`
+    : 'aun ninguna';
+
+  const desc = total === 0
+    ? `Aun no se ha reproducido nada en esta sesion. Cuando suene una cancion, aqui veras de donde vino.`
+    : `${total} ${total === 1 ? 'reproduccion' : 'reproducciones'} esta sesion · ultima: ${last}`;
+
+  return (
+    <SettingRow
+      label="Origenes de stream (esta sesion)"
+      description={desc}
+      control={
+        total > 0 ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+            fontSize: 'var(--fs-xs)',
+            fontVariantNumeric: 'tabular-nums',
+            alignItems: 'flex-end',
+            minWidth: 160,
+          }}>
+            {entries
+              .filter(([, v]) => v > 0)
+              .sort((a, b) => b[1] - a[1])
+              .map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                  <span style={{ color: 'var(--color-text-3)' }}>
+                    {ORIGIN_LABELS[k] ?? k}
+                  </span>
+                  <span style={{
+                    color: k === 'cache-global-url'
+                      ? 'var(--color-accent)'
+                      : 'var(--color-text-1)',
+                    fontWeight: 600,
+                    minWidth: 24,
+                    textAlign: 'right',
+                  }}>
+                    {v}
+                  </span>
+                </div>
+              ))}
+          </div>
+        ) : null
+      }
+    />
+  );
+}
 
 function FlagBadge({ ok, okLabel, failLabel }) {
   return (
