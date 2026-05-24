@@ -198,6 +198,8 @@ function PublishUrlCacheRow({ publishUrlCache, setPublishUrlCache }) {
   const [stats, setStats] = useState(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null); // { ok, message, ms }
+  const [clearing, setClearing] = useState(false);
+  const [clearMsg, setClearMsg] = useState(null);
 
   const refreshStats = useCallback(async () => {
     try {
@@ -221,6 +223,24 @@ function PublishUrlCacheRow({ publishUrlCache, setPublishUrlCache }) {
     setPublishUrlCache(v);
     setTimeout(refreshStats, 200);
   }, [setPublishUrlCache, refreshStats]);
+
+  const handleClearCache = useCallback(async () => {
+    setClearing(true);
+    setClearMsg(null);
+    try {
+      const r = await window.ritmiq?.lan?.clearStreamCache?.();
+      if (r?.ok) {
+        setClearMsg(`Cache local vaciado (${r.cleared} entradas). Reproduce ahora cualquier cancion de YouTube para forzar yt-dlp + publish.`);
+        setTimeout(refreshStats, 200);
+      } else {
+        setClearMsg('No se pudo vaciar el cache (LAN server no disponible).');
+      }
+    } catch (err) {
+      setClearMsg(`Error: ${err?.message ?? err}`);
+    } finally {
+      setClearing(false);
+    }
+  }, [refreshStats]);
 
   const handleTest = useCallback(async () => {
     setTesting(true);
@@ -274,12 +294,18 @@ function PublishUrlCacheRow({ publishUrlCache, setPublishUrlCache }) {
         onTest={handleTest}
         testing={testing}
         testResult={testResult}
+        onClearCache={handleClearCache}
+        clearing={clearing}
+        clearMsg={clearMsg}
       />
     </>
   );
 }
 
-function PublishStatsPanel({ stats, toggleEnabled, onTest, testing, testResult }) {
+function PublishStatsPanel({
+  stats, toggleEnabled, onTest, testing, testResult,
+  onClearCache, clearing, clearMsg,
+}) {
   // Estados criticos primero — un panel rojo es mas informativo que
   // un mensaje verde vacio.
   const noEnv = stats && (!stats.hasUrl || !stats.hasToken);
@@ -317,11 +343,22 @@ function PublishStatsPanel({ stats, toggleEnabled, onTest, testing, testResult }
     icon = 'AlertTriangle';
     headline = `${stats.failures} ${stats.failures === 1 ? 'intento fallido' : 'intentos fallidos'}`;
     detail = stats.lastError?.message ?? 'Sin detalles.';
+  } else if (stats.attempts > 0) {
+    // Caso raro pero posible: intentos lanzados, ninguno completado
+    // (en vuelo o algun bucle silencioso).
+    tone = 'info';
+    icon = 'Loader';
+    headline = `${stats.attempts} ${stats.attempts === 1 ? 'publicacion en vuelo' : 'publicaciones en vuelo'}`;
+    detail = 'Esperando confirmacion del Edge Function...';
   } else {
     tone = 'info';
     icon = 'Loader';
     headline = 'Esperando primera resolucion con yt-dlp';
-    detail = 'Reproduce una cancion de YouTube que no este en cache local para disparar el primer publish.';
+    // Pista importante: el LAN server cachea internamente las URLs ya
+    // resueltas, asi que reproducir la misma cancion 2x no dispara
+    // publish la segunda vez (cache HIT local). Solo canciones NUEVAS
+    // o tras 30 minutos disparan publish.
+    detail = 'Reproduce una cancion de YouTube no escuchada en los ultimos 30 min. Si suena instantaneamente desde tu LAN local, es porque ya estaba en cache de memoria.';
   }
 
   return (
@@ -343,6 +380,19 @@ function PublishStatsPanel({ stats, toggleEnabled, onTest, testing, testResult }
         >
           {testing ? 'Probando...' : 'Probar conexion'}
         </button>
+        <button
+          type="button"
+          onClick={onClearCache}
+          disabled={clearing || !stats?.streamCacheSize}
+          className={styles.testBtn}
+          title={stats?.streamCacheSize
+            ? `Hay ${stats.streamCacheSize} URLs cacheadas en memoria. Borrarlas obligara a yt-dlp + publish en la proxima reproduccion.`
+            : 'Cache local vacio; ya estas listo para que la proxima reproduccion dispare publish.'}
+        >
+          {clearing
+            ? 'Vaciando...'
+            : `Vaciar cache local${stats?.streamCacheSize ? ` (${stats.streamCacheSize})` : ''}`}
+        </button>
         {testResult && (
           <span
             className={styles.statusMsg}
@@ -356,6 +406,41 @@ function PublishStatsPanel({ stats, toggleEnabled, onTest, testing, testResult }
           </span>
         )}
       </div>
+      {clearMsg && (
+        <div
+          className={styles.statusMsg}
+          data-tone="info"
+          style={{ margin: 0 }}
+        >
+          <Icon name="Info" size={14} />
+          <span>{clearMsg}</span>
+        </div>
+      )}
+
+      {/* Footer tecnico: contadores crudos siempre visibles. Si la UI
+       * arriba dice "Esperando..." pero attempts ya esta en N, el usuario
+       * sabe que algo paso en main pero la red fallo. Si attempts=0 y
+       * acaba de reproducir 5 canciones, sabe que el LAN server las
+       * sirvio desde su cache de memoria sin disparar yt-dlp. */}
+      {stats && (
+        <div style={{
+          display: 'flex',
+          gap: 'var(--space-3)',
+          fontSize: 'var(--fs-xs)',
+          color: 'var(--color-text-3)',
+          fontVariantNumeric: 'tabular-nums',
+          flexWrap: 'wrap',
+          paddingTop: 4,
+        }}>
+          <span>intentos: <b style={{ color: 'var(--color-text-1)' }}>{stats.attempts}</b></span>
+          <span>exitos: <b style={{ color: stats.successes > 0 ? 'var(--color-success)' : 'var(--color-text-1)' }}>{stats.successes}</b></span>
+          <span>fallos: <b style={{ color: stats.failures > 0 ? 'var(--color-danger)' : 'var(--color-text-1)' }}>{stats.failures}</b></span>
+          {stats.skippedReason && (
+            <span>skip: <b style={{ color: 'var(--color-warning, #fbbf24)' }}>{stats.skippedReason}</b></span>
+          )}
+          <span>env: {stats.hasUrl ? '✓url' : '✗url'} {stats.hasToken ? '✓tok' : '✗tok'}</span>
+        </div>
+      )}
     </div>
   );
 }

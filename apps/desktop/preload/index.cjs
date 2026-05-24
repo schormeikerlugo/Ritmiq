@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('ritmiq', {
     setPublishUrlCache: (enabled) => ipcRenderer.invoke('settings:setPublishUrlCache', enabled),
     getPublishStats: () => ipcRenderer.invoke('settings:getPublishStats'),
   },
+  lan: {
+    clearStreamCache: () => ipcRenderer.invoke('lan:clearStreamCache'),
+  },
   yt: {
     metadata: (idOrUrl) => ipcRenderer.invoke('yt:metadata', idOrUrl),
     streamUrl: (idOrUrl) => ipcRenderer.invoke('yt:streamUrl', idOrUrl),

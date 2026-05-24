@@ -163,6 +163,18 @@ export function registerIpc({ db, lan, accessToken }) {
     return null;
   });
 
+  // Invalida el cache local de URLs resueltas del LAN server. El usuario
+  // lo dispara desde el panel del toggle "Compartir resoluciones" cuando
+  // quiere ver el siguiente publish en vivo sin esperar 30min de TTL.
+  // Devuelve cuantas entradas borro.
+  ipcMain.handle('lan:clearStreamCache', async () => {
+    const mod = await import('./lan-server.js');
+    if (typeof mod.clearStreamCache === 'function') {
+      return { ok: true, cleared: mod.clearStreamCache() };
+    }
+    return { ok: false, cleared: 0 };
+  });
+
   // ─── Cloudflare Tunnel ───────────────────────────────────────────────
   ipcMain.handle('tunnel:status', () => ({
     ...cloudflared.state,

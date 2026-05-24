@@ -98,7 +98,37 @@ export function getPublishStats() {
     ?? process.env.SUPABASE_ANON_KEY
     ?? process.env.VITE_SUPABASE_ANON_KEY
   );
-  return { ...publishStats, toggleEnabled: publishUrlCacheEnabled() };
+  return {
+    ...publishStats,
+    toggleEnabled: publishUrlCacheEnabled(),
+    streamCacheSize: streamCacheRef?.size ?? 0,
+  };
+}
+
+/**
+ * Referencia module-level al streamCache del LAN server, expuesta por
+ * startLanServer al iniciar. Permite que getPublishStats reporte cuantas
+ * URLs estan cacheadas en memoria, y que clearStreamCache permita al
+ * usuario forzar invalidacion para probar la cadena yt-dlp -> publish
+ * sin esperar 30min de TTL.
+ *
+ * @type {Map<string, any>|null}
+ */
+let streamCacheRef = null;
+
+/**
+ * Invalida todo el cache local de URLs resueltas. La siguiente vez que
+ * se pida cualquier ytId disparara getStreamUrl (yt-dlp) y, si el toggle
+ * esta ON, dispara publishToGlobalCache. Util para "ver el publish en
+ * vivo" sin tener que reproducir canciones nuevas.
+ *
+ * @returns {number} cantidad de entradas eliminadas
+ */
+export function clearStreamCache() {
+  if (!streamCacheRef) return 0;
+  const n = streamCacheRef.size;
+  streamCacheRef.clear();
+  return n;
 }
 
 /**
@@ -423,6 +453,9 @@ export async function startLanServer({ port, db, accessToken }) {
   // esto evita la espera en reproducciones repetidas / pre-resolves.
   /** @type {Map<string, { url: string, expiresAt: number, inflight?: Promise<string> }>} */
   const streamCache = new Map();
+  // Expone el cache al module-level para que getPublishStats reporte
+  // tamano y clearStreamCache pueda invalidarlo via IPC desde Settings.
+  streamCacheRef = streamCache;
   const TTL_MS = 30 * 60 * 1000;
 
   /**
