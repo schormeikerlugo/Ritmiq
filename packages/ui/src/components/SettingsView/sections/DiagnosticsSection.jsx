@@ -23,7 +23,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../../stores/auth.js';
-import { streamOriginCounts, lastStreamOrigin } from '../../../lib/use-player.js';
+import { streamOriginCounts, lastStreamOrigin, metaPublishStats } from '../../../lib/use-player.js';
 import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { LinkButton } from '../controls/LinkButton.jsx';
@@ -162,6 +162,8 @@ export function DiagnosticsSection() {
 
       <StreamOriginsRow />
 
+      <TracksGlobalRow />
+
       <SettingRow
         label="Forzar re-evaluacion"
         description="Re-lee todas las flags. Util si iOS expuso APIs con delay tras instalar la PWA."
@@ -272,6 +274,86 @@ function StreamOriginsRow() {
           </div>
         ) : null
       }
+    />
+  );
+}
+
+/**
+ * Fila "Diccionario global Ritmiq" — la Fase tracks_global.
+ *
+ * Muestra:
+ *   - Cuantas canciones conoce la red Ritmiq (count agregado publico).
+ *   - Mis contribuciones de la sesion actual (in-memory).
+ *   - Boton "Probar busqueda" que hace una consulta de prueba a
+ *     search-youtube con `?known=1` para validar que el paso 0 del
+ *     Edge esta retornando known items correctamente.
+ *
+ * El count se refresca cada 30s (no critico de tiempo real).
+ */
+function TracksGlobalRow() {
+  const [count, setCount] = useState(null);
+  const [, force] = useState(0);
+  const [testMsg, setTestMsg] = useState(null);
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function refresh() {
+      try {
+        const { supabase } = await import('../../../lib/supabase.js');
+        const { count: c, error } = await supabase
+          .from('tracks_global')
+          .select('yt_id', { count: 'exact', head: true });
+        if (!cancelled && !error) setCount(c ?? 0);
+      } catch { /* tabla no existe aun o sin red */ }
+    }
+    refresh();
+    const id = setInterval(refresh, 30_000);
+    const id2 = setInterval(() => force((n) => n + 1), 5_000); // refresca stats local
+    return () => { cancelled = true; clearInterval(id); clearInterval(id2); };
+  }, []);
+
+  async function handleTest() {
+    setTesting(true);
+    setTestMsg(null);
+    const t0 = performance.now();
+    try {
+      const sup = import.meta.env.VITE_SUPABASE_URL;
+      const apikey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (!sup || !apikey) throw new Error('Falta VITE_SUPABASE_URL/KEY');
+      // Query generica "music" — deberia matchear casi cualquier track.
+      const r = await fetch(
+        `${sup}/functions/v1/search-youtube?q=music&type=videos&max=1`,
+        { headers: { Authorization: `Bearer ${apikey}`, apikey } }
+      );
+      const dt = Math.round(performance.now() - t0);
+      if (!r.ok) {
+        setTestMsg(`HTTP ${r.status} (${dt} ms)`);
+      } else {
+        const body = await r.json();
+        const knownN = (body?.known ?? []).length;
+        setTestMsg(`OK ${dt}ms — ${knownN} known + ${body?.items?.length ?? 0} de YouTube`);
+      }
+    } catch (err) {
+      setTestMsg(`Error: ${err?.message ?? err}`);
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  const localStats = metaPublishStats;
+  const detailParts = [];
+  if (count !== null) detailParts.push(`${count} canciones canonizadas`);
+  else detailParts.push('cargando count...');
+  if (localStats.successes > 0) detailParts.push(`mis contribuciones: ${localStats.successes}`);
+  if (localStats.failures > 0) detailParts.push(`fallos: ${localStats.failures}`);
+  if (testMsg) detailParts.push(testMsg);
+
+  return (
+    <SettingRow
+      label="Diccionario global Ritmiq (Fase 2)"
+      description={detailParts.join(' · ')}
+      control={<LinkButton onClick={handleTest} disabled={testing}>{testing ? '...' : 'Probar'}</LinkButton>}
     />
   );
 }

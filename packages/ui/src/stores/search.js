@@ -20,6 +20,11 @@ export const useSearchStore = create((set, get) => ({
   channels: [],
   /** @type {Array<{id:string,title:string,videoCount?:number|null,thumbnail?:string|null,author?:string|null}>} */
   playlists: [],
+  /** @type {Array<{ytId:string,title:string,artist:string,album?:string|null,coverUrl?:string|null,durationSeconds?:number|null,contributionCount:number}>}
+   *  Tracks que la red Ritmiq ya canonizo. Provienen de tracks_global
+   *  via search-youtube paso 0. Se renderizan en la franja superior
+   *  con badge "Conocida en Ritmiq". */
+  known: [],
   loading: false,
   error: null,
 
@@ -38,6 +43,7 @@ export const useSearchStore = create((set, get) => ({
         videos: payload?.videos ?? [],
         channels: payload?.channels ?? [],
         playlists: payload?.playlists ?? [],
+        known: payload?.known ?? [],
         loading: false,
       });
     } catch (err) {
@@ -65,6 +71,6 @@ export const useSearchStore = create((set, get) => ({
   },
 
   reset() {
-    set({ query: '', videos: [], channels: [], playlists: [], loading: false, error: null });
+    set({ query: '', videos: [], channels: [], playlists: [], known: [], loading: false, error: null });
   },
 }));

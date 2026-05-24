@@ -415,6 +415,22 @@ export function registerIpc({ db, lan, accessToken }) {
     } catch (err) {
       console.warn('[ipc] registerSharedAudio failed:', err.message);
     }
+    // Contribuir metadata al diccionario global Ritmiq (fire-and-forget).
+    // Una descarga completa es senal MUY fuerte de "track real" — el user
+    // invirtio disco en mantenerlo offline. Mejor incluso que un play.
+    try {
+      const mod = await import('./lan-server.js');
+      mod.publishTrackMetaFromMain?.({
+        ytId: row.yt_id,
+        title: row.title,
+        artist: row.artist,
+        album: row.album,
+        coverUrl: row.cover_url,
+        durationSeconds: row.duration_seconds,
+      });
+    } catch (err) {
+      console.warn('[ipc] publishTrackMetaFromMain (download) failed:', err.message);
+    }
     return finalPath;
   });
 

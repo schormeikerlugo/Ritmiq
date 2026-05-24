@@ -37,6 +37,7 @@ export function SearchView({ query }) {
   const videos    = useSearchStore((s) => s.videos);
   const channels  = useSearchStore((s) => s.channels);
   const playlists = useSearchStore((s) => s.playlists);
+  const known     = useSearchStore((s) => s.known);
   const loading   = useSearchStore((s) => s.loading);
   const error     = useSearchStore((s) => s.error);
   const playNow   = usePlayerStore((s) => s.playNow);
@@ -87,13 +88,55 @@ export function SearchView({ query }) {
     [libraryTracks, query]
   );
 
+  // ── Conocidas en Ritmiq ────────────────────────────────────────────
+  // El Edge search-youtube devuelve un array `known` con tracks que
+  // alguien en la red Ritmiq ya canonizo en tracks_global. Los
+  // convertimos a Track reproducibles y los deduplicamos contra
+  // localMatches (lo tuyo gana). Tambien construimos un Set de ytIds
+  // conocidos para marcar con badge los videos de Innertube que ya
+  // existen en el diccionario global.
+  const localYtIds = useMemo(() => {
+    const s = new Set();
+    for (const t of localMatches) if (t.ytId) s.add(t.ytId);
+    return s;
+  }, [localMatches]);
+
+  const knownAsTracks = useMemo(() => {
+    if (!Array.isArray(known) || known.length === 0) return [];
+    return known
+      .filter((k) => k.ytId && !localYtIds.has(k.ytId))
+      .map((k) => metaToCandidate({
+        id: k.ytId,
+        title: k.title,
+        uploader: k.artist,
+        duration: k.durationSeconds ?? null,
+        thumbnail: k.coverUrl ?? null,
+      }));
+  }, [known, localYtIds]);
+
+  const knownYtIds = useMemo(() => {
+    const s = new Set();
+    for (const k of known) if (k.ytId) s.add(k.ytId);
+    return s;
+  }, [known]);
+
+  const knownCountByYtId = useMemo(() => {
+    const m = new Map();
+    for (const k of known) if (k.ytId) m.set(k.ytId, k.contributionCount ?? 0);
+    return m;
+  }, [known]);
+
   /** Convierte videos del search en Tracks reproducibles, dedupeando
-   *  contra los que ya estan en la biblioteca local (mismo ytId), y
-   *  ordenando para que los cacheados en el desktop (⚡) aparezcan
-   *  primero. Sort estable: preserva el orden original dentro de cada
-   *  grupo (cached, no-cached). */
+   *  contra los que ya estan en la biblioteca local Y contra los
+   *  conocidos en Ritmiq (mismo ytId), y ordenando para que los
+   *  cacheados en el desktop (⚡) aparezcan primero. Sort estable:
+   *  preserva el orden original dentro de cada grupo (cached, no-cached).
+   *
+   *  Los `known` se renderizan en su propia franja arriba — no queremos
+   *  duplicarlos dentro del listado de YouTube. */
   const videosAsTracks = useMemo(() => {
-    const filtered = dedupeByYtId(videos, localMatches);
+    const filteredLocal = dedupeByYtId(videos, localMatches);
+    const filtered = filteredLocal.filter((v) => !knownYtIds.has(v.id));
     const tracks = filtered.map((v) => metaToCandidate({
       id: v.id,
       title: v.title,
@@ -109,7 +152,7 @@ export function SearchView({ query }) {
       else others.push(t);
     }
     return [...cached, ...others];
-  }, [videos, localMatches, cachedSet]);
+  }, [videos, localMatches, knownYtIds, cachedSet]);
 
   const playSongList = (startIdx = 0) => {
     if (videosAsTracks.length === 0) return;
@@ -123,11 +166,18 @@ export function SearchView({ query }) {
     playNow(localMatches, clamped);
   };
 
+  const playKnown = (idx) => {
+    if (knownAsTracks.length === 0) return;
+    const clamped = Math.min(idx, knownAsTracks.length - 1);
+    playNow(knownAsTracks, clamped);
+  };
+
   const noResults = !loading
     && videos.length === 0
     && channels.length === 0
     && playlists.length === 0
-    && localMatches.length === 0;
+    && localMatches.length === 0
+    && knownAsTracks.length === 0;
 
   return (
     <section className={styles.wrap}>
@@ -167,10 +217,13 @@ export function SearchView({ query }) {
           error={error}
           localMatches={localMatches}
           videosAsTracks={videosAsTracks}
+          knownAsTracks={knownAsTracks}
+          knownCountByYtId={knownCountByYtId}
           cachedSet={cachedSet}
           noResults={noResults}
           playLocal={playLocal}
           playSongList={playSongList}
+          playKnown={playKnown}
           goArtist={goArtist}
         />
       )}
@@ -181,8 +234,8 @@ export function SearchView({ query }) {
 function SearchResults({
   query, tab, setTab,
   videos, channels, playlists, loading, error,
-  localMatches, videosAsTracks, cachedSet, noResults,
-  playLocal, playSongList, goArtist,
+  localMatches, videosAsTracks, knownAsTracks, knownCountByYtId,
+  cachedSet, noResults, playLocal, playSongList, playKnown, goArtist,
 }) {
   return (
     <>
@@ -224,6 +277,31 @@ function SearchResults({
                     track={t}
                     onClick={() => playLocal(i)}
                     badge={t.isDownloaded ? 'Descargada' : 'Tuya'}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Conocidas en Ritmiq: la franja P2P. Tracks canonizados por
+              la red. Aparecen ENTRE tu biblioteca y los resultados de
+              YouTube — mas confiables que un resultado random fresco. */}
+          {knownAsTracks.length > 0 && (
+            <section className={styles.row}>
+              <header className={styles.rowHead}>
+                <h2 className={styles.rowTitle}>
+                  <Icon name="Sparkles" size={14} />
+                  {' '}Conocidas en Ritmiq
+                </h2>
+              </header>
+              <div className={styles.songList}>
+                {knownAsTracks.slice(0, 5).map((t, i) => (
+                  <SongRow
+                    key={`known-${t.id}`}
+                    track={t}
+                    onClick={() => playKnown(i)}
+                    cached={t.ytId ? cachedSet.has(t.ytId) : false}
+                    knownCount={knownCountByYtId.get(t.ytId) ?? 0}
                   />
                 ))}
               </div>
@@ -314,6 +392,16 @@ function SearchResults({
       {tab === 'videos' && (
         <div className={styles.songList}>
           {loading && videos.length === 0 && <RowSkeleton title="" count={6} />}
+          {/* Conocidas primero (P2P trust) → luego YouTube fresco. */}
+          {knownAsTracks.map((t, i) => (
+            <SongRow
+              key={`known-${t.id}`}
+              track={t}
+              onClick={() => playKnown(i)}
+              cached={t.ytId ? cachedSet.has(t.ytId) : false}
+              knownCount={knownCountByYtId.get(t.ytId) ?? 0}
+            />
+          ))}
           {videosAsTracks.map((t, i) => (
             <SongRow
               key={t.id}
@@ -370,8 +458,13 @@ function SearchResults({
 }
 
 /** Fila tipo Spotify para canciones individuales en el tab "Todo" / "Canciones".
- *  @param {{ track:any, onClick:()=>void, badge?:string, cached?:boolean }} props */
-function SongRow({ track, onClick, badge, cached }) {
+ *  @param {{ track:any, onClick:()=>void, badge?:string, cached?:boolean, knownCount?:number }} props */
+function SongRow({ track, onClick, badge, cached, knownCount }) {
+  const knownLabel = knownCount > 1
+    ? `✨ ${knownCount} en Ritmiq`
+    : knownCount === 1
+      ? `✨ Nueva en Ritmiq`
+      : null;
   return (
     <button type="button" className={styles.songRow} onClick={onClick}>
       <div className={styles.songCover}>
@@ -386,6 +479,12 @@ function SongRow({ track, onClick, badge, cached }) {
         <span className={styles.songTitle}>
           {track.title}
           {badge && <span className={styles.songBadge}>{badge}</span>}
+          {knownLabel && (
+            <span
+              className={styles.songKnownBadge}
+              title={`Canonicalizada en la red Ritmiq · ${knownCount} ${knownCount === 1 ? 'reproduccion' : 'reproducciones'} acumuladas`}
+            >{knownLabel}</span>
+          )}
           {cached && (
             <span
               className={styles.songCacheBadge}

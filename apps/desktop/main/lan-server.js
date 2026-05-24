@@ -184,6 +184,66 @@ export function publishResolvedUrl(ytId, url, ttlMs = 30 * 60 * 1000) {
 }
 
 /**
+ * Publica metadata del track al diccionario global tracks_global.
+ * Llamado tras download exitoso en library:download IPC.
+ *
+ * Usa el JWT del usuario logueado (supabaseUserJwt) — la Edge
+ * publish-track-meta lo exige (auth.getUser). Sin sesion, no publica.
+ *
+ * Fire-and-forget. Dedupe in-memory en metaPublishedYtIds (cada
+ * arranque del main process empieza vacio — la Edge ya wrap-ea con
+ * UPSERT idempotente asi que duplicados de boots distintos no hacen
+ * dano).
+ *
+ * @param {{ytId: string, title: string, artist?: string, album?: string,
+ *          coverUrl?: string, durationSeconds?: number}} meta
+ */
+const metaPublishedYtIds = new Set();
+export async function publishTrackMetaFromMain(meta) {
+  if (!meta?.ytId || !meta.title) return;
+  if (metaPublishedYtIds.has(meta.ytId)) return;
+  metaPublishedYtIds.add(meta.ytId);
+
+  const SUP = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
+  const ANON = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
+  const JWT = supabaseUserJwt;
+  if (!SUP || !ANON || !JWT) {
+    // Sin alguno de estos no podemos publicar — quitamos del set para
+    // que el siguiente download intente de nuevo cuando si se tenga.
+    metaPublishedYtIds.delete(meta.ytId);
+    return;
+  }
+
+  try {
+    const res = await fetch(`${SUP}/functions/v1/publish-track-meta`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${JWT}`,
+        apikey: ANON,
+      },
+      body: JSON.stringify({
+        ytId: meta.ytId,
+        title: meta.title,
+        artist: meta.artist ?? 'Desconocido',
+        album: meta.album ?? null,
+        coverUrl: meta.coverUrl ?? null,
+        durationSeconds: typeof meta.durationSeconds === 'number'
+          ? meta.durationSeconds
+          : null,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status} ${text.slice(0, 120)}`);
+    }
+  } catch (err) {
+    console.warn(`[lan-server] publishTrackMetaFromMain fallo (no fatal): ${err?.message ?? err}`);
+    metaPublishedYtIds.delete(meta.ytId);
+  }
+}
+
+/**
  * Publica una URL resuelta al cache global de Supabase.
  * Fire-and-forget: nunca propaga errores al caller.
  *

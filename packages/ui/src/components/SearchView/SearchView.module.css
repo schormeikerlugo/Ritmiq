@@ -246,6 +246,22 @@
   white-space: nowrap;
 }
 
+/* Badge ✨ "Conocida en Ritmiq" — tracks canonizados por la red P2P.
+ * Diferenciado del cache (verde local) y del badge generico (accent
+ * indigo) usando un dorado/violeta sutil que evoque "comunidad". */
+.songKnownBadge {
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(255, 213, 79, 0.16), rgba(186, 104, 200, 0.16));
+  color: #d4a93f;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 /* Input de busqueda visible en SearchView (key UI: en mobile reemplaza el
    TopBar que esta oculto; en desktop tambien funciona como search alt). */
 .searchForm {

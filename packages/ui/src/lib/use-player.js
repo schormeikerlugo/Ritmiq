@@ -61,6 +61,94 @@ function recordStreamOrigin(origin) {
 }
 
 /**
+ * Dedupe set para no spamear publish-track-meta con el mismo ytId
+ * en la misma sesion. El rate-limit del Edge ya protege a 100/min, pero
+ * esto es buen comportamiento del cliente: 1 publish por ytId por sesion.
+ *
+ * Se limpia al recargar la app (es solo memoria de la sesion).
+ */
+const publishedMetaInSession = new Set();
+
+/**
+ * Estado observable de la ultima publicacion de metadata para mostrar
+ * en Diagnostics. NO se persiste — solo memoria de la sesion.
+ */
+export const metaPublishStats = {
+  attempts: 0,
+  successes: 0,
+  failures: 0,
+  lastSuccessAt: null,
+  lastError: null,
+  knownInRitmiq: null, // count del diccionario global (refrescado en Diagnostics).
+};
+
+/**
+ * Publica metadata del track al diccionario global tracks_global.
+ * Fire-and-forget: no afecta latencia de reproduccion.
+ *
+ * Llamado tras backend.play() exitoso (= reproduccion REAL confirmada),
+ * NO durante la fase de load — asi solo entran al diccionario tracks
+ * que efectivamente sonaron, evitando contaminar con metadata de
+ * resultados de busqueda nunca escuchados.
+ *
+ * @param {import('@ritmiq/core').Track} track
+ */
+async function publishTrackMeta(track) {
+  if (!track?.ytId) return;
+  if (!track.title || !track.artist) return;
+  if (publishedMetaInSession.has(track.ytId)) return;
+  publishedMetaInSession.add(track.ytId);
+
+  const sup = import.meta.env.VITE_SUPABASE_URL;
+  const apikey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!sup || !apikey) return;
+
+  metaPublishStats.attempts++;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      // Sin sesion no podemos contribuir. Quitamos del set para que
+      // si el user logea despues, el siguiente play del mismo track
+      // si intente publicar.
+      publishedMetaInSession.delete(track.ytId);
+      return;
+    }
+    const res = await fetch(`${sup}/functions/v1/publish-track-meta`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+        apikey,
+      },
+      body: JSON.stringify({
+        ytId: track.ytId,
+        title: track.title,
+        artist: track.artist,
+        album: track.album ?? null,
+        coverUrl: track.coverUrl ?? null,
+        durationSeconds: typeof track.durationSeconds === 'number'
+          ? track.durationSeconds
+          : null,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status} ${text.slice(0, 120)}`);
+    }
+    metaPublishStats.successes++;
+    metaPublishStats.lastSuccessAt = Date.now();
+  } catch (err) {
+    metaPublishStats.failures++;
+    metaPublishStats.lastError = {
+      message: String(err?.message ?? err).slice(0, 200),
+      at: Date.now(),
+    };
+    // Quitamos del set para reintentar en proximo play del mismo track.
+    publishedMetaInSession.delete(track.ytId);
+  }
+}
+
+/**
  * Devuelve la duración "real" a usar para barra de progreso y pre-end swap.
  *
  * Algunas respuestas de googlevideo vía Cloudflare Tunnel reportan a Safari
@@ -558,6 +646,10 @@ export function usePlayerEngine() {
         await backend.play();
         setState({ isPlaying: true, durationSeconds: backend.duration() });
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        // Fire-and-forget: contribuir metadata al diccionario global
+        // Ritmiq. Solo tras play() exitoso = reproduccion REAL. Dedupe
+        // por sesion + ytId interno. NO bloquea ni afecta latencia.
+        publishTrackMeta(currentTrack);
       } catch (err) {
         console.error('[player] load failed', err);
         setState({ isPlaying: false, error: String(err?.message ?? err) });

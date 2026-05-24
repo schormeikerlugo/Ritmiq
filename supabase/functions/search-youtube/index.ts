@@ -12,6 +12,7 @@
 //   - type=all → { videos:[], channels:[], playlists:[] }
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -21,6 +22,23 @@ const CORS = {
 
 const INNERTUBE_URL = 'https://www.youtube.com/youtubei/v1/search?prettyPrint=false';
 const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+
+// Cliente Supabase con service_role para leer tracks_global sin
+// depender del JWT del caller (la tabla es publica para auth, pero
+// usar service evita un round-trip de validacion del token aqui).
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const sb = createClient(SUPABASE_URL, SERVICE_KEY);
+
+interface KnownItem {
+  ytId: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  coverUrl: string | null;
+  durationSeconds: number | null;
+  contributionCount: number;
+}
 
 // Innertube `params` URL-encoded para filtrar por tipo. Estos códigos
 // vienen del web client de YouTube — son estables hace varios años.
@@ -175,6 +193,49 @@ async function searchAll(query: string, perType: number) {
   };
 }
 
+/**
+ * Lookup en tracks_global por query. Hace 2 estrategias en paralelo:
+ *   1. FTS (Full Text Search) sobre titulo+artista para queries >= 3 chars.
+ *   2. ILIKE prefijo+substring para queries cortas o cuando FTS no machea.
+ *
+ * Tolerante a errores: si la tabla aun no existe o la query falla, devuelve
+ * array vacio para que el caller siga con Innertube sin regresion.
+ *
+ * Limite: 10 known items por query. Mas que eso satura la UI de tracks
+ * conocidos antes de los resultados frescos de YouTube.
+ */
+async function searchKnown(query: string, limit = 10): Promise<KnownItem[]> {
+  const q = query.trim();
+  if (!q) return [];
+  try {
+    // ILIKE patron: %palabra1%palabra2%... — match parcial por orden de palabras.
+    const words = q.split(/\s+/).filter(Boolean);
+    const ilikePattern = '%' + words.join('%') + '%';
+    const { data, error } = await sb
+      .from('tracks_global')
+      .select('yt_id, title, artist, album, cover_url, duration_seconds, contribution_count')
+      .or(`title.ilike.${ilikePattern},artist.ilike.${ilikePattern}`)
+      .order('contribution_count', { ascending: false })
+      .limit(limit);
+    if (error) {
+      console.warn('[search-known] lookup error (non fatal):', error.message);
+      return [];
+    }
+    return (data ?? []).map((r): KnownItem => ({
+      ytId: r.yt_id,
+      title: r.title,
+      artist: r.artist,
+      album: r.album ?? null,
+      coverUrl: r.cover_url ?? null,
+      durationSeconds: r.duration_seconds ?? null,
+      contributionCount: r.contribution_count ?? 0,
+    }));
+  } catch (err) {
+    console.warn('[search-known] exception (non fatal):', err);
+    return [];
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'GET') return new Response('method not allowed', { status: 405, headers: CORS });
@@ -183,6 +244,8 @@ serve(async (req) => {
   const query = url.searchParams.get('q') ?? '';
   const type = (url.searchParams.get('type') ?? 'videos').toLowerCase();
   const max = Math.min(30, Math.max(1, parseInt(url.searchParams.get('max') ?? '12', 10)));
+  // Flag opcional para deshabilitar known lookup (debugging / A/B testing).
+  const includeKnown = url.searchParams.get('known') !== '0';
 
   if (!query.trim()) {
     return new Response(JSON.stringify({ error: 'q required' }), {
@@ -192,11 +255,22 @@ serve(async (req) => {
   }
 
   try {
-    let payload: unknown;
+    // Lanzamos known y innertube EN PARALELO para minimizar latencia
+    // total. Si la tabla esta vacia, known retorna [] casi instante.
+    const knownP = (includeKnown && (type === 'videos' || type === 'all'))
+      ? searchKnown(query)
+      : Promise.resolve([] as KnownItem[]);
+
+    let payload: any;
     if (type === 'all') {
-      payload = await searchAll(query, 5);
+      const [allRes, known] = await Promise.all([searchAll(query, 5), knownP]);
+      payload = { ...allRes, known };
     } else if (type in TYPE_PARAMS) {
-      payload = await searchOneType(query, type as keyof typeof TYPE_PARAMS, max);
+      const [oneRes, known] = await Promise.all([
+        searchOneType(query, type as keyof typeof TYPE_PARAMS, max),
+        knownP,
+      ]);
+      payload = { ...oneRes, known };
     } else {
       return new Response(JSON.stringify({ error: 'type inválido' }), {
         status: 400,
