@@ -20,7 +20,7 @@ WHERE tipo = "flujo"
 SORT file.name ASC
 ```
 
-## Los 9 flujos documentados
+## Los flujos documentados
 
 - [[Reproduccion-Track-Online]] — del click play al audio sonando, cascada LAN→Tunnel→Cloud + pre-end swap iOS.
 - [[Descarga-Offline]] — Desktop a disco / PWA a IndexedDB, con cache `shared_audio` entre cuentas.
@@ -32,3 +32,4 @@ SORT file.name ASC
 - [[Recomendaciones]] — Last.fm + Innertube + cache 12h.
 - [[Push-Notifications]] — suscripción, envío y sync (iOS edge cases).
 - [[Sincronizacion-Offline]] — sync queue offline-first + hidratación Dexie.
+- [[p2p-knowledge-sharing]] — Fase 1 + Fase 2: cache URLs + diccionario metadata cross-user.
