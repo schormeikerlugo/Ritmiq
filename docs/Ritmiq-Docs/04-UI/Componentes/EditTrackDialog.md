@@ -42,9 +42,9 @@ Cuando el user presiona "Guardar", se invoca [[library|library.updateMeta]]`(tra
 ## Validación
 
 - `title` requerido (trim, no vacío). Botón Guardar disabled si vacío.
-- `title` y `artist` max 500 chars (validado client + server en publish-track-meta).
-- Pristine detection: si nada cambió respecto al valor original, botón disabled.
-- `artist` opcional → `null` en BD si vacío. UI fallback "Artista desconocido".
+- `title`, `artist`, `album` max 500 chars (validado client + server en publish-track-meta).
+- Pristine detection: si nada cambió respecto a los 3 campos originales, botón disabled.
+- `artist` y `album` opcionales → `null` en BD si vacío. UI fallback "Artista desconocido"/"—".
 - **NO se aplica** [[clean-track-meta|cleanYoutubeTitle]] al input del user. La edición manual es autoritativa — limpiar automáticamente sería paternalista.
 
 ## Entry points
@@ -72,11 +72,14 @@ Cuando el user presiona "Guardar", se invoca [[library|library.updateMeta]]`(tra
 
 ## Casos NO contemplados (futuro)
 
-- Edición de `album` (fácil incremental, agregar 3er input).
 - Edición de `coverUrl` (requiere Storage upload, scope separado).
 - Edición batch multi-track.
 - Restaurar al título original (requiere columna `original_title`).
 - Sistema de votos federado para [[tracks_global]] (modelo MusicBrainz, F2).
+
+## Changelog
+
+- 2026-05-24: añadido campo `album` opcional (3er input). Antes diferido, ahora incluido. Backend ya lo soportaba sin cambios — solo +10 LOC en el JSX.
 
 ## Cross-references
 

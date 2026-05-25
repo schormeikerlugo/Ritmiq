@@ -63,22 +63,67 @@ export async function resolveAudioSource(track, deps) {
     return { url, origin: 'lan' };
   }
 
-  // 3. NUEVA capa Fase 1: cache global de URLs en Supabase.
-  // Si otro desktop ya resolvio este ytId y la URL sigue fresca, la
-  // reusamos sin tocar el Edge resolve-stream (que YouTube tiende a
-  // rate-limitar). Cualquier fallo aqui cae transparente al paso 4.
-  if (track.ytId && typeof deps.getGlobalCachedUrl === 'function') {
+  // 3+4. RACE PARALELO: cache global Supabase vs. cloud Edge yt-dlp.
+  //
+  // ANTES: secuencial — `await getGlobalCachedUrl()` (paga ~500ms cold
+  // si MISS) y luego cae a resolveCloudStream(). En cache vacio (caso
+  // comun cuando la red apenas arranca), CADA reproduccion ephemeral
+  // pagaba esos ~500ms de "loteria" antes de yt-dlp.
+  //
+  // AHORA: ambos lanzados a la vez con Promise.any. Quien resuelva
+  // primero con URL valida gana:
+  //   - Cache HIT (~80-150ms warm): ahorra 1-3s de yt-dlp.
+  //   - Cache MISS rapido (~80ms): cloud termina despues, sin penalty.
+  //   - Cache MISS lento (~500ms): cloud gana eventualmente, sin penalty.
+  //   - Cache error: cloud gana.
+  //   - Ambos fallan: AggregateError, lanzamos el ultimo error.
+  //
+  // El perdedor (cloud, si gana global) sigue corriendo en background;
+  // su URL se descarta. Pero la invocacion yt-dlp triggera el hook de
+  // publishResolvedUrl, que popula el cache global mas rapido — efecto
+  // secundario util.
+  //
+  // FALLBACK SECUENCIAL: si falta una de las deps (test units, etc),
+  // mantenemos el comportamiento legacy para no romper consumers.
+  const canCheckGlobal = !!track.ytId && typeof deps.getGlobalCachedUrl === 'function';
+  const canCloud = typeof deps.resolveCloudStream === 'function';
+
+  if (canCheckGlobal && canCloud) {
+    const globalP = (async () => {
+      const cached = await deps.getGlobalCachedUrl(track.ytId);
+      if (cached && cached.url) {
+        return { url: cached.url, origin: 'cache-global-url' };
+      }
+      // throw para excluir este perdedor del Promise.any (queremos solo
+      // RESOLVES con URL valida, no settle).
+      throw new Error('global-cache-miss');
+    })();
+
+    const cloudP = (async () => {
+      const r = await deps.resolveCloudStream(track.id);
+      return { url: r.url, origin: 'cloud-stream', expiresAt: r.expiresAt };
+    })();
+
+    try {
+      return await Promise.any([globalP, cloudP]);
+    } catch (aggregateError) {
+      // Ambos fallaron. Lanzar el error mas informativo (usualmente cloud).
+      const errors = aggregateError?.errors ?? [];
+      throw errors[errors.length - 1] ?? aggregateError;
+    }
+  }
+
+  // Path legacy si falta una dep.
+  if (canCheckGlobal) {
     try {
       const cached = await deps.getGlobalCachedUrl(track.ytId);
       if (cached && cached.url) {
         return { url: cached.url, origin: 'cache-global-url' };
       }
     } catch {
-      // Silent: si falla la consulta al cache, seguimos al fallback.
+      // silent fallthrough
     }
   }
-
-  // 4. Fallback: cloud edge function (resolve-stream)
   const { url, expiresAt } = await deps.resolveCloudStream(track.id);
   return { url, origin: 'cloud-stream', expiresAt };
 }

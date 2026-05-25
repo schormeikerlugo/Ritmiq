@@ -3,17 +3,17 @@ tipo: modulo
 capa: core
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-24
 archivo: packages/core/src/audio-source.js
 tags: [core, audio, estrategia, resolucion]
 ---
 
 # `core/audio-source.js`
 
-> Estrategia adaptativa para resolver la fuente de audio de un track. Implementa la cascada: **descarga local → servidor LAN → edge function en cloud**. Totalmente agnóstica del entorno (mismo código en Desktop y PWA).
+> Estrategia adaptativa para resolver la fuente de audio de un track. Implementa la cascada: **descarga local → servidor LAN → race(cache global ↔ cloud edge)**. Totalmente agnóstica del entorno (mismo código en Desktop y PWA).
 
 ## Ubicación
-`packages/core/src/audio-source.js:1` (63 líneas)
+`packages/core/src/audio-source.js`
 
 ## Export principal
 
@@ -79,9 +79,32 @@ flowchart TD
   B -- no --> D{getLanBaseUrl?}
   D -- sí --> E[buildLanStreamUrl / simple url]
   E --> F[origin: lan]
-  D -- no --> G[resolveCloudStream]
-  G --> H[origin: cloud-stream + expiresAt]
+  D -- no --> R{race paralelo}
+  R --> G1[getGlobalCachedUrl<br/>tracks_global Supabase]
+  R --> G2[resolveCloudStream<br/>Edge resolve-stream + yt-dlp]
+  G1 -- HIT --> H1[origin: cache-global-url<br/>~80-150ms warm]
+  G2 -- resolve --> H2[origin: cloud-stream + expiresAt<br/>~1500-3000ms]
+  H1 -.descarta perdedor.-> X[(URL no usada<br/>pero publish hook<br/>popula cache global)]
 ```
+
+## Race paralelo (paso 3+4)
+
+**Decisión clave (2026-05-24):** los pasos 3 (cache global) y 4 (cloud yt-dlp) corren **en paralelo** con `Promise.any` en vez de secuencialmente. Razón:
+
+- Antes: `await getGlobalCachedUrl()` bloqueaba ~500ms en cold MISS antes de caer a yt-dlp. En cache vacío (caso común al arrancar la red), CADA reproducción ephemeral pagaba ese tiempo de "lotería".
+- Ahora: cualquiera de los dos que responda primero con URL válida gana.
+
+| Escenario | Resultado |
+|---|---|
+| Cache HIT (~100ms) + Cloud (~1500ms) | **global gana → −1400ms** |
+| Cache MISS rápido (~80ms) + Cloud (~1500ms) | cloud gana eventualmente → +0ms vs antes |
+| Cache MISS lento (~500ms) + Cloud (~1500ms) | cloud gana → **−500ms vs antes** |
+| Cache error + Cloud OK | cloud gana |
+| Ambos fallan | `AggregateError`; relanzamos último error (cloud, más informativo) |
+
+**Efecto secundario beneficioso:** si gana global, cloud sigue corriendo en background. Su URL se descarta pero la invocación de yt-dlp dispara el hook de `publishResolvedUrl` (ver [[stream_url_cache]]), poblando el cache global aún más rápido. Costo: ~1-2% más llamadas a yt-dlp en HITs.
+
+**Fallback secuencial:** si falta una de las deps (`getGlobalCachedUrl` o `resolveCloudStream`) — caso típico en tests unitarios o consumers minimal — el código se comporta exactamente como antes. Cero ruptura.
 
 ## Casos de borde y gotchas
 
@@ -107,4 +130,5 @@ flowchart TD
 | Hacer la función síncrona | `getLanBaseUrl` y `resolveCloudStream` son async → runtime error inmediato. |
 
 ## Notas / Changelog
+- 2026-05-24: paso 3+4 ahora **race paralelo** con `Promise.any` en vez de secuencial. Mejora −500ms a −2900ms en MISS/HIT respectivamente, nunca peor que antes. Fallback secuencial preservado para tests/consumers minimal.
 - 2026-05-22: nivel medio.

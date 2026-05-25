@@ -24,6 +24,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../../stores/auth.js';
 import { streamOriginCounts, lastStreamOrigin, metaPublishStats } from '../../../lib/use-player.js';
+import { metaEditPublishStats } from '../../../lib/publish-meta-edit.js';
 import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { LinkButton } from '../controls/LinkButton.jsx';
@@ -342,11 +343,23 @@ function TracksGlobalRow() {
   }
 
   const localStats = metaPublishStats;
+  const editStats = metaEditPublishStats;
   const detailParts = [];
   if (count !== null) detailParts.push(`${count} canciones canonizadas`);
   else detailParts.push('cargando count...');
-  if (localStats.successes > 0) detailParts.push(`mis contribuciones: ${localStats.successes}`);
-  if (localStats.failures > 0) detailParts.push(`fallos: ${localStats.failures}`);
+  // Contribuciones automaticas tras reproducir.
+  if (localStats.successes > 0) {
+    detailParts.push(`auto: ${localStats.successes}`);
+  }
+  // Contribuciones manuales tras editar. Las distinguimos porque son
+  // señal de MAS calidad (un humano explicitamente curó la metadata).
+  if (editStats.successes > 0) {
+    const ago = editStats.lastSuccessAt ? ` (ultima ${relTimeAgo(editStats.lastSuccessAt)})` : '';
+    detailParts.push(`mis ediciones manuales: ${editStats.successes}${ago}`);
+  }
+  if (localStats.failures + editStats.failures > 0) {
+    detailParts.push(`fallos: ${localStats.failures + editStats.failures}`);
+  }
   if (testMsg) detailParts.push(testMsg);
 
   return (
@@ -356,6 +369,17 @@ function TracksGlobalRow() {
       control={<LinkButton onClick={handleTest} disabled={testing}>{testing ? '...' : 'Probar'}</LinkButton>}
     />
   );
+}
+
+/** Formato compacto de "hace X" — segundos, minutos, horas, dias. */
+function relTimeAgo(ms) {
+  if (!ms) return '';
+  const d = Date.now() - ms;
+  if (d < 0) return 'ahora';
+  if (d < 60_000) return `hace ${Math.floor(d / 1000)}s`;
+  if (d < 3_600_000) return `hace ${Math.floor(d / 60_000)} min`;
+  if (d < 86_400_000) return `hace ${Math.floor(d / 3_600_000)} h`;
+  return `hace ${Math.floor(d / 86_400_000)} d`;
 }
 
 function FlagBadge({ ok, okLabel, failLabel }) {

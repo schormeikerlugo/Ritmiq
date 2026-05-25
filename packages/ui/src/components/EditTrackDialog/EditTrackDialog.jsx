@@ -40,6 +40,7 @@ export function EditTrackDialog({ track, onClose, onSaved }) {
 
   const [title, setTitle] = useState(track?.title ?? '');
   const [artist, setArtist] = useState(track?.artist ?? '');
+  const [album, setAlbum] = useState(track?.album ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const titleRef = useRef(null);
@@ -52,9 +53,11 @@ export function EditTrackDialog({ track, onClose, onSaved }) {
 
   const titleClean = title.trim();
   const artistClean = artist.trim();
+  const albumClean = album.trim();
   const pristine =
     titleClean === (track?.title ?? '').trim() &&
-    artistClean === (track?.artist ?? '').trim();
+    artistClean === (track?.artist ?? '').trim() &&
+    albumClean === (track?.album ?? '').trim();
   const titleInvalid = titleClean.length === 0;
   const canSave = !pristine && !titleInvalid && !saving;
 
@@ -67,6 +70,7 @@ export function EditTrackDialog({ track, onClose, onSaved }) {
       const next = await updateMeta(track.id, {
         title: titleClean,
         artist: artistClean || null,
+        album: albumClean || null,
       });
       onSaved?.(next);
       onClose();
@@ -129,6 +133,19 @@ export function EditTrackDialog({ track, onClose, onSaved }) {
             onKeyDown={onKeyDown}
             maxLength={500}
             placeholder="Nombre del artista"
+            className={styles.input}
+          />
+        </label>
+
+        <label className={styles.field}>
+          <span className={styles.label}>Álbum (opcional)</span>
+          <input
+            type="text"
+            value={album}
+            onChange={(e) => setAlbum(e.target.value)}
+            onKeyDown={onKeyDown}
+            maxLength={500}
+            placeholder="Nombre del álbum"
             className={styles.input}
           />
         </label>
