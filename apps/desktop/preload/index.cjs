@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('ritmiq', {
     fileSize: (trackId) => ipcRenderer.invoke('library:fileSize', trackId),
     syncRemote: (track) => ipcRenderer.invoke('library:syncRemote', track),
     deleteRemote: (trackId) => ipcRenderer.invoke('library:deleteRemote', trackId),
+    update: (trackId, patch) => ipcRenderer.invoke('library:update', { trackId, patch }),
     onDownloadProgress: (cb) => {
       const handler = (_e, data) => cb(data);
       ipcRenderer.on('library:download:progress', handler);

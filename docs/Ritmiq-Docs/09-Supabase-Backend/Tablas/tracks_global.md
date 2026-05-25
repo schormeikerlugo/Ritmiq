@@ -94,6 +94,11 @@ Un nuevo INSERT/incremento se dispara desde:
 2. **Desktop main — tras descarga completa con yt-dlp**
    `apps/desktop/main/lan-server.js` → `publishTrackMetaFromMain(meta)` invocado desde `ipc.js` library:download. Señal MUY fuerte (el user invirtió disco).
 
+3. **PWA / Desktop renderer — tras edición manual del usuario** (nuevo 2026-05-24)
+   `packages/ui/src/lib/publish-meta-edit.js` → `publishMyMetaEdit(track)` fire-and-forget tras [[EditTrackDialog]] save OK. Dedupe por `ytId + title + artist` para que ediciones distintas cuenten como contribuciones diferentes, pero no spamee la misma combinación. Señal de **MAXIMA calidad** porque un humano explícitamente curó la metadata.
+
+   **Importante:** la edición manual NO sobrescribe campos canonicalizados (first-write-wins se mantiene). Si era el primer humano publicando ese ytId, su versión se canoniza. Si ya estaba canonizado, solo incrementa `contribution_count`. Esto evita envenenamiento — un user malicioso no puede pisar lo que otros ya canonizaron.
+
 ## Backfill inicial (2026-05-24)
 
 Script `scripts/wipe-and-rebackfill-tracks-global.mjs`:

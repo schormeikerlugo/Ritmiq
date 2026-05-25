@@ -5,6 +5,7 @@ import { pullTracks, pushTrack, deleteTrackRemote } from '../lib/sync.js';
 import { tryOrQueue } from '../lib/sync-queue.js';
 import { isEphemeralTrack } from '../lib/track-helpers.js';
 import { listLocalIds, cacheTracks, getCachedTracks } from '../lib/local-downloads.js';
+import { publishMyMetaEdit } from '../lib/publish-meta-edit.js';
 import { usePlayerStore } from './player.js';
 
 /**
@@ -207,6 +208,110 @@ export const useLibraryStore = create((set, get) => ({
   async undownload(trackId) {
     await api.libraryUndownload(trackId);
     await get().load();
+  },
+
+  /**
+   * Edita metadata de un track existente (title, artist, album).
+   *
+   * Aplica los cambios en este orden para que la UX sea instantánea:
+   *   1. OPTIMISTIC: actualiza el store local + currentTrack + queue.
+   *   2. Persiste a Supabase via pushTrack (con tryOrQueue offline).
+   *   3. En desktop: replica a SQLite local via IPC library:update.
+   *   4. Fire-and-forget: contribuye al cache global tracks_global
+   *      con los valores corregidos. Si era el primer humano publicando
+   *      ese ytId, su edición se vuelve canónica (first-write-wins).
+   *      Si ya estaba canonizado, solo incrementa contribution_count.
+   *
+   * Side effects en el player:
+   *   - currentTrack se reemplaza si coincide id (refresca Player bar y
+   *     NowPlaying view).
+   *   - queue.map para reemplazar cualquier ocurrencia del id.
+   *   - MediaSession.metadata se refresca via applyMediaSessionMetadata
+   *     del player engine (se dispara automaticamente al cambiar
+   *     currentTrack en el useEffect[currentTrack] de use-player).
+   *
+   * @param {string} trackId
+   * @param {{title?: string, artist?: string|null, album?: string|null}} patch
+   * @returns {Promise<import('@ritmiq/core').Track>}  Track actualizado.
+   */
+  async updateMeta(trackId, patch) {
+    if (!trackId) throw new Error('trackId requerido');
+    if (!patch || typeof patch !== 'object') throw new Error('patch invalido');
+
+    const current = get().tracks.find((t) => t.id === trackId);
+    if (!current) throw new Error('Track no encontrado en biblioteca');
+
+    // Sanitizar patch: trim + null para vacios opcionales.
+    const cleanPatch = {};
+    if (typeof patch.title === 'string') {
+      const t = patch.title.trim();
+      if (!t) throw new Error('El titulo no puede estar vacio');
+      cleanPatch.title = t.slice(0, 500);
+    }
+    if (patch.artist !== undefined) {
+      const a = typeof patch.artist === 'string' ? patch.artist.trim() : null;
+      cleanPatch.artist = a ? a.slice(0, 500) : null;
+    }
+    if (patch.album !== undefined) {
+      const al = typeof patch.album === 'string' ? patch.album.trim() : null;
+      cleanPatch.album = al ? al.slice(0, 500) : null;
+    }
+
+    // Si no hubo cambios reales, no-op.
+    const hasChange = Object.entries(cleanPatch).some(
+      ([k, v]) => current[k] !== v,
+    );
+    if (!hasChange) return current;
+
+    const next = { ...current, ...cleanPatch };
+
+    // 1. OPTIMISTIC: actualizar store local INMEDIATAMENTE.
+    set((s) => {
+      const idx = s.tracks.findIndex((t) => t.id === trackId);
+      if (idx < 0) return s;
+      const arr = s.tracks.slice();
+      arr[idx] = next;
+      return { tracks: arr };
+    });
+
+    // 2. Sincronizar player state: currentTrack + queue. Esto refresca
+    //    la barra del Player, NowPlaying y dispara MediaSession update
+    //    via el useEffect[currentTrack] en use-player.
+    const playerState = usePlayerStore.getState();
+    const playerPatch = {};
+    if (playerState.currentTrack?.id === trackId) {
+      playerPatch.currentTrack = next;
+    }
+    if (Array.isArray(playerState.queue) && playerState.queue.some((t) => t.id === trackId)) {
+      playerPatch.queue = playerState.queue.map((t) => (t.id === trackId ? next : t));
+    }
+    if (Object.keys(playerPatch).length > 0) {
+      playerState.patch(playerPatch);
+    }
+
+    // 3. Persistir a Supabase (RLS owner-only). El UPDATE viaja por
+    //    Realtime a otros devices del mismo user automaticamente.
+    await tryOrQueue(
+      () => pushTrack(next),
+      { kind: 'track.upsert', payload: next },
+    );
+
+    // 4. Replicar a SQLite local en desktop via IPC dedicado.
+    if (isDesktop && typeof api.libraryUpdate === 'function') {
+      try { await api.libraryUpdate(trackId, cleanPatch); } catch (err) {
+        console.warn('[library.updateMeta] SQLite update failed (no fatal):', err?.message);
+      }
+    }
+
+    // 5. Contribuir al diccionario global. Fire-and-forget; si era el
+    //    primer humano publicando ese ytId, su edicion se canoniza para
+    //    futuros usuarios. Si ya estaba canonizado, solo incrementa
+    //    counter (anti-spam por diseño).
+    if (next.ytId && next.title && next.artist) {
+      publishMyMetaEdit(next).catch(() => {});
+    }
+
+    return next;
   },
 
   reset() {

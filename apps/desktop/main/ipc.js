@@ -360,6 +360,42 @@ export function registerIpc({ db, lan, accessToken }) {
     return true;
   });
 
+  // Update parcial de metadata de un track en SQLite local. Usado por
+  // library.updateMeta (renderer) cuando el user edita title/artist/album
+  // desde EditTrackDialog. NO modifica file_path ni is_downloaded.
+  //
+  // El UPDATE remoto a Supabase lo hace el renderer via pushTrack en
+  // paralelo; el Realtime trigger NO se dispara aqui porque esta es la
+  // copia espejo local — el renderer ya tiene los datos optimisticos.
+  ipcMain.handle('library:update', (_e, payload) => {
+    const { trackId, patch } = payload ?? {};
+    if (!trackId || !patch || typeof patch !== 'object') {
+      throw new Error('library:update requiere { trackId, patch }');
+    }
+    // Construir UPDATE solo con los campos presentes en patch.
+    const fields = [];
+    const values = [];
+    if (typeof patch.title === 'string') {
+      fields.push('title = ?');
+      values.push(patch.title);
+    }
+    if (patch.artist !== undefined) {
+      fields.push('artist = ?');
+      values.push(patch.artist);
+    }
+    if (patch.album !== undefined) {
+      fields.push('album = ?');
+      values.push(patch.album);
+    }
+    if (fields.length === 0) return false;
+    fields.push('updated_at = ?');
+    values.push(new Date().toISOString());
+    values.push(trackId);
+    const sql = `UPDATE tracks SET ${fields.join(', ')} WHERE id = ?`;
+    const r = db.prepare(sql).run(...values);
+    return r.changes > 0;
+  });
+
   ipcMain.handle('library:download', async (e, payload) => {
     // Acepta string (id) o { trackId, fallback?: Track }. El fallback
     // permite que el renderer envíe la fila completa si la SQLite local

@@ -16,6 +16,7 @@ import { isEphemeralTrack } from '../../lib/track-helpers.js';
 import { getDominantColor } from '../../lib/dominant-color.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
+import { EditTrackDialog } from '../EditTrackDialog/EditTrackDialog.jsx';
 import { ArtistInfoPanel } from './ArtistInfoPanel.jsx';
 import { useBottomSheet } from '../../stores/bottom-sheet.js';
 import { buildShareLink, copyToClipboard } from '../../lib/share.js';
@@ -81,6 +82,7 @@ export function NowPlaying() {
   const [bgColor, setBgColor] = useState('var(--color-bg-1)');
   const [closing, setClosing] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [shareToFriendOpen, setShareToFriendOpen] = useState(false);
   const friends = useSocialStore((s) => s.friends);
   /** Posición que muestra el scrubber mientras el usuario arrastra. null = no drag. */
@@ -228,6 +230,17 @@ export function NowPlaying() {
   /** Menu desplegable del boton `⋯`. Abre un bottom sheet con acciones
    *  rapidas — guardar, modo radio, compartir. Sleep timer se anadira
    *  aqui en F2.3. */
+  // Abrir EditTrackDialog desde el "⋯". Si el track es efimero, lo
+  // persistimos primero — updateMeta requiere que la cancion exista
+  // en la biblioteca para tener algo que actualizar.
+  const openEditDialog = async () => {
+    if (!currentTrack) return;
+    if (ephemeral) {
+      try { await persistEphemeral(currentTrack); } catch { return; }
+    }
+    setEditOpen(true);
+  };
+
   const openMoreMenu = () => {
     const closeSelf = () => useBottomSheet.getState().closeAll();
     const items = [
@@ -236,6 +249,13 @@ export function NowPlaying() {
         label: 'Guardar en biblioteca o playlist...',
         icon: 'Plus',
         onClick: () => { closeSelf(); setSaveOpen(true); },
+      },
+      {
+        id: 'edit',
+        label: 'Editar título y artista',
+        icon: 'Pencil',
+        disabled: !currentTrack?.ytId && !currentTrack?.id,
+        onClick: () => { closeSelf(); openEditDialog(); },
       },
       {
         id: 'share',
@@ -427,6 +447,10 @@ export function NowPlaying() {
 
       {saveOpen && currentTrack && (
         <SaveDialog track={currentTrack} onClose={() => setSaveOpen(false)} />
+      )}
+
+      {editOpen && currentTrack && (
+        <EditTrackDialog track={currentTrack} onClose={() => setEditOpen(false)} />
       )}
 
       {shareToFriendOpen && currentTrack && (

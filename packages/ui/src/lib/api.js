@@ -64,6 +64,7 @@ const electronApi = isElectron
       libraryFileSize:         (id) => window.ritmiq.library.fileSize(id),
       librarySyncRemote:       optionalCall(window.ritmiq.library.syncRemote),
       libraryDeleteRemote:     optionalCall(window.ritmiq.library.deleteRemote),
+      libraryUpdate:           optionalCall(window.ritmiq.library.update),
       libraryOnDownloadProgress: (cb) => window.ritmiq.library.onDownloadProgress(cb),
 
       devicesList:             () => window.ritmiq.devices.list(),
@@ -181,6 +182,7 @@ const webApi = {
   libraryFileSize: async (trackId) => getLocalSize(trackId),
   librarySyncRemote: async () => true,    // no-op en PWA: no hay SQLite local
   libraryDeleteRemote: async () => true,
+  libraryUpdate: async () => true,        // no-op en PWA: el UPDATE va directo a Supabase via pushTrack
   libraryOnDownloadProgress: (cb) => {
     pwaProgressListeners.add(cb);
     return () => pwaProgressListeners.delete(cb);

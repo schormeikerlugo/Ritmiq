@@ -144,6 +144,16 @@ clean(clean(x)) === clean(x)   // siempre verdadero
 
 Garantizado por usar regex con whitelist específica y `String.replace` puro (sin estado). Permite aplicar la utility en múltiples capas (search-youtube + publish-track-meta + ipc.js + api.js) sin doble-cleaning.
 
+## Inputs manuales del usuario — NO aplicar
+
+Cuando el usuario edita un título via [[EditTrackDialog]], **NO se aplica** `cleanYoutubeTitle` a sus inputs. Razones:
+
+- La edición manual es **autoritativa**: el user sabe lo que quiere.
+- Aplicar cleaning podría romper su intención (ej. quiere mantener "(Live)" o un emoji estratégico).
+- Sería paternalista — si el user pone `"(Official Video)"` deliberadamente, respetarlo.
+
+La utility solo se aplica a inputs **automáticos** (Innertube, yt-dlp metadata, search results) donde el origen ES sucio por naturaleza.
+
 ## Integración (defense-in-depth)
 
 ### Capa 1: [[search-youtube]] — raíz del problema

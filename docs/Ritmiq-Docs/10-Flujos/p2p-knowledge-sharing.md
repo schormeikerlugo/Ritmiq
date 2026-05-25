@@ -92,6 +92,25 @@ publishTrackMetaFromMain(meta)           → Fase 2 — POST publish-track-meta
                                             (señal MUY fuerte: invirtió disco)
 ```
 
+### Cuando alguien EDITA manualmente una canción (2026-05-24)
+
+```
+User1 abre EditTrackDialog (PlaylistView / NowPlaying / TrackInfoDialog)
+  ↓
+edita title: "Waiting For The End (Official Music Video)" → "Waiting For The End"
+edita artist: "Linkin Park" (mantiene)
+  ↓
+library.updateMeta(trackId, patch)
+  ├── optimistic update store
+  ├── player sync (currentTrack + queue + MediaSession)
+  ├── pushTrack → Supabase tracks (RLS owner)
+  ├── IPC library:update → SQLite local (desktop)
+  └── publishMyMetaEdit(track)           → Fase 2 — POST publish-track-meta
+                                            (señal de MAXIMA calidad: humano curó)
+```
+
+La edición manual respeta first-write-wins en tracks_global (anti-spam): si era el primero, se canoniza; si no, solo incrementa `contribution_count`. Más detalle en [[EditTrackDialog]].
+
 ### Defensa en profundidad: cleaning aplicado en 4 capas
 
 La utility [[clean-track-meta]] se aplica en cada punto donde la metadata fluye hacia tracks_global o tracks:

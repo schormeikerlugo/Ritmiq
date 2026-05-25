@@ -165,3 +165,30 @@
 .openLink:hover {
   background: var(--color-bg-3);
 }
+
+/* Boton "Editar" debajo del title/artist. Abre EditTrackDialog y cierra
+ * este TrackInfoDialog. Solo visible si onEdit prop esta presente. */
+.editBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-2);
+  padding: 6px var(--space-3);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-2);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard);
+  font-family: inherit;
+  align-self: flex-start;
+}
+.editBtn:hover {
+  background: var(--color-bg-2);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}

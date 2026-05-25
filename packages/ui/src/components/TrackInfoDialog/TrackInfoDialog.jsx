@@ -30,8 +30,10 @@ function fmtDur(s) {
  * @param {Object} props
  * @param {import('@ritmiq/core/types').Track} props.track
  * @param {() => void} props.onClose
+ * @param {() => void} [props.onEdit]  Si se pasa, muestra boton "Editar"
+ *   que cierra este modal y abre EditTrackDialog (controlado por el parent).
  */
-export function TrackInfoDialog({ track, onClose }) {
+export function TrackInfoDialog({ track, onClose, onEdit }) {
   const [size, setSize] = useState(null);
 
   useEffect(() => {
@@ -57,6 +59,17 @@ export function TrackInfoDialog({ track, onClose }) {
         <div className={styles.song}>
           <div className={styles.songTitle}>{track.title ?? 'Sin titulo'}</div>
           <div className={styles.songArtist}>{track.artist ?? '\u2014'}</div>
+          {onEdit && (
+            <button
+              type="button"
+              className={styles.editBtn}
+              onClick={onEdit}
+              title="Editar título y artista"
+            >
+              <Icon name="Pencil" size={14} />
+              <span>Editar</span>
+            </button>
+          )}
         </div>
 
         <dl className={styles.list}>

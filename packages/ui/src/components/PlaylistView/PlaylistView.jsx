@@ -18,6 +18,7 @@ import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
 import { RenameDialog } from '../RenameDialog/RenameDialog.jsx';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { TrackInfoDialog } from '../TrackInfoDialog/TrackInfoDialog.jsx';
+import { EditTrackDialog } from '../EditTrackDialog/EditTrackDialog.jsx';
 import { CoverUploadDialog } from '../CoverUploadDialog/CoverUploadDialog.jsx';
 import { exportPlaylistJson, exportPlaylistCsv } from '../../lib/export.js';
 import { isDesktop } from '../../lib/api.js';
@@ -87,6 +88,7 @@ export function PlaylistView({ playlistId }) {
   const [coverOpen, setCoverOpen] = useState(false);
   const [saveDialogTrack, setSaveDialogTrack] = useState(null);
   const [infoTrack, setInfoTrack] = useState(null);
+  const [editTrack, setEditTrack] = useState(null);
   const [filter, setFilter] = useState('');
   const [heroBg, setHeroBg] = useState('var(--color-bg-1)');
   const [sharePlaylistOpen, setSharePlaylistOpen] = useState(false);
@@ -436,7 +438,7 @@ export function PlaylistView({ playlistId }) {
               actions={{
                 playNext, enqueue, toggleFavorite, isFavorite,
                 downloadOne, undownloadOne, removeTrack, setSaveDialogTrack,
-                setInfoTrack,
+                setInfoTrack, setEditTrack,
               }}
               draggable={false}
             />
@@ -467,7 +469,7 @@ export function PlaylistView({ playlistId }) {
                   actions={{
                     playNext, enqueue, toggleFavorite, isFavorite,
                     downloadOne, undownloadOne, removeTrack, setSaveDialogTrack,
-                    setInfoTrack,
+                    setInfoTrack, setEditTrack,
                   }}
                   draggable
                 />
@@ -497,6 +499,14 @@ export function PlaylistView({ playlistId }) {
         <TrackInfoDialog
           track={infoTrack}
           onClose={() => setInfoTrack(null)}
+          onEdit={() => { setEditTrack(infoTrack); setInfoTrack(null); }}
+        />
+      )}
+
+      {editTrack && (
+        <EditTrackDialog
+          track={editTrack}
+          onClose={() => setEditTrack(null)}
         />
       )}
 
@@ -565,6 +575,10 @@ function PlaylistRow({
         : actions.downloadOne(track.id),
     },
     { id: 'info', label: 'Mostrar info', icon: <Icon name="Info" size={16} />, onClick: () => actions.setInfoTrack(track) },
+    {
+      id: 'edit', label: 'Editar título y artista', icon: <Icon name="Pencil" size={16} />,
+      onClick: () => actions.setEditTrack(track),
+    },
     { separator: true },
     {
       id: 'remove', label: 'Quitar de esta playlist', icon: <Icon name="Trash2" size={16} />, danger: true,
