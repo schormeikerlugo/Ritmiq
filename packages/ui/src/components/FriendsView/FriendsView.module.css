@@ -335,8 +335,12 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 14px;
-  margin: 0 8px;
+  padding: 14px 16px;
+  /* margin-bottom genera la separacion vertical entre cards. Anadirlo
+     aqui (no en .list gap) evita afectar a otros tabs (Friends, Requests)
+     que comparten el contenedor .list pero NO necesitan separacion entre
+     filas (son tabla densa, no cards). */
+  margin: 0 8px 14px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -344,6 +348,11 @@
   transition: background 160ms ease, border-color 160ms ease,
               transform 160ms ease;
   position: relative;
+}
+/* Ultimo card no necesita margen inferior (evita gap visual al final
+   del scroll y respeta el padding del .content padre). */
+.inboxCard:last-child {
+  margin-bottom: 0;
 }
 .inboxCard:hover {
   background: rgba(255, 255, 255, 0.05);
@@ -534,11 +543,15 @@
   overflow: hidden;
 }
 
-/* En mobile, reducir el padding lateral del margin para aprovechar el ancho. */
+/* En mobile, reducir padding lateral pero mantener separacion vertical
+   entre cards (12px mobile vs 14px desktop). */
 @media (max-width: 640px) {
   .inboxCard {
-    margin: 0 4px;
-    padding: 10px 12px;
+    margin: 0 4px 12px;
+    padding: 12px 14px;
+  }
+  .inboxCard:last-child {
+    margin-bottom: 0;
   }
   .inboxCover {
     width: 56px;
