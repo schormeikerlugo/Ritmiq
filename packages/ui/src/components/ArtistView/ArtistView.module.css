@@ -237,7 +237,13 @@
   }
 }
 
-/* Card simple del grid — click navega a la AlbumView dedicada. */
+/* Card simple del grid — click navega a la AlbumView dedicada.
+   IMPORTANTE: el <button> nativo conserva un `min-width: auto` implicito
+   que lo expande al ancho intrinseco del titulo, ignorando el grid track
+   y desbordando a la card vecina (overlap visual con el siguiente album).
+   Aplicar `min-width: 0; max-width: 100%; box-sizing: border-box` lo
+   restringe al track del grid. Ver TrackCard.module.css para el mismo
+   patron documentado. */
 .albumThumb {
   display: flex;
   flex-direction: column;
@@ -248,6 +254,10 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   text-align: left;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   transition: background 220ms var(--ease-emphasized),
               transform 220ms var(--ease-emphasized);
 }
@@ -270,14 +280,23 @@
 }
 .albumCover img { width: 100%; height: 100%; object-fit: cover; }
 
+/* width:100% + overflow:hidden garantizan que los <span> hijos hereden
+   el ancho restringido del padre y el text-overflow:ellipsis funcione. */
 .albumMeta {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .albumTitle {
+  /* display:block requerido para que ellipsis funcione en <span> dentro
+     de un <button> (inline por defecto NO recorta). */
+  display: block;
+  width: 100%;
   font-weight: var(--fw-semibold);
   font-size: var(--fs-sm);
   color: var(--color-text-1);
@@ -287,8 +306,13 @@
 }
 
 .albumSub {
+  display: block;
+  width: 100%;
   font-size: var(--fs-xs);
   color: var(--color-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Bio ────────────────────────────────────────────────────────────── */
