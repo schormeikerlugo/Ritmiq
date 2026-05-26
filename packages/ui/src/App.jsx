@@ -17,6 +17,7 @@ import { ProfileView } from './components/ProfileView/ProfileView.jsx';
 import { AuthScreen } from './components/Auth/AuthScreen.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { MilestoneToast } from './components/MilestoneToast/MilestoneToast.jsx';
+import { DailyStreakToast } from './components/DailyStreakToast/DailyStreakToast.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
 import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
 import { BottomSheetHost } from './components/BottomSheet/BottomSheetHost.jsx';
@@ -442,10 +443,15 @@ export function App() {
       {/* Recordatorio: muestra shares no vistos >2min cuando el usuario
           no esta en la bandeja. Se auto-cierra al ignorar o ver. */}
       <ShareReminderModal />
-      {/* Toast con confetti cuando se desbloquea trofeo de racha
-          (7d, 30d, 100d, 365d). Consume cola del useHistoryStore que
-          recibe INSERTs de streak_milestones via Realtime. */}
+      {/* Modal bloqueante con animacion epica cuando se desbloquea un
+          hito de racha (3, 7, 14, 30, 50, 100, 200, 365, 500, 1000 dias)
+          o de horas escuchadas (1, 10, 50, 100, 500, 1000, 5000h). */}
       <MilestoneToast />
+      {/* Toast no bloqueante que celebra la racha diaria (cada dia que
+          activas tu racha, una vez al dia, sincronizado cross-device
+          via user_streaks.last_daily_celebrated_date). Intensidad y
+          mensaje rotativo segun los dias acumulados. */}
+      <DailyStreakToast />
     </div>
   );
 }

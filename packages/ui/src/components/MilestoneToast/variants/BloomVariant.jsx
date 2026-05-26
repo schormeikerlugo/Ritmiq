@@ -31,17 +31,31 @@ function StarShape() {
 }
 
 /**
- * Titulo dinamico: si el user esta exactamente en 30 dias celebra el
- * hito. Si lleva mas (welcome/replay con racha actual mayor), refleja
- * su estado real.
+ * Titulo por hito (30, 50). Si el user supera el hito, mostrar racha real.
  */
-function pickTitle(streakValue) {
-  if (streakValue <= 30) return '¡Un mes completo!';
-  return `¡${streakValue} dias seguidos!`;
+function pickTitle(milestone, streakValue) {
+  if (streakValue > milestone) return `¡${streakValue} dias seguidos!`;
+  switch (milestone) {
+    case 30: return '¡Un mes completo!';
+    case 50: return '¡Cincuenta dias!';
+    default: return `¡${milestone} dias!`;
+  }
 }
 
-export function BloomVariant({ streakValue, onClose }) {
-  const value = streakValue ?? 30;
+function pickSubtitle(milestone, streakValue) {
+  if (streakValue > milestone) {
+    return `${streakValue} dias de musica diaria.`;
+  }
+  switch (milestone) {
+    case 30: return 'Un mes entero de musica diaria. Increible.';
+    case 50: return 'Medio centenar de dias. Constancia digna.';
+    default: return `${streakValue ?? milestone} dias de musica diaria.`;
+  }
+}
+
+export function BloomVariant({ milestone, streakValue, onClose }) {
+  const value = streakValue ?? milestone ?? 30;
+  const ms = milestone ?? 30;
   const orbitCount = particleCount(6, 4);
   const orbits = useMemo(() => generateParticles(orbitCount, 3030), [orbitCount]);
   const rays = useMemo(() => [0, 90, 180, 270], []);
@@ -99,10 +113,8 @@ export function BloomVariant({ streakValue, onClose }) {
           </span>
         </div>
         <div className={styles.body}>
-          <span className={styles.title}>{pickTitle(value)}</span>
-          <span className={styles.subtitle}>
-            {value} dias de musica diaria.
-          </span>
+          <span className={styles.title}>{pickTitle(ms, value)}</span>
+          <span className={styles.subtitle}>{pickSubtitle(ms, value)}</span>
         </div>
         <button
           type="button"

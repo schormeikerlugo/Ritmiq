@@ -1,5 +1,5 @@
 /**
- * SparkVariant — animacion 7 dias de racha.
+ * SparkVariant — animacion hitos chicos de racha (3, 7, 14 dias).
  *
  * Identidad: chispa que prende. Playful, calido, espontaneo.
  *
@@ -18,20 +18,38 @@ import { Icon } from '../../Icon/Icon.jsx';
 import { generateParticles, particleCount, lerp } from '../lib/particle-helpers.js';
 import styles from './SparkVariant.module.css';
 
-export const SPARK_DURATION_MS = 4000;
+export const SPARK_DURATION_MS = 4500;
 
 /**
- * Titulo dinamico: si el user esta exactamente en 7 dias (recien
- * desbloqueado), celebra el hito. Si ya lleva mas (welcome/replay con
- * racha actual mayor), refleja su estado real para no sonar desfasado.
+ * Titulo segun el hito alcanzado. Cada milestone tiene texto unico.
+ * Si la racha actual del user supera el hito (welcome/replay), refleja
+ * la realidad actual en lugar del hito original.
  */
-function pickTitle(streakValue) {
-  if (streakValue <= 7) return '¡Primera semana!';
-  return `¡${streakValue} dias seguidos!`;
+function pickTitle(milestone, streakValue) {
+  if (streakValue > milestone) return `¡${streakValue} dias seguidos!`;
+  switch (milestone) {
+    case 3:  return '¡Tres dias!';
+    case 7:  return '¡Primera semana!';
+    case 14: return '¡Dos semanas!';
+    default: return `¡${milestone} dias!`;
+  }
 }
 
-export function SparkVariant({ streakValue, onClose }) {
-  const value = streakValue ?? 7;
+function pickSubtitle(milestone, streakValue) {
+  if (streakValue > milestone) {
+    return `${streakValue} dias seguidos escuchando.`;
+  }
+  switch (milestone) {
+    case 3:  return 'Tres dias seguidos. Vas construyendo el habito.';
+    case 7:  return 'Una semana entera de musica. Asi se hace.';
+    case 14: return 'Dos semanas. Tu racha ya es habito.';
+    default: return `${streakValue ?? milestone} dias seguidos.`;
+  }
+}
+
+export function SparkVariant({ milestone, streakValue, onClose }) {
+  const value = streakValue ?? milestone ?? 7;
+  const ms = milestone ?? 7;
   const count = particleCount(10, 6);
   const sparks = useMemo(() => generateParticles(count, 7777), [count]);
 
@@ -71,10 +89,8 @@ export function SparkVariant({ streakValue, onClose }) {
           <Icon name="Flame" size={28} filled />
         </div>
         <div className={styles.body}>
-          <span className={styles.title}>{pickTitle(value)}</span>
-          <span className={styles.subtitle}>
-            {value} dias seguidos escuchando.
-          </span>
+          <span className={styles.title}>{pickTitle(ms, value)}</span>
+          <span className={styles.subtitle}>{pickSubtitle(ms, value)}</span>
         </div>
         <button
           type="button"

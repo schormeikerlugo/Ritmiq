@@ -30,16 +30,31 @@ function BigStar() {
 }
 
 /**
- * Titulo dinamico: si el user esta exactamente en 100 dias celebra el
- * hito. Si lleva mas, refleja su estado real.
+ * Titulo por hito (100, 200). Si el user supera el hito, mostrar racha real.
  */
-function pickTitle(streakValue) {
-  if (streakValue <= 100) return '¡100 dias!';
-  return `¡${streakValue} dias seguidos!`;
+function pickTitle(milestone, streakValue) {
+  if (streakValue > milestone) return `¡${streakValue} dias seguidos!`;
+  switch (milestone) {
+    case 100: return '¡100 dias!';
+    case 200: return '¡200 dias!';
+    default:  return `¡${milestone} dias!`;
+  }
 }
 
-export function FanfareVariant({ streakValue, onClose }) {
-  const value = streakValue ?? 100;
+function pickSubtitleBase(milestone, streakValue) {
+  if (streakValue > milestone) {
+    return `Logro impresionante. ${streakValue} dias sin parar.`;
+  }
+  switch (milestone) {
+    case 100: return 'Logro impresionante. 100 dias sin parar.';
+    case 200: return 'Eres maquina. 200 dias seguidos.';
+    default:  return `Logro impresionante. ${streakValue ?? milestone} dias sin parar.`;
+  }
+}
+
+export function FanfareVariant({ milestone, streakValue, onClose }) {
+  const value = streakValue ?? milestone ?? 100;
+  const ms = milestone ?? 100;
   const reduce = prefersReducedMotion();
   const confettiCount = particleCount(20, 12);
   const starsCount = particleCount(8, 5);
@@ -48,8 +63,8 @@ export function FanfareVariant({ streakValue, onClose }) {
   const stars = useMemo(() => generateParticles(starsCount, 2200), [starsCount]);
   const rays = useMemo(() => generateParticles(4, 3300), []);
 
-  // Subtitulo dinamico segun racha actual.
-  const FULL_SUBTITLE = `Logro impresionante. ${value} dias sin parar.`;
+  // Subtitulo dinamico segun racha y hito.
+  const FULL_SUBTITLE = pickSubtitleBase(ms, value);
 
   // Typewriter del subtitulo (saltarse si reduce-motion).
   const [typedChars, setTypedChars] = useState(reduce ? FULL_SUBTITLE.length : 0);
@@ -146,7 +161,7 @@ export function FanfareVariant({ streakValue, onClose }) {
           </span>
         </div>
         <div className={styles.body}>
-          <span className={styles.title} data-shimmer="true">{pickTitle(value)}</span>
+          <span className={styles.title} data-shimmer="true">{pickTitle(ms, value)}</span>
           <span className={styles.subtitle}>
             {subtitleText}
             {!reduce && typedChars < FULL_SUBTITLE.length && (

@@ -1,0 +1,246 @@
+/* DailyStreakToast — toast diario de racha.
+ *
+ * Posicion: idem al MilestoneToast (top-center con safe-area).
+ * Paleta variable segun data-intensity:
+ *   ember   ámbar suave
+ *   spark   naranja
+ *   flame   naranja intenso + brillo
+ *   bloom   rosa-magenta + sparkle
+ *   fanfare dorado
+ *   legend  platino/iridiscente
+ */
+
+.wrap {
+  position: fixed;
+  top: env(safe-area-inset-top, 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9998;     /* uno menos que MilestoneToast (9999) por prioridad */
+  pointer-events: none;
+  animation: dailyEnter 360ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 14px 13px 16px;
+  min-width: 280px;
+  max-width: 92vw;
+  border-radius: 16px;
+  pointer-events: auto;
+  position: relative;
+  background: linear-gradient(140deg, rgba(20, 20, 24, 0.95), rgba(30, 28, 36, 0.95));
+  color: var(--color-text-1);
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+/* ── Icono ─────────────────────────────────────────────────────────── */
+
+.iconWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: dailyIconBreath 1800ms ease-in-out infinite alternate;
+}
+.iconGlow {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  filter: blur(8px);
+  z-index: -1;
+  opacity: 0.55;
+  animation: dailyGlowBreath 1800ms ease-in-out infinite alternate;
+}
+
+/* ── Body ──────────────────────────────────────────────────────────── */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text-1);
+}
+.subtitle {
+  font-size: 12px;
+  color: var(--color-text-2);
+  line-height: 1.4;
+}
+
+/* ── Close ─────────────────────────────────────────────────────────── */
+
+.close {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-2);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 120ms, color 120ms;
+}
+.close:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--color-text-1);
+}
+
+/* ── Variantes por intensity ───────────────────────────────────────── */
+
+/* Ember — primer dia, suave y calido */
+.wrap[data-intensity='ember'] .toast {
+  background: linear-gradient(140deg, rgba(30, 22, 16, 0.95), rgba(36, 26, 18, 0.95));
+  box-shadow: 0 14px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(255, 170, 100, 0.25) inset, 0 0 20px rgba(255, 120, 50, 0.15);
+}
+.wrap[data-intensity='ember'] .iconWrap { color: #ffb070; }
+.wrap[data-intensity='ember'] .iconGlow {
+  background: radial-gradient(circle, rgba(255, 150, 80, 0.6), transparent 70%);
+}
+
+/* Spark — 2-6d, naranja vibrante */
+.wrap[data-intensity='spark'] .toast {
+  background: linear-gradient(140deg, rgba(32, 20, 14, 0.96), rgba(42, 26, 18, 0.96));
+  box-shadow: 0 14px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(255, 145, 60, 0.4) inset, 0 0 28px rgba(255, 107, 53, 0.28);
+}
+.wrap[data-intensity='spark'] .iconWrap { color: #ff9528; }
+.wrap[data-intensity='spark'] .iconGlow {
+  background: radial-gradient(circle, rgba(255, 140, 40, 0.7), transparent 70%);
+}
+
+/* Flame — 7-29d, naranja-rojo intenso */
+.wrap[data-intensity='flame'] .toast {
+  background: linear-gradient(140deg, rgba(38, 16, 10, 0.97), rgba(50, 22, 14, 0.97));
+  color: #ffe7c8;
+  box-shadow: 0 16px 44px rgba(0,0,0,0.5), 0 0 0 1px rgba(255, 100, 50, 0.55) inset, 0 0 36px rgba(255, 80, 30, 0.4);
+}
+.wrap[data-intensity='flame'] .iconWrap {
+  color: #ff7028;
+  animation: dailyIconBreathFast 800ms ease-in-out infinite alternate;
+}
+.wrap[data-intensity='flame'] .iconGlow {
+  background: radial-gradient(circle, rgba(255, 100, 30, 0.8), transparent 70%);
+}
+.wrap[data-intensity='flame'] .title { color: #fff4dc; }
+
+/* Bloom — 30-99d, rosa-magenta brillante */
+.wrap[data-intensity='bloom'] .toast {
+  background: linear-gradient(140deg, rgba(36, 16, 38, 0.97), rgba(48, 18, 50, 0.97));
+  color: #ffe8f8;
+  box-shadow: 0 16px 44px rgba(0,0,0,0.5), 0 0 0 1px rgba(255, 100, 200, 0.55) inset, 0 0 38px rgba(220, 80, 200, 0.4);
+}
+.wrap[data-intensity='bloom'] .iconWrap {
+  color: #ff70d8;
+  animation: dailyIconRotate 4s linear infinite;
+}
+.wrap[data-intensity='bloom'] .iconGlow {
+  background: radial-gradient(circle, rgba(255, 100, 200, 0.75), transparent 70%);
+}
+.wrap[data-intensity='bloom'] .title { color: #fff0fa; }
+
+/* Fanfare — 100-364d, dorado epico */
+.wrap[data-intensity='fanfare'] .toast {
+  background: linear-gradient(140deg, rgba(40, 30, 10, 0.97), rgba(52, 38, 14, 0.97));
+  color: #fff4c8;
+  box-shadow: 0 18px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255, 200, 60, 0.6) inset, 0 0 42px rgba(255, 180, 40, 0.45);
+}
+.wrap[data-intensity='fanfare'] .iconWrap {
+  color: #ffc940;
+  animation: dailyIconPulse 1400ms ease-in-out infinite;
+}
+.wrap[data-intensity='fanfare'] .iconGlow {
+  background: radial-gradient(circle, rgba(255, 200, 60, 0.85), transparent 70%);
+}
+.wrap[data-intensity='fanfare'] .title { color: #fff8d0; }
+
+/* Legend — 365+d, platino iridiscente */
+.wrap[data-intensity='legend'] .toast {
+  background: linear-gradient(140deg, rgba(18, 22, 36, 0.97), rgba(28, 28, 48, 0.97));
+  color: #e8f0ff;
+  box-shadow:
+    0 20px 56px rgba(0,0,0,0.6),
+    0 0 0 1px rgba(180, 200, 255, 0.65) inset,
+    0 0 48px rgba(150, 180, 255, 0.5);
+}
+.wrap[data-intensity='legend'] .iconWrap {
+  background: linear-gradient(135deg, #b0c8ff, #e0f0ff);
+  color: #1a1a2a;
+  animation: dailyIconShimmer 2200ms linear infinite;
+}
+.wrap[data-intensity='legend'] .iconGlow {
+  background: radial-gradient(circle, rgba(180, 200, 255, 0.9), transparent 70%);
+}
+.wrap[data-intensity='legend'] .title {
+  background: linear-gradient(90deg, #ffffff, #c0d8ff, #ffffff);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: dailyTitleShimmer 3200ms linear infinite;
+}
+
+/* ── Animaciones base ──────────────────────────────────────────────── */
+
+@keyframes dailyEnter {
+  from { transform: translate(-50%, -120%); opacity: 0; }
+  to   { transform: translate(-50%, 0);     opacity: 1; }
+}
+
+@keyframes dailyIconBreath {
+  0%   { transform: scale(1); }
+  100% { transform: scale(1.08); }
+}
+@keyframes dailyIconBreathFast {
+  0%   { transform: scale(1)    rotate(-2deg); }
+  100% { transform: scale(1.12) rotate(2deg); }
+}
+@keyframes dailyIconRotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes dailyIconPulse {
+  0%, 100% { transform: scale(1);    filter: brightness(1); }
+  50%      { transform: scale(1.15); filter: brightness(1.3); }
+}
+@keyframes dailyIconShimmer {
+  0%   { filter: brightness(1)   hue-rotate(0deg); }
+  50%  { filter: brightness(1.3) hue-rotate(20deg); }
+  100% { filter: brightness(1)   hue-rotate(0deg); }
+}
+
+@keyframes dailyGlowBreath {
+  0%   { opacity: 0.4; transform: scale(0.9); }
+  100% { opacity: 0.7; transform: scale(1.15); }
+}
+
+@keyframes dailyTitleShimmer {
+  0%   { background-position:   0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrap        { animation: dailyFadeIn 200ms ease-out both; }
+  .iconWrap    { animation: none; }
+  .iconGlow    { animation: none; opacity: 0.5; }
+  .title       { animation: none; }
+}
+@keyframes dailyFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

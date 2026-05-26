@@ -1,11 +1,9 @@
-/* FanfareVariant — 100 dias. Trofeo dorado cinematografico, 6.5s. */
+/* FanfareVariant — hitos 100/200 dias. Trofeo dorado cinematografico, 6.5s.
+ * Renderizado dentro del backdrop modal del MilestoneToast. */
 
 .wrap {
-  position: fixed;
-  top: env(safe-area-inset-top, 24px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 9999;
+  position: relative;
+  z-index: 1;
   pointer-events: none;
   animation: fanfareEnter 600ms cubic-bezier(0.68, -0.3, 0.27, 1.55) both;
 }
@@ -178,8 +176,8 @@
 
 /* ── Entradas y pulsos ─────────────────────────────────────────────── */
 @keyframes fanfareEnter {
-  from { transform: translate(-50%, -120%) scale(0.7); opacity: 0; }
-  to   { transform: translate(-50%, 0)     scale(1);   opacity: 1; }
+  from { transform: translateY(-40px) scale(0.7); opacity: 0; }
+  to   { transform: translateY(0)     scale(1);   opacity: 1; }
 }
 @keyframes fanfareFlash {
   0%   { opacity: 0; }

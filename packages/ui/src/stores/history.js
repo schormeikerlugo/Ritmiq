@@ -60,25 +60,39 @@ export const useHistoryStore = create((set, get) => ({
    *
    * Estructura:
    *   { currentStreak: number, longestStreak: number,
-   *     longestAt: string|null, lastPlayedDate: string|null }
+   *     longestAt: string|null, lastPlayedDate: string|null,
+   *     lastDailyCelebratedDate: string|null }
    *
    * null = no cargado todavia. Fallback al calculo local desde events.
-   * @type {{ currentStreak:number, longestStreak:number, longestAt:string|null, lastPlayedDate:string|null }|null}
+   * @type {{ currentStreak:number, longestStreak:number, longestAt:string|null, lastPlayedDate:string|null, lastDailyCelebratedDate:string|null }|null}
    */
   streakSnapshot: null,
 
   /**
    * Lista de trofeos desbloqueados desde streak_milestones.
-   * Cada item: { milestone: 7|30|100|365, achievedAt: 'YYYY-MM-DD', streakValue: number }
+   * Cada item: { milestone: 3|7|14|30|50|100|200|365|500|1000,
+   *              achievedAt: 'YYYY-MM-DD', streakValue: number }
    * @type {Array<{ milestone:number, achievedAt:string, streakValue:number }>}
    */
   milestones: [],
 
   /**
+   * Lista de hitos por horas escuchadas desde hour_milestones.
+   * Cada item: { hours: 1|10|50|100|500|1000|5000,
+   *              achievedAt: 'YYYY-MM-DD', totalHours: number }
+   * @type {Array<{ hours:number, achievedAt:string, totalHours:number }>}
+   */
+  hourMilestones: [],
+
+  /**
    * Cola FIFO de toasts pendientes de mostrar (milestones nuevos llegados
    * via Realtime mientras la app esta activa).
    * UI consume con popMilestoneToast().
-   * @type {Array<{ milestone:number, streakValue:number }>}
+   *
+   * type='streak'  -> { type:'streak', milestone, streakValue }
+   * type='hours'   -> { type:'hours', hours, totalHours }
+   *
+   * @type {Array<{ type:'streak'|'hours', milestone?:number, streakValue?:number, hours?:number, totalHours?:number }>}
    */
   milestoneToastQueue: [],
 
@@ -91,10 +105,19 @@ export const useHistoryStore = create((set, get) => ({
    */
   _welcomeShown: false,
 
+  /**
+   * Flag interno: `true` cuando ya marcamos local el daily celebration
+   * en esta sesion (optimistic, antes de que Supabase confirme). Evita
+   * que multiples renders disparen el UPDATE simultaneamente.
+   */
+  _dailyCelebrationInFlight: false,
+
   /** @type {import('@supabase/supabase-js').RealtimeChannel|null} */
   _streakChannel: null,
   /** @type {import('@supabase/supabase-js').RealtimeChannel|null} */
   _milestonesChannel: null,
+  /** @type {import('@supabase/supabase-js').RealtimeChannel|null} */
+  _hourMilestonesChannel: null,
 
   /** Carga inicial: pull desde Supabase + flush de cola offline si hay red. */
   async load() {
@@ -205,10 +228,13 @@ export const useHistoryStore = create((set, get) => ({
       _channel: null,
       streakSnapshot: null,
       milestones: [],
+      hourMilestones: [],
       milestoneToastQueue: [],
       _welcomeShown: false,
+      _dailyCelebrationInFlight: false,
       _streakChannel: null,
       _milestonesChannel: null,
+      _hourMilestonesChannel: null,
     });
   },
 
@@ -227,11 +253,11 @@ export const useHistoryStore = create((set, get) => ({
   async loadStreakSnapshot(userId) {
     if (!userId) return;
     try {
-      // Pull paralelo de las dos tablas.
-      const [streakRes, milestonesRes] = await Promise.allSettled([
+      // Pull paralelo de las tres tablas.
+      const [streakRes, milestonesRes, hourMilestonesRes] = await Promise.allSettled([
         supabase
           .from('user_streaks')
-          .select('current_streak, longest_streak, longest_at, last_played_date')
+          .select('current_streak, longest_streak, longest_at, last_played_date, last_daily_celebrated_date')
           .eq('user_id', userId)
           .maybeSingle(),
         supabase
@@ -239,6 +265,11 @@ export const useHistoryStore = create((set, get) => ({
           .select('milestone, achieved_at, streak_value')
           .eq('user_id', userId)
           .order('milestone', { ascending: true }),
+        supabase
+          .from('hour_milestones')
+          .select('hours, achieved_at, total_hours')
+          .eq('user_id', userId)
+          .order('hours', { ascending: true }),
       ]);
 
       if (streakRes.status === 'fulfilled' && streakRes.value.data) {
@@ -249,6 +280,7 @@ export const useHistoryStore = create((set, get) => ({
             longestStreak: d.longest_streak ?? 0,
             longestAt: d.longest_at ?? null,
             lastPlayedDate: d.last_played_date ?? null,
+            lastDailyCelebratedDate: d.last_daily_celebrated_date ?? null,
           },
         });
       }
@@ -260,6 +292,15 @@ export const useHistoryStore = create((set, get) => ({
           streakValue: r.streak_value,
         }));
         set({ milestones: ms });
+      }
+
+      if (hourMilestonesRes.status === 'fulfilled' && hourMilestonesRes.value.data) {
+        const hm = hourMilestonesRes.value.data.map((r) => ({
+          hours: r.hours,
+          achievedAt: r.achieved_at,
+          totalHours: Number(r.total_hours),
+        }));
+        set({ hourMilestones: hm });
       }
     } catch (err) {
       console.warn('[history] loadStreakSnapshot fallo (no fatal):', err?.message);
@@ -284,6 +325,8 @@ export const useHistoryStore = create((set, get) => ({
     if (existingStreak) { try { supabase.removeChannel(existingStreak); } catch {} }
     const existingMs = get()._milestonesChannel;
     if (existingMs) { try { supabase.removeChannel(existingMs); } catch {} }
+    const existingHourMs = get()._hourMilestonesChannel;
+    if (existingHourMs) { try { supabase.removeChannel(existingHourMs); } catch {} }
 
     const streakCh = supabase
       .channel(`user_streaks:${userId}`)
@@ -302,6 +345,7 @@ export const useHistoryStore = create((set, get) => ({
               longestStreak: row.longest_streak ?? 0,
               longestAt: row.longest_at ?? null,
               lastPlayedDate: row.last_played_date ?? null,
+              lastDailyCelebratedDate: row.last_daily_celebrated_date ?? null,
             },
           });
         }
@@ -330,7 +374,7 @@ export const useHistoryStore = create((set, get) => ({
             // Push al queue para que la UI muestre el toast.
             const nextQueue = [
               ...s.milestoneToastQueue,
-              { milestone: row.milestone, streakValue: row.streak_value },
+              { type: 'streak', milestone: row.milestone, streakValue: row.streak_value },
             ];
             return { milestones: nextMilestones, milestoneToastQueue: nextQueue };
           });
@@ -338,12 +382,43 @@ export const useHistoryStore = create((set, get) => ({
       )
       .subscribe();
 
-    set({ _streakChannel: streakCh, _milestonesChannel: msCh });
+    // Realtime para hour_milestones: cuando el user cruza 1h, 10h, etc.
+    // Mismo patron que streak_milestones — push al queue para mostrar
+    // el toast con la animacion correspondiente al nivel de horas.
+    const hourMsCh = supabase
+      .channel(`hour_milestones:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'hour_milestones', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const row = payload?.new;
+          if (!row) return;
+          set((s) => {
+            const alreadyIn = s.hourMilestones.some((m) => m.hours === row.hours);
+            const nextHm = alreadyIn
+              ? s.hourMilestones
+              : [...s.hourMilestones, {
+                  hours: row.hours,
+                  achievedAt: row.achieved_at,
+                  totalHours: Number(row.total_hours),
+                }].sort((a, b) => a.hours - b.hours);
+            const nextQueue = [
+              ...s.milestoneToastQueue,
+              { type: 'hours', hours: row.hours, totalHours: Number(row.total_hours) },
+            ];
+            return { hourMilestones: nextHm, milestoneToastQueue: nextQueue };
+          });
+        }
+      )
+      .subscribe();
+
+    set({ _streakChannel: streakCh, _milestonesChannel: msCh, _hourMilestonesChannel: hourMsCh });
 
     return () => {
       try { supabase.removeChannel(streakCh); } catch {}
       try { supabase.removeChannel(msCh); } catch {}
-      set({ _streakChannel: null, _milestonesChannel: null });
+      try { supabase.removeChannel(hourMsCh); } catch {}
+      set({ _streakChannel: null, _milestonesChannel: null, _hourMilestonesChannel: null });
     };
   },
 
@@ -373,7 +448,25 @@ export const useHistoryStore = create((set, get) => ({
     const found = get().milestones.find((m) => m.milestone === milestone);
     const streakValue = found?.streakValue ?? milestone;
     set((s) => ({
-      milestoneToastQueue: [...s.milestoneToastQueue, { milestone, streakValue }],
+      milestoneToastQueue: [
+        ...s.milestoneToastQueue,
+        { type: 'streak', milestone, streakValue },
+      ],
+    }));
+  },
+
+  /**
+   * Re-encola un hito de horas para volver a mostrarlo.
+   * @param {number} hours  1|10|50|100|500|1000|5000
+   */
+  replayHourMilestone(hours) {
+    const found = get().hourMilestones.find((m) => m.hours === hours);
+    const totalHours = found?.totalHours ?? hours;
+    set((s) => ({
+      milestoneToastQueue: [
+        ...s.milestoneToastQueue,
+        { type: 'hours', hours, totalHours },
+      ],
     }));
   },
 
@@ -425,9 +518,65 @@ export const useHistoryStore = create((set, get) => ({
       _welcomeShown: true,
       milestoneToastQueue: [
         ...st.milestoneToastQueue,
-        { milestone: pick.milestone, streakValue: pick.streakValue },
+        { type: 'streak', milestone: pick.milestone, streakValue: pick.streakValue },
       ],
     }));
+  },
+
+  /**
+   * ── Daily streak celebration ──────────────────────────────────────
+   *
+   * Devuelve true si debemos mostrar el toast diario:
+   *   - el user tiene una racha activa (currentStreak >= 1)
+   *   - el user reprodujo algo hoy (lastPlayedDate === hoy LOCAL)
+   *   - aun no celebramos el daily de hoy (lastDailyCelebratedDate !== hoy)
+   *
+   * Si no hay streakSnapshot (recien login antes del pull), false.
+   * Tras logout: false (snapshot=null).
+   */
+  shouldShowDailyStreak() {
+    const snap = get().streakSnapshot;
+    if (!snap) return false;
+    if (!snap.currentStreak || snap.currentStreak < 1) return false;
+    const today = todayLocalDateStr();
+    if (snap.lastPlayedDate !== today) return false;
+    if (snap.lastDailyCelebratedDate === today) return false;
+    if (get()._dailyCelebrationInFlight) return false;
+    return true;
+  },
+
+  /**
+   * Marca el daily celebration de hoy como mostrado.
+   *
+   * Optimistic: actualiza el store local PRIMERO (para que
+   * shouldShowDailyStreak() devuelva false inmediatamente y evitar
+   * re-disparos en el mismo render). Luego persiste a Supabase con
+   * UPDATE a user_streaks.last_daily_celebrated_date.
+   *
+   * Si la persistencia falla, no revertimos el optimistic — el flag de
+   * sesion _dailyCelebrationInFlight evita re-dispararlo en esta sesion,
+   * y al proximo arranque si Supabase tiene el valor viejo, se mostrara
+   * de nuevo (aceptable: mejor mostrar 2x que 0x).
+   */
+  async markDailyStreakCelebrated() {
+    const today = todayLocalDateStr();
+    set((s) => ({
+      _dailyCelebrationInFlight: true,
+      streakSnapshot: s.streakSnapshot
+        ? { ...s.streakSnapshot, lastDailyCelebratedDate: today }
+        : s.streakSnapshot,
+    }));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
+      await supabase
+        .from('user_streaks')
+        .update({ last_daily_celebrated_date: today })
+        .eq('user_id', userId);
+    } catch (err) {
+      console.warn('[history] markDailyStreakCelebrated fallo:', err?.message);
+    }
   },
 
   /**
@@ -532,6 +681,17 @@ export function startOfLocalDay(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+/**
+ * Atajo: clave 'YYYY-MM-DD' del DIA LOCAL de hoy. Usado por el sistema
+ * de daily-celebration para comparar con last_daily_celebrated_date
+ * (que tambien se guarda como YYYY-MM-DD en hora local del user).
+ *
+ * @returns {string}
+ */
+export function todayLocalDateStr() {
+  return localDayKey(new Date());
 }
 
 /* ─── Mappers ────────────────────────────────────────────────────────── */

@@ -54,16 +54,34 @@ function Prism() {
 }
 
 /**
- * Titulo dinamico: si el user esta exactamente en 365 dias celebra el
- * hito (Un ano entero). Si supera el ano, refleja su racha real.
+ * Titulo por hito legendario (365, 500, 1000). Si la racha real es
+ * mayor, refleja eso.
  */
-function pickTitle(streakValue) {
-  if (streakValue <= 365) return '¡Un ano entero!';
-  return `¡${streakValue} dias seguidos!`;
+function pickTitle(milestone, streakValue) {
+  if (streakValue > milestone) return `¡${streakValue} dias seguidos!`;
+  switch (milestone) {
+    case 365:  return '¡Un ano entero!';
+    case 500:  return '¡500 dias!';
+    case 1000: return '¡1.000 dias!';
+    default:   return `¡${milestone} dias!`;
+  }
 }
 
-export function LegendVariant({ streakValue, onClose }) {
-  const value = streakValue ?? 365;
+function pickSubtitle(milestone, streakValue) {
+  if (streakValue > milestone) {
+    return `Eres una leyenda de Ritmiq. ${streakValue} dias seguidos.`;
+  }
+  switch (milestone) {
+    case 365:  return 'Eres una leyenda de Ritmiq. 365 dias seguidos.';
+    case 500:  return 'Mas alla de la leyenda. 500 dias sin parar.';
+    case 1000: return 'Maximo nivel. 1.000 dias seguidos. Inmortal.';
+    default:   return `Eres una leyenda de Ritmiq. ${streakValue ?? milestone} dias seguidos.`;
+  }
+}
+
+export function LegendVariant({ milestone, streakValue, onClose }) {
+  const value = streakValue ?? milestone ?? 365;
+  const ms = milestone ?? 365;
   const reduce = prefersReducedMotion();
 
   const prismCount = particleCount(30, 16);
@@ -231,11 +249,9 @@ export function LegendVariant({ streakValue, onClose }) {
         )}
 
         <h2 id="legend-title" className={styles.title}>
-          <span className={styles.titleText}>{pickTitle(value)}</span>
+          <span className={styles.titleText}>{pickTitle(ms, value)}</span>
         </h2>
-        <p className={styles.subtitle}>
-          Eres una leyenda de Ritmiq. {value} dias seguidos.
-        </p>
+        <p className={styles.subtitle}>{pickSubtitle(ms, value)}</p>
 
         <button
           type="button"

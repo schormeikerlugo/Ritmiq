@@ -1,11 +1,30 @@
-/* MilestoneToast — toast con confetti CSS al desbloquear trofeo. */
+/* MilestoneToast — modal bloqueante con confetti al desbloquear trofeo.
+ * Decision UX 2026-05-26: TODOS los hitos son modal (no solo Legend).
+ * Backdrop semi-opaco bloquea click-through; click fuera o Esc cierra. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  animation: backdropFadeIn 240ms ease-out both;
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 
 .wrap {
   position: fixed;
   top: env(safe-area-inset-top, 24px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 9999;
+  z-index: 10000;
   pointer-events: none;
   animation: slideDown 240ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }

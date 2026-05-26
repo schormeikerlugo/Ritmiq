@@ -1,16 +1,28 @@
 /**
- * MilestoneToast — orquestador de animaciones unicas por hito de racha.
+ * MilestoneToast — orquestador de modales unicos por hito de racha y horas.
  *
  * Consume `milestoneToastQueue` del useHistoryStore. Cuando llega un
- * milestone, delega al variant correspondiente (Spark/Bloom/Fanfare/
- * Legend). Cada variant tiene identidad visual y duracion propia.
+ * milestone (streak o hours), delega al variant correspondiente.
  *
- *  7d  → SparkVariant    (4s)    playful — llama
- * 30d  → BloomVariant    (5s)    playful — estrella florece
- * 100d → FanfareVariant  (6.5s)  cinematografico — trofeo
- * 365d → LegendVariant   (modal) epico — Continuar manual
+ * TODOS los milestones son MODAL bloqueante con overlay (decision UX
+ * 2026-05-26): los hitos son raros y merecen detener al user un momento
+ * para que los disfrute conscientemente. El daily diario sigue siendo
+ * toast no bloqueante (componente DailyStreakToast aparte).
  *
- * Si falla un variant (excepcion en render), fallback al toast generico.
+ * Variantes de RACHA (dias):
+ *    3d  → MicroSpark    (rapido, suave)
+ *    7d  → SparkVariant
+ *   14d  → MicroSpark    (variacion del 7)
+ *   30d  → BloomVariant
+ *   50d  → MicroBloom    (variacion del 30)
+ *  100d  → FanfareVariant
+ *  200d  → MicroFanfare
+ *  365d  → LegendVariant
+ *  500d  → MicroLegend
+ * 1000d  → LegendVariant (mismo nivel max)
+ *
+ * Variantes de HORAS:
+ *  1h, 10h, 50h, 100h, 500h, 1000h, 5000h → HoursVariant
  *
  * @module @ritmiq/ui/components/MilestoneToast
  */
@@ -21,18 +33,30 @@ import { Icon } from '../Icon/Icon.jsx';
 import { SparkVariant, SPARK_DURATION_MS } from './variants/SparkVariant.jsx';
 import { BloomVariant, BLOOM_DURATION_MS } from './variants/BloomVariant.jsx';
 import { FanfareVariant, FANFARE_DURATION_MS } from './variants/FanfareVariant.jsx';
-import { LegendVariant, LEGEND_DURATION_MS, LEGEND_IS_MODAL } from './variants/LegendVariant.jsx';
+import { LegendVariant, LEGEND_DURATION_MS } from './variants/LegendVariant.jsx';
+import { HoursVariant, HOURS_DURATION_MS } from './variants/HoursVariant.jsx';
+import { pickHourMessage } from '../DailyStreakToast/messages.js';
 import styles from './MilestoneToast.module.css';
 
 /**
- * Mapeo milestone -> componente variant + duracion. Si `duration` es
- * null el variant es modal (no auto-dismiss).
+ * Mapeo milestone -> componente variant + duracion. Todos son modal
+ * bloqueante (auto-dismiss tras `duration` o cierre manual).
+ *
+ * Los hitos intermedios (3, 14, 50, 200, 500, 1000) reutilizan los
+ * variants existentes con un titulo dinamico distinto — la animacion
+ * visual escala con la magnitud, no con el numero exacto.
  */
 const VARIANTS = {
-  7:   { Component: SparkVariant,   duration: SPARK_DURATION_MS,   isModal: false },
-  30:  { Component: BloomVariant,   duration: BLOOM_DURATION_MS,   isModal: false },
-  100: { Component: FanfareVariant, duration: FANFARE_DURATION_MS, isModal: false },
-  365: { Component: LegendVariant,  duration: LEGEND_DURATION_MS,  isModal: LEGEND_IS_MODAL },
+  3:    { Component: SparkVariant,   duration: SPARK_DURATION_MS },
+  7:    { Component: SparkVariant,   duration: SPARK_DURATION_MS },
+  14:   { Component: SparkVariant,   duration: SPARK_DURATION_MS },
+  30:   { Component: BloomVariant,   duration: BLOOM_DURATION_MS },
+  50:   { Component: BloomVariant,   duration: BLOOM_DURATION_MS },
+  100:  { Component: FanfareVariant, duration: FANFARE_DURATION_MS },
+  200:  { Component: FanfareVariant, duration: FANFARE_DURATION_MS },
+  365:  { Component: LegendVariant,  duration: LEGEND_DURATION_MS },
+  500:  { Component: LegendVariant,  duration: LEGEND_DURATION_MS },
+  1000: { Component: LegendVariant,  duration: LEGEND_DURATION_MS },
 };
 
 const FALLBACK_DURATION_MS = 5000;
@@ -40,14 +64,9 @@ const FALLBACK_DURATION_MS = 5000;
 export function MilestoneToast() {
   const queue = useHistoryStore((s) => s.milestoneToastQueue);
   const pop = useHistoryStore((s) => s.popMilestoneToast);
-  // currentStreak: racha REAL actual del usuario (en hora local). Si el
-  // user ya lleva mas dias que el milestone celebrado (e.g. milestone 7
-  // pero llevas 10), preferimos mostrar la racha real para que el mensaje
-  // refleje su estado actual y no se sienta desfasado. Bug reportado
-  // 2026-05-26: toast decia "10 dias seguidos" bajo el titulo
-  // "Primera semana" — disonancia visual entre titulo (milestone 7) y
-  // subtitulo (racha actual 10). Fix: priorizar currentStreak siempre.
-  const currentStreak = useHistoryStore((s) => s.streak?.currentStreak ?? 0);
+  // currentStreak: racha REAL actual. Prioridad sobre streakValue cacheado
+  // para que el toast refleje el estado actual del user (bug 2026-05-26).
+  const currentStreak = useHistoryStore((s) => s.streakSnapshot?.currentStreak ?? 0);
   const [current, setCurrent] = useState(null);
 
   // Pop del head cuando hay queue y no hay toast activo.
@@ -58,62 +77,107 @@ export function MilestoneToast() {
     }
   }, [queue, current, pop]);
 
-  // Auto-dismiss segun duracion del variant (skip si modal).
+  // Auto-dismiss segun duracion del variant.
   useEffect(() => {
     if (!current) return undefined;
-    const cfg = VARIANTS[current.milestone];
-    const duration = cfg?.duration ?? FALLBACK_DURATION_MS;
-    // Modal: duration es null -> no auto-dismiss.
+    const duration = pickDuration(current);
     if (duration == null) return undefined;
     const id = setTimeout(() => setCurrent(null), duration);
     return () => clearTimeout(id);
   }, [current]);
 
+  // Esc cierra el modal.
+  useEffect(() => {
+    if (!current) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setCurrent(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [current]);
+
   if (!current) return null;
 
-  const cfg = VARIANTS[current.milestone];
   const handleClose = () => setCurrent(null);
 
-  // displayStreak: si la racha actual del user es mayor o igual al
-  // streakValue del momento del milestone, usar la actual (mas precisa).
-  // Si por alguna razon currentStreak es menor (raro: BD desincronizada),
-  // caer al streakValue original del milestone como minimo seguro.
+  // ── Hits de horas ───────────────────────────────────────────────────
+  if (current.type === 'hours') {
+    const { title, body } = pickHourMessage(current.hours);
+    return (
+      <ModalBackdrop onClose={handleClose}>
+        <HoursVariant
+          hours={current.hours}
+          totalHours={current.totalHours}
+          title={title}
+          body={body}
+          onClose={handleClose}
+        />
+      </ModalBackdrop>
+    );
+  }
+
+  // ── Hits de racha (default si no type) ──────────────────────────────
+  const cfg = VARIANTS[current.milestone];
   const displayStreak = Math.max(
     currentStreak,
     current.streakValue ?? current.milestone,
   );
 
-  // Render del variant correspondiente. Si no hay variant definido para
-  // este milestone (e.g. el equipo anade 500d sin variant), cae al
-  // fallback generico abajo.
   if (cfg?.Component) {
     try {
       return (
-        <cfg.Component
-          milestone={current.milestone}
-          streakValue={displayStreak}
-          onClose={handleClose}
-        />
+        <ModalBackdrop onClose={handleClose}>
+          <cfg.Component
+            milestone={current.milestone}
+            streakValue={displayStreak}
+            onClose={handleClose}
+          />
+        </ModalBackdrop>
       );
     } catch (err) {
-      // El variant exploto en render. Loguea y cae al fallback.
       console.warn('[MilestoneToast] variant fallo, usando fallback:', err?.message);
     }
   }
 
-  // Fallback generico — mantiene el comportamiento previo a las variantes.
+  // Fallback generico.
   return (
-    <FallbackToast
-      milestone={current.milestone}
-      streakValue={displayStreak}
-      onClose={handleClose}
-    />
+    <ModalBackdrop onClose={handleClose}>
+      <FallbackToast
+        milestone={current.milestone}
+        streakValue={displayStreak}
+        onClose={handleClose}
+      />
+    </ModalBackdrop>
+  );
+}
+
+/* ───────────────────────────────────────────────────────────────────── */
+
+/**
+ * Devuelve duracion para el item actual de la cola.
+ */
+function pickDuration(item) {
+  if (item.type === 'hours') return HOURS_DURATION_MS;
+  return VARIANTS[item.milestone]?.duration ?? FALLBACK_DURATION_MS;
+}
+
+/**
+ * Backdrop semi-transparente que bloquea click-through al contenido de
+ * la app. Click en el backdrop cierra el modal. Centra al variant.
+ */
+function ModalBackdrop({ children, onClose }) {
+  return (
+    <div
+      className={styles.backdrop}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      role="dialog"
+      aria-modal="true"
+    >
+      {children}
+    </div>
   );
 }
 
 /**
- * Fallback simple cuando no hay variant para el milestone o el variant
- * fallo en render. Mantiene la apariencia minima del toast original.
+ * Fallback minimo cuando no hay variant para un milestone.
  */
 function FallbackToast({ milestone, streakValue, onClose }) {
   return (
