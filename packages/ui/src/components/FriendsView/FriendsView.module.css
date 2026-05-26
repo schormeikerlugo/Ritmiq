@@ -506,7 +506,11 @@
   color: #fff;
 }
 
-/* Burbuja del mensaje personal — estilo cita anclada a la card.
+/* Burbuja del mensaje personal — estilo cita neutro y sobrio.
+   Reporte UX 2026-05-26: el verde de marca chocaba visualmente con
+   el resto de la card. Cambio a paleta neutra (blanco translucido)
+   que se integra con el sistema oscuro sin competir con el accent.
+
    Width:fit-content (con max-width) para que NO ocupe todo el ancho:
    asi parece un mensaje genuino, no un banner full-width.
    La esquina superior-izquierda con menor radius da el efecto "speech
@@ -515,11 +519,9 @@
   display: inline-flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 8px 12px;
-  background: linear-gradient(135deg,
-    rgba(29, 185, 84, 0.16) 0%,
-    rgba(29, 185, 84, 0.08) 100%);
-  border-left: 2px solid var(--color-accent, #1db954);
+  padding: 9px 13px;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 2px solid rgba(255, 255, 255, 0.18);
   border-radius: 4px 12px 12px 12px;
   max-width: 90%;
   width: fit-content;
@@ -527,14 +529,14 @@
   margin-left: 30px;  /* alinear con el inicio del texto del header (avatar 22 + gap 8) */
 }
 .messageIcon {
-  color: var(--color-accent, #1db954);
+  color: var(--color-text-3, rgba(255, 255, 255, 0.4));
   margin-top: 2px;
   flex-shrink: 0;
 }
 .messageText {
   font-size: 13px;
   font-style: italic;
-  color: var(--color-text-1, #fff);
+  color: var(--color-text-2, rgba(255, 255, 255, 0.78));
   line-height: 1.4;
   white-space: normal;
   display: -webkit-box;
