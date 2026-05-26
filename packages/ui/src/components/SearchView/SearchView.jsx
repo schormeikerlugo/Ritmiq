@@ -349,7 +349,12 @@ function SearchResults({
                 {channels.slice(0, 5).map((c) => (
                   <ArtistCard
                     key={c.id}
-                    entry={{ artist: c.title, coverUrl: c.thumbnail, playCount: 0 }}
+                    entry={{
+                      artist: c.title,
+                      coverUrl: c.thumbnail,
+                      verified: c.verified,
+                      isTopic: c.isTopic,
+                    }}
                     onClick={() => goArtist(c.title)}
                   />
                 ))}
@@ -420,7 +425,12 @@ function SearchResults({
           {channels.map((c) => (
             <ArtistCard
               key={c.id}
-              entry={{ artist: c.title, coverUrl: c.thumbnail, playCount: 0 }}
+              entry={{
+                artist: c.title,
+                coverUrl: c.thumbnail,
+                verified: c.verified,
+                isTopic: c.isTopic,
+              }}
               onClick={() => goArtist(c.title)}
             />
           ))}

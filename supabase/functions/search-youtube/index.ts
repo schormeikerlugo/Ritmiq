@@ -64,6 +64,17 @@ interface ChannelItem {
   title: string;       // nombre del canal/artista
   subscribers: string | null;
   thumbnail: string | null;
+  // YouTube marca como "Official Artist Channel" a los canales verificados
+  // por la propia artista/banda. Es la unica senal confiable (entre N
+  // canales con el mismo nombre, tributos, fans, etc) para identificar
+  // cual es el real. Innertube lo expone como ownerBadges con
+  // style === 'BADGE_STYLE_TYPE_VERIFIED_ARTIST'.
+  verified: boolean;
+  // Canales auto-generados por YouTube Music ("<Artist> - Topic").
+  // No son el canal oficial humano pero contienen el catalogo musical
+  // licenciado del sello. Marcarlo permite al cliente diferenciarlos
+  // visualmente sin descartarlos.
+  isTopic: boolean;
 }
 interface PlaylistItem {
   id: string;          // playlistId
@@ -154,14 +165,29 @@ function extractItems(data: any) {
       } else if (it?.channelRenderer) {
         const c = it.channelRenderer;
         if (!c.channelId) continue;
+        const title: string = c.title?.simpleText ?? c.title?.runs?.[0]?.text ?? '';
+        // ownerBadges: el badge BADGE_STYLE_TYPE_VERIFIED_ARTIST significa
+        // "Official Artist Channel" segun YouTube. Es la unica senal
+        // 100% confiable de oficialidad. Devolvemos boolean al cliente
+        // y lo mostramos como checkmark sobre el avatar circular.
+        const badges: any[] = Array.isArray(c.ownerBadges) ? c.ownerBadges : [];
+        const verified = badges.some((b) =>
+          b?.metadataBadgeRenderer?.style === 'BADGE_STYLE_TYPE_VERIFIED_ARTIST'
+        );
+        // Canal "- Topic" auto-generado por YT Music: catalogo licenciado
+        // del sello, no canal oficial humano. Se distinguen por sufijo
+        // " - Topic" en el titulo.
+        const isTopic = /\s-\sTopic$/i.test(title);
         channels.push({
           id: c.channelId,
-          title: c.title?.simpleText ?? c.title?.runs?.[0]?.text ?? '',
+          title,
           subscribers:
             c.videoCountText?.simpleText ??
             c.subscriberCountText?.simpleText ??
             null,
           thumbnail: pickThumb(c.thumbnail?.thumbnails),
+          verified,
+          isTopic,
         });
       } else if (it?.playlistRenderer) {
         const p = it.playlistRenderer;
