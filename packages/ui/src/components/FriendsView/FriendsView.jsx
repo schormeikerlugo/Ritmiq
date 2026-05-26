@@ -343,76 +343,126 @@ function InboxTab() {
   return (
     <ul className={styles.list}>
       {inbox.map((item) => (
-        <li
+        <InboxCard
           key={item.id}
-          className={styles.inboxRow}
-          data-unread={!item.readAt}
-          onClick={() => handlePlay(item)}
-        >
-          {/* Cover */}
-          <div className={styles.inboxCover}>
-            {(item.coverUrl || item.playlistSnapshot?.tracks?.[0]?.coverUrl) ? (
-              <img
-                src={item.coverUrl ?? item.playlistSnapshot.tracks[0].coverUrl}
-                alt=""
-                className={styles.inboxCoverImg}
-              />
-            ) : (
-              <Icon name={item.kind === 'playlist' ? 'ListMusic' : 'Music'} size={20} />
-            )}
-          </div>
-
-          {/* Info */}
-          <div className={styles.inboxInfo}>
-            <span className={styles.inboxTitle}>
-              {item.kind === 'track'
-                ? (item.title ?? 'Track')
-                : (item.playlistName ?? 'Playlist')}
-            </span>
-            {item.kind === 'track' && item.artist && (
-              <span className={styles.inboxSub}>{item.artist}</span>
-            )}
-            {item.kind === 'playlist' && item.playlistSnapshot?.tracks && (
-              <span className={styles.inboxSub}>
-                {item.playlistSnapshot.tracks.length} tracks
-              </span>
-            )}
-            <span className={styles.inboxSender}>
-              De <strong>@{item.senderUsername}</strong>
-            </span>
-
-            {/* Burbuja con el mensaje personal — destacado para que no se
-                pierda visualmente entre el resto de metadatos. */}
-            {item.message && (
-              <div className={styles.messageBubble} role="note">
-                <Icon name="MessageCircle" size={13} className={styles.messageIcon} />
-                <span className={styles.messageText}>{item.message}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Acciones */}
-          <div className={styles.inboxActions}>
-            <button
-              className={styles.btnPlay}
-              aria-label="Reproducir"
-              onClick={(e) => { e.stopPropagation(); handlePlay(item); }}
-            >
-              <Icon name="Play" size={14} filled />
-            </button>
-            {!item.savedAt && item.kind === 'playlist' && (
-              <button
-                className={styles.btnSave}
-                aria-label="Guardar playlist"
-                onClick={(e) => { e.stopPropagation(); handleSavePlaylist(item); }}
-              >
-                <Icon name="FolderPlus" size={14} />
-              </button>
-            )}
-          </div>
-        </li>
+          item={item}
+          onPlay={() => handlePlay(item)}
+          onSave={() => handleSavePlaylist(item)}
+        />
       ))}
     </ul>
+  );
+}
+
+/**
+ * Card unificada para un item del inbox.
+ *
+ * Estructura visual rediseñada 2026-05-26:
+ *
+ *   ┌──────────────────────────────────────────────┐
+ *   │ [avatar mini] @user te envió                  │ ← header social
+ *   ├──────────────────────────────────────────────┤
+ *   │ [COVER]  Título                         [▶] │ ← contenido principal
+ *   │  64px    Artista                              │
+ *   │          3 tracks (si playlist)               │
+ *   ├──────────────────────────────────────────────┤
+ *   │   "dfgdg"                                     │ ← mensaje opcional
+ *   └──────────────────────────────────────────────┘
+ *
+ * Mejoras vs version anterior:
+ *  - El header social ('@X te envió') reemplaza el 'De @X' suelto al final.
+ *  - El mensaje queda contenido visualmente dentro de la card (no full-width).
+ *  - El play button esta cerca del contenido, no flotando al extremo.
+ *  - Limpia sufijo '- Topic' del artist (canal auto-gen YT Music).
+ *  - Card con borde sutil agrupa todo como una unidad coherente.
+ */
+function InboxCard({ item, onPlay, onSave }) {
+  const isTrack = item.kind === 'track';
+  const title = isTrack
+    ? (item.title ?? 'Track')
+    : (item.playlistName ?? 'Playlist');
+
+  // Limpia sufijo '- Topic' (canal auto-gen YT Music) del artist.
+  const cleanArtist = (item.artist ?? '').replace(/\s+-\s*Topic\s*$/i, '');
+
+  const subtitle = isTrack
+    ? cleanArtist
+    : (item.playlistSnapshot?.tracks?.length
+        ? `${item.playlistSnapshot.tracks.length} ${item.playlistSnapshot.tracks.length === 1 ? 'canción' : 'canciones'}`
+        : '');
+
+  const cover = item.coverUrl ?? item.playlistSnapshot?.tracks?.[0]?.coverUrl ?? null;
+  const senderDisplay = item.senderDisplayName ?? item.senderUsername;
+
+  return (
+    <li
+      className={styles.inboxCard}
+      data-unread={!item.readAt}
+      onClick={onPlay}
+    >
+      {/* Header social: avatar mini + acción del sender */}
+      <header className={styles.inboxHeader}>
+        {item.senderAvatarUrl ? (
+          <img
+            src={item.senderAvatarUrl}
+            alt=""
+            className={styles.inboxSenderAvatar}
+          />
+        ) : (
+          <span className={styles.inboxSenderInitial}>
+            {senderDisplay.slice(0, 1).toUpperCase()}
+          </span>
+        )}
+        <span className={styles.inboxHeaderText}>
+          <strong>@{item.senderUsername}</strong> te envió
+          {' '}{isTrack ? 'una canción' : 'una playlist'}
+        </span>
+        {!item.readAt && <span className={styles.unreadDot} aria-label="Sin leer" />}
+      </header>
+
+      {/* Contenido principal: cover + info + play */}
+      <div className={styles.inboxBody}>
+        <div className={styles.inboxCover}>
+          {cover ? (
+            <img src={cover} alt="" className={styles.inboxCoverImg} />
+          ) : (
+            <Icon name={isTrack ? 'Music' : 'ListMusic'} size={22} />
+          )}
+        </div>
+
+        <div className={styles.inboxInfo}>
+          <span className={styles.inboxTitle}>{title}</span>
+          {subtitle && <span className={styles.inboxSub}>{subtitle}</span>}
+        </div>
+
+        <div className={styles.inboxActions}>
+          <button
+            className={styles.btnPlay}
+            aria-label="Reproducir"
+            onClick={(e) => { e.stopPropagation(); onPlay(); }}
+          >
+            <Icon name="Play" size={15} filled />
+          </button>
+          {!item.savedAt && !isTrack && (
+            <button
+              className={styles.btnSave}
+              aria-label="Guardar playlist"
+              onClick={(e) => { e.stopPropagation(); onSave(); }}
+            >
+              <Icon name="FolderPlus" size={15} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Mensaje personal opcional — estilo cita, contenido dentro de la card */}
+      {item.message && (
+        <div className={styles.messageBubble} role="note">
+          <Icon name="MessageCircle" size={12} className={styles.messageIcon} />
+          <span className={styles.messageText}>{item.message}</span>
+        </div>
+      )}
+    </li>
   );
 }
 

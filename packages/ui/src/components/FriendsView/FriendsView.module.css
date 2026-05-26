@@ -319,46 +319,106 @@
   flex-shrink: 0;
 }
 
-/* ── Inbox ───────────────────────────────────────────────────────── */
+/* ── Inbox ─────────────────────────────────────────────────────────
+   Rediseno 2026-05-26: card unificada con header social, cuerpo
+   principal y mensaje opcional. Cada compartido es una unidad visual
+   coherente con jerarquia clara.
 
-.inboxRow {
+   Estructura:
+     .inboxCard
+       .inboxHeader     ← avatar mini + "@user te envio una cancion"
+       .inboxBody       ← cover + info + acciones
+       .messageBubble   ← mensaje opcional, anclado dentro de la card
+*/
+
+.inboxCard {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 10px 16px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
   margin: 0 8px;
-  border-radius: 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background 160ms ease, border-color 160ms ease,
+              transform 160ms ease;
   position: relative;
 }
-.inboxRow:hover { background: rgba(255,255,255,.05); }
-.inboxCover, .inboxActions { margin-top: 2px; }
+.inboxCard:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.inboxCard:active { transform: scale(0.99); }
 
-/* Indicador de no leido */
-.inboxRow[data-unread='true']::before {
-  content: '';
-  position: absolute;
-  left: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 6px;
-  height: 6px;
+/* Header social: avatar mini del sender + accion descriptiva. */
+.inboxHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-2, rgba(255, 255, 255, 0.55));
+  min-width: 0;
+}
+.inboxSenderAvatar,
+.inboxSenderInitial {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+.inboxSenderInitial {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #6b46c1, #4f378a);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.inboxHeaderText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inboxHeaderText strong {
+  font-weight: 600;
+  color: var(--color-text-1, #fff);
+}
+
+/* Dot de no-leido a la derecha del header (mejor que ::before flotante
+   absoluto: alineado con la grid y semanticamente cerca del label social). */
+.unreadDot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--color-accent, #1db954);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.15);
+}
+
+/* Cuerpo principal: cover + info + acciones. */
+.inboxBody {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .inboxCover {
-  width: 48px;
-  height: 48px;
-  border-radius: 6px;
-  background: rgba(255,255,255,.07);
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  color: var(--color-text-secondary, rgba(255,255,255,.4));
+  color: var(--color-text-3, rgba(255, 255, 255, 0.4));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 .inboxCoverImg {
   width: 100%;
@@ -371,74 +431,31 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .inboxTitle {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--color-text-primary, #fff);
+  color: var(--color-text-1, #fff);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.25;
 }
 
 .inboxSub {
-  font-size: 12px;
-  color: var(--color-text-secondary, rgba(255,255,255,.5));
+  font-size: 13px;
+  color: var(--color-text-2, rgba(255, 255, 255, 0.55));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.inboxSender {
-  font-size: 11px;
-  color: var(--color-text-secondary, rgba(255,255,255,.35));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.inboxSender strong {
-  font-weight: 600;
-  color: var(--color-text-secondary, rgba(255,255,255,.6));
-}
-
-/* Burbuja del mensaje personal — estilo chat para destacar el texto
-   que el amigo escribio. Verde tenue + borde izquierdo acento + icono. */
-.messageBubble {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin-top: 6px;
-  padding: 7px 10px;
-  background: linear-gradient(135deg,
-    rgba(29, 185, 84, .14) 0%,
-    rgba(29, 185, 84, .07) 100%);
-  border-left: 2px solid var(--color-accent, #1db954);
-  border-radius: 4px 10px 10px 10px;
-  max-width: 100%;
-  word-break: break-word;
-}
-.messageIcon {
-  color: var(--color-accent, #1db954);
-  margin-top: 1px;
-  flex-shrink: 0;
-}
-.messageText {
-  font-size: 12.5px;
-  font-style: italic;
-  color: var(--color-text-primary, #fff);
-  line-height: 1.35;
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .inboxActions {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -447,31 +464,91 @@
   color: #000;
   border: none;
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
   cursor: pointer;
-  transition: transform 0.15s, opacity 0.15s;
+  transition: transform 160ms ease, box-shadow 160ms ease;
   flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(29, 185, 84, 0.25);
 }
-.btnPlay:hover { transform: scale(1.08); }
+.btnPlay:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 16px rgba(29, 185, 84, 0.4);
+}
+.btnPlay:active { transform: scale(0.95); }
 
 .btnSave {
-  background: rgba(255,255,255,.1);
-  color: var(--color-text-secondary, rgba(255,255,255,.6));
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-2, rgba(255, 255, 255, 0.6));
   border: none;
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 160ms ease, color 160ms ease;
+  flex-shrink: 0;
 }
-.btnSave:hover { background: rgba(255,255,255,.2); color: #fff; }
+.btnSave:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+/* Burbuja del mensaje personal — estilo cita anclada a la card.
+   Width:fit-content (con max-width) para que NO ocupe todo el ancho:
+   asi parece un mensaje genuino, no un banner full-width.
+   La esquina superior-izquierda con menor radius da el efecto "speech
+   bubble" sutil apuntando al avatar del sender en el header. */
+.messageBubble {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg,
+    rgba(29, 185, 84, 0.16) 0%,
+    rgba(29, 185, 84, 0.08) 100%);
+  border-left: 2px solid var(--color-accent, #1db954);
+  border-radius: 4px 12px 12px 12px;
+  max-width: 90%;
+  width: fit-content;
+  word-break: break-word;
+  margin-left: 30px;  /* alinear con el inicio del texto del header (avatar 22 + gap 8) */
+}
+.messageIcon {
+  color: var(--color-accent, #1db954);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.messageText {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--color-text-1, #fff);
+  line-height: 1.4;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* En mobile, reducir el padding lateral del margin para aprovechar el ancho. */
+@media (max-width: 640px) {
+  .inboxCard {
+    margin: 0 4px;
+    padding: 10px 12px;
+  }
+  .inboxCover {
+    width: 56px;
+    height: 56px;
+  }
+  .messageBubble {
+    margin-left: 0;
+    max-width: 100%;
+  }
+}
 
 /* ── Estado vacio ────────────────────────────────────────────────── */
 
