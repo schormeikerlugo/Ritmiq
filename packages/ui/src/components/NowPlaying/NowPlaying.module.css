@@ -360,6 +360,20 @@
   .controls { display: none; }
   .footer { display: none; }
 
+  /* IMPORTANTE: en mobile el .mainArea[data-with-panel='true'] tiene
+     min-height: ~88vh para empujar el ArtistInfoPanel justo despues
+     del fold (hint de scroll). En DESKTOP esto causa un enorme vacio
+     negro entre el header y el panel del artista porque todos los
+     hijos del .mainArea (cover, info, controls, footer) estan ocultos.
+     Resetear el min-height en desktop deja al .mainArea con su altura
+     intrinseca (solo el header) y el ArtistInfoPanel pega justo abajo.
+     Bug reportado 2026-05-26. */
+  .mainArea[data-with-panel='true'] {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
   /* Header compacto: solo close + titulo contextual (track playing). */
   .header {
     height: 40px;
