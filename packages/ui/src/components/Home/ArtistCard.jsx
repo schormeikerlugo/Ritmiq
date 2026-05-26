@@ -36,10 +36,19 @@ export function ArtistCard({ entry, onClick }) {
           : `Abrir ${entry.artist}`
       }
     >
-      <div className={styles.coverWrap}>
-        {entry.coverUrl
-          ? <img className={styles.cover} src={entry.coverUrl} alt="" loading="lazy" />
-          : <div className={styles.fallback}><Icon name="User" size={32} /></div>}
+      {/* Box wrapper relativo para anclar los badges FUERA de .coverWrap.
+          .coverWrap necesita overflow:hidden para clipear la imagen al
+          circulo; si pusieramos los badges dentro, se cortarian en el
+          borde del circulo. Ver bug visual reportado 2026-05-26. */}
+      <div className={styles.avatarBox}>
+        <div className={styles.coverWrap}>
+          {entry.coverUrl
+            ? <img className={styles.cover} src={entry.coverUrl} alt="" loading="lazy" />
+            : <div className={styles.fallback}><Icon name="User" size={32} /></div>}
+          <span className={styles.playBtn} aria-hidden="true">
+            <Icon name="Play" size={16} filled />
+          </span>
+        </div>
         {entry.verified && (
           <span
             className={styles.verifiedBadge}
@@ -58,9 +67,6 @@ export function ArtistCard({ entry, onClick }) {
             <Icon name="Music" size={11} />
           </span>
         )}
-        <span className={styles.playBtn} aria-hidden="true">
-          <Icon name="Play" size={16} filled />
-        </span>
       </div>
       <div className={styles.meta}>
         <span className={styles.title}>{entry.artist}</span>

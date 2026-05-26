@@ -28,10 +28,19 @@
 }
 .card:active { transform: scale(0.97); }
 
-.coverWrap {
+/* Wrapper que NO clipea — ancla badges externos al circulo del avatar.
+   Sin esto, los badges absolutos dentro de .coverWrap se cortan en el
+   borde curvo del 50% radius. */
+.avatarBox {
   position: relative;
   aspect-ratio: 1 / 1;
   width: 100%;
+}
+
+.coverWrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   overflow: hidden;
   background: linear-gradient(135deg, #2a2438, #1a1626);
@@ -69,24 +78,29 @@
               transform 200ms var(--ease-emphasized);
 }
 
-/* Badge "Official Artist Channel" — superpuesto en la esquina superior
-   derecha del avatar circular. Color azul YouTube/verified. El borde
-   blanco da separacion del avatar sin importar el fondo de la imagen. */
+/* Badge "Official Artist Channel" — superpuesto sobre el borde superior
+   derecho del avatar circular. Calculo geometrico: un punto a 45° (cos 0.707)
+   sobre un circulo de radio R esta a 0.146·R (= R·(1-0.707)) del borde
+   superior y derecho. Para un avatar ~120px, eso es ~17px de offset, lo
+   que coloca el centro del badge JUSTO sobre el borde del circulo —
+   patron Instagram/Twitter/YouTube. Usamos % para escalar con el tamano
+   del card. El borde blanco crea separacion visual del avatar. */
 .verifiedBadge {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 22px;
-  height: 22px;
+  top: 8%;
+  right: 8%;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #3ea6ff;
   color: #fff;
   display: grid;
   place-items: center;
   box-shadow:
-    0 0 0 2px var(--color-surface, #111),
-    0 2px 6px rgba(0, 0, 0, 0.4);
-  z-index: 2;
+    0 0 0 2.5px var(--color-bg-1, #131318),
+    0 2px 6px rgba(0, 0, 0, 0.45);
+  z-index: 3;
+  pointer-events: none;
 }
 
 /* Badge "YouTube Music Topic" — auto-generado por YT Music. Mas discreto
@@ -94,19 +108,20 @@
    sello sin afirmar oficialidad humana. */
 .topicBadge {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 20px;
-  height: 20px;
+  top: 8%;
+  right: 8%;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.85);
   color: #fff;
   display: grid;
   place-items: center;
   box-shadow:
-    0 0 0 2px var(--color-surface, #111),
+    0 0 0 2.5px var(--color-bg-1, #131318),
     0 2px 4px rgba(0, 0, 0, 0.4);
-  z-index: 2;
+  z-index: 3;
+  pointer-events: none;
 }
 
 @media (max-width: 640px) {
