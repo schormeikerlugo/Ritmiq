@@ -20,7 +20,18 @@ import styles from './SparkVariant.module.css';
 
 export const SPARK_DURATION_MS = 4000;
 
+/**
+ * Titulo dinamico: si el user esta exactamente en 7 dias (recien
+ * desbloqueado), celebra el hito. Si ya lleva mas (welcome/replay con
+ * racha actual mayor), refleja su estado real para no sonar desfasado.
+ */
+function pickTitle(streakValue) {
+  if (streakValue <= 7) return '¡Primera semana!';
+  return `¡${streakValue} dias seguidos!`;
+}
+
 export function SparkVariant({ streakValue, onClose }) {
+  const value = streakValue ?? 7;
   const count = particleCount(10, 6);
   const sparks = useMemo(() => generateParticles(count, 7777), [count]);
 
@@ -60,9 +71,9 @@ export function SparkVariant({ streakValue, onClose }) {
           <Icon name="Flame" size={28} filled />
         </div>
         <div className={styles.body}>
-          <span className={styles.title}>¡Primera semana!</span>
+          <span className={styles.title}>{pickTitle(value)}</span>
           <span className={styles.subtitle}>
-            {streakValue ?? 7} dias seguidos escuchando.
+            {value} dias seguidos escuchando.
           </span>
         </div>
         <button

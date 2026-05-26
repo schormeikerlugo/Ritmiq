@@ -21,8 +21,6 @@ import styles from './FanfareVariant.module.css';
 
 export const FANFARE_DURATION_MS = 6500;
 
-const FULL_SUBTITLE = 'Logro impresionante. 100 dias sin parar.';
-
 function BigStar() {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -31,7 +29,17 @@ function BigStar() {
   );
 }
 
+/**
+ * Titulo dinamico: si el user esta exactamente en 100 dias celebra el
+ * hito. Si lleva mas, refleja su estado real.
+ */
+function pickTitle(streakValue) {
+  if (streakValue <= 100) return '¡100 dias!';
+  return `¡${streakValue} dias seguidos!`;
+}
+
 export function FanfareVariant({ streakValue, onClose }) {
+  const value = streakValue ?? 100;
   const reduce = prefersReducedMotion();
   const confettiCount = particleCount(20, 12);
   const starsCount = particleCount(8, 5);
@@ -40,6 +48,9 @@ export function FanfareVariant({ streakValue, onClose }) {
   const stars = useMemo(() => generateParticles(starsCount, 2200), [starsCount]);
   const rays = useMemo(() => generateParticles(4, 3300), []);
 
+  // Subtitulo dinamico segun racha actual.
+  const FULL_SUBTITLE = `Logro impresionante. ${value} dias sin parar.`;
+
   // Typewriter del subtitulo (saltarse si reduce-motion).
   const [typedChars, setTypedChars] = useState(reduce ? FULL_SUBTITLE.length : 0);
   useEffect(() => {
@@ -47,7 +58,7 @@ export function FanfareVariant({ streakValue, onClose }) {
     if (typedChars >= FULL_SUBTITLE.length) return undefined;
     const id = setTimeout(() => setTypedChars((c) => c + 1), 38);
     return () => clearTimeout(id);
-  }, [typedChars, reduce]);
+  }, [typedChars, reduce, FULL_SUBTITLE.length]);
 
   const subtitleText = FULL_SUBTITLE.slice(0, typedChars);
 
@@ -135,7 +146,7 @@ export function FanfareVariant({ streakValue, onClose }) {
           </span>
         </div>
         <div className={styles.body}>
-          <span className={styles.title} data-shimmer="true">¡100 dias!</span>
+          <span className={styles.title} data-shimmer="true">{pickTitle(value)}</span>
           <span className={styles.subtitle}>
             {subtitleText}
             {!reduce && typedChars < FULL_SUBTITLE.length && (

@@ -53,7 +53,17 @@ function Prism() {
   );
 }
 
+/**
+ * Titulo dinamico: si el user esta exactamente en 365 dias celebra el
+ * hito (Un ano entero). Si supera el ano, refleja su racha real.
+ */
+function pickTitle(streakValue) {
+  if (streakValue <= 365) return '¡Un ano entero!';
+  return `¡${streakValue} dias seguidos!`;
+}
+
 export function LegendVariant({ streakValue, onClose }) {
+  const value = streakValue ?? 365;
   const reduce = prefersReducedMotion();
 
   const prismCount = particleCount(30, 16);
@@ -221,10 +231,10 @@ export function LegendVariant({ streakValue, onClose }) {
         )}
 
         <h2 id="legend-title" className={styles.title}>
-          <span className={styles.titleText}>¡Un ano entero!</span>
+          <span className={styles.titleText}>{pickTitle(value)}</span>
         </h2>
         <p className={styles.subtitle}>
-          Eres una leyenda de Ritmiq. {streakValue ?? 365} dias seguidos.
+          Eres una leyenda de Ritmiq. {value} dias seguidos.
         </p>
 
         <button

@@ -40,6 +40,14 @@ const FALLBACK_DURATION_MS = 5000;
 export function MilestoneToast() {
   const queue = useHistoryStore((s) => s.milestoneToastQueue);
   const pop = useHistoryStore((s) => s.popMilestoneToast);
+  // currentStreak: racha REAL actual del usuario (en hora local). Si el
+  // user ya lleva mas dias que el milestone celebrado (e.g. milestone 7
+  // pero llevas 10), preferimos mostrar la racha real para que el mensaje
+  // refleje su estado actual y no se sienta desfasado. Bug reportado
+  // 2026-05-26: toast decia "10 dias seguidos" bajo el titulo
+  // "Primera semana" — disonancia visual entre titulo (milestone 7) y
+  // subtitulo (racha actual 10). Fix: priorizar currentStreak siempre.
+  const currentStreak = useHistoryStore((s) => s.streak?.currentStreak ?? 0);
   const [current, setCurrent] = useState(null);
 
   // Pop del head cuando hay queue y no hay toast activo.
@@ -66,6 +74,15 @@ export function MilestoneToast() {
   const cfg = VARIANTS[current.milestone];
   const handleClose = () => setCurrent(null);
 
+  // displayStreak: si la racha actual del user es mayor o igual al
+  // streakValue del momento del milestone, usar la actual (mas precisa).
+  // Si por alguna razon currentStreak es menor (raro: BD desincronizada),
+  // caer al streakValue original del milestone como minimo seguro.
+  const displayStreak = Math.max(
+    currentStreak,
+    current.streakValue ?? current.milestone,
+  );
+
   // Render del variant correspondiente. Si no hay variant definido para
   // este milestone (e.g. el equipo anade 500d sin variant), cae al
   // fallback generico abajo.
@@ -73,7 +90,8 @@ export function MilestoneToast() {
     try {
       return (
         <cfg.Component
-          streakValue={current.streakValue}
+          milestone={current.milestone}
+          streakValue={displayStreak}
           onClose={handleClose}
         />
       );
@@ -87,7 +105,7 @@ export function MilestoneToast() {
   return (
     <FallbackToast
       milestone={current.milestone}
-      streakValue={current.streakValue}
+      streakValue={displayStreak}
       onClose={handleClose}
     />
   );

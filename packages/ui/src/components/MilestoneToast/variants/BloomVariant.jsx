@@ -30,7 +30,18 @@ function StarShape() {
   );
 }
 
+/**
+ * Titulo dinamico: si el user esta exactamente en 30 dias celebra el
+ * hito. Si lleva mas (welcome/replay con racha actual mayor), refleja
+ * su estado real.
+ */
+function pickTitle(streakValue) {
+  if (streakValue <= 30) return '¡Un mes completo!';
+  return `¡${streakValue} dias seguidos!`;
+}
+
 export function BloomVariant({ streakValue, onClose }) {
+  const value = streakValue ?? 30;
   const orbitCount = particleCount(6, 4);
   const orbits = useMemo(() => generateParticles(orbitCount, 3030), [orbitCount]);
   const rays = useMemo(() => [0, 90, 180, 270], []);
@@ -88,9 +99,9 @@ export function BloomVariant({ streakValue, onClose }) {
           </span>
         </div>
         <div className={styles.body}>
-          <span className={styles.title}>¡Un mes completo!</span>
+          <span className={styles.title}>{pickTitle(value)}</span>
           <span className={styles.subtitle}>
-            {streakValue ?? 30} dias de musica diaria.
+            {value} dias de musica diaria.
           </span>
         </div>
         <button
