@@ -72,8 +72,7 @@
   padding: 0;
   max-height: 220px;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,.1) transparent;
+  /* Hereda scrollbar-width:none de global.css. */
 }
 
 .friendRow {

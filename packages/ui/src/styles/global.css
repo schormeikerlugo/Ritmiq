@@ -15,29 +15,26 @@ body {
   overscroll-behavior: none;
 }
 
-/* Scrollbars minimalistas: reducidos al ~20% del default visual.
-   Solo aparecen cuando hay hover/scroll activo, casi invisibles en reposo. */
+/* Scrollbars ocultas globalmente (desktop y PWA movil).
+   La funcionalidad de scroll se preserva: el usuario sigue pudiendo
+   hacer scroll con rueda/trackpad/touch, solo se oculta el track visual.
+   Decision UX 2026-05-26: las scrollbars (incluso minimalistas de 4px)
+   resultaban distractoras en una app de musica con muchos carruseles
+   horizontales y vistas con scroll vertical. Patron usado por apps de
+   musica modernas (Spotify, Apple Music). */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-bg-3) transparent;
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* IE/legacy Edge */
 }
 *::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  display: none;                  /* WebKit/Blink: Chrome, Safari, Electron */
+  width: 0;
+  height: 0;
 }
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-*::-webkit-scrollbar-thumb {
-  background: var(--color-bg-3);
-  border-radius: 999px;
-  border: none;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-3);
-}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-thumb,
 *::-webkit-scrollbar-corner {
-  background: transparent;
+  display: none;
 }
 
 /* Focus accesible */
