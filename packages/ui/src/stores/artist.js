@@ -8,7 +8,9 @@
  */
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase.js';
-import { api } from '../lib/api.js';
+import { api, isDesktop } from '../lib/api.js';
+import { pushTrack } from '../lib/sync.js';
+import { tryOrQueue } from '../lib/sync-queue.js';
 import { usePlaylistsStore } from './playlists.js';
 import { useLibraryStore } from './library.js';
 
@@ -116,9 +118,18 @@ export const useArtistStore = create((set, get) => ({
       // (Serie evita conflictos de unicidad en (user_id, yt_id) cuando el
       //  álbum tiene tracks duplicados o si yt-dlp devuelve mismo ytId
       //  para distintos títulos.)
-      const total = tracks.length;
+      // Filtrar tracks sin ytId (album-resolve puede devolver nulls si
+      // ytSearchFirst no encontró match para algún track oscuro de Last.fm).
+      const validTracks = (tracks ?? []).filter((t) => t?.ytId);
+      const total = validTracks.length;
+      if (total === 0) {
+        set((s) => ({ saves: { ...s.saves, [key]: { saving: false, error: 'Ningún track del álbum tiene ID de YouTube válido', progress: 0 } } }));
+        return null;
+      }
+
       let done = 0;
-      for (const t of tracks) {
+      let failed = 0;
+      for (const t of validTracks) {
         try {
           const persisted = await api.libraryAddFromMeta({
             meta: {
@@ -132,14 +143,38 @@ export const useArtistStore = create((set, get) => ({
             },
             userId,
           });
+
+          // En desktop, libraryAddFromMeta solo escribe a SQLite local.
+          // DEBEMOS sincronizar el track a Supabase ANTES de llamar a
+          // playlists.addTrack — si no, el INSERT en playlist_tracks falla
+          // con FK violation 23503 (playlist_tracks.track_id → tracks.id).
+          //
+          // Mismo patrón que library.persistEphemeral (library.js:129-131).
+          // En PWA esto es no-op porque persistFromMeta ya escribió a Supabase.
+          if (isDesktop) {
+            await tryOrQueue(
+              () => pushTrack(persisted),
+              { kind: 'track.upsert', payload: persisted }
+            );
+          }
+
           await usePlaylistsStore.getState().addTrack(playlist.id, persisted.id);
         } catch (e) {
+          failed++;
           console.warn('[album] persist track failed', t?.title, e?.message);
         }
         done++;
         set((s) => ({
           saves: { ...s.saves, [key]: { saving: true, error: null, progress: Math.round((done / total) * 100) } },
         }));
+      }
+
+      // Si TODOS los tracks fallaron, no navegamos a una playlist vacía.
+      if (failed === total) {
+        set((s) => ({
+          saves: { ...s.saves, [key]: { saving: false, error: `No se pudo añadir ningún track (${failed}/${total} fallaron)`, progress: 100 } },
+        }));
+        return null;
       }
 
       // 4. Cover de la playlist (best-effort).
