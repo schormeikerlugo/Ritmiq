@@ -38,29 +38,53 @@
   .cardPane { flex: 1 1 55%; }
 }
 
-/* Mobile: stacked, hero arriba compacto + card debajo */
+/* Mobile (<768px): stacked, hero arriba + card abajo edge-to-edge.
+   El card NO es un card con border/shadow, sino la propia superficie de
+   la pantalla mobile — el hero "se funde" con el form. */
 @media (max-width: 767px) {
   .screen {
     flex-direction: column;
     overflow-y: auto;
     overflow-x: hidden;
     position: absolute;
+    -webkit-overflow-scrolling: touch;
   }
 
   .heroPane {
     flex: 0 0 auto;
     width: 100%;
-    min-height: 240px;
-    max-height: 38vh;
+    /* Altura proporcional a la viewport, con minimo decente para que se
+       sienta como hero y no como banner. */
+    height: 42vh;
+    min-height: 280px;
+    max-height: 360px;
   }
 
   .cardPane {
-    flex: 1 1 auto;
+    flex: 1 0 auto;
     width: 100%;
-    padding: var(--space-4);
-    padding-top: var(--space-3);
-    align-items: flex-start;
-    /* iOS safe area bottom */
+    padding: 0 var(--space-4);
+    /* iOS safe area bottom (home indicator) */
     padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+    align-items: flex-start;
+    /* Eliminar el gradient que separaba paneles — en mobile el hero
+       continua visualmente al card sin transicion visible */
+    background: #0a0a0c;
+    /* Hace que el waveform que sale del hero se "monte" sobre el card
+       (overlap intencional de unos pixeles para fusion visual) */
+    margin-top: -8px;
+    z-index: 1;
+    position: relative;
+  }
+}
+
+/* Mobile pequeno (<375px) — iPhone SE, etc. — reducir aun mas */
+@media (max-width: 374px) {
+  .heroPane {
+    height: 38vh;
+    min-height: 240px;
+  }
+  .cardPane {
+    padding: 0 var(--space-3);
   }
 }

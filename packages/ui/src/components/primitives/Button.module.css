@@ -85,6 +85,15 @@
   to { transform: rotate(360deg); }
 }
 
+/* Mobile: botones primary lg con touch target mas comodo */
+@media (max-width: 767px) {
+  .size_lg {
+    height: 52px;
+    font-size: var(--fs-base);
+    font-weight: var(--fw-semibold);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn { transition: none; }
   .btn:not(:disabled):active { transform: none; }

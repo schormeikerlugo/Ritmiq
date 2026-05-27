@@ -140,3 +140,16 @@
 .hint_success {
   color: var(--color-success);
 }
+
+/* Mobile: inputs un poco mas altos para touch comodo */
+@media (max-width: 767px) {
+  .input {
+    height: 48px;
+    /* font-size 16px para evitar zoom de Safari iOS al hacer focus */
+    font-size: 16px;
+  }
+  .label {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+  }
+}
