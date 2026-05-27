@@ -1,10 +1,10 @@
-import { createPortal } from 'react-dom';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAuthStore } from '../../stores/auth.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { resizeImage, uploadPlaylistCover } from '../../lib/storage.js';
 import { Icon } from '../Icon/Icon.jsx';
-import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
+import { Modal } from '../Modal/Modal.jsx';
+import { Button, FormError } from '../primitives/index.js';
 import styles from './CoverUploadDialog.module.css';
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -16,7 +16,6 @@ const ACCEPT = 'image/png, image/jpeg, image/webp, image/gif';
  * @param {() => void} props.onClose
  */
 export function CoverUploadDialog({ playlist, onClose }) {
-  useLockBodyScroll(true);
   const user = useAuthStore((s) => s.user);
   const setCover = usePlaylistsStore((s) => s.setCover);
   const fileInputRef = useRef(null);
@@ -24,12 +23,6 @@ export function CoverUploadDialog({ playlist, onClose }) {
   const [pending, setPending] = useState(/** @type {{ blob: Blob, mime: string, preview: string } | null} */ (null));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   const onPick = async (e) => {
     const file = e.target.files?.[0];
@@ -79,71 +72,68 @@ export function CoverUploadDialog({ playlist, onClose }) {
     }
   };
 
-  return createPortal((
-    <div className={styles.backdrop} onClick={onClose}>
-      <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
-        <header className={styles.header}>
-          <h2 className={styles.title}>Cambiar portada</h2>
-          <button
-            className={styles.close}
-            onClick={onClose}
-            aria-label="Cerrar"
-          ><Icon name="X" size={18} /></button>
-        </header>
-
-        <div
-          className={styles.dropzone}
-          onClick={() => fileInputRef.current?.click()}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
-        >
-          {pending ? (
-            <img src={pending.preview} alt="" className={styles.preview} />
-          ) : playlist.coverUrl ? (
-            <img src={playlist.coverUrl} alt="" className={styles.preview} />
-          ) : (
-            <div className={styles.placeholder}>
-              <div className={styles.placeholderIcon}><Icon name="Upload" size={32} /></div>
-              <p>Click para seleccionar imagen</p>
-              <p className={styles.hint}>PNG, JPG, WebP — máx 5 MB</p>
-            </div>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ACCEPT}
-            onChange={onPick}
-            className={styles.fileInput}
-            disabled={busy}
-          />
-        </div>
-
-        {error && <p className={styles.error}>{error}</p>}
-
-        <div className={styles.actions}>
+  return (
+    <Modal
+      onClose={onClose}
+      title="Cambiar portada"
+      size="sm"
+      footer={
+        <>
           {playlist.coverUrl && !pending && (
-            <button
-              type="button"
-              className={styles.btnDanger}
+            <Button
+              variant="danger"
+              size="md"
               onClick={onRemove}
               disabled={busy}
-            >Quitar portada</button>
+              className={styles.danger}
+            >
+              Quitar portada
+            </Button>
           )}
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            onClick={onClose}
-            disabled={busy}
-          >Cancelar</button>
-          <button
-            type="button"
-            className={styles.btnPrimary}
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
             onClick={onSave}
-            disabled={busy || !pending}
-          >{busy ? 'Subiendo…' : 'Guardar'}</button>
-        </div>
+            loading={busy}
+            loadingText="Subiendo..."
+            disabled={!pending}
+          >
+            Guardar
+          </Button>
+        </>
+      }
+    >
+      <div
+        className={styles.dropzone}
+        onClick={() => fileInputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
+      >
+        {pending ? (
+          <img src={pending.preview} alt="" className={styles.preview} />
+        ) : playlist.coverUrl ? (
+          <img src={playlist.coverUrl} alt="" className={styles.preview} />
+        ) : (
+          <div className={styles.placeholder}>
+            <div className={styles.placeholderIcon}><Icon name="Upload" size={32} /></div>
+            <p>Click para seleccionar imagen</p>
+            <p className={styles.hint}>PNG, JPG, WebP — máx 5 MB</p>
+          </div>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPT}
+          onChange={onPick}
+          className={styles.fileInput}
+          disabled={busy}
+        />
       </div>
-    </div>
-  ), document.body);
+
+      <FormError onDismiss={() => setError(null)}>{error}</FormError>
+    </Modal>
+  );
 }

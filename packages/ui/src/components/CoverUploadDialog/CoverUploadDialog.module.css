@@ -1,57 +1,5 @@
-.backdrop {
-  animation: ritmiq-fade-in var(--dur-normal) var(--ease-standard);
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: grid;
-  place-items: center;
-  z-index: 300;
-  padding: calc(var(--space-4) + var(--safe-top, 0px)) var(--space-4) calc(var(--space-4) + var(--safe-bottom, 0px));
-}
-
-.dialog {
-  animation: ritmiq-scale-in var(--dur-normal) var(--ease-emphasized);
-  width: 100%;
-  max-width: 420px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  padding: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.title {
-  margin: 0;
-  font-size: var(--fs-md);
-  font-weight: var(--fw-semibold);
-}
-
-.close {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-pill);
-  font-size: var(--fs-xl);
-  color: var(--color-text-3);
-  display: grid;
-  place-items: center;
-  transition: background var(--dur-fast) var(--ease-standard),
-              color var(--dur-fast) var(--ease-standard);
-}
-
-.close:hover { background: var(--color-bg-2); color: var(--color-text-1); }
+/* CoverUploadDialog — solo estilos del dropzone. El shell/footer son
+   <Modal>/<Button> primitives. */
 
 .dropzone {
   position: relative;
@@ -97,7 +45,6 @@
 }
 
 .placeholderIcon {
-  font-size: 3rem;
   color: var(--color-text-2);
   font-weight: var(--fw-bold);
 }
@@ -118,50 +65,8 @@
   pointer-events: none;
 }
 
-.error {
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  background: rgba(255, 93, 108, 0.1);
-  border-radius: var(--radius-sm);
-  color: var(--color-danger);
-  font-size: var(--fs-xs);
-}
-
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.btnPrimary, .btnSecondary, .btnDanger {
-  height: 36px;
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-md);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-}
-
-.btnPrimary {
-  background: var(--color-accent);
-  color: #fff;
-}
-.btnPrimary:hover:not(:disabled) { background: var(--color-accent-hover); }
-.btnPrimary:disabled { opacity: 0.5; }
-
-.btnSecondary {
-  color: var(--color-text-2);
-}
-.btnSecondary:hover:not(:disabled) {
-  color: var(--color-text-1);
-  background: var(--color-bg-3);
-}
-
-.btnDanger {
+/* Boton danger en el footer del Modal — flotar a la izquierda
+   para separar visualmente del cluster Cancel/Save de la derecha. */
+.danger {
   margin-right: auto;
-  color: var(--color-danger);
-  border: 1px solid transparent;
-}
-.btnDanger:hover:not(:disabled) {
-  background: rgba(255, 93, 108, 0.1);
 }

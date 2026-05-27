@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { Modal } from '../Modal/Modal.jsx';
 import { useSocialStore } from '../../stores/social.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { Button, FormError } from '../primitives/index.js';
 import { hapticSuccess, hapticError } from '../../lib/haptics.js';
 import styles from './ShareToFriendModal.module.css';
 
@@ -95,11 +96,32 @@ export function ShareToFriendModal({ track, playlist, onClose }) {
     );
   }
 
+  // Estado dinamico del Button submit
+  const sendLabel = sent
+    ? (<><Icon name="Check" size={14} /> Enviado</>)
+    : (<><Icon name="Send" size={14} /> Enviar{selected.size > 1 ? ` (${selected.size})` : ''}</>);
+
   return (
     <Modal
       onClose={onClose}
       title={isPlaylist ? 'Compartir playlist con amigo' : 'Compartir con amigo'}
       size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={sending}>
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSend}
+            loading={sending}
+            loadingText="Enviando..."
+            disabled={selected.size === 0 || sent}
+          >
+            {sendLabel}
+          </Button>
+        </>
+      }
     >
       {/* Preview del item */}
       <div className={styles.trackPreview}>
@@ -169,27 +191,7 @@ export function ShareToFriendModal({ track, playlist, onClose }) {
         <span className={styles.charCount}>{message.length}/280</span>
       </div>
 
-      {error && <p className={styles.errorMsg}>{error}</p>}
-
-      {/* Acciones */}
-      <div className={styles.actions}>
-        <button className={styles.btnCancel} onClick={onClose} disabled={sending}>
-          Cancelar
-        </button>
-        <button
-          className={styles.btnSend}
-          disabled={selected.size === 0 || sending || sent}
-          onClick={handleSend}
-        >
-          {sent ? (
-            <><Icon name="Check" size={14} /> Enviado</>
-          ) : sending ? (
-            'Enviando...'
-          ) : (
-            <><Icon name="Send" size={14} /> Enviar{selected.size > 1 ? ` (${selected.size})` : ''}</>
-          )}
-        </button>
-      </div>
+      <FormError onDismiss={() => setError(null)}>{error}</FormError>
     </Modal>
   );
 }
