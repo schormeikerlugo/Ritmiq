@@ -1,0 +1,143 @@
+.hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  isolation: isolate;
+  background: radial-gradient(
+    circle at 30% 20%,
+    rgba(124, 92, 255, 0.25),
+    transparent 55%
+  ),
+  radial-gradient(
+    circle at 80% 80%,
+    rgba(92, 208, 255, 0.18),
+    transparent 60%
+  ),
+  radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 93, 143, 0.10),
+    transparent 70%
+  ),
+  #0a0a0c;
+}
+
+/* Glow general detras del waveform */
+.bgGlow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 60%, rgba(124, 92, 255, 0.22), transparent 50%),
+    radial-gradient(circle at 30% 30%, rgba(61, 220, 151, 0.08), transparent 55%);
+  filter: blur(40px);
+  animation: heroGlowDrift 22s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes heroGlowDrift {
+  0%   { transform: translate3d(-2%, -1%, 0) scale(1); }
+  50%  { transform: translate3d(2%, 2%, 0) scale(1.05); }
+  100% { transform: translate3d(-1%, 1%, 0) scale(1); }
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  text-align: center;
+  max-width: 520px;
+  width: 100%;
+}
+
+.logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 24px var(--color-accent-glow));
+  animation: heroLogoIn 600ms var(--ease-emphasized);
+}
+
+@keyframes heroLogoIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.92); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.waveform {
+  width: 100%;
+  height: 88px;
+  overflow: visible;
+}
+
+.waveGroup {
+  fill: url(#ritmiqWave);
+}
+
+.bar {
+  animation-name: heroBarPulse;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  will-change: transform, opacity;
+  opacity: 0.85;
+}
+
+@keyframes heroBarPulse {
+  0%   { transform: scaleY(calc(1 - var(--amp) * 0.55)); opacity: 0.55; }
+  100% { transform: scaleY(calc(1 + var(--amp) * 0.45)); opacity: 0.95; }
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  animation: heroCopyIn 700ms var(--ease-emphasized) 200ms backwards;
+}
+
+@keyframes heroCopyIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tagline {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--color-text-1);
+}
+
+.taglineAccent {
+  background: linear-gradient(95deg, #7c5cff 0%, #5cd0ff 50%, #ff5d8f 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.sub {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-2);
+  line-height: 1.5;
+}
+
+/* compact mode (mobile / stacked) */
+.heroCompact { min-height: 240px; }
+.heroCompact .content { padding: var(--space-5) var(--space-4); gap: var(--space-3); }
+.heroCompact .logo { width: 64px; height: 64px; }
+.heroCompact .waveform { height: 64px; }
+.heroCompact .tagline { font-size: clamp(1.125rem, 4vw, 1.5rem); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bgGlow { animation: none; }
+  .bar { animation: none; opacity: 0.75; }
+  .logo { animation: none; }
+  .copy { animation: none; }
+}
