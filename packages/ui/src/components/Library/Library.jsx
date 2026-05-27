@@ -24,6 +24,7 @@ import { SpotifyImportDialog } from '../SpotifyImportDialog/SpotifyImportDialog.
 import { Icon } from '../Icon/Icon.jsx';
 import { SpotifyIcon } from '../Icon/SpotifyIcon.jsx';
 import { TrackRowSkeleton } from '../Skeleton/index.js';
+import { EmptyState } from '../primitives/index.js';
 import { playPlaylist, playArtistFromLibrary } from '../../lib/play-helpers.js';
 import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
 import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
@@ -324,9 +325,13 @@ export function Library() {
 
       <ul className={styles.list}>
         {sorted.length === 0 && playlists.length > 0 && (
-          <li className={styles.empty}>
-            <Icon name="Music" size={40} />
-            <p>No hay items en esta categoría.</p>
+          <li>
+            <EmptyState
+              icon="Music"
+              title="No hay items en esta categoría"
+              subtitle="Cambia de filtro o busca contenido nuevo."
+              size="sm"
+            />
           </li>
         )}
         {sorted.map((item) => {

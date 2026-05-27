@@ -4,7 +4,7 @@ import { usePlayerStore } from '../../stores/player.js';
 import { listLocalDownloads, storageEstimate, clearAllLocal } from '../../lib/local-downloads.js';
 import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
-import { ConfirmDialog } from '../primitives/index.js';
+import { ConfirmDialog, EmptyState } from '../primitives/index.js';
 import { TrackRowSkeleton } from '../Skeleton/index.js';
 import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
 import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
@@ -113,13 +113,12 @@ export function Downloads() {
       {libLoading && downloadedTracks.length === 0 ? (
         <TrackRowSkeleton count={6} />
       ) : downloadedTracks.length === 0 ? (
-        <div className={styles.empty}>
-          <p>No tienes música descargada en este dispositivo.</p>
-          <p className={styles.hint}>
-            Desde una playlist o canción, usa <strong>↓ Descargar</strong> para guardarla aquí
-            y poder escucharla sin internet.
-          </p>
-        </div>
+        <EmptyState
+          icon="ArrowDownToLine"
+          title="No tienes música descargada en este dispositivo"
+          subtitle="Desde una playlist o canción, usa ↓ Descargar para guardarla aquí y escucharla sin internet."
+          size="md"
+        />
       ) : (
         <ul className={styles.list}>
           {downloadedTracks.map((t, i) => {

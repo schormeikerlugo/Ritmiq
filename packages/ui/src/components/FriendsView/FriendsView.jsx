@@ -16,6 +16,7 @@ import { useAuthStore } from '../../stores/auth.js';
 import { useViewStore } from '../../stores/view.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { EmptyState } from '../primitives/index.js';
 import styles from './FriendsView.module.css';
 
 // ── Componente raiz ───────────────────────────────────────────────────
@@ -89,13 +90,13 @@ function FriendsTab() {
   const presence       = useSocialStore((s) => s.friendsPresence);
   const goProfile      = useViewStore((s) => s.goProfile);
 
-  if (friendsLoading) return <EmptyState icon="Users" text="Cargando amigos..." />;
+  if (friendsLoading) return <EmptyState icon="Users" title="Cargando amigos..." />;
   if (friends.length === 0) {
     return (
       <EmptyState
         icon="Users"
-        text="Aun no tienes amigos en Ritmiq"
-        sub='Usa la pestaña "Buscar" para encontrar personas'
+        title="Aún no tienes amigos en Ritmiq"
+        subtitle='Usa la pestaña "Buscar" para encontrar personas'
       />
     );
   }
@@ -150,7 +151,7 @@ function RequestsTab() {
     }
   }
 
-  if (requestsLoading) return <EmptyState icon="UserPlus" text="Cargando solicitudes..." />;
+  if (requestsLoading) return <EmptyState icon="UserPlus" title="Cargando solicitudes..." />;
 
   return (
     <div className={styles.requestsSection}>
@@ -206,7 +207,7 @@ function RequestsTab() {
       )}
 
       {incoming.length === 0 && outgoing.length === 0 && (
-        <EmptyState icon="UserPlus" text="No hay solicitudes pendientes" />
+        <EmptyState icon="UserPlus" title="No hay solicitudes pendientes" />
       )}
     </div>
   );
@@ -262,7 +263,7 @@ function SearchTab() {
       {loading && <div className={styles.loadingRow}><Icon name="Loader" size={16} /></div>}
 
       {!loading && results.length === 0 && query.length >= 2 && (
-        <EmptyState icon="SearchX" text="Sin resultados" sub={`No encontramos "${query}" en Ritmiq`} />
+        <EmptyState icon="SearchX" title="Sin resultados" subtitle={`No encontramos "${query}" en Ritmiq`} />
       )}
 
       <ul className={styles.list}>
@@ -291,13 +292,13 @@ function InboxTab() {
   const inboxLoading = useSocialStore((s) => s.inboxLoading);
   const playNow      = usePlayerStore((s) => s.playNow);
 
-  if (inboxLoading) return <EmptyState icon="Inbox" text="Cargando bandeja..." />;
+  if (inboxLoading) return <EmptyState icon="Inbox" title="Cargando bandeja..." />;
   if (inbox.length === 0) {
     return (
       <EmptyState
         icon="Inbox"
-        text="Nadie te ha compartido nada aun"
-        sub="Cuando un amigo comparta un track o playlist apareceran aqui"
+        title="Nadie te ha compartido nada aún"
+        subtitle="Cuando un amigo comparta un track o playlist aparecerán aquí"
       />
     );
   }
@@ -486,16 +487,6 @@ function FriendshipButton({ status, onAdd }) {
       <Icon name="UserPlus" size={14} />
       Agregar
     </button>
-  );
-}
-
-function EmptyState({ icon, text, sub }) {
-  return (
-    <div className={styles.empty}>
-      <Icon name={icon} size={40} />
-      <p className={styles.emptyText}>{text}</p>
-      {sub && <p className={styles.emptySub}>{sub}</p>}
-    </div>
   );
 }
 

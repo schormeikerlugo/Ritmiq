@@ -24,6 +24,7 @@ import { CSS } from '@dnd-kit/utilities';
 
 import { usePlayerStore } from '../../stores/player.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { EmptyState } from '../primitives/index.js';
 import styles from './QueuePanel.module.css';
 
 function fmtDur(s) {
@@ -91,12 +92,12 @@ export function QueuePanel({ onClose }) {
       </header>
 
       {queue.length === 0 ? (
-        <div className={styles.empty}>
-          <p>La cola está vacía.</p>
-          <p className={styles.emptyHint}>
-            Reproduce una playlist o añade canciones desde el menú.
-          </p>
-        </div>
+        <EmptyState
+          icon="ListMusic"
+          title="La cola está vacía"
+          subtitle="Reproduce una playlist o añade canciones desde el menú de cada track."
+          size="sm"
+        />
       ) : (
         <>
           {current && (

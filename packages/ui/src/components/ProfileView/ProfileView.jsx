@@ -17,6 +17,7 @@ import { useAuthStore } from '../../stores/auth.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { supabase } from '../../lib/supabase.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { EmptyState } from '../primitives/index.js';
 import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
 import styles from './ProfileView.module.css';
 
@@ -109,10 +110,11 @@ export function ProfileView({ userId }) {
         <header className={styles.header}>
           <button className={styles.backBtn} onClick={goBack}><Icon name="ArrowLeft" size={20} /></button>
         </header>
-        <div className={styles.empty}>
-          <Icon name="UserX" size={40} />
-          <p>Usuario no encontrado</p>
-        </div>
+        <EmptyState
+          icon="UserX"
+          title="Usuario no encontrado"
+          subtitle="Este perfil no existe o fue eliminado."
+        />
       </div>
     );
   }
