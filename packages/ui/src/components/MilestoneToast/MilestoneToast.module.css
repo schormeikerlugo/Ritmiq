@@ -37,7 +37,7 @@
   min-width: 280px;
   max-width: 92vw;
   background: linear-gradient(140deg, rgba(20,20,26,0.96), rgba(36,36,48,0.96));
-  color: var(--color-text-1, #fff);
+  color: var(--color-text-1);
   border-radius: 18px;
   box-shadow:
     0 16px 48px rgba(0,0,0,0.5),

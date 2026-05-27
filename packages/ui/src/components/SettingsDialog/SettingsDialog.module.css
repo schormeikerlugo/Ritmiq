@@ -173,7 +173,7 @@
 .section h3 { margin: 0 0 8px 0; font-size: 16px; }
 .section h4 { margin: 12px 0 6px 0; font-size: 13px; opacity: 0.85; }
 .subBlock { margin-top: 20px; }
-.muted { color: var(--color-text-2, #888); font-size: 12px; }
+.muted { color: var(--color-text-2); font-size: 12px; }
 .success { color: var(--color-success, #38c172); font-size: 13px; padding: 6px 0; }
 .error { color: var(--color-error, #e3342f); font-size: 13px; padding: 6px 0; }
 
@@ -239,11 +239,11 @@
   align-items: baseline;
   gap: 8px;
   font-size: 12px;
-  color: var(--color-text-2, #888);
+  color: var(--color-text-2);
   padding: 3px 0;
 }
 .activityTime { font-variant-numeric: tabular-nums; opacity: 0.7; flex-shrink: 0; }
-.activityAction { color: var(--color-text-1, #fff); font-weight: 500; }
+.activityAction { color: var(--color-text-1); font-weight: 500; }
 .activityYt {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 10.5px;

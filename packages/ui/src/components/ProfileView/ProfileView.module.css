@@ -20,7 +20,7 @@
 .backBtn {
   background: transparent;
   border: none;
-  color: var(--color-text-primary, #fff);
+  color: var(--color-text-1);
   cursor: pointer;
   padding: 4px;
   border-radius: 50%;
@@ -34,7 +34,7 @@
 .headerTitle {
   font-size: 16px;
   font-weight: 600;
-  color: var(--color-text-primary, #fff);
+  color: var(--color-text-1);
 }
 
 /* ── Body ────────────────────────────────────────────────────────── */
@@ -78,20 +78,20 @@
 .displayName {
   font-size: 22px;
   font-weight: 700;
-  color: var(--color-text-primary, #fff);
+  color: var(--color-text-1);
   margin: 0;
   text-align: center;
 }
 
 .handle {
   font-size: 14px;
-  color: var(--color-text-secondary, rgba(255,255,255,.5));
+  color: var(--color-text-2);
   margin: 0;
 }
 
 .bio {
   font-size: 13px;
-  color: var(--color-text-secondary, rgba(255,255,255,.6));
+  color: var(--color-text-2);
   margin: 4px 0 0;
   text-align: center;
   max-width: 300px;
@@ -143,7 +143,7 @@
 
 .presenceTrack {
   font-size: 12px;
-  color: var(--color-text-primary, #fff);
+  color: var(--color-text-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -212,7 +212,7 @@
   gap: 6px;
   background: transparent;
   border: 1px solid rgba(255,255,255,.15);
-  color: var(--color-text-secondary, rgba(255,255,255,.5));
+  color: var(--color-text-2);
   border-radius: 20px;
   padding: 8px 18px;
   font-size: 13px;
@@ -226,7 +226,7 @@
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--color-text-secondary, rgba(255,255,255,.45));
+  color: var(--color-text-3);
 }
 
 /* ── Estados ─────────────────────────────────────────────────────── */
@@ -235,7 +235,7 @@
   display: flex;
   justify-content: center;
   padding: 48px;
-  color: var(--color-text-secondary, rgba(255,255,255,.3));
+  color: var(--color-text-3);
   animation: spin 1s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -246,6 +246,6 @@
   align-items: center;
   gap: 12px;
   padding: 48px 24px;
-  color: var(--color-text-secondary, rgba(255,255,255,.3));
+  color: var(--color-text-3);
 }
 .empty p { margin: 0; font-size: 15px; }

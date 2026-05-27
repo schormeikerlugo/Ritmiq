@@ -394,7 +394,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--color-text-2, rgba(255, 255, 255, 0.55));
+  color: var(--color-text-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -411,7 +411,7 @@
 .value {
   font-size: 22px;
   font-weight: 700;
-  color: var(--color-text-1, #fff);
+  color: var(--color-text-1);
   line-height: 1.1;
   margin-top: 2px;
 }
@@ -419,13 +419,13 @@
 .unit {
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-text-2, rgba(255, 255, 255, 0.6));
+  color: var(--color-text-2);
   margin-left: 2px;
 }
 
 .subValue {
   font-size: 11px;
-  color: var(--color-text-3, rgba(255, 255, 255, 0.4));
+  color: var(--color-text-3);
   margin-top: 1px;
 }
 

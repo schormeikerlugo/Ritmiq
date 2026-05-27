@@ -95,7 +95,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: var(--color-text-secondary, rgba(255,255,255,.5));
+  color: var(--color-text-2);
   margin-bottom: 6px;
 }
 
@@ -112,7 +112,7 @@
 .inputWrap:focus-within { border-color: var(--color-accent, #1db954); }
 
 .prefix {
-  color: var(--color-text-secondary, rgba(255,255,255,.4));
+  color: var(--color-text-3);
   font-size: 14px;
   font-weight: 500;
   padding-right: 4px;
@@ -124,7 +124,7 @@
   background: transparent;
   border: none;
   outline: none;
-  color: var(--color-text-primary, #fff);
+  color: var(--color-text-1);
   font-size: 14px;
   padding: 10px 0;
   font-family: inherit;
@@ -154,7 +154,7 @@
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 8px;
   padding: 10px 12px;
-  color: var(--color-text-primary, #fff);
+  color: var(--color-text-1);
   font-size: 14px;
   font-family: inherit;
   resize: none;
@@ -176,12 +176,12 @@
 }
 .hint[data-tone='ok']   { color: var(--color-accent, #1db954); }
 .hint[data-tone='err']  { color: #fc8181; }
-.hint[data-tone='info'] { color: var(--color-text-secondary, rgba(255,255,255,.5)); }
+.hint[data-tone='info'] { color: var(--color-text-2); }
 
 .hintNeutral {
   margin: 4px 0 0;
   font-size: 11px;
-  color: var(--color-text-secondary, rgba(255,255,255,.35));
+  color: var(--color-text-3);
 }
 
 .errorMsg {
@@ -206,7 +206,7 @@
 .btnCancel {
   background: transparent;
   border: 1px solid rgba(255,255,255,.15);
-  color: var(--color-text-secondary, rgba(255,255,255,.6));
+  color: var(--color-text-2);
   border-radius: 20px;
   padding: 9px 18px;
   font-size: 13px;

@@ -52,25 +52,25 @@
 .displayName {
   font-size: 20px;
   font-weight: 700;
-  color: var(--color-text-primary, #fff);
+  color: var(--color-text-1);
   margin: 0;
 }
 .muted {
-  color: var(--color-text-secondary, rgba(255,255,255,.4));
+  color: var(--color-text-3);
   font-weight: 500;
   font-style: italic;
 }
 
 .handle {
   font-size: 13px;
-  color: var(--color-text-secondary, rgba(255,255,255,.55));
+  color: var(--color-text-2);
   margin: 0;
 }
 
 .bio {
   margin: 6px 0 0;
   font-size: 13px;
-  color: var(--color-text-secondary, rgba(255,255,255,.7));
+  color: var(--color-text-2);
   line-height: 1.45;
   max-width: 320px;
 }
