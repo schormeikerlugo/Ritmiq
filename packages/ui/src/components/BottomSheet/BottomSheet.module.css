@@ -142,3 +142,14 @@
   }
   .handleWrap { display: none; }
 }
+
+/* A11y: usuarios con sensibilidad al movimiento ven el sheet aparecer
+   instantaneo (no slide, no fade). */
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .backdrop[data-closing='true'],
+  .sheetInner,
+  .sheetInner[data-closing='true'] {
+    animation: none;
+  }
+}

@@ -178,6 +178,9 @@
   padding: var(--space-2);
   border-radius: var(--radius-sm);
   transition: background var(--dur-fast) var(--ease-standard);
+  /* Cheap virtualization: skip render fuera del viewport. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 48px;
 }
 
 .row:hover { background: var(--color-bg-2); }

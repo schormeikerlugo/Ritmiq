@@ -287,7 +287,7 @@ export function TopBar() {
                 >
                   <div className={styles.thumb}>
                     {t.coverUrl
-                      ? <img src={t.coverUrl} alt="" />
+                      ? <img src={t.coverUrl} alt="" loading="lazy" />
                       : <Icon name="Music" size={16} />}
                   </div>
                   <div className={styles.itemMeta}>
@@ -331,7 +331,7 @@ export function TopBar() {
                 >
                   <div className={styles.thumb}>
                     {r.thumbnail
-                      ? <img src={r.thumbnail} alt="" />
+                      ? <img src={r.thumbnail} alt="" loading="lazy" />
                       : <Icon name="Music" size={16} />}
                   </div>
                   <div className={styles.itemMeta}>
@@ -421,7 +421,7 @@ function UserMenu() {
         onClick={() => setOpen((v) => !v)}
       >
         {profile?.avatarUrl ? (
-          <img src={profile.avatarUrl} alt="" className={styles.avatarImg} />
+          <img src={profile.avatarUrl} alt="" className={styles.avatarImg} loading="lazy" />
         ) : initial}
         <span
           className={styles.statusDot}

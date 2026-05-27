@@ -158,7 +158,7 @@ export function ProfileView({ userId }) {
         {presenceEntry && (
           <div className={styles.presenceCard} onClick={handlePlaySameTrack}>
             {presenceEntry.coverUrl && (
-              <img src={presenceEntry.coverUrl} alt="" className={styles.presenceCover} />
+              <img src={presenceEntry.coverUrl} alt="" className={styles.presenceCover} loading="lazy" />
             )}
             <div className={styles.presenceInfo}>
               <span className={styles.presenceLabel}>

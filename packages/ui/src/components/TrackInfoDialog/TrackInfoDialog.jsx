@@ -52,7 +52,7 @@ export function TrackInfoDialog({ track, onClose, onEdit }) {
       <div className={styles.body}>
         <div className={styles.cover}>
           {track.coverUrl
-            ? <img src={track.coverUrl} alt="" />
+            ? <img src={track.coverUrl} alt="" loading="lazy" />
             : <Icon name="Music" size={32} />}
         </div>
 

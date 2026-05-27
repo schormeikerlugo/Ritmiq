@@ -222,6 +222,9 @@
 
 .row {
   margin: 0;
+  /* Cheap virtualization para listas largas (importadas Spotify). */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
 }
 
 .rowBtn {

@@ -126,7 +126,7 @@ export function AlbumView({ artist, album }) {
       <header className={styles.hero}>
         <div className={styles.cover}>
           {albumData?.coverUrl
-            ? <img src={albumData.coverUrl} alt="" />
+            ? <img src={albumData.coverUrl} alt="" loading="lazy" />
             : <Icon name="Disc3" size={56} />}
         </div>
         <div className={styles.heroMeta}>

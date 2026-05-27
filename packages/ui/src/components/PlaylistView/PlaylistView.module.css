@@ -334,6 +334,13 @@
   padding: var(--space-2);
   border-radius: var(--radius-md);
   transition: background var(--dur-fast) var(--ease-standard);
+  /* content-visibility: auto permite al browser SKIPpear layout/paint
+     de filas fuera del viewport (cheap virtualization sin tocar el
+     DOM, asi dnd-kit sigue funcionando con todas las filas montadas).
+     contain-intrinsic-size reserva el espacio para evitar layout shifts
+     al hacer scroll. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
 }
 
 .row:hover { background: var(--color-bg-2); }

@@ -198,7 +198,7 @@ export function ShareToFriendModal({ track, playlist, onClose }) {
 
 function FriendAvatar({ friend }) {
   if (friend.avatarUrl) {
-    return <img src={friend.avatarUrl} alt="" className={styles.avatar} />;
+    return <img src={friend.avatarUrl} alt="" className={styles.avatar} loading="lazy" />;
   }
   const initial = (friend.displayName ?? friend.username ?? '?').slice(0, 1).toUpperCase();
   return <span className={styles.avatarInitial}>{initial}</span>;

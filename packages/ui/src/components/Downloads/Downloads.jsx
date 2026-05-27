@@ -132,7 +132,7 @@ export function Downloads() {
                 >
                   <div className={styles.thumb}>
                     {t.coverUrl
-                      ? <img src={t.coverUrl} alt="" />
+                      ? <img src={t.coverUrl} alt="" loading="lazy" />
                       : <Icon name="Music" size={18} />}
                   </div>
                   <div className={styles.meta}>

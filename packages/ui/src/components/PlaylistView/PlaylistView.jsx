@@ -651,7 +651,7 @@ function PlaylistRow({
       >
         <div className={styles.thumb}>
           {track.coverUrl
-            ? <img src={track.coverUrl} alt="" />
+            ? <img src={track.coverUrl} alt="" loading="lazy" />
             : <Icon name="Music" size={18} />}
         </div>
         <div className={styles.meta}>

@@ -197,7 +197,7 @@ export function StatsView() {
                     >
                       <div className={styles.topCover}>
                         {t.coverUrl
-                          ? <img src={t.coverUrl} alt="" />
+                          ? <img src={t.coverUrl} alt="" loading="lazy" />
                           : <Icon name="Music" size={18} />}
                       </div>
                       <div className={styles.topMeta}>
@@ -227,7 +227,7 @@ export function StatsView() {
                     >
                       <div className={styles.topCover} data-shape="circle">
                         {a.coverUrl
-                          ? <img src={a.coverUrl} alt="" />
+                          ? <img src={a.coverUrl} alt="" loading="lazy" />
                           : <Icon name="User" size={18} />}
                       </div>
                       <div className={styles.topMeta}>

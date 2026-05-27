@@ -158,7 +158,7 @@ export function Home() {
           >
             <div className={styles.heroIcon} aria-hidden="true">
               {pl.coverUrl
-                ? <img src={pl.coverUrl} alt="" />
+                ? <img src={pl.coverUrl} alt="" loading="lazy" />
                 : <Icon name={pl.id === favoritesId ? 'Heart' : 'Music'} size={20} filled={pl.id === favoritesId} />}
             </div>
             <span className={styles.heroLabel}>{pl.name}</span>

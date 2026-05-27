@@ -109,7 +109,7 @@ export function Sidebar() {
                     data-has-image={!!pl.coverUrl}
                   >
                     {pl.coverUrl ? (
-                      <img src={pl.coverUrl} alt="" />
+                      <img src={pl.coverUrl} alt="" loading="lazy" />
                     ) : (
                       <Icon name={pl.id === favoritesId ? 'Heart' : 'Music'} size={16} filled={pl.id === favoritesId} />
                     )}

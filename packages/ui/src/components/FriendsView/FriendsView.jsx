@@ -115,7 +115,7 @@ function FriendsTab() {
               {p && (
                 <div className={styles.presenceRow}>
                   {p.coverUrl && (
-                    <img src={p.coverUrl} alt="" className={styles.presenceCover} />
+                    <img src={p.coverUrl} alt="" className={styles.presenceCover} loading="lazy" />
                   )}
                   <span className={styles.presenceLabel}>
                     <Icon name="Headphones" size={12} />
@@ -426,7 +426,7 @@ function InboxCard({ item, onPlay, onSave }) {
       <div className={styles.inboxBody}>
         <div className={styles.inboxCover}>
           {cover ? (
-            <img src={cover} alt="" className={styles.inboxCoverImg} />
+            <img src={cover} alt="" className={styles.inboxCoverImg} loading="lazy" />
           ) : (
             <Icon name={isTrack ? 'Music' : 'ListMusic'} size={22} />
           )}
@@ -472,7 +472,7 @@ function InboxCard({ item, onPlay, onSave }) {
 
 function Avatar({ user }) {
   if (user?.avatarUrl) {
-    return <img src={user.avatarUrl} alt="" className={styles.avatar} />;
+    return <img src={user.avatarUrl} alt="" className={styles.avatar} loading="lazy" />;
   }
   const initial = (user?.displayName ?? user?.username ?? '?').slice(0, 1).toUpperCase();
   return <span className={styles.avatarInitial}>{initial}</span>;

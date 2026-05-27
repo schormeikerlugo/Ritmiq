@@ -124,3 +124,13 @@
   }
   .body { padding: var(--space-4); }
 }
+
+/* A11y: usuarios con sensibilidad al movimiento ven el modal aparecer
+   sin animacion (no slide-up, no scale-in, no fade — solo aparece). */
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .dialog,
+  .size_sm, .size_md, .size_lg, .size_full {
+    animation: none;
+  }
+}
