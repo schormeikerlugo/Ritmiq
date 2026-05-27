@@ -10,7 +10,7 @@ import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { LinkButton } from '../controls/LinkButton.jsx';
 import { Icon } from '../../Icon/Icon.jsx';
-import logotipoUrl from '../../../assets/logotipo.png';
+import iconMarkUrl from '../../../assets/icon-mark.png';
 import styles from '../SettingsView.module.css';
 import aboutStyles from './AboutInfoView.module.css';
 
@@ -36,7 +36,7 @@ export function AboutInfoView({ onBack }) {
       <div className={aboutStyles.hero}>
         <div className={aboutStyles.brandRow}>
           <img
-            src={logotipoUrl}
+            src={iconMarkUrl}
             alt="Ritmiq"
             className={aboutStyles.brandIcon}
             width={56}
