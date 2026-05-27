@@ -69,7 +69,18 @@
   font-family: inherit;
   font-size: var(--fs-sm);
   color: var(--color-text-1);
+  border-radius: 0;
   /* iOS Safari evita zoom si fontSize >= 16px en device-width small */
+}
+
+/* Override del :focus-visible global (global.css:41) — el outline visual
+   lo lleva el wrapper, no el input. Sin esto aparecen DOS cuadros
+   moradores anidados al hacer focus. */
+.input:focus,
+.input:focus-visible {
+  outline: 0 !important;
+  outline-offset: 0 !important;
+  border-radius: 0 !important;
 }
 
 .input::placeholder {
