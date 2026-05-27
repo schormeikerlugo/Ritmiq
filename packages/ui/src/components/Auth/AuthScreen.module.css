@@ -1,54 +1,65 @@
 /* Layout principal: split 50/50 en desktop, stacked en mobile.
-   Cada panel ocupa el viewport completo. */
+   Usamos flex para que cada panel llene su mitad y el card quede centrado. */
 .screen {
   position: fixed;
   inset: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr;
+  display: flex;
+  flex-direction: row;
   background: #0a0a0c;
   /* Soporte keyboard mobile (iOS) — el form no queda tapado por el teclado */
   padding-bottom: env(keyboard-inset-height, 0);
+  overflow: hidden;
 }
 
 .heroPane {
   position: relative;
+  flex: 1 1 50%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
 .cardPane {
-  display: grid;
-  place-items: center;
+  flex: 1 1 50%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--space-5);
   background: linear-gradient(180deg, rgba(10,10,12,0.4), rgba(10,10,12,1) 40%);
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-/* Tablet (768-1023): mantenemos split pero hero un poco mas estrecho */
+/* Tablet (768-1023): hero un poco mas estrecho */
 @media (min-width: 768px) and (max-width: 1023px) {
-  .screen {
-    grid-template-columns: 0.85fr 1fr;
-  }
+  .heroPane { flex: 0.85 1 45%; }
+  .cardPane { flex: 1 1 55%; }
 }
 
 /* Mobile: stacked, hero arriba compacto + card debajo */
 @media (max-width: 767px) {
   .screen {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    flex-direction: column;
     overflow-y: auto;
+    overflow-x: hidden;
+    position: absolute;
   }
 
   .heroPane {
+    flex: 0 0 auto;
+    width: 100%;
     min-height: 240px;
     max-height: 38vh;
   }
 
   .cardPane {
+    flex: 1 1 auto;
+    width: 100%;
     padding: var(--space-4);
-    align-items: start;
     padding-top: var(--space-3);
+    align-items: flex-start;
     /* iOS safe area bottom */
     padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
   }
