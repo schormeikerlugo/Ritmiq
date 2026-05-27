@@ -1,0 +1,40 @@
+.body {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.iconWrap {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.iconWrapDanger {
+  background: rgba(255, 93, 108, 0.12);
+  color: var(--color-danger);
+}
+
+.text {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-2);
+  line-height: 1.5;
+}
+
+.error {
+  flex-basis: 100%;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-xs);
+  color: var(--color-danger);
+  background: rgba(255, 93, 108, 0.10);
+  border: 1px solid rgba(255, 93, 108, 0.25);
+  border-radius: var(--radius-md);
+}

@@ -4,6 +4,7 @@ import { usePlayerStore } from '../../stores/player.js';
 import { listLocalDownloads, storageEstimate, clearAllLocal } from '../../lib/local-downloads.js';
 import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { ConfirmDialog } from '../primitives/index.js';
 import { TrackRowSkeleton } from '../Skeleton/index.js';
 import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
 import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
@@ -33,6 +34,7 @@ export function Downloads() {
 
   const [localItems, setLocalItems] = useState([]);
   const [estimate, setEstimate] = useState({ usage: 0, quota: 0 });
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const refresh = async () => {
     if (isDesktop) {
@@ -63,8 +65,7 @@ export function Downloads() {
   const totalSize = downloadedTracks.reduce((acc, t) => acc + (t._localSize ?? 0), 0);
   const usedPct = estimate.quota > 0 ? (estimate.usage / estimate.quota) * 100 : 0;
 
-  const onClearAll = async () => {
-    if (!confirm(`¿Borrar las ${downloadedTracks.length} descargas locales?`)) return;
+  const performClearAll = async () => {
     if (isDesktop) {
       for (const t of downloadedTracks) {
         try { await undownload(t.id); } catch {}
@@ -75,6 +76,8 @@ export function Downloads() {
     }
     refresh();
   };
+
+  const onClearAll = () => setConfirmClear(true);
 
   return (
     <section className={styles.wrap} {...ptrBind}>
@@ -152,6 +155,18 @@ export function Downloads() {
             );
           })}
         </ul>
+      )}
+
+      {confirmClear && (
+        <ConfirmDialog
+          title="Borrar todas las descargas"
+          body={`Se eliminarán las ${downloadedTracks.length} canciones descargadas localmente. Las podrás volver a descargar cuando quieras.`}
+          confirmLabel="Borrar todo"
+          variant="danger"
+          icon="Trash2"
+          onConfirm={performClearAll}
+          onClose={() => setConfirmClear(false)}
+        />
       )}
     </section>
   );

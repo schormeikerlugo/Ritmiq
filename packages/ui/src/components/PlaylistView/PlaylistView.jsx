@@ -20,6 +20,7 @@ import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { TrackInfoDialog } from '../TrackInfoDialog/TrackInfoDialog.jsx';
 import { EditTrackDialog } from '../EditTrackDialog/EditTrackDialog.jsx';
 import { CoverUploadDialog } from '../CoverUploadDialog/CoverUploadDialog.jsx';
+import { ConfirmDialog } from '../primitives/index.js';
 import { exportPlaylistJson, exportPlaylistCsv } from '../../lib/export.js';
 import { isDesktop } from '../../lib/api.js';
 import { prewarmStream } from '../../lib/lan-client.js';
@@ -92,6 +93,8 @@ export function PlaylistView({ playlistId }) {
   const [filter, setFilter] = useState('');
   const [heroBg, setHeroBg] = useState('var(--color-bg-1)');
   const [sharePlaylistOpen, setSharePlaylistOpen] = useState(false);
+  const [confirmUndownloadAll, setConfirmUndownloadAll] = useState(false);
+  const [confirmRemovePlaylist, setConfirmRemovePlaylist] = useState(false);
   const friends = useSocialStore((s) => s.friends);
 
   // Extraer color dominante del cover para el gradiente hero (estilo Spotify).
@@ -217,17 +220,22 @@ export function PlaylistView({ playlistId }) {
     }
   };
 
-  const undownloadAll = async () => {
-    const dls = tracks.filter((t) => t.isDownloaded);
-    if (dls.length === 0) return;
-    if (!confirm(`¿Borrar las ${dls.length} descargas locales de esta playlist?`)) return;
-    for (const t of dls) {
+  const downloadedTracks = useMemo(() => tracks.filter((t) => t.isDownloaded), [tracks]);
+
+  const undownloadAll = () => {
+    if (downloadedTracks.length === 0) return;
+    setConfirmUndownloadAll(true);
+  };
+
+  const performUndownloadAll = async () => {
+    for (const t of downloadedTracks) {
       try { await undownloadOne(t.id); } catch {}
     }
   };
 
-  const onRemovePlaylist = async () => {
-    if (!confirm(`¿Borrar la playlist "${playlist.name}"?`)) return;
+  const onRemovePlaylist = () => setConfirmRemovePlaylist(true);
+
+  const performRemovePlaylist = async () => {
     await remove(playlist.id);
     goLibrary();
   };
@@ -532,6 +540,30 @@ export function PlaylistView({ playlistId }) {
             })),
           }}
           onClose={() => setSharePlaylistOpen(false)}
+        />
+      )}
+
+      {confirmUndownloadAll && (
+        <ConfirmDialog
+          title="Borrar descargas de esta playlist"
+          body={`Se eliminarán las ${downloadedTracks.length} descargas locales de "${playlist.name}". Las podrás volver a descargar cuando quieras.`}
+          confirmLabel="Borrar descargas"
+          variant="danger"
+          icon="Trash2"
+          onConfirm={performUndownloadAll}
+          onClose={() => setConfirmUndownloadAll(false)}
+        />
+      )}
+
+      {confirmRemovePlaylist && (
+        <ConfirmDialog
+          title="Eliminar playlist"
+          body={`¿Seguro que quieres eliminar la playlist "${playlist.name}"? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          variant="danger"
+          icon="AlertTriangle"
+          onConfirm={performRemovePlaylist}
+          onClose={() => setConfirmRemovePlaylist(false)}
         />
       )}
     </section>

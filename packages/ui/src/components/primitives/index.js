@@ -7,3 +7,4 @@ export { PasswordField } from './PasswordField.jsx';
 export { PasswordStrengthMeter } from './PasswordStrengthMeter.jsx';
 export { FormError } from './FormError.jsx';
 export { FormSuccess } from './FormSuccess.jsx';
+export { ConfirmDialog } from './ConfirmDialog.jsx';

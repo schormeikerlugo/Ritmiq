@@ -25,6 +25,8 @@ import { publishTunnelUrl, clearTunnelUrl } from '../../lib/tunnel-registry.js';
 import { supabase } from '../../lib/supabase.js';
 import { forceRecheck } from '../../lib/connectivity.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { ConfirmDialog } from '../primitives/index.js';
+import { useConfirm } from '../../lib/use-confirm.js';
 import styles from './SettingsDialog.module.css';
 
 /**
@@ -95,6 +97,7 @@ export function SharedCacheSection() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const [msgOk, setMsgOk] = useState(false);
+  const { confirm, dialogProps } = useConfirm();
 
   const refresh = async () => {
     try { setStats(await api.sharedCacheStats()); } catch {}
@@ -102,11 +105,14 @@ export function SharedCacheSection() {
   useEffect(() => { refresh(); }, []);
 
   const onClear = async () => {
-    if (!confirm(
-      'Esto borra los archivos de audio descargados que se reusan entre ' +
-      'cuentas. La próxima reproducción de cada canción volverá a descargar ' +
-      'desde YouTube. ¿Continuar?'
-    )) return;
+    const ok = await confirm({
+      title: 'Limpiar caché compartido',
+      body: 'Esto borra los archivos de audio descargados que se reusan entre cuentas. La próxima reproducción de cada canción volverá a descargar desde YouTube.',
+      confirmLabel: 'Limpiar caché',
+      variant: 'danger',
+      icon: 'Trash2',
+    });
+    if (!ok) return;
     setBusy(true);
     setMsg('Borrando…');
     try {
@@ -145,6 +151,7 @@ export function SharedCacheSection() {
           disabled={busy || stats.count === 0}
         >{busy ? 'Borrando…' : 'Limpiar caché compartido'}</button>
       </div>
+      {dialogProps && <ConfirmDialog {...dialogProps} />}
     </div>
   );
 }
@@ -331,6 +338,7 @@ export function DesktopTunnelSection() {
 export function DesktopAccessTokenSection() {
   const [token, setTokenValue] = useState('');
   const [revealed, setRevealed] = useState(false);
+  const { confirm, dialogProps } = useConfirm();
 
   const refresh = async () => {
     try { setTokenValue(await api.authToken() ?? ''); } catch {}
@@ -343,7 +351,14 @@ export function DesktopAccessTokenSection() {
   };
 
   const onRegen = async () => {
-    if (!confirm('Regenerar el token invalida los clientes ya configurados. ¿Continuar?')) return;
+    const ok = await confirm({
+      title: 'Regenerar token de acceso',
+      body: 'Regenerar el token invalida los clientes ya configurados. Tendrás que volver a pegar el nuevo token en cada PWA.',
+      confirmLabel: 'Regenerar',
+      variant: 'danger',
+      icon: 'AlertTriangle',
+    });
+    if (!ok) return;
     setTokenValue(await api.authRegenerateToken());
   };
 
@@ -378,6 +393,7 @@ export function DesktopAccessTokenSection() {
           disabled={!token}
         >Copiar al portapapeles</button>
       </div>
+      {dialogProps && <ConfirmDialog {...dialogProps} />}
     </div>
   );
 }
@@ -490,6 +506,7 @@ export function DevicesSection() {
   const [activityFor, setActivityFor] = useState(null);
   const [activity, setActivity] = useState([]);
   const [msg, setMsg] = useState(null);
+  const { confirm, dialogProps } = useConfirm();
 
   const refresh = async () => {
     try {
@@ -530,7 +547,14 @@ export function DevicesSection() {
   };
 
   const onRevoke = async (deviceId) => {
-    if (!confirm('Revocar este dispositivo? Tendra que volver a pareear.')) return;
+    const ok = await confirm({
+      title: 'Revocar dispositivo',
+      body: 'El dispositivo tendrá que volver a parearse para acceder. ¿Continuar?',
+      confirmLabel: 'Revocar',
+      variant: 'danger',
+      icon: 'AlertTriangle',
+    });
+    if (!ok) return;
     // Optimistic UI: marcar como revocado al instante para que el user
     // vea el cambio antes del round-trip al main process + refresh.
     setDevices((prev) => prev.map((d) =>
@@ -549,7 +573,14 @@ export function DevicesSection() {
   };
 
   const onForget = async (deviceId) => {
-    if (!confirm('Borrar definitivamente este registro? Se pierde la actividad asociada.')) return;
+    const ok = await confirm({
+      title: 'Borrar registro del dispositivo',
+      body: 'Se elimina toda la actividad asociada y no se podrá recuperar.',
+      confirmLabel: 'Borrar',
+      variant: 'danger',
+      icon: 'Trash2',
+    });
+    if (!ok) return;
     setDevices((prev) => prev.filter((d) => d.device_id !== deviceId));
     try {
       await api.devicesForget(deviceId);
@@ -743,6 +774,7 @@ export function DevicesSection() {
       {msg && (
         <div className={msg.ok ? styles.success : styles.error}>{msg.text}</div>
       )}
+      {dialogProps && <ConfirmDialog {...dialogProps} />}
     </div>
   );
 }
@@ -767,6 +799,7 @@ export function PwaPairingSection() {
   const [pin, setPin] = useState(null);
   const [status, setStatus] = useState('idle'); // idle | requesting | pending | approved | rejected | error
   const [error, setError] = useState(null);
+  const { confirm, dialogProps } = useConfirm();
 
   const deviceId = (() => {
     try {
@@ -865,8 +898,15 @@ export function PwaPairingSection() {
     }
   };
 
-  const onUnpair = () => {
-    if (!confirm('Desconectar este dispositivo del desktop?')) return;
+  const onUnpair = async () => {
+    const ok = await confirm({
+      title: 'Desconectar del desktop',
+      body: 'Tendrás que volver a parear este dispositivo si quieres acceder de nuevo.',
+      confirmLabel: 'Desconectar',
+      variant: 'danger',
+      icon: 'LogOut',
+    });
+    if (!ok) return;
     try {
       localStorage.removeItem('ritmiq:device:token');
     } catch {}
@@ -942,6 +982,7 @@ export function PwaPairingSection() {
       {status === 'error' && error && (
         <div className={styles.error}>{error}</div>
       )}
+      {dialogProps && <ConfirmDialog {...dialogProps} />}
     </div>
   );
 }
@@ -956,6 +997,7 @@ export function PwaDiagnosticsSection() {
   const [tick, setTick] = useState(0);
   const [testing, setTesting] = useState(false);
   const [pingResult, setPingResult] = useState(null);
+  const { confirm, dialogProps } = useConfirm();
 
   // Lee localStorage en CADA render — sin cache. Asi el pareo se refleja
   // inmediato al cambiar de seccion o al pulsar "Refrescar".
@@ -992,16 +1034,30 @@ export function PwaDiagnosticsSection() {
     return () => { window.removeEventListener('storage', onStorage); clearInterval(id); };
   }, []);
 
-  const onClearLegacy = () => {
-    if (!confirm('Limpiar token de acceso legacy? Esto solo afecta al modelo viejo, NO al pareo actual.')) return;
+  const onClearLegacy = async () => {
+    const ok = await confirm({
+      title: 'Limpiar token legacy',
+      body: 'Esto solo afecta al modelo viejo de autenticación. El pareo actual NO se ve afectado.',
+      confirmLabel: 'Limpiar',
+      variant: 'primary',
+      icon: 'Info',
+    });
+    if (!ok) return;
     try {
       localStorage.removeItem('ritmiq:lan:accessToken');
     } catch {}
     refresh();
   };
 
-  const onClearAll = () => {
-    if (!confirm('Borrar TODA la configuracion de pareo? Vas a tener que re-parear.')) return;
+  const onClearAll = async () => {
+    const ok = await confirm({
+      title: 'Borrar configuración completa',
+      body: 'Se elimina TODA la configuración de pareo. Tendrás que volver a parear este dispositivo desde cero.',
+      confirmLabel: 'Borrar todo',
+      variant: 'danger',
+      icon: 'AlertTriangle',
+    });
+    if (!ok) return;
     try {
       localStorage.removeItem('ritmiq:device:token');
       localStorage.removeItem('ritmiq:device:id');
@@ -1098,6 +1154,7 @@ export function PwaDiagnosticsSection() {
           Borrar todo el pareo (re-parear)
         </button>
       </div>
+      {dialogProps && <ConfirmDialog {...dialogProps} />}
     </div>
   );
 }
