@@ -44,7 +44,8 @@ export const Button = forwardRef(function Button(
     className,
   ].filter(Boolean).join(' ');
 
-  const iconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
+  // Icon size mapeado a escala oficial: sm=sm(14), md=md(16), lg=lg(20).
+  const iconSize = size === 'sm' ? 'sm' : size === 'lg' ? 'lg' : 'md';
 
   return (
     <button

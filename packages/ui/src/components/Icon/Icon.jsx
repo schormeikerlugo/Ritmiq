@@ -1,9 +1,22 @@
 /**
  * Wrapper de lucide-react con tamaños consistentes y `currentColor`.
- * Uso: <Icon name="Play" size={20} />  /  <Icon name="Heart" filled />
  *
- * No incluye TODOS los íconos de Lucide para evitar bundle bloat — solo los
- * que la app usa. Si añades un ícono nuevo, regístralo en ICONS abajo.
+ * Uso:
+ *   <Icon name="Play" size={20} />     <- numerico (back-compat)
+ *   <Icon name="Play" size="md" />     <- keyword (recomendado)
+ *   <Icon name="Heart" filled />
+ *
+ * Escala oficial (sizes semanticos):
+ *   xs  = 12px  -> chips, badges, inline hints
+ *   sm  = 14px  -> list row icons, small inline
+ *   md  = 16px  -> DEFAULT, botones primary, controles compactos
+ *   lg  = 20px  -> TopBar, NowPlaying, controles principales
+ *   xl  = 24px  -> hero icons, action buttons grandes
+ *   2xl = 32px  -> empty states, illustrations
+ *   3xl = 48px  -> hero illustrations
+ *
+ * NO incluye TODOS los iconos de Lucide para evitar bundle bloat — solo
+ * los que la app usa. Si añades uno nuevo, registralo en ICONS abajo.
  */
 import {
   Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1,
@@ -47,16 +60,37 @@ const ICONS = {
 };
 
 /**
+ * Escala oficial de tamaños. Cualquier valor numerico tambien funciona
+ * (back-compat con codigo legacy que paso 18, 22, 26, etc.).
+ */
+const SIZE_MAP = {
+  xs: 12,
+  sm: 14,
+  md: 16,
+  lg: 20,
+  xl: 24,
+  '2xl': 32,
+  '3xl': 48,
+};
+
+function resolveSize(size) {
+  if (typeof size === 'number') return size;
+  if (typeof size === 'string' && SIZE_MAP[size] != null) return SIZE_MAP[size];
+  // fallback default
+  return 20;
+}
+
+/**
  * @param {{
  *   name: keyof typeof ICONS,
- *   size?: number,
+ *   size?: number | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl',
  *   strokeWidth?: number,
  *   filled?: boolean,
  *   className?: string,
  *   'aria-hidden'?: boolean,
  * }} props
  */
-export function Icon({ name, size = 20, strokeWidth = 2, filled = false, className, ...rest }) {
+export function Icon({ name, size = 'lg', strokeWidth = 2, filled = false, className, ...rest }) {
   const Cmp = ICONS[name];
   if (!Cmp) {
     if (typeof console !== 'undefined') console.warn(`[Icon] unknown icon "${name}"`);
@@ -64,7 +98,7 @@ export function Icon({ name, size = 20, strokeWidth = 2, filled = false, classNa
   }
   return (
     <Cmp
-      size={size}
+      size={resolveSize(size)}
       strokeWidth={strokeWidth}
       className={className}
       fill={filled ? 'currentColor' : 'none'}
