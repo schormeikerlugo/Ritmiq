@@ -15,6 +15,7 @@ import { StatsView } from './components/StatsView/StatsView.jsx';
 import { FriendsView } from './components/FriendsView/FriendsView.jsx';
 import { ProfileView } from './components/ProfileView/ProfileView.jsx';
 import { AuthScreen } from './components/Auth/AuthScreen.jsx';
+import { ResetPasswordView } from './components/Auth/views/ResetPasswordView.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { MilestoneToast } from './components/MilestoneToast/MilestoneToast.jsx';
 import { DailyStreakToast } from './components/DailyStreakToast/DailyStreakToast.jsx';
@@ -87,9 +88,20 @@ import styles from './App.module.css';
 // el track se anade a la cola y el param se limpia de la URL.
 const initialShare = parseShareFromUrl();
 
+// Detecta si el usuario llega via link de recovery de password.
+// Supabase mete el access_token en el hash con type=recovery.
+function detectRecoveryFromUrl() {
+  if (typeof window === 'undefined') return false;
+  const h = window.location.hash ?? '';
+  if (h.includes('type=recovery')) return true;
+  if (h.startsWith('#reset-password')) return true;
+  return false;
+}
+
 export function App() {
   const { user, loading, init } = useAuthStore();
   const [share, setShare] = useState(initialShare);
+  const [recoveryMode, setRecoveryMode] = useState(detectRecoveryFromUrl);
   const loadLibrary = useLibraryStore((s) => s.load);
   const resetLibrary = useLibraryStore((s) => s.reset);
   const loadPlaylists = usePlaylistsStore((s) => s.load);
@@ -128,6 +140,22 @@ export function App() {
 
   // Inicializar sesión Supabase al montar
   useEffect(() => { init(); }, [init]);
+
+  // Recovery flow: Supabase dispara onAuthStateChange con 'PASSWORD_RECOVERY'
+  // cuando el user pulsa el link del email. Escuchamos directamente al cliente.
+  useEffect(() => {
+    let unsub = () => {};
+    (async () => {
+      try {
+        const { supabase } = await import('./lib/supabase.js');
+        const { data } = supabase.auth.onAuthStateChange((event) => {
+          if (event === 'PASSWORD_RECOVERY') setRecoveryMode(true);
+        });
+        unsub = () => data?.subscription?.unsubscribe?.();
+      } catch { /* ignore */ }
+    })();
+    return () => unsub();
+  }, []);
 
   // PWA: auto-detectar LAN server en la IP del host al cargar.
   // Desktop: registrar el LAN URL local (127.0.0.1:<lanPort>) para que las
@@ -388,6 +416,11 @@ export function App() {
         <span className={styles.bootHint}>Cargando…</span>
       </div>
     );
+  }
+  // Recovery flow tiene prioridad sobre login normal: el user ya tiene
+  // sesion temporal (Supabase la crea automaticamente al validar el link).
+  if (recoveryMode) {
+    return <ResetPasswordView />;
   }
   if (!user) {
     return <AuthScreen />;

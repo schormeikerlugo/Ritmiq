@@ -85,5 +85,35 @@ export const useAuthStore = create((set, get) => ({
     set({ user: null });
   },
 
+  /**
+   * Envia el correo de recuperacion de contraseña.
+   * Supabase envia un magic link al email del usuario; al pulsarlo
+   * vuelve a la app con `#access_token=...&type=recovery` que detecta
+   * App.jsx para mostrar ResetPasswordView.
+   */
+  async resetPassword(email) {
+    set({ error: null });
+    const redirectTo = typeof window !== 'undefined'
+      ? `${window.location.origin}/#reset-password`
+      : undefined;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) {
+      set({ error: error.message });
+      throw error;
+    }
+  },
+
+  /**
+   * Actualiza la contraseña del usuario en sesion (post recovery link).
+   */
+  async updatePassword(newPassword) {
+    set({ error: null });
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      set({ error: error.message });
+      throw error;
+    }
+  },
+
   clearError: () => set({ error: null }),
 }));
