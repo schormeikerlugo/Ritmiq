@@ -1,21 +1,22 @@
-/* ShareToFriendModal */
+/* ShareToFriendModal — migrado a design tokens.
+   Shell + footer son <Modal>/<Button>. */
 
 /* ── Track preview ─────────────────────────────────────────────── */
 
 .trackPreview {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: rgba(255,255,255,.05);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 16px;
+  gap: var(--space-3);
+  background: var(--color-bg-2);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .trackCover {
   width: 44px;
   height: 44px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   object-fit: cover;
   flex-shrink: 0;
 }
@@ -23,12 +24,12 @@
 .trackCoverFallback {
   width: 44px;
   height: 44px;
-  border-radius: 6px;
-  background: rgba(255,255,255,.08);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-3);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,.35);
+  color: var(--color-text-3);
   flex-shrink: 0;
 }
 
@@ -40,8 +41,8 @@
 }
 
 .trackTitle {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   color: var(--color-text-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -49,43 +50,42 @@
 }
 
 .trackArtist {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--color-text-2);
 }
 
 /* ── Label ──────────────────────────────────────────────────────── */
 
 .label {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   color: var(--color-text-3);
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-2);
 }
 
 /* ── Lista de amigos ────────────────────────────────────────────── */
 
 .friendList {
   list-style: none;
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-3);
   padding: 0;
   max-height: 220px;
   overflow-y: auto;
-  /* Hereda scrollbar-width:none de global.css. */
 }
 
 .friendRow {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background var(--dur-fast) var(--ease-standard);
 }
-.friendRow:hover { background: rgba(255,255,255,.05); }
-.friendRow[data-selected='true'] { background: rgba(124, 92, 255, .1); }
+.friendRow:hover { background: var(--color-bg-2); }
+.friendRow[data-selected='true'] { background: var(--color-accent-soft); }
 
 .avatar {
   width: 36px;
@@ -100,12 +100,12 @@
   height: 36px;
   border-radius: 50%;
   background: var(--color-accent);
-  color: #000;
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
   flex-shrink: 0;
 }
 
@@ -116,8 +116,8 @@
 
 .friendName {
   display: block;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   color: var(--color-text-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -126,7 +126,7 @@
 
 .friendHandle {
   display: block;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--color-text-3);
 }
 
@@ -135,61 +135,69 @@
   flex-shrink: 0;
 }
 .friendRow:not([data-selected='true']) .check {
-  color: rgba(255,255,255,.2);
+  color: var(--color-text-3);
+  opacity: 0.4;
 }
 
 /* ── Mensaje ────────────────────────────────────────────────────── */
 
 .messageBox {
   position: relative;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .messageLabel {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
+  gap: var(--space-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   color: var(--color-accent);
-  margin-bottom: 6px;
+  margin-bottom: var(--space-1);
 }
 .messageHint {
-  background: rgba(124, 92, 255,.18);
+  background: var(--color-accent-soft);
   color: var(--color-accent);
-  padding: 1px 6px;
-  border-radius: 8px;
+  padding: 1px var(--space-1);
+  border-radius: var(--radius-sm);
   font-size: 9px;
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: 0.04em;
   margin-left: auto;
 }
 
 .messageInput {
   width: 100%;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 8px;
-  padding: 10px 12px;
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
   color: var(--color-text-1);
-  font-size: 13px;
+  font-size: var(--fs-sm);
+  font-family: inherit;
   resize: none;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast) var(--ease-standard),
+              background var(--dur-fast) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard);
 }
-.messageInput:focus { border-color: var(--color-accent); }
-.messageInput::placeholder { color: rgba(255,255,255,.3); }
+.messageInput:focus {
+  border-color: var(--color-accent);
+  background: var(--color-bg-3);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.messageInput::placeholder { color: var(--color-text-3); }
 
 .charCount {
   position: absolute;
-  bottom: 8px;
-  right: 10px;
+  bottom: var(--space-2);
+  right: var(--space-3);
   font-size: 10px;
-  color: rgba(255,255,255,.25);
+  color: var(--color-text-3);
   pointer-events: none;
 }
 

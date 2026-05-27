@@ -17,6 +17,7 @@
 
 import { Modal } from '../Modal/Modal.jsx';
 import { Icon } from '../Icon/Icon.jsx';
+import { Button } from '../primitives/index.js';
 import { useShareReminderStore } from '../../lib/use-share-reminder.js';
 import { useSocialStore } from '../../stores/social.js';
 import { useViewStore } from '../../stores/view.js';
@@ -78,6 +79,16 @@ export function ShareReminderModal() {
       onClose={dismiss}
       title={isPlural ? 'Tienes música pendiente' : 'No olvides escuchar esto'}
       size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={dismiss}>
+            Ahora no
+          </Button>
+          <Button variant="primary" iconLeft="Inbox" onClick={handleSeeInbox}>
+            Ver bandeja
+          </Button>
+        </>
+      }
     >
       <div className={styles.intro}>
         <Icon name="Sparkles" size={20} className={styles.introIcon} />
@@ -136,15 +147,6 @@ export function ShareReminderModal() {
           </li>
         ))}
       </ul>
-
-      <div className={styles.actions}>
-        <button className={styles.btnGhost} onClick={dismiss}>
-          Ahora no
-        </button>
-        <button className={styles.btnPrimary} onClick={handleSeeInbox}>
-          <Icon name="Inbox" size={14} /> Ver bandeja
-        </button>
-      </div>
     </Modal>
   );
 }

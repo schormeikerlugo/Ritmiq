@@ -1,15 +1,16 @@
-/* ShareReminderModal */
+/* ShareReminderModal — migrado a design tokens.
+   Shell + footer (Ahora no / Ver bandeja) son <Modal>/<Button>. */
 
 .intro {
   display: flex;
-  gap: 10px;
+  gap: var(--space-2);
   background: linear-gradient(135deg,
-    rgba(124, 92, 255,.12) 0%,
-    rgba(124, 92, 255,.04) 100%);
-  border: 1px solid rgba(124, 92, 255,.2);
-  border-radius: 10px;
-  padding: 12px 14px;
-  margin-bottom: 14px;
+    rgba(124, 92, 255, 0.12) 0%,
+    rgba(124, 92, 255, 0.04) 100%);
+  border: 1px solid rgba(124, 92, 255, 0.2);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
 }
 .introIcon {
   color: var(--color-accent);
@@ -18,50 +19,50 @@
 }
 .introText {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.45;
   color: var(--color-text-1);
 }
 
 .list {
   list-style: none;
-  margin: 0 0 14px;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-1);
   max-height: 320px;
   overflow-y: auto;
-  /* Hereda scrollbar-width:none de global.css. */
 }
 
 .row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 10px;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.06);
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard);
 }
 .row:hover {
-  background: rgba(255,255,255,.07);
-  border-color: rgba(124, 92, 255,.4);
+  background: var(--color-bg-3);
+  border-color: var(--color-accent);
 }
 
 .cover {
   width: 44px;
   height: 44px;
-  border-radius: 6px;
-  background: rgba(255,255,255,.08);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-3);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  color: rgba(255,255,255,.4);
+  color: var(--color-text-3);
 }
 .coverImg {
   width: 100%;
@@ -78,8 +79,8 @@
 }
 
 .itemTitle {
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   color: var(--color-text-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -87,27 +88,27 @@
 }
 
 .itemSub {
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--color-text-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.itemSub strong { color: var(--color-text-2); font-weight: 600; }
+.itemSub strong { color: var(--color-text-2); font-weight: var(--fw-semibold); }
 
 .bubble {
   display: flex;
   align-items: flex-start;
-  gap: 5px;
-  margin-top: 4px;
-  padding: 5px 8px;
-  background: rgba(124, 92, 255,.13);
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-accent-soft);
   border-left: 2px solid var(--color-accent);
-  border-radius: 4px 8px 8px 8px;
+  border-radius: var(--radius-sm) var(--radius-md) var(--radius-md) var(--radius-md);
 }
 .bubbleIcon { color: var(--color-accent); margin-top: 1px; flex-shrink: 0; }
 .bubbleText {
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   font-style: italic;
   color: var(--color-text-1);
   line-height: 1.35;
@@ -119,49 +120,23 @@
 
 .playBtn {
   background: var(--color-accent);
-  color: #000;
+  color: #fff;
   border: none;
   border-radius: 50%;
-  width: 28px;
-  height: 28px;
+  /* Touch target ≥40px (era 28x28 sub-target) */
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  margin-top: 8px;
-  transition: transform 0.12s;
+  margin-top: var(--space-1);
+  transition: transform var(--dur-fast) var(--ease-standard),
+              background var(--dur-fast) var(--ease-standard);
 }
-.playBtn:hover { transform: scale(1.1); }
-
-.actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+.playBtn:hover {
+  background: var(--color-accent-hover);
+  transform: scale(1.08);
 }
-
-.btnGhost {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,.15);
-  color: var(--color-text-2);
-  border-radius: 20px;
-  padding: 8px 16px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.btnGhost:hover { background: rgba(255,255,255,.06); }
-
-.btnPrimary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--color-accent);
-  color: #000;
-  border: none;
-  border-radius: 20px;
-  padding: 8px 18px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.btnPrimary:hover { opacity: 0.88; }
+.playBtn:active { transform: scale(0.95); }

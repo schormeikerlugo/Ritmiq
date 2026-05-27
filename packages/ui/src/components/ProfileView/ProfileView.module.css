@@ -1,4 +1,4 @@
-/* ProfileView */
+/* ProfileView — migrado a design tokens. */
 
 .root {
   display: flex;
@@ -12,8 +12,8 @@
 .header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
   flex-shrink: 0;
 }
 
@@ -22,18 +22,20 @@
   border: none;
   color: var(--color-text-1);
   cursor: pointer;
-  padding: 4px;
+  /* Touch target ≥40px */
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s;
+  transition: background var(--dur-fast) var(--ease-standard);
 }
-.backBtn:hover { background: rgba(255,255,255,.08); }
+.backBtn:hover { background: var(--color-bg-2); }
 
 .headerTitle {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
   color: var(--color-text-1);
 }
 
@@ -42,16 +44,16 @@
 .body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 24px 32px;
+  padding: var(--space-2) var(--space-5) var(--space-6);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
 /* ── Avatar ──────────────────────────────────────────────────────── */
 
-.avatarWrap { margin-bottom: 4px; }
+.avatarWrap { margin-bottom: var(--space-1); }
 
 .avatar {
   width: 96px;
@@ -65,34 +67,34 @@
   height: 96px;
   border-radius: 50%;
   background: var(--color-accent);
-  color: #000;
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 36px;
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 /* ── Info ────────────────────────────────────────────────────────── */
 
 .displayName {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
   color: var(--color-text-1);
   margin: 0;
   text-align: center;
 }
 
 .handle {
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: var(--color-text-2);
   margin: 0;
 }
 
 .bio {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--color-text-2);
-  margin: 4px 0 0;
+  margin: var(--space-1) 0 0;
   text-align: center;
   max-width: 300px;
   line-height: 1.5;
@@ -103,23 +105,23 @@
 .presenceCard {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(124, 92, 255, .1);
-  border: 1px solid rgba(124, 92, 255, .25);
-  border-radius: 12px;
-  padding: 10px 14px;
+  gap: var(--space-2);
+  background: var(--color-accent-soft);
+  border: 1px solid rgba(124, 92, 255, 0.25);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-3);
   cursor: pointer;
   width: 100%;
   max-width: 320px;
-  transition: background 0.15s;
-  margin-top: 4px;
+  transition: background var(--dur-fast) var(--ease-standard);
+  margin-top: var(--space-1);
 }
-.presenceCard:hover { background: rgba(124, 92, 255, .17); }
+.presenceCard:hover { background: rgba(124, 92, 255, 0.17); }
 
 .presenceCover {
   width: 40px;
   height: 40px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   object-fit: cover;
   flex-shrink: 0;
 }
@@ -133,16 +135,16 @@
 }
 
 .presenceLabel {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--color-accent);
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-weight: 600;
+  gap: var(--space-1);
+  font-weight: var(--fw-semibold);
 }
 
 .presenceTrack {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--color-text-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -151,81 +153,94 @@
 
 .presencePlay {
   background: var(--color-accent);
-  color: #000;
+  color: #fff;
   border: none;
   border-radius: 50%;
-  width: 28px;
-  height: 28px;
+  /* Touch target ≥40px */
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+  transition: background var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard);
+}
+.presencePlay:hover {
+  background: var(--color-accent-hover);
+  transform: scale(1.06);
 }
 
 /* ── Acciones ─────────────────────────────────────────────────────── */
 
 .actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
   justify-content: center;
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }
 
 .btnAdd, .btnAccept {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   background: var(--color-accent);
-  color: #000;
+  color: #fff;
   border: none;
-  border-radius: 20px;
-  padding: 9px 20px;
-  font-size: 13px;
-  font-weight: 700;
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: background var(--dur-fast) var(--ease-standard),
+              opacity var(--dur-fast) var(--ease-standard);
 }
-.btnAdd:hover, .btnAccept:hover { opacity: 0.88; }
+.btnAdd:hover, .btnAccept:hover { background: var(--color-accent-hover); }
 .btnAdd:disabled, .btnAccept:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btnShare {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   background: transparent;
   border: 1px solid var(--color-accent);
   color: var(--color-accent);
-  border-radius: 20px;
-  padding: 8px 18px;
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard);
 }
-.btnShare:hover { background: var(--color-accent); color: #000; }
+.btnShare:hover { background: var(--color-accent); color: #fff; }
 
 .btnRemove {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   background: transparent;
-  border: 1px solid rgba(255,255,255,.15);
+  border: 1px solid var(--color-border);
   color: var(--color-text-2);
-  border-radius: 20px;
-  padding: 8px 18px;
-  font-size: 13px;
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fs-sm);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: border-color var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard);
 }
-.btnRemove:hover { border-color: #fc8181; color: #fc8181; }
+.btnRemove:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
 
 .pendingLabel {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: var(--space-1);
+  font-size: var(--fs-sm);
   color: var(--color-text-3);
 }
 
@@ -234,18 +249,23 @@
 .loadingState {
   display: flex;
   justify-content: center;
-  padding: 48px;
+  padding: var(--space-6);
   color: var(--color-text-3);
   animation: spin 1s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+@media (prefers-reduced-motion: reduce) {
+  .loadingState { animation-duration: 2s; }
+}
+
+/* legacy local empty — actual usa <EmptyState> primitive */
 .empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 48px 24px;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-5);
   color: var(--color-text-3);
 }
-.empty p { margin: 0; font-size: 15px; }
+.empty p { margin: 0; font-size: var(--fs-md); }
