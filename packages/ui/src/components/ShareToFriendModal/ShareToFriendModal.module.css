@@ -85,7 +85,7 @@
   transition: background 0.1s;
 }
 .friendRow:hover { background: rgba(255,255,255,.05); }
-.friendRow[data-selected='true'] { background: rgba(29, 185, 84, .1); }
+.friendRow[data-selected='true'] { background: rgba(124, 92, 255, .1); }
 
 .avatar {
   width: 36px;
@@ -99,7 +99,7 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
   display: flex;
   align-items: center;
@@ -131,7 +131,7 @@
 }
 
 .check {
-  color: var(--color-accent, #1db954);
+  color: var(--color-accent);
   flex-shrink: 0;
 }
 .friendRow:not([data-selected='true']) .check {
@@ -153,12 +153,12 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: var(--color-accent, #1db954);
+  color: var(--color-accent);
   margin-bottom: 6px;
 }
 .messageHint {
-  background: rgba(29,185,84,.18);
-  color: var(--color-accent, #1db954);
+  background: rgba(124, 92, 255,.18);
+  color: var(--color-accent);
   padding: 1px 6px;
   border-radius: 8px;
   font-size: 9px;
@@ -181,7 +181,7 @@
   box-sizing: border-box;
   transition: border-color 0.15s;
 }
-.messageInput:focus { border-color: var(--color-accent, #1db954); }
+.messageInput:focus { border-color: var(--color-accent); }
 .messageInput::placeholder { color: rgba(255,255,255,.3); }
 
 .charCount {
@@ -242,7 +242,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
   border: none;
   border-radius: 20px;

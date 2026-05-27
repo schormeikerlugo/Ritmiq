@@ -70,19 +70,20 @@
      ritmo que los verdes — consistencia visual entre todos los pasos. */
   animation: pulse-purple 2.2s ease-out infinite;
 }
-/* Pasos sociales (accent=true) — gradient distintivo + halo verde
-   para destacar que es una funcionalidad nueva e importante. */
+/* Pasos sociales (accent=true) — gradient distintivo con colores
+   secundarios de marca (cian + rosa) para destacar la funcionalidad
+   social vs los pasos basicos (violeta). */
 .iconCircle[data-accent='true'] {
-  background: linear-gradient(135deg, #1db954 0%, #36d97c 50%, #5ed99b 100%);
+  background: linear-gradient(135deg, var(--color-accent) 0%, #5cd0ff 50%, #ff5d8f 100%);
   box-shadow:
-    0 8px 28px rgba(29, 185, 84, 0.45),
-    0 0 0 0 rgba(29, 185, 84, 0.6);
+    0 8px 28px rgba(92, 208, 255, 0.40),
+    0 0 0 0 rgba(255, 93, 143, 0.5);
   animation: pulse-accent 2.2s ease-out infinite;
 }
 @keyframes pulse-accent {
-  0%   { box-shadow: 0 8px 28px rgba(29, 185, 84, 0.45), 0 0 0 0 rgba(29, 185, 84, 0.5); }
-  70%  { box-shadow: 0 8px 28px rgba(29, 185, 84, 0.45), 0 0 0 16px rgba(29, 185, 84, 0); }
-  100% { box-shadow: 0 8px 28px rgba(29, 185, 84, 0.45), 0 0 0 0 rgba(29, 185, 84, 0); }
+  0%   { box-shadow: 0 8px 28px rgba(92, 208, 255, 0.40), 0 0 0 0 rgba(255, 93, 143, 0.45); }
+  70%  { box-shadow: 0 8px 28px rgba(92, 208, 255, 0.40), 0 0 0 16px rgba(255, 93, 143, 0); }
+  100% { box-shadow: 0 8px 28px rgba(92, 208, 255, 0.40), 0 0 0 0 rgba(255, 93, 143, 0); }
 }
 @keyframes pulse-purple {
   0%   { box-shadow: 0 8px 28px var(--color-accent-shadow), 0 0 0 0 rgba(90, 62, 255, 0.45); }

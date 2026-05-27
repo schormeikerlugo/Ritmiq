@@ -167,7 +167,7 @@
    Tono accent ligeramente mas vivo + ring sutil para distinguirlo
    visualmente del estado idle. */
 .playFab[data-active] {
-  background: var(--color-accent-hover, var(--color-accent));
+  background: var(--color-accent-hover));
   box-shadow:
     0 8px 22px var(--color-accent-shadow),
     0 0 0 3px color-mix(in srgb, var(--color-accent) 25%, transparent);

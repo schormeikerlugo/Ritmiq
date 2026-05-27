@@ -51,7 +51,7 @@
   transition: background 0.15s, color 0.15s;
 }
 .tabBtn[data-active='true'] {
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
 }
 .tabBtn:not([data-active='true']):hover {
@@ -118,7 +118,7 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
   display: flex;
   align-items: center;
@@ -176,7 +176,7 @@
 
 .presenceLabel {
   font-size: 11px;
-  color: var(--color-accent, #1db954);
+  color: var(--color-accent);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -220,7 +220,7 @@
 }
 
 .btnAccept {
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
   border: none;
   border-radius: 16px;
@@ -297,8 +297,8 @@
   align-items: center;
   gap: 6px;
   background: transparent;
-  border: 1px solid var(--color-accent, #1db954);
-  color: var(--color-accent, #1db954);
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
   border-radius: 16px;
   padding: 6px 12px;
   font-size: 12px;
@@ -308,14 +308,14 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.btnAdd:hover { background: var(--color-accent, #1db954); color: #000; }
+.btnAdd:hover { background: var(--color-accent); color: #000; }
 
 .friendBadge {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: var(--color-accent, #1db954);
+  color: var(--color-accent);
   flex-shrink: 0;
 }
 
@@ -403,9 +403,9 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.15);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.15);
 }
 
 /* Cuerpo principal: cover + info + acciones. */
@@ -469,7 +469,7 @@
 }
 
 .btnPlay {
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
   border: none;
   border-radius: 50%;
@@ -480,11 +480,11 @@
   cursor: pointer;
   transition: transform 160ms ease, box-shadow 160ms ease;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(29, 185, 84, 0.25);
+  box-shadow: 0 4px 12px rgba(124, 92, 255, 0.25);
 }
 .btnPlay:hover {
   transform: scale(1.08);
-  box-shadow: 0 6px 16px rgba(29, 185, 84, 0.4);
+  box-shadow: 0 6px 16px rgba(124, 92, 255, 0.4);
 }
 .btnPlay:active { transform: scale(0.95); }
 

@@ -28,7 +28,7 @@
   width: 96px;
   height: 96px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-accent, #1db954), #5a3eff);
+  background: linear-gradient(135deg, var(--color-accent), #5a3eff);
   color: #fff;
   display: flex;
   align-items: center;
@@ -45,7 +45,7 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
   border: 2px solid var(--color-bg-1, #181818);
   display: flex;
@@ -64,7 +64,7 @@
 .linkBtn {
   background: none;
   border: none;
-  color: var(--color-accent, #1db954);
+  color: var(--color-accent);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
@@ -109,7 +109,7 @@
   padding: 0 12px;
   transition: border-color 0.15s;
 }
-.inputWrap:focus-within { border-color: var(--color-accent, #1db954); }
+.inputWrap:focus-within { border-color: var(--color-accent); }
 
 .prefix {
   color: var(--color-text-3);
@@ -141,10 +141,10 @@
   box-sizing: border-box;
   transition: border-color 0.15s;
 }
-.field > .input:focus { border-color: var(--color-accent, #1db954); }
+.field > .input:focus { border-color: var(--color-accent); }
 
 .inputIconOk {
-  color: var(--color-accent, #1db954);
+  color: var(--color-accent);
   flex-shrink: 0;
 }
 
@@ -162,7 +162,7 @@
   box-sizing: border-box;
   transition: border-color 0.15s;
 }
-.textarea:focus { border-color: var(--color-accent, #1db954); }
+.textarea:focus { border-color: var(--color-accent); }
 .textarea::placeholder, .input::placeholder { color: rgba(255,255,255,.3); }
 
 /* ── Hints ─────────────────────────────────────────────────────── */
@@ -174,7 +174,7 @@
   align-items: center;
   gap: 4px;
 }
-.hint[data-tone='ok']   { color: var(--color-accent, #1db954); }
+.hint[data-tone='ok']   { color: var(--color-accent); }
 .hint[data-tone='err']  { color: #fc8181; }
 .hint[data-tone='info'] { color: var(--color-text-2); }
 
@@ -217,7 +217,7 @@
 .btnCancel:disabled { opacity: .5; cursor: not-allowed; }
 
 .btnSave {
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
   border: none;
   border-radius: 20px;

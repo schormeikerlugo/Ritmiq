@@ -31,7 +31,7 @@
   width: 88px;
   height: 88px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-accent, #1db954), #5a3eff);
+  background: linear-gradient(135deg, var(--color-accent), #5a3eff);
   color: #fff;
   display: flex;
   align-items: center;
@@ -80,8 +80,8 @@
   align-items: center;
   gap: 6px;
   background: transparent;
-  border: 1px solid var(--color-accent, #1db954);
-  color: var(--color-accent, #1db954);
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
   border-radius: 20px;
   padding: 7px 18px;
   font-size: 13px;
@@ -91,6 +91,6 @@
   transition: background 0.15s, color 0.15s;
 }
 .editBtn:hover {
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
 }

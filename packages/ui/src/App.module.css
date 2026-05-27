@@ -15,7 +15,7 @@
   width: 180px;
   height: 180px;
   object-fit: contain;
-  filter: drop-shadow(0 8px 32px var(--color-accent-glow, rgba(124, 92, 255, 0.45)));
+  filter: drop-shadow(0 8px 32px var(--color-accent-glow)));
   animation: ritmiq-boot-pulse 1.8s ease-in-out infinite;
   will-change: opacity, transform;
 }

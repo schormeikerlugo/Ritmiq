@@ -58,7 +58,7 @@
 }
 
 .iconWrap[data-variant='hours'] {
-  background: linear-gradient(135deg, rgba(90, 62, 255, 0.25), rgba(29, 185, 84, 0.15));
+  background: linear-gradient(135deg, rgba(90, 62, 255, 0.25), rgba(124, 92, 255, 0.15));
   color: #c4b5fd;
 }
 

@@ -47,7 +47,7 @@
 
 .fill {
   fill: none;
-  stroke: var(--color-accent, #4ade80);
+  stroke: var(--color-accent);
   stroke-width: 3;
   stroke-linecap: round;
   transition: stroke-dashoffset 200ms linear;

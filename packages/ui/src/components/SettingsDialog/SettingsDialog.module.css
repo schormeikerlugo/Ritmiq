@@ -203,9 +203,9 @@
 /* Boton 'Actividad' cuando esta abierto el panel — variante visual
    para indicar el toggle activo. */
 .btnSecondary[data-active='true'] {
-  background: var(--color-accent-soft, rgba(29, 185, 84, 0.18));
-  border-color: var(--color-accent, #1db954);
-  color: var(--color-accent, #1db954);
+  background: var(--color-accent-soft));
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 /* Panel inline de actividad — aparece DEBAJO del .deviceRow del device
@@ -217,7 +217,7 @@
   margin-bottom: 12px;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 8px;
-  border-left: 2px solid var(--color-accent, #1db954);
+  border-left: 2px solid var(--color-accent);
   animation: ritmiq-fade-in 200ms ease-out;
 }
 @keyframes ritmiq-fade-in {

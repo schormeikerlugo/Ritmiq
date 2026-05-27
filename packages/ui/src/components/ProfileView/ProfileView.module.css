@@ -64,7 +64,7 @@
   width: 96px;
   height: 96px;
   border-radius: 50%;
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
   display: flex;
   align-items: center;
@@ -104,8 +104,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(29, 185, 84, .1);
-  border: 1px solid rgba(29, 185, 84, .25);
+  background: rgba(124, 92, 255, .1);
+  border: 1px solid rgba(124, 92, 255, .25);
   border-radius: 12px;
   padding: 10px 14px;
   cursor: pointer;
@@ -114,7 +114,7 @@
   transition: background 0.15s;
   margin-top: 4px;
 }
-.presenceCard:hover { background: rgba(29, 185, 84, .17); }
+.presenceCard:hover { background: rgba(124, 92, 255, .17); }
 
 .presenceCover {
   width: 40px;
@@ -134,7 +134,7 @@
 
 .presenceLabel {
   font-size: 11px;
-  color: var(--color-accent, #1db954);
+  color: var(--color-accent);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -150,7 +150,7 @@
 }
 
 .presencePlay {
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
   border: none;
   border-radius: 50%;
@@ -177,7 +177,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--color-accent, #1db954);
+  background: var(--color-accent);
   color: #000;
   border: none;
   border-radius: 20px;
@@ -195,8 +195,8 @@
   align-items: center;
   gap: 6px;
   background: transparent;
-  border: 1px solid var(--color-accent, #1db954);
-  color: var(--color-accent, #1db954);
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
   border-radius: 20px;
   padding: 8px 18px;
   font-size: 13px;
@@ -204,7 +204,7 @@
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
-.btnShare:hover { background: var(--color-accent, #1db954); color: #000; }
+.btnShare:hover { background: var(--color-accent); color: #000; }
 
 .btnRemove {
   display: flex;

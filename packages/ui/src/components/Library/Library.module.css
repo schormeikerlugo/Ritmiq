@@ -446,7 +446,7 @@
   height: 96px;
   border-radius: 50%;
   background: transparent;
-  filter: drop-shadow(0 8px 16px rgba(29, 185, 84, 0.25));
+  filter: drop-shadow(0 8px 16px rgba(124, 92, 255, 0.25));
   margin-bottom: var(--space-2);
 }
 
