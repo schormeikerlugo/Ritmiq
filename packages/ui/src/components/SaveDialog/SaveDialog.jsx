@@ -1,4 +1,3 @@
-import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
@@ -6,8 +5,9 @@ import { isEphemeralTrack } from '../../lib/track-helpers.js';
 import { useMobileViewport } from '../../lib/use-mobile-viewport.js';
 import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { Modal } from '../Modal/Modal.jsx';
+import { Button, TextField } from '../primitives/index.js';
 import { useBottomSheet } from '../../stores/bottom-sheet.js';
-import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './SaveDialog.module.css';
 
 /**
@@ -31,12 +31,11 @@ function SaveBody({ track, onClose }) {
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const newNameRef = useRef(null);
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    if (creating) newNameRef.current?.focus();
+  }, [creating]);
 
   const isInLibrary = !isEphemeralTrack(track) && tracks.some((t) => t.id === track.id);
 
@@ -47,7 +46,6 @@ function SaveBody({ track, onClose }) {
       return p.id;
     }
     if (!isInLibrary) {
-      // Caso raro: track con id no efímero pero no presente. Re-persistir.
       const p = await persistEphemeral(track);
       return p.id;
     }
@@ -136,27 +134,31 @@ function SaveBody({ track, onClose }) {
 
       {creating ? (
         <form className={styles.createForm} onSubmit={onCreate}>
-          <input
-            className={styles.createInput}
+          <TextField
+            ref={newNameRef}
             type="text"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Nombre de la playlist"
-            autoFocus
             disabled={busy}
+            maxLength={80}
           />
           <div className={styles.createActions}>
-            <button
+            <Button
               type="button"
-              className={styles.btnSecondary}
+              variant="ghost"
+              size="sm"
               onClick={() => { setCreating(false); setNewName(''); }}
               disabled={busy}
-            >Cancelar</button>
-            <button
+            >Cancelar</Button>
+            <Button
               type="submit"
-              className={styles.btnPrimary}
-              disabled={busy || !newName.trim()}
-            >Crear y añadir</button>
+              variant="primary"
+              size="sm"
+              loading={busy}
+              loadingText="Creando..."
+              disabled={!newName.trim()}
+            >Crear y añadir</Button>
           </div>
         </form>
       ) : (
@@ -171,7 +173,7 @@ function SaveBody({ track, onClose }) {
 }
 
 /**
- * Wrapper que decide entre BottomSheet (mobile) o dialog clasico (desktop)
+ * Wrapper que decide entre BottomSheet (mobile) o Modal centrado (desktop)
  * y delega el contenido a <SaveBody>. SaveBody tiene state propio, asi el
  * sheet no se recrea en cada teclazo.
  *
@@ -182,9 +184,6 @@ function SaveBody({ track, onClose }) {
 export function SaveDialog({ track, onClose }) {
   const isMobile = useMobileViewport();
   const useSheet = isMobile && !isDesktop;
-  // En modo sheet, el BottomSheet aplica su propio lock; aqui solo
-  // bloqueamos en modo desktop dialog para no duplicar.
-  useLockBodyScroll(!useSheet);
 
   /* PWA mobile: empuja el SaveBody al store global; el render lo hace
      BottomSheetHost. */
@@ -211,16 +210,10 @@ export function SaveDialog({ track, onClose }) {
 
   if (useSheet) return null;
 
-  /* Desktop: dialog clasico centrado */
-  return createPortal((
-    <div className={styles.backdrop} onClick={onClose}>
-      <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
-        <header className={styles.header}>
-          <h2 className={styles.title}>Guardar canción</h2>
-          <button className={styles.close} onClick={onClose} aria-label="Cerrar"><Icon name="X" size={18} /></button>
-        </header>
-        <SaveBody track={track} onClose={onClose} />
-      </div>
-    </div>
-  ), document.body);
+  /* Desktop: Modal primitive (anim consistente + lock body + esc) */
+  return (
+    <Modal onClose={onClose} title="Guardar canción" size="sm">
+      <SaveBody track={track} onClose={onClose} />
+    </Modal>
+  );
 }

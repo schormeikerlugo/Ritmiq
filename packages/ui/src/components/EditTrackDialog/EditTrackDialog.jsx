@@ -26,6 +26,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Modal } from '../Modal/Modal.jsx';
 import { Icon } from '../Icon/Icon.jsx';
+import { Button, TextField, FormError } from '../primitives/index.js';
 import { useLibraryStore } from '../../stores/library.js';
 import styles from './EditTrackDialog.module.css';
 
@@ -45,7 +46,6 @@ export function EditTrackDialog({ track, onClose, onSaved }) {
   const [error, setError] = useState(null);
   const titleRef = useRef(null);
 
-  // Auto-focus en el titulo al abrir (despues del render del Modal).
   useEffect(() => {
     const t = setTimeout(() => titleRef.current?.focus(), 50);
     return () => clearTimeout(t);
@@ -80,7 +80,6 @@ export function EditTrackDialog({ track, onClose, onSaved }) {
     }
   };
 
-  // Detectar Enter en inputs para confirmar (solo si valido).
   const onKeyDown = (e) => {
     if (e.key === 'Enter' && canSave) {
       e.preventDefault();
@@ -91,9 +90,30 @@ export function EditTrackDialog({ track, onClose, onSaved }) {
   if (!track) return null;
 
   return (
-    <Modal onClose={onClose} title="Editar canción" size="sm">
-      <form className={styles.form} onSubmit={handleSave}>
-        {/* Preview del cover + ytId — recordatorio visual de que cancion editamos */}
+    <Modal
+      onClose={onClose}
+      title="Editar canción"
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form="edit-track-form"
+            variant="primary"
+            loading={saving}
+            loadingText="Guardando..."
+            disabled={!canSave}
+          >
+            Guardar
+          </Button>
+        </>
+      }
+    >
+      <form id="edit-track-form" className={styles.form} onSubmit={handleSave}>
+        {/* Preview del cover + title/artist */}
         <div className={styles.preview}>
           <div className={styles.cover}>
             {track.coverUrl
@@ -106,49 +126,39 @@ export function EditTrackDialog({ track, onClose, onSaved }) {
           </div>
         </div>
 
-        <label className={styles.field}>
-          <span className={styles.label}>Título *</span>
-          <input
-            ref={titleRef}
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={onKeyDown}
-            maxLength={500}
-            placeholder="Título de la canción"
-            className={styles.input}
-            data-error={titleInvalid || undefined}
-          />
-          {titleInvalid && (
-            <span className={styles.helperErr}>El título no puede estar vacío.</span>
-          )}
-        </label>
+        <TextField
+          ref={titleRef}
+          label="Título"
+          required
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={onKeyDown}
+          maxLength={500}
+          placeholder="Título de la canción"
+          error={titleInvalid ? 'El título no puede estar vacío.' : undefined}
+        />
 
-        <label className={styles.field}>
-          <span className={styles.label}>Artista</span>
-          <input
-            type="text"
-            value={artist}
-            onChange={(e) => setArtist(e.target.value)}
-            onKeyDown={onKeyDown}
-            maxLength={500}
-            placeholder="Nombre del artista"
-            className={styles.input}
-          />
-        </label>
+        <TextField
+          label="Artista"
+          type="text"
+          value={artist}
+          onChange={(e) => setArtist(e.target.value)}
+          onKeyDown={onKeyDown}
+          maxLength={500}
+          placeholder="Nombre del artista"
+        />
 
-        <label className={styles.field}>
-          <span className={styles.label}>Álbum (opcional)</span>
-          <input
-            type="text"
-            value={album}
-            onChange={(e) => setAlbum(e.target.value)}
-            onKeyDown={onKeyDown}
-            maxLength={500}
-            placeholder="Nombre del álbum"
-            className={styles.input}
-          />
-        </label>
+        <TextField
+          label="Álbum"
+          optional
+          type="text"
+          value={album}
+          onChange={(e) => setAlbum(e.target.value)}
+          onKeyDown={onKeyDown}
+          maxLength={500}
+          placeholder="Nombre del álbum"
+        />
 
         <p className={styles.hint}>
           <Icon name="Info" size={12} />
@@ -157,30 +167,7 @@ export function EditTrackDialog({ track, onClose, onSaved }) {
           red Ritmiq, futuros usuarios lo verán así también.
         </p>
 
-        {error && (
-          <div className={styles.error} role="alert">
-            <Icon name="AlertTriangle" size={14} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            onClick={onClose}
-            disabled={saving}
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            className={styles.btnPrimary}
-            disabled={!canSave}
-          >
-            {saving ? 'Guardando…' : 'Guardar'}
-          </button>
-        </div>
+        <FormError onDismiss={() => setError(null)}>{error}</FormError>
       </form>
     </Modal>
   );

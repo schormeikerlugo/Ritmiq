@@ -1,4 +1,5 @@
-/* EditProfileDialog */
+/* EditProfileDialog — solo estilos del avatar + bio textarea.
+   Los inputs/buttons/error son <TextField>/<Button>/<FormError> primitives. */
 
 /* ── Avatar ────────────────────────────────────────────────────── */
 
@@ -6,8 +7,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .avatarWrap {
@@ -21,7 +22,7 @@
   height: 96px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid rgba(255,255,255,.08);
+  border: 2px solid var(--color-border);
 }
 
 .avatarPlaceholder {
@@ -34,8 +35,8 @@
   align-items: center;
   justify-content: center;
   font-size: 38px;
-  font-weight: 700;
-  border: 2px solid rgba(255,255,255,.08);
+  font-weight: var(--fw-bold);
+  border: 2px solid var(--color-border);
 }
 
 .avatarEditBtn {
@@ -46,186 +47,67 @@
   height: 30px;
   border-radius: 50%;
   background: var(--color-accent);
-  color: #000;
-  border: 2px solid var(--color-bg-1, #181818);
+  color: #fff;
+  border: 2px solid var(--color-bg-1);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.15s;
+  transition: transform var(--dur-fast) var(--ease-standard);
 }
 .avatarEditBtn:hover { transform: scale(1.08); }
 
 .avatarActions {
   display: flex;
-  gap: 14px;
+  gap: var(--space-2);
 }
 
-.linkBtn {
-  background: none;
-  border: none;
-  color: var(--color-accent);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 4px 0;
-}
-.linkBtnDanger {
-  background: none;
-  border: none;
-  color: #fc8181;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 4px 0;
-}
-.linkBtnDanger:disabled { opacity: .5; cursor: not-allowed; }
+/* ── Bio textarea (custom — no hay primitive de textarea) ────── */
 
-/* ── Fields ─────────────────────────────────────────────────────── */
-
-.field {
-  margin-bottom: 14px;
-}
-
-.label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--color-text-2);
-  margin-bottom: 6px;
-}
-
-.inputWrap {
-  position: relative;
+.bioField {
   display: flex;
-  align-items: center;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 8px;
-  padding: 0 12px;
-  transition: border-color 0.15s;
-}
-.inputWrap:focus-within { border-color: var(--color-accent); }
-
-.prefix {
-  color: var(--color-text-3);
-  font-size: 14px;
-  font-weight: 500;
-  padding-right: 4px;
-  user-select: none;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--color-text-1);
-  font-size: 14px;
-  padding: 10px 0;
-  font-family: inherit;
-}
-.inputWrap .input { padding-left: 0; }
-
-/* Input estandalone (sin wrap con prefix) */
-.field > .input {
-  width: 100%;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 8px;
-  padding: 10px 12px;
-  box-sizing: border-box;
-  transition: border-color 0.15s;
-}
-.field > .input:focus { border-color: var(--color-accent); }
-
-.inputIconOk {
-  color: var(--color-accent);
-  flex-shrink: 0;
+.bioLabel {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--color-text-2);
+  letter-spacing: 0.02em;
 }
 
 .textarea {
   width: 100%;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 8px;
-  padding: 10px 12px;
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px var(--space-3);
   color: var(--color-text-1);
-  font-size: 14px;
+  font-size: var(--fs-sm);
   font-family: inherit;
   resize: none;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast) var(--ease-standard),
+              background var(--dur-fast) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard);
 }
-.textarea:focus { border-color: var(--color-accent); }
-.textarea::placeholder, .input::placeholder { color: rgba(255,255,255,.3); }
-
-/* ── Hints ─────────────────────────────────────────────────────── */
-
-.hint {
-  margin: 4px 0 0;
-  font-size: 11.5px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.textarea:focus {
+  border-color: var(--color-accent);
+  background: var(--color-bg-3);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
-.hint[data-tone='ok']   { color: var(--color-accent); }
-.hint[data-tone='err']  { color: #fc8181; }
-.hint[data-tone='info'] { color: var(--color-text-2); }
-
-.hintNeutral {
-  margin: 4px 0 0;
-  font-size: 11px;
+.textarea::placeholder {
   color: var(--color-text-3);
 }
 
-.errorMsg {
-  font-size: 12.5px;
-  color: #fc8181;
-  margin: 0 0 12px;
-  text-align: center;
-  padding: 8px;
-  background: rgba(229,62,62,.1);
-  border-radius: 6px;
+.bioCounter {
+  margin: 0;
+  padding-left: 2px;
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
 }
-
-/* ── Actions ─────────────────────────────────────────────────────── */
-
-.actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-top: 8px;
-}
-
-.btnCancel {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,.15);
-  color: var(--color-text-2);
-  border-radius: 20px;
-  padding: 9px 18px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.btnCancel:hover { background: rgba(255,255,255,.06); }
-.btnCancel:disabled { opacity: .5; cursor: not-allowed; }
-
-.btnSave {
-  background: var(--color-accent);
-  color: #000;
-  border: none;
-  border-radius: 20px;
-  padding: 9px 22px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s, transform 0.15s;
-}
-.btnSave:hover:not(:disabled) { opacity: 0.88; transform: scale(1.02); }
-.btnSave:disabled { opacity: 0.45; cursor: not-allowed; }

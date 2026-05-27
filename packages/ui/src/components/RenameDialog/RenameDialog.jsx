@@ -1,9 +1,10 @@
-import { createPortal } from 'react-dom';
-import { useEffect, useState } from 'react';
-import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
-import styles from './RenameDialog.module.css';
+import { useState, useRef, useEffect } from 'react';
+import { Modal } from '../Modal/Modal.jsx';
+import { Button, TextField } from '../primitives/index.js';
 
 /**
+ * Dialog simple para renombrar (playlist, etc).
+ *
  * @param {Object} props
  * @param {string} props.title
  * @param {string} props.initialValue
@@ -11,15 +12,15 @@ import styles from './RenameDialog.module.css';
  * @param {() => void} props.onClose
  */
 export function RenameDialog({ title, initialValue, onSubmit, onClose }) {
-  useLockBodyScroll(true);
   const [value, setValue] = useState(initialValue);
   const [busy, setBusy] = useState(false);
+  const inputRef = useRef(null);
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    // Autofocus + select all en el primer render para edicion rapida
+    inputRef.current?.focus();
+    inputRef.current?.select?.();
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -32,33 +33,39 @@ export function RenameDialog({ title, initialValue, onSubmit, onClose }) {
     } finally { setBusy(false); }
   };
 
-  return createPortal((
-    <div className={styles.backdrop} onClick={onClose}>
-      <form className={styles.dialog} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2 className={styles.title}>{title}</h2>
-        <input
-          className={styles.input}
+  return (
+    <Modal
+      onClose={onClose}
+      title={title}
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form="rename-form"
+            variant="primary"
+            loading={busy}
+            loadingText="Guardando..."
+            disabled={!value.trim()}
+          >
+            Guardar
+          </Button>
+        </>
+      }
+    >
+      <form id="rename-form" onSubmit={submit}>
+        <TextField
+          ref={inputRef}
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          autoFocus
           disabled={busy}
           maxLength={80}
         />
-        <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            onClick={onClose}
-            disabled={busy}
-          >Cancelar</button>
-          <button
-            type="submit"
-            className={styles.btnPrimary}
-            disabled={busy || !value.trim()}
-          >Guardar</button>
-        </div>
       </form>
-    </div>
-  ), document.body);
+    </Modal>
+  );
 }

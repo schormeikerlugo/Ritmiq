@@ -1,61 +1,6 @@
-.backdrop {
-  animation: ritmiq-fade-in var(--dur-normal) var(--ease-standard);
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: grid;
-  place-items: center;
-  z-index: 300;
-  padding: calc(var(--space-4) + var(--safe-top, 0px)) var(--space-4) calc(var(--space-4) + var(--safe-bottom, 0px));
-}
-
-.dialog {
-  animation: ritmiq-scale-in var(--dur-normal) var(--ease-emphasized);
-  width: 100%;
-  max-width: 440px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-5);
-  max-height: 80vh;
-  overflow-y: auto;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.title {
-  margin: 0;
-  font-size: var(--fs-lg);
-  font-weight: var(--fw-semibold);
-}
-
-.close {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-pill);
-  font-size: var(--fs-xl);
-  color: var(--color-text-3);
-  display: grid;
-  place-items: center;
-  transition: background var(--dur-fast) var(--ease-standard);
-}
-
-.close:hover {
-  background: var(--color-bg-2);
-  color: var(--color-text-1);
-}
+/* SaveDialog — estilos del body (preview + list + create form).
+   El shell (backdrop, header, close button) lo provee <Modal>.
+   El input y los buttons del createForm son <TextField>/<Button> primitives. */
 
 .song {
   margin: 0;
@@ -187,49 +132,10 @@
   border-radius: var(--radius-md);
 }
 
-.createInput {
-  height: 36px;
-  padding: 0 var(--space-3);
-  background: var(--color-bg-1);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-1);
-  font-size: var(--fs-sm);
-}
-
-.createInput:focus {
-  outline: none;
-  border-color: var(--color-accent);
-}
-
 .createActions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
-}
-
-.btnPrimary, .btnSecondary {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-sm);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-medium);
-}
-
-.btnPrimary {
-  background: var(--color-accent);
-  color: #fff;
-}
-
-.btnPrimary:hover:not(:disabled) { background: var(--color-accent-hover); }
-.btnPrimary:disabled { opacity: 0.5; }
-
-.btnSecondary {
-  color: var(--color-text-2);
-}
-
-.btnSecondary:hover:not(:disabled) {
-  color: var(--color-text-1);
-  background: var(--color-bg-3);
 }
 
 /* Padding lateral cuando SaveDialog se renderea dentro de BottomSheet

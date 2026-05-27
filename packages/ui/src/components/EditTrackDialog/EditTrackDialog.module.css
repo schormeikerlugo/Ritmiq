@@ -1,7 +1,6 @@
 /**
- * EditTrackDialog — estilos del modal de edicion.
- * Tokens compartidos: --color-bg-*, --space-*, --color-accent.
- * Patron inspirado en EditProfileDialog + SaveDialog.
+ * EditTrackDialog — estilos del preview header + hint.
+ * Las clases de input/btn fueron migradas a primitives <TextField>/<Button>.
  */
 
 .form {
@@ -46,7 +45,7 @@
 }
 .previewTitle {
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--color-text-1);
   white-space: nowrap;
   overflow: hidden;
@@ -59,49 +58,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* ─── Form fields ──────────────────────────────────────────────── */
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.label {
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  color: var(--color-text-2);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.input {
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-bg-1);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-1);
-  font-size: var(--fs-sm);
-  font-family: inherit;
-  transition: border-color var(--dur-fast) var(--ease-standard),
-              background var(--dur-fast) var(--ease-standard);
-}
-.input:focus {
-  outline: none;
-  border-color: var(--color-accent);
-  background: var(--color-bg-2);
-}
-.input[data-error] {
-  border-color: var(--color-danger, #ff5d6c);
-}
-
-.helperErr {
-  font-size: var(--fs-xs);
-  color: var(--color-danger, #ff5d6c);
-  margin-top: 2px;
 }
 
 /* ─── Hint informativo ─────────────────────────────────────────── */
@@ -122,62 +78,4 @@
   flex-shrink: 0;
   margin-top: 2px;
   opacity: 0.7;
-}
-
-/* ─── Error message ────────────────────────────────────────────── */
-
-.error {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--fs-xs);
-  color: var(--color-danger, #ff5d6c);
-  padding: var(--space-2) var(--space-3);
-  background: rgba(255, 93, 108, 0.1);
-  border-radius: var(--radius-sm);
-}
-
-/* ─── Actions row ──────────────────────────────────────────────── */
-
-.actions {
-  display: flex;
-  gap: var(--space-2);
-  justify-content: flex-end;
-  margin-top: var(--space-2);
-}
-
-.btnSecondary,
-.btnPrimary {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-sm);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-standard),
-              opacity var(--dur-fast) var(--ease-standard);
-  font-family: inherit;
-}
-
-.btnSecondary {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-1);
-}
-.btnSecondary:hover:not(:disabled) {
-  background: var(--color-bg-2);
-}
-
-.btnPrimary {
-  background: var(--color-accent);
-  border: 1px solid var(--color-accent);
-  color: #000;
-}
-.btnPrimary:hover:not(:disabled) {
-  filter: brightness(1.1);
-}
-
-.btnPrimary:disabled,
-.btnSecondary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }

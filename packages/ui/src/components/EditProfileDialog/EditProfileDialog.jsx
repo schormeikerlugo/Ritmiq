@@ -18,6 +18,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Modal } from '../Modal/Modal.jsx';
 import { Icon } from '../Icon/Icon.jsx';
+import { Button, TextField, FormError } from '../primitives/index.js';
 import { useSocialStore } from '../../stores/social.js';
 import { supabase } from '../../lib/supabase.js';
 import styles from './EditProfileDialog.module.css';
@@ -77,7 +78,6 @@ export function EditProfileDialog({ onClose }) {
     }
     setError(null);
     setPendingAvatarFile(file);
-    // Preview local sin esperar el upload
     const reader = new FileReader();
     reader.onload = () => setAvatarPreview(reader.result);
     reader.readAsDataURL(file);
@@ -109,13 +109,11 @@ export function EditProfileDialog({ onClose }) {
     setError(null);
 
     try {
-      // 1) Si hay archivo pendiente, subirlo primero
       if (pendingAvatarFile) {
         await uploadAvatar(pendingAvatarFile);
         setPendingAvatarFile(null);
       }
 
-      // 2) Actualizar campos del perfil
       const patch = {};
       const nextUsername = username.trim().toLowerCase();
       if (nextUsername !== (profile?.username ?? '')) patch.username = nextUsername;
@@ -129,13 +127,10 @@ export function EditProfileDialog({ onClose }) {
       if (Object.keys(patch).length > 0) {
         const err = await updateProfile(patch);
         if (err) {
-          // Codigo 23505 = unique violation (username tomado entre el check y el save)
           if (err.code === '23505') {
             setUsernameStatus('taken');
             throw new Error('Ese @usuario ya esta tomado.');
           }
-          // PGRST116 = "0 rows returned" — generalmente RLS bloqueando
-          // el SELECT post-UPDATE. Mensaje user-friendly.
           if (err.code === 'PGRST116') {
             throw new Error('No tienes permiso para actualizar este perfil.');
           }
@@ -152,16 +147,42 @@ export function EditProfileDialog({ onClose }) {
     }
   }
 
-  const usernameHint = (() => {
-    if (usernameStatus === 'invalid')   return { tone: 'err',  msg: '3-24 caracteres, solo letras minusculas, numeros y _' };
-    if (usernameStatus === 'checking')  return { tone: 'info', msg: 'Verificando...' };
-    if (usernameStatus === 'taken')     return { tone: 'err',  msg: 'Ese @usuario ya esta tomado' };
-    if (usernameStatus === 'available') return { tone: 'ok',   msg: 'Disponible' };
-    return null;
+  // Mensajes derivados para los TextField (error/success/hint)
+  const usernameField = (() => {
+    if (usernameStatus === 'invalid')   return { error: '3-24 caracteres, solo a-z, 0-9 y _' };
+    if (usernameStatus === 'taken')     return { error: 'Ese @usuario ya está tomado' };
+    if (usernameStatus === 'checking')  return { hint: 'Verificando disponibilidad...' };
+    if (usernameStatus === 'available') return { success: 'Disponible' };
+    return {};
   })();
 
+  const canSave = !saving &&
+    usernameStatus !== 'invalid' &&
+    usernameStatus !== 'taken' &&
+    usernameStatus !== 'checking';
+
   return (
-    <Modal onClose={onClose} title="Editar perfil" size="md">
+    <Modal
+      onClose={onClose}
+      title="Editar perfil"
+      size="md"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            loading={saving}
+            loadingText="Guardando..."
+            disabled={!canSave}
+          >
+            Guardar
+          </Button>
+        </>
+      }
+    >
       {/* Avatar */}
       <div className={styles.avatarSection}>
         <div className={styles.avatarWrap}>
@@ -189,71 +210,45 @@ export function EditProfileDialog({ onClose }) {
           style={{ display: 'none' }}
         />
         <div className={styles.avatarActions}>
-          <button
-            type="button"
-            className={styles.linkBtn}
-            onClick={() => fileInputRef.current?.click()}
-          >
+          <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
             Subir foto
-          </button>
+          </Button>
           {avatarPreview && (
-            <button
-              type="button"
-              className={styles.linkBtnDanger}
-              onClick={handleRemoveAvatar}
-              disabled={saving}
-            >
+            <Button variant="ghost" size="sm" onClick={handleRemoveAvatar} disabled={saving}>
               Eliminar
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
-      {/* Username */}
-      <div className={styles.field}>
-        <label htmlFor="ep-username" className={styles.label}>Nombre de usuario</label>
-        <div className={styles.inputWrap}>
-          <span className={styles.prefix}>@</span>
-          <input
-            id="ep-username"
-            type="text"
-            className={styles.input}
-            value={username}
-            onChange={(e) => setUsername(e.target.value.toLowerCase())}
-            maxLength={24}
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="tunombre"
-          />
-          {usernameStatus === 'available' && (
-            <Icon name="CheckCircle2" size={16} className={styles.inputIconOk} />
-          )}
-        </div>
-        {usernameHint && (
-          <p className={styles.hint} data-tone={usernameHint.tone}>{usernameHint.msg}</p>
-        )}
-      </div>
+      <TextField
+        label="Nombre de usuario"
+        type="text"
+        value={username}
+        onChange={(e) => setUsername(e.target.value.toLowerCase())}
+        maxLength={24}
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="tunombre"
+        prefix="@"
+        error={usernameField.error}
+        success={usernameField.success}
+        hint={usernameField.hint}
+      />
 
-      {/* Display name */}
-      <div className={styles.field}>
-        <label htmlFor="ep-display" className={styles.label}>Nombre para mostrar</label>
-        <input
-          id="ep-display"
-          type="text"
-          className={styles.input}
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          maxLength={60}
-          placeholder="Como quieres que te llamen"
-        />
-        <p className={styles.hintNeutral}>
-          Es el nombre que veran tus amigos y aparecera en tu perfil.
-        </p>
-      </div>
+      <TextField
+        label="Nombre para mostrar"
+        type="text"
+        value={displayName}
+        onChange={(e) => setDisplayName(e.target.value)}
+        maxLength={60}
+        placeholder="Como quieres que te llamen"
+        hint="Es el nombre que verán tus amigos y aparecerá en tu perfil."
+      />
 
-      {/* Bio */}
-      <div className={styles.field}>
-        <label htmlFor="ep-bio" className={styles.label}>Bio</label>
+      {/* Bio — textarea, no hay primitive todavia. Mantenemos el patron local. */}
+      <div className={styles.bioField}>
+        <label htmlFor="ep-bio" className={styles.bioLabel}>Bio</label>
         <textarea
           id="ep-bio"
           className={styles.textarea}
@@ -261,31 +256,12 @@ export function EditProfileDialog({ onClose }) {
           onChange={(e) => setBio(e.target.value)}
           maxLength={200}
           rows={2}
-          placeholder="Cuentale al mundo tu vibra musical"
+          placeholder="Cuéntale al mundo tu vibra musical"
         />
-        <p className={styles.hintNeutral}>{bio.length}/200</p>
+        <p className={styles.bioCounter}>{bio.length}/200</p>
       </div>
 
-      {error && <p className={styles.errorMsg}>{error}</p>}
-
-      <div className={styles.actions}>
-        <button
-          type="button"
-          className={styles.btnCancel}
-          onClick={onClose}
-          disabled={saving}
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          className={styles.btnSave}
-          onClick={handleSave}
-          disabled={saving || usernameStatus === 'invalid' || usernameStatus === 'taken' || usernameStatus === 'checking'}
-        >
-          {saving ? 'Guardando...' : 'Guardar'}
-        </button>
-      </div>
+      <FormError onDismiss={() => setError(null)}>{error}</FormError>
     </Modal>
   );
 }
