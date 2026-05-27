@@ -21,6 +21,7 @@ import {
   Wifi, WifiOff, Cloud, CloudOff, Cast, Disc3,
   Sun, Moon, Monitor,
   ExternalLink,
+  Eye, EyeOff, Mail, Lock, AtSign,
 } from 'lucide-react';
 
 const ICONS = {
@@ -42,6 +43,7 @@ const ICONS = {
   Wifi, WifiOff, Cloud, CloudOff, Cast, Disc3,
   Sun, Moon, Monitor,
   ExternalLink,
+  Eye, EyeOff, Mail, Lock, AtSign,
 };
 
 /**

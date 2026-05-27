@@ -1,0 +1,55 @@
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  border: 1px solid transparent;
+  animation: bannerIn 220ms var(--ease-emphasized);
+}
+
+.banner_error {
+  background: rgba(255, 93, 108, 0.10);
+  border-color: rgba(255, 93, 108, 0.25);
+  color: var(--color-danger);
+}
+
+.banner_success {
+  background: rgba(61, 220, 151, 0.10);
+  border-color: rgba(61, 220, 151, 0.25);
+  color: var(--color-success);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  opacity: 0.7;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.dismiss:hover { opacity: 1; }
+
+@keyframes bannerIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner { animation: none; }
+}
