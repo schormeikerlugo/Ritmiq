@@ -9,6 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePlayerStore } from '../../stores/player.js';
+import { toast } from '../../stores/toast.js';
 import { useViewStore } from '../../stores/view.js';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
@@ -215,15 +216,10 @@ export function NowPlaying() {
       }
     }
     const ok = await copyToClipboard(link);
-    // Notificacion visual minima — toast manual via timeout. Reusamos el
-    // patron del player error toast: dispatch via store.
     if (ok) {
-      usePlayerStore.setState({ error: 'Link copiado al portapapeles' });
-      setTimeout(() => {
-        if (usePlayerStore.getState().error === 'Link copiado al portapapeles') {
-          usePlayerStore.setState({ error: null });
-        }
-      }, 2000);
+      toast.success('Link copiado al portapapeles', { icon: 'Check' });
+    } else {
+      toast.error('No se pudo copiar el link');
     }
   };
 

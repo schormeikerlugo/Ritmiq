@@ -19,6 +19,7 @@ import { ResetPasswordView } from './components/Auth/views/ResetPasswordView.jsx
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { MilestoneToast } from './components/MilestoneToast/MilestoneToast.jsx';
 import { DailyStreakToast } from './components/DailyStreakToast/DailyStreakToast.jsx';
+import { ToastHost } from './components/Toast/ToastHost.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
 import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
 import { BottomSheetHost } from './components/BottomSheet/BottomSheetHost.jsx';
@@ -485,6 +486,10 @@ export function App() {
           via user_streaks.last_daily_celebrated_date). Intensidad y
           mensaje rotativo segun los dias acumulados. */}
       <DailyStreakToast />
+      {/* Snackbars globales (feedback de acciones: añadir a favoritas,
+          link copiado, share enviado, etc.). Stack vertical bottom-center
+          en mobile, bottom-right en desktop. Auto-dismiss 3.5s. */}
+      <ToastHost />
     </div>
   );
 }

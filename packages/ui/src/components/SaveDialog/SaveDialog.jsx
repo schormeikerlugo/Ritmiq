@@ -8,6 +8,7 @@ import { Icon } from '../Icon/Icon.jsx';
 import { Modal } from '../Modal/Modal.jsx';
 import { Button, TextField } from '../primitives/index.js';
 import { useBottomSheet } from '../../stores/bottom-sheet.js';
+import { toast } from '../../stores/toast.js';
 import styles from './SaveDialog.module.css';
 
 /**
@@ -56,6 +57,7 @@ function SaveBody({ track, onClose }) {
     setBusy(true);
     try {
       await ensurePersisted();
+      toast.success('Añadida a tu biblioteca', { icon: 'Library' });
       onClose();
     } finally { setBusy(false); }
   };
@@ -65,8 +67,13 @@ function SaveBody({ track, onClose }) {
     try {
       const id = await ensurePersisted();
       const present = (contents[pl.id] ?? []).includes(id);
-      if (present) await removeTrack(pl.id, id);
-      else await addTrack(pl.id, id);
+      if (present) {
+        await removeTrack(pl.id, id);
+        toast.show({ message: `Quitada de "${pl.name}"`, icon: 'Check' });
+      } else {
+        await addTrack(pl.id, id);
+        toast.success(`Añadida a "${pl.name}"`, { icon: 'Check' });
+      }
     } finally { setBusy(false); }
   };
 
@@ -79,6 +86,7 @@ function SaveBody({ track, onClose }) {
       const id = await ensurePersisted();
       const pl = await create(name);
       await addTrack(pl.id, id);
+      toast.success(`Playlist "${name}" creada`, { icon: 'ListMusic' });
       setCreating(false);
       setNewName('');
       onClose();
