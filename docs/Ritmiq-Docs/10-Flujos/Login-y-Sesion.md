@@ -3,8 +3,8 @@ tipo: flujo
 capa: flujo
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
-tags: [flujo, auth, login, sesion, realtime]
+ultima-revision: 2026-05-26
+tags: [flujo, auth, login, sesion, realtime, forgot-password, reset-password]
 ---
 
 # Login y sesión — carga inicial de la app
@@ -84,5 +84,43 @@ sequenceDiagram
 - Hooks: [[use-social-realtime]], [[use-push]], [[use-presence]].
 - Helpers: [[realtime]], [[sync]], [[supabase|ui/lib/supabase]].
 
+## Flujo de recuperación de contraseña
+
+```mermaid
+sequenceDiagram
+  participant U as Usuario
+  participant App as App.jsx
+  participant Forgot as ForgotPasswordView
+  participant Reset as ResetPasswordView
+  participant SB as Supabase Auth
+  participant Mail as Correo del usuario
+
+  U->>Forgot: "¿Olvidaste tu contraseña?"
+  Forgot->>SB: resetPasswordForEmail(email, redirectTo=#reset-password)
+  SB->>Mail: envía link mágico (válido 1 hora)
+  Forgot-->>U: "Revisa tu correo"
+  U->>Mail: abre correo
+  Mail->>App: click en link → app abre con #reset-password
+  App->>SB: valida token, crea sesión temporal
+  SB-->>App: onAuthStateChange('PASSWORD_RECOVERY')
+  App->>Reset: renderiza ResetPasswordView (override del shell normal)
+  U->>Reset: nueva contraseña + confirm
+  Reset->>SB: updateUser({ password })
+  SB-->>Reset: OK
+  Reset->>SB: signOut() (cierra sesión de recovery)
+  Reset->>App: redirect "/" → AuthScreen signin
+  U->>App: ingresa con la nueva contraseña
+```
+
+## Vistas del AuthScreen
+
+| Vista | Trigger | Acción |
+|---|---|---|
+| `SignInView` (default) | apertura del shell sin sesión | `signIn(email, password)` |
+| `SignUpView` | click en "Crear una" | `signUp(email, password, { username, displayName })` con username obligatorio |
+| `ForgotPasswordView` | click en "¿Olvidaste tu contraseña?" | `resetPassword(email)` |
+| `ResetPasswordView` | URL hash `#reset-password` o evento `PASSWORD_RECOVERY` (renderizado por App.jsx, no por el shell) | `updatePassword(newPassword)` |
+
 ## Notas / Changelog
+- 2026-05-26: Añadido flujo de recovery (ForgotPasswordView + ResetPasswordView). El shell del AuthScreen ahora soporta 3 modos (signin/signup/forgot). Documentación actualizada en [[Auth]].
 - 2026-05-22: F8.

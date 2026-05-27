@@ -6,7 +6,6 @@ estado: estable
 ultima-revision: 2026-05-22
 tags: [glosario]
 ---
-
 # Glosario
 
 Términos del dominio Ritmiq. Si un término aparece en varias notas, vive aquí y se referencia con `[[Glosario#término]]`.
