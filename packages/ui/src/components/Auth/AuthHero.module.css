@@ -130,39 +130,32 @@
   line-height: 1.5;
 }
 
-/* compact mode (mobile / stacked) — mas inmersivo, ocupa toda la franja */
+/* compact mode (mobile / stacked) — minimalista: SOLO logo + waveform.
+   El tagline y el sub se ocultan; el protagonista es el card abajo. */
 .heroCompact {
   min-height: 100%;
-  /* safe-area top para iPhones con notch */
   padding-top: env(safe-area-inset-top, 0);
 }
 .heroCompact .content {
-  padding: var(--space-4) var(--space-4) 0;
-  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4);
+  gap: var(--space-4);
   max-width: 100%;
-  /* Distribuir: logo arriba, tagline al centro-bajo, waveform pegado al fondo */
   height: 100%;
-  justify-content: flex-end;
-  padding-bottom: 0;
+  /* Distribuir: logo centrado verticalmente, waveform sutil debajo */
+  justify-content: center;
 }
 .heroCompact .logo {
-  width: 88px;
-  height: 88px;
-  /* El logo se ancla arriba; usamos margin-top auto para empujarlo */
-  margin-top: auto;
+  width: 80px;
+  height: 80px;
 }
-.heroCompact .tagline {
-  font-size: clamp(1.5rem, 6.5vw, 2rem);
-  padding: 0 var(--space-2);
-}
-.heroCompact .sub { display: none; }
+/* Mobile: ocultar texto del hero — el card de abajo ya tiene su propio
+   title 'Bienvenido de vuelta' que NO debe competir con un tagline. */
+.heroCompact .copy { display: none; }
 .heroCompact .waveform {
-  height: 96px;
-  /* Cuelga del borde inferior del hero para crear sensacion de fusion
-     con el card que viene abajo */
-  margin: 0 calc(var(--space-4) * -1) calc(var(--space-4) * -1);
-  width: calc(100% + var(--space-4) * 2);
-  opacity: 0.95;
+  height: 56px;
+  /* Mas sutil en mobile (decorativo, no protagonico) */
+  opacity: 0.7;
+  width: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {

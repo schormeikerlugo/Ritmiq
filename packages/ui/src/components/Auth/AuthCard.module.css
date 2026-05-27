@@ -83,52 +83,35 @@
 
 @media (max-width: 767px) {
   /* En mobile el card es la propia superficie de la pantalla:
-     fondo plano, sin border ni shadow, sin border-radius lateral,
-     y top-radius pronunciado que se "monta" sobre el hero como sheet. */
+     fondo plano, sin border ni shadow, sin grip-bar, sin border-radius.
+     El protagonista del mobile es el FORMULARIO, no el contenedor. */
   .card {
     width: 100%;
     max-width: 100%;
-    background: var(--color-bg-0);
+    background: transparent;
     border: 0;
-    border-radius: 24px 24px 0 0;
+    border-radius: 0;
     box-shadow: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    padding: var(--space-5) var(--space-4) var(--space-4);
+    padding: var(--space-3) 0 var(--space-4);
     gap: var(--space-3);
-    /* Eleva el card con un sutil glow morado-cian en el top edge
-       para reforzar la fusion con el waveform de arriba */
-    position: relative;
   }
 
-  .card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 40px;
-    height: 4px;
-    border-radius: 2px;
-    background: linear-gradient(90deg, #7c5cff, #5cd0ff);
-    opacity: 0.5;
-    margin-top: 8px;
-  }
-
-  /* Footer legal mas compacto en mobile pero con touch target mayor */
+  /* Footer legal compacto pero touch friendly */
   .legal {
     padding-top: var(--space-3);
-    margin-top: var(--space-2);
+    margin-top: var(--space-3);
     border-top: 1px solid var(--color-border);
   }
 
   .legalLink {
-    padding: 8px 4px; /* touch target ~44px de altura */
+    padding: 8px 4px; /* touch target comodo */
   }
 }
 
 @media (max-width: 374px) {
   .card {
-    padding: var(--space-4) var(--space-3);
+    padding: var(--space-2) 0 var(--space-3);
   }
 }

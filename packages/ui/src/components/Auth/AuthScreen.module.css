@@ -38,9 +38,8 @@
   .cardPane { flex: 1 1 55%; }
 }
 
-/* Mobile (<768px): stacked, hero arriba + card abajo edge-to-edge.
-   El card NO es un card con border/shadow, sino la propia superficie de
-   la pantalla mobile — el hero "se funde" con el form. */
+/* Mobile (<768px): stacked, hero compacto arriba + card abajo.
+   Sin overlap, sin grip-bar. Transicion limpia con fade negro entre los dos. */
 @media (max-width: 767px) {
   .screen {
     flex-direction: column;
@@ -53,36 +52,32 @@
   .heroPane {
     flex: 0 0 auto;
     width: 100%;
-    /* Altura proporcional a la viewport, con minimo decente para que se
-       sienta como hero y no como banner. */
-    height: 42vh;
-    min-height: 280px;
-    max-height: 360px;
+    /* Mas compacto: solo el logo + waveform decorativo */
+    height: 28vh;
+    min-height: 200px;
+    max-height: 260px;
+    /* Fade hacia el fondo negro en la parte inferior del hero
+       para transicion suave hacia el card */
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 75%, transparent 100%);
+            mask-image: linear-gradient(180deg, #000 0%, #000 75%, transparent 100%);
   }
 
   .cardPane {
     flex: 1 0 auto;
     width: 100%;
     padding: 0 var(--space-4);
-    /* iOS safe area bottom (home indicator) */
     padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
     align-items: flex-start;
-    /* Eliminar el gradient que separaba paneles — en mobile el hero
-       continua visualmente al card sin transicion visible */
+    /* Fondo plano que ya esta detras del fade del hero */
     background: #0a0a0c;
-    /* Hace que el waveform que sale del hero se "monte" sobre el card
-       (overlap intencional de unos pixeles para fusion visual) */
-    margin-top: -8px;
-    z-index: 1;
-    position: relative;
   }
 }
 
-/* Mobile pequeno (<375px) — iPhone SE, etc. — reducir aun mas */
+/* Mobile pequeno (<375px) — iPhone SE, etc. */
 @media (max-width: 374px) {
   .heroPane {
-    height: 38vh;
-    min-height: 240px;
+    height: 24vh;
+    min-height: 180px;
   }
   .cardPane {
     padding: 0 var(--space-3);
