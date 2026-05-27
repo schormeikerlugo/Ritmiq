@@ -24,9 +24,13 @@
 .brandIcon {
   width: 56px;
   height: 56px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   flex-shrink: 0;
+  object-fit: contain;
+  /* Glow accent sutil detras del logo */
   box-shadow: 0 6px 18px color-mix(in srgb, var(--color-accent) 28%, transparent);
+  /* Drop-shadow morado en el SVG/PNG del logo en si */
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--color-accent) 30%, transparent));
 }
 
 .brandText {

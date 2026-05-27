@@ -1,5 +1,5 @@
 /**
- * Subvista Acerca de \u2014 descripcion completa de Ritmiq + link al sitio
+ * Subvista Acerca de — descripcion completa de Ritmiq + link al sitio
  * del desarrollador + version + modo de ejecucion.
  *
  * @module @ritmiq/ui/components/SettingsView/sections/AboutInfoView
@@ -10,6 +10,7 @@ import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { LinkButton } from '../controls/LinkButton.jsx';
 import { Icon } from '../../Icon/Icon.jsx';
+import logotipoUrl from '../../../assets/logotipo.png';
 import styles from '../SettingsView.module.css';
 import aboutStyles from './AboutInfoView.module.css';
 
@@ -35,24 +36,24 @@ export function AboutInfoView({ onBack }) {
       <div className={aboutStyles.hero}>
         <div className={aboutStyles.brandRow}>
           <img
-            src="/icon-192.png"
-            alt=""
+            src={logotipoUrl}
+            alt="Ritmiq"
             className={aboutStyles.brandIcon}
             width={56}
             height={56}
           />
           <div className={aboutStyles.brandText}>
             <h2 className={aboutStyles.brandName}>Ritmiq</h2>
-            <p className={aboutStyles.tagline}>Tu musica, tu ritmo, sin anuncios.</p>
+            <p className={aboutStyles.tagline}>Tu música, tu ritmo, sin anuncios.</p>
           </div>
         </div>
         <p className={aboutStyles.description}>
-          Ritmiq es un reproductor de musica personal disenado para que
+          Ritmiq es un reproductor de música personal diseñado para que
           escuches lo que quieras sin interrupciones, sin algoritmos
           opacos y sin pagar suscripciones mensuales. Encuentra cualquier
-          cancion en YouTube, organiza tu biblioteca, comparte musica
-          con amigos y lleva tu coleccion a cualquier dispositivo \u2014
-          PC, telefono o tablet.
+          canción en YouTube, organiza tu biblioteca, comparte música
+          con amigos y lleva tu colección a cualquier dispositivo — PC,
+          teléfono o tablet.
         </p>
         <ul className={aboutStyles.featureList}>
           <li>
@@ -69,18 +70,18 @@ export function AboutInfoView({ onBack }) {
           </li>
           <li>
             <Icon name="Sparkles" size={14} />
-            <span>Sincroniza tu PC y tu telefono en LAN o por internet</span>
+            <span>Sincroniza tu PC y tu teléfono en LAN o por internet</span>
           </li>
         </ul>
       </div>
 
       <SettingsGroup
         title="Actividad"
-        hint="Tu historial agregado: top tracks, artistas, minutos escuchados, racha de dias."
+        hint="Tu historial agregado: top tracks, artistas, minutos escuchados, racha de días."
       >
         <SettingRow
           label="Tu mes en Ritmiq"
-          description="Top tracks, artistas, minutos escuchados y mas."
+          description="Top tracks, artistas, minutos escuchados y más."
           control={<LinkButton onClick={goStats}>Ver</LinkButton>}
         />
       </SettingsGroup>
@@ -103,8 +104,8 @@ export function AboutInfoView({ onBack }) {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="Detalles tecnicos">
-        <SettingRow label="Version" description="0.1.0" />
+      <SettingsGroup title="Detalles técnicos">
+        <SettingRow label="Versión" description="0.1.0" />
         <SettingRow
           label="Modo"
           description={isDesktop ? 'Desktop (Electron)' : 'PWA (Web)'}
