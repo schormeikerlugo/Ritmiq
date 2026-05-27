@@ -57,6 +57,8 @@ function SaveBody({ track, onClose }) {
     setBusy(true);
     try {
       await ensurePersisted();
+      // Toast 'Añadida a tu biblioteca' lo emite el componente porque
+      // persistEphemeral() es helper interno sin feedback propio.
       toast.success('Añadida a tu biblioteca', { icon: 'Library' });
       onClose();
     } finally { setBusy(false); }
@@ -67,12 +69,13 @@ function SaveBody({ track, onClose }) {
     try {
       const id = await ensurePersisted();
       const present = (contents[pl.id] ?? []).includes(id);
+      // Los toasts 'Añadida a / Quitada de' los emite el store playlists
+      // (addTrack/removeTrack) — funciona desde CUALQUIER call site, no
+      // solo desde aqui.
       if (present) {
         await removeTrack(pl.id, id);
-        toast.show({ message: `Quitada de "${pl.name}"`, icon: 'Check' });
       } else {
         await addTrack(pl.id, id);
-        toast.success(`Añadida a "${pl.name}"`, { icon: 'Check' });
       }
     } finally { setBusy(false); }
   };
@@ -84,9 +87,8 @@ function SaveBody({ track, onClose }) {
     setBusy(true);
     try {
       const id = await ensurePersisted();
-      const pl = await create(name);
-      await addTrack(pl.id, id);
-      toast.success(`Playlist "${name}" creada`, { icon: 'ListMusic' });
+      const pl = await create(name);          // store emite toast 'Playlist X creada'
+      await addTrack(pl.id, id);              // store emite toast 'Añadida a X'
       setCreating(false);
       setNewName('');
       onClose();

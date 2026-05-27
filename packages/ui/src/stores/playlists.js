@@ -14,6 +14,7 @@ import {
   cachePlaylists, cachePlaylistContents,
   getCachedPlaylists, getCachedPlaylistContents,
 } from '../lib/local-downloads.js';
+import { toast } from './toast.js';
 
 function enqueueOfflineDownload(trackId) {
   try {
@@ -154,6 +155,7 @@ export const usePlaylistsStore = create((set, get) => ({
     await tryOrQueue(() => pushPlaylist(p), { kind: 'playlist.upsert', payload: p });
     if (isDesktop) await api.playlistsUpsert(p);
     set((s) => ({ playlists: [...s.playlists, p] }));
+    toast.success(`Playlist "${name}" creada`, { icon: 'ListMusic' });
     return p;
   },
 
@@ -164,6 +166,7 @@ export const usePlaylistsStore = create((set, get) => ({
     await tryOrQueue(() => pushPlaylist(next), { kind: 'playlist.upsert', payload: next });
     if (isDesktop) await api.playlistsUpsert(next);
     set((s) => ({ playlists: s.playlists.map((p) => (p.id === id ? next : p)) }));
+    toast.show({ message: `Renombrada a "${name}"`, icon: 'Pencil' });
   },
 
   async setOffline(id, isOffline) {
@@ -173,6 +176,12 @@ export const usePlaylistsStore = create((set, get) => ({
     await tryOrQueue(() => pushPlaylist(next), { kind: 'playlist.upsert', payload: next });
     if (isDesktop) await api.playlistsUpsert(next);
     set((s) => ({ playlists: s.playlists.map((p) => (p.id === id ? next : p)) }));
+    toast.show({
+      message: isOffline
+        ? `"${cur.name}" se descargará para offline`
+        : `"${cur.name}" ya no estará offline`,
+      icon: isOffline ? 'ArrowDownToLine' : 'Cloud',
+    });
   },
 
   async setCover(id, coverUrl) {
@@ -182,15 +191,24 @@ export const usePlaylistsStore = create((set, get) => ({
     await tryOrQueue(() => pushPlaylist(next), { kind: 'playlist.upsert', payload: next });
     if (isDesktop) await api.playlistsUpsert(next);
     set((s) => ({ playlists: s.playlists.map((p) => (p.id === id ? next : p)) }));
+    toast.success(
+      coverUrl ? 'Portada actualizada' : 'Portada eliminada',
+      { icon: coverUrl ? 'Check' : 'Trash2' },
+    );
   },
 
   async remove(id) {
     if (id === get().favoritesId) throw new Error('No se puede borrar Favoritas');
+    const cur = get().playlists.find((p) => p.id === id);
     await tryOrQueue(() => deletePlaylistRemote(id), { kind: 'playlist.delete', payload: { id } });
     if (isDesktop) await api.playlistsDelete(id);
     set((s) => {
       const { [id]: _, ...rest } = s.contents;
       return { playlists: s.playlists.filter((p) => p.id !== id), contents: rest };
+    });
+    toast.show({
+      message: cur ? `Playlist "${cur.name}" eliminada` : 'Playlist eliminada',
+      icon: 'Trash2',
     });
   },
 
@@ -218,10 +236,17 @@ export const usePlaylistsStore = create((set, get) => ({
       contents: { ...s.contents, [playlistId]: [...(s.contents[playlistId] ?? []), trackId] },
     }));
 
+    // Toast — distingue Favoritas del resto de playlists.
+    const pl = get().playlists.find((p) => p.id === playlistId);
+    const isFavs = playlistId === get().favoritesId;
+    toast.success(
+      isFavs ? 'Añadida a Favoritas' : `Añadida a "${pl?.name ?? 'la playlist'}"`,
+      { icon: isFavs ? 'Heart' : 'Check' },
+    );
+
     // Si la playlist es offline, encolar descarga del track recien anadido.
     // Funciona tanto en desktop (IPC) como en PWA (IndexedDB blob).
     // (carga lazy para evitar ciclo: playlists -> library -> playlists)
-    const pl = get().playlists.find((p) => p.id === playlistId);
     if (pl?.isOffline) {
       enqueueOfflineDownload(trackId);
     }
@@ -239,6 +264,13 @@ export const usePlaylistsStore = create((set, get) => ({
         [playlistId]: (s.contents[playlistId] ?? []).filter((id) => id !== trackId),
       },
     }));
+
+    const pl = get().playlists.find((p) => p.id === playlistId);
+    const isFavs = playlistId === get().favoritesId;
+    toast.show({
+      message: isFavs ? 'Quitada de Favoritas' : `Quitada de "${pl?.name ?? 'la playlist'}"`,
+      icon: isFavs ? 'Heart' : 'Check',
+    });
   },
 
   /**

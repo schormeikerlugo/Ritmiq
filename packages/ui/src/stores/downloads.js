@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api, isDesktop } from '../lib/api.js';
 import { useLibraryStore } from './library.js';
+import { toast } from './toast.js';
 
 const CONCURRENCY = 2;
 
@@ -82,6 +83,7 @@ async function pump(set, get) {
 }
 
 async function runOne(trackId, set, get) {
+  let entryTitle = trackId;
   try {
     // En desktop pasamos la fila completa como fallback. El IPC la inserta
     // en SQLite si no estaba (tracks importados de Spotify pueden estar en
@@ -89,7 +91,10 @@ async function runOne(trackId, set, get) {
     let payload = trackId;
     if (isDesktop) {
       const t = useLibraryStore.getState().tracks.find((x) => x.id === trackId);
-      if (t) payload = { trackId, fallback: t };
+      if (t) { payload = { trackId, fallback: t }; entryTitle = t.title; }
+    } else {
+      const e = get().entries.find((x) => x.trackId === trackId);
+      if (e) entryTitle = e.title;
     }
     await api.libraryDownload(payload);
     set((s) => ({
@@ -99,12 +104,14 @@ async function runOne(trackId, set, get) {
     }));
     // Refrescar la biblioteca para que aparezca como descargada
     try { await useLibraryStore.getState().load(); } catch {}
+    toast.success(`"${entryTitle}" descargada`, { icon: 'ArrowDownToLine' });
   } catch (err) {
     set((s) => ({
       entries: s.entries.map((e) =>
         e.trackId === trackId ? { ...e, status: 'error', error: String(err?.message ?? err) } : e
       ),
     }));
+    toast.error(`Error al descargar "${entryTitle}": ${String(err?.message ?? err)}`);
   } finally {
     pump(set, get);
   }

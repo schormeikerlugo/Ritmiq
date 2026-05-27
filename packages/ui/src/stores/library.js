@@ -7,6 +7,7 @@ import { isEphemeralTrack } from '../lib/track-helpers.js';
 import { listLocalIds, cacheTracks, getCachedTracks } from '../lib/local-downloads.js';
 import { publishMyMetaEdit } from '../lib/publish-meta-edit.js';
 import { usePlayerStore } from './player.js';
+import { toast } from './toast.js';
 
 /**
  * @typedef {import('@ritmiq/core/types').Track} Track
@@ -160,6 +161,7 @@ export const useLibraryStore = create((set, get) => ({
     const track = await api.libraryAdd({ idOrUrl, userId });
     if (isDesktop) await pushTrack(track);
     set((s) => mergeTrack(s, track));
+    toast.success(`"${track.title}" añadida a tu biblioteca`, { icon: 'Library' });
     return track;
   },
 
@@ -183,11 +185,16 @@ export const useLibraryStore = create((set, get) => ({
 
   /** Borra un track de la biblioteca (remoto + local). */
   async remove(trackId) {
+    const cur = get().tracks.find((t) => t.id === trackId);
     await tryOrQueue(
       () => deleteTrackRemote(trackId),
       { kind: 'track.delete', payload: { id: trackId } }
     );
     set((s) => ({ tracks: s.tracks.filter((t) => t.id !== trackId) }));
+    toast.show({
+      message: cur ? `"${cur.title}" eliminada de tu biblioteca` : 'Canción eliminada',
+      icon: 'Trash2',
+    });
   },
 
   /**
@@ -206,8 +213,13 @@ export const useLibraryStore = create((set, get) => ({
 
   /** Borra el archivo local (desktop) o el blob de IndexedDB (PWA). */
   async undownload(trackId) {
+    const cur = get().tracks.find((t) => t.id === trackId);
     await api.libraryUndownload(trackId);
     await get().load();
+    toast.show({
+      message: cur ? `Descarga de "${cur.title}" eliminada` : 'Descarga eliminada',
+      icon: 'Trash2',
+    });
   },
 
   /**
@@ -311,6 +323,7 @@ export const useLibraryStore = create((set, get) => ({
       publishMyMetaEdit(next).catch(() => {});
     }
 
+    toast.success('Cambios guardados', { icon: 'Check' });
     return next;
   },
 
