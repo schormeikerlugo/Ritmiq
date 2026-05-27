@@ -23,6 +23,7 @@ import { useArtistStore } from '../../stores/artist.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { ErrorState } from '../primitives/index.js';
 import { HeroSkeleton, TrackRowSkeleton } from '../Skeleton/index.js';
 import styles from './ArtistView.module.css';
 
@@ -79,11 +80,11 @@ export function ArtistView({ name }) {
   if (details.error || !details.name) {
     return (
       <section className={styles.wrap}>
-        <div className={styles.empty}>
-          <Icon name="AlertCircle" size={32} />
-          <p>No pudimos cargar la información de {name}.</p>
-          {details.error && <p className={styles.errorMsg}>{details.error}</p>}
-        </div>
+        <ErrorState
+          title={`No pudimos cargar a ${name}`}
+          message={details.error ?? 'Inténtalo de nuevo en unos segundos.'}
+          onRetry={() => fetchArtist(name)}
+        />
       </section>
     );
   }

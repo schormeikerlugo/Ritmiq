@@ -18,6 +18,7 @@ import { usePlayerStore } from '../../stores/player.js';
 import { supabase } from '../../lib/supabase.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { EmptyState } from '../primitives/index.js';
+import { Skeleton } from '../Skeleton/index.js';
 import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
 import styles from './ProfileView.module.css';
 
@@ -97,9 +98,17 @@ export function ProfileView({ userId }) {
     return (
       <div className={styles.root}>
         <header className={styles.header}>
-          <button className={styles.backBtn} onClick={goBack}><Icon name="ArrowLeft" size={20} /></button>
+          <button className={styles.backBtn} onClick={goBack} aria-label="Volver">
+            <Icon name="ArrowLeft" size="lg" />
+          </button>
         </header>
-        <div className={styles.loadingState}><Icon name="Loader" size={24} /></div>
+        <div className={styles.body}>
+          <Skeleton variant="circle" width={96} height={96} />
+          <Skeleton width={160} height={26} style={{ marginTop: 12 }} />
+          <Skeleton width={100} height={16} style={{ marginTop: 6 }} />
+          <Skeleton width={240} height={14} style={{ marginTop: 12 }} />
+          <Skeleton width={200} height={14} style={{ marginTop: 4 }} />
+        </div>
       </div>
     );
   }

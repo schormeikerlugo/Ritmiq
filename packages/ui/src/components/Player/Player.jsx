@@ -326,12 +326,25 @@ export function Player() {
       </button>
 
       {error && (
-        <div
-          className={styles.errorToast}
-          onClick={() => usePlayerStore.setState({ error: null })}
-          role="alert"
-        >
-          <Icon name="AlertTriangle" size={14} /> No se pudo reproducir: {error}
+        <div className={styles.errorToast} role="alert">
+          <Icon name="AlertTriangle" size="sm" />
+          <span className={styles.errorMsg}>No se pudo reproducir: {error}</span>
+          <button
+            type="button"
+            className={styles.errorAction}
+            onClick={() => {
+              usePlayerStore.setState({ error: null });
+              // Reintenta forzando re-load del track actual.
+              if (currentTrack) usePlayerStore.getState().playNow([currentTrack], 0);
+            }}
+            aria-label="Reintentar"
+          >Reintentar</button>
+          <button
+            type="button"
+            className={styles.errorClose}
+            onClick={() => usePlayerStore.setState({ error: null })}
+            aria-label="Cerrar"
+          ><Icon name="X" size="sm" /></button>
         </div>
       )}
 

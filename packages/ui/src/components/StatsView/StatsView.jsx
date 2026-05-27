@@ -15,6 +15,7 @@ import { useHistoryStore, selectStatsForPeriod } from '../../stores/history.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { EmptyState } from '../primitives/index.js';
 import styles from './StatsView.module.css';
 
 const PERIODS = [
@@ -87,11 +88,11 @@ export function StatsView() {
       </div>
 
       {stats.totalPlays === 0 ? (
-        <div className={styles.empty}>
-          <Icon name="Music" size={40} />
-          <p>Aun no tenemos datos de este periodo.</p>
-          <p className={styles.emptyHint}>Reproduce algo y vuelve aqui.</p>
-        </div>
+        <EmptyState
+          icon="Music"
+          title="Aún no tenemos datos de este periodo"
+          subtitle="Reproduce algo y vuelve aquí para ver tus estadísticas."
+        />
       ) : (
         <>
           <div className={styles.statsGrid}>

@@ -9,3 +9,4 @@ export { FormError } from './FormError.jsx';
 export { FormSuccess } from './FormSuccess.jsx';
 export { ConfirmDialog } from './ConfirmDialog.jsx';
 export { EmptyState } from './EmptyState.jsx';
+export { ErrorState } from './ErrorState.jsx';

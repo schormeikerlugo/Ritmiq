@@ -37,9 +37,23 @@ body {
   display: none;
 }
 
-/* Focus accesible */
+/* Focus accesible global. Aplica solo a elementos que reciben focus
+   via teclado (no via click) — :focus-visible es la regla moderna.
+   El outline no afecta el layout (no toma espacio) y respeta el
+   border-radius del propio elemento gracias a outline-offset.
+   NOTA: el border-radius del outline se hereda automaticamente del
+   elemento desde 2024+ en navegadores modernos. */
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
+}
+
+/* Texto inputs/textarea: el outline lo lleva el wrapper, no el input.
+   Los primitives <TextField>/<PasswordField> ya hacen este override pero
+   anadirlo aqui evita que <input> raw legacy muestren doble cuadro
+   accidentalmente. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
 }

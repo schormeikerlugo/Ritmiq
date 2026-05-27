@@ -19,6 +19,7 @@ import { searchLibraryTracks, dedupeByYtId } from '../../lib/library-search.js';
 import { checkSharedCache, prewarmStream } from '../../lib/lan-client.js';
 import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { ErrorState } from '../primitives/index.js';
 import { TrackCard } from '../Home/TrackCard.jsx';
 import { ArtistCard } from '../Home/ArtistCard.jsx';
 import { RowSkeleton } from '../Home/RowSkeleton.jsx';
@@ -215,6 +216,7 @@ export function SearchView({ query }) {
           playlists={playlists}
           loading={loading}
           error={error}
+          onRetry={() => fetchAll(query)}
           localMatches={localMatches}
           videosAsTracks={videosAsTracks}
           knownAsTracks={knownAsTracks}
@@ -233,7 +235,7 @@ export function SearchView({ query }) {
 
 function SearchResults({
   query, tab, setTab,
-  videos, channels, playlists, loading, error,
+  videos, channels, playlists, loading, error, onRetry,
   localMatches, videosAsTracks, knownAsTracks, knownCountByYtId,
   cachedSet, noResults, playLocal, playSongList, playKnown, goArtist,
 }) {
@@ -256,7 +258,9 @@ function SearchResults({
         ))}
       </nav>
 
-      {error && <p className={styles.error}>{error}</p>}
+      {error && (
+        <ErrorState compact message={error} onRetry={onRetry} retryLabel="Reintentar búsqueda" />
+      )}
 
       {/* ── Tab: Todo ────────────────────────────────────────────────── */}
       {tab === 'all' && (

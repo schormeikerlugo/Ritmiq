@@ -17,6 +17,7 @@ import { useViewStore } from '../../stores/view.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { EmptyState } from '../primitives/index.js';
+import { TrackRowSkeleton } from '../Skeleton/index.js';
 import styles from './FriendsView.module.css';
 
 // ── Componente raiz ───────────────────────────────────────────────────
@@ -90,7 +91,7 @@ function FriendsTab() {
   const presence       = useSocialStore((s) => s.friendsPresence);
   const goProfile      = useViewStore((s) => s.goProfile);
 
-  if (friendsLoading) return <EmptyState icon="Users" title="Cargando amigos..." />;
+  if (friendsLoading) return <TrackRowSkeleton count={5} />;
   if (friends.length === 0) {
     return (
       <EmptyState
@@ -151,7 +152,7 @@ function RequestsTab() {
     }
   }
 
-  if (requestsLoading) return <EmptyState icon="UserPlus" title="Cargando solicitudes..." />;
+  if (requestsLoading) return <TrackRowSkeleton count={3} />;
 
   return (
     <div className={styles.requestsSection}>
@@ -292,7 +293,7 @@ function InboxTab() {
   const inboxLoading = useSocialStore((s) => s.inboxLoading);
   const playNow      = usePlayerStore((s) => s.playNow);
 
-  if (inboxLoading) return <EmptyState icon="Inbox" title="Cargando bandeja..." />;
+  if (inboxLoading) return <TrackRowSkeleton count={4} />;
   if (inbox.length === 0) {
     return (
       <EmptyState
