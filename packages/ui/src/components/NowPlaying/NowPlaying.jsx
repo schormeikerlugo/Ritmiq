@@ -28,6 +28,8 @@ import { hapticTap } from '../../lib/haptics.js';
 import { useSocialStore } from '../../stores/social.js';
 import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
 import { LyricsPanel } from './LyricsPanel.jsx';
+import { Visualizer } from './Visualizer.jsx';
+import { useSettingsStore } from '../../stores/settings.js';
 import styles from './NowPlaying.module.css';
 
 function fmt(sec) {
@@ -87,6 +89,8 @@ export function NowPlaying() {
   const [editOpen, setEditOpen] = useState(false);
   const [shareToFriendOpen, setShareToFriendOpen] = useState(false);
   const [lyricsOpen, setLyricsOpen] = useState(false);
+  const visualizerEnabled = useSettingsStore((s) => s.visualizerEnabled);
+  const setVisualizerEnabled = useSettingsStore((s) => s.setVisualizerEnabled);
   const friends = useSocialStore((s) => s.friends);
   /** Posición que muestra el scrubber mientras el usuario arrastra. null = no drag. */
   const [scrubPos, setScrubPos] = useState(null);
@@ -283,6 +287,12 @@ export function NowPlaying() {
             onClick: () => { closeSelf(); startRadio(); },
             disabled: !currentTrack?.artist,
           },
+      {
+        id: 'visualizer-toggle',
+        label: visualizerEnabled ? 'Ocultar visualizador' : 'Mostrar visualizador',
+        icon: 'Sparkles',
+        onClick: () => { closeSelf(); setVisualizerEnabled(!visualizerEnabled); },
+      },
     ];
     openSheet({
       title: 'Opciones',
@@ -379,6 +389,8 @@ export function NowPlaying() {
       {lyricsOpen && currentTrack && (
         <LyricsPanel track={currentTrack} />
       )}
+
+      <Visualizer enabled={visualizerEnabled && !!currentTrack} />
 
       <div className={styles.scrubber}>
         <input

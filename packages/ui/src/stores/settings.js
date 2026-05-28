@@ -39,6 +39,9 @@ const DEFAULTS = {
   // que otros users sin desktop propio puedan reproducir al instante.
   // Opt-out via toggle en Settings -> Reproduccion.
   publishUrlCache: true,
+  // Visualizer canvas en NowPlaying. Default OFF para no drenar bateria
+  // en mobile; usuario lo activa explicitamente desde NowPlaying.
+  visualizerEnabled: false,
 };
 
 function readInitial() {
@@ -57,6 +60,9 @@ function readInitial() {
       publishUrlCache: typeof parsed.publishUrlCache === 'boolean'
         ? parsed.publishUrlCache
         : DEFAULTS.publishUrlCache,
+      visualizerEnabled: typeof parsed.visualizerEnabled === 'boolean'
+        ? parsed.visualizerEnabled
+        : DEFAULTS.visualizerEnabled,
     };
   } catch {
     return { ...DEFAULTS };
@@ -75,6 +81,7 @@ function persist(state) {
       eqGains: state.eqGains,
       eqPreset: state.eqPreset,
       publishUrlCache: state.publishUrlCache,
+      visualizerEnabled: state.visualizerEnabled,
     }));
   } catch {}
 }
@@ -120,6 +127,12 @@ export const useSettingsStore = create((set, get) => ({
   /** Reset total a defaults. */
   resetAudio() {
     set({ ...DEFAULTS, eqGains: DEFAULTS.eqGains.slice() });
+    persist(get());
+  },
+
+  /** @param {boolean} enabled \u2014 toggle del visualizer canvas en NowPlaying. */
+  setVisualizerEnabled(enabled) {
+    set({ visualizerEnabled: !!enabled });
     persist(get());
   },
 
