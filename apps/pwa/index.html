@@ -39,9 +39,115 @@
       media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
 
     <title>Ritmiq</title>
+
+    <!-- ──────────────────────────────────────────────────────────────────
+         Splash screen inline. Aparece ANTES de que el bundle de React se
+         descargue/parsee y desaparece cuando React monta su primer nodo
+         dentro de #root. Inline a proposito: cero round-trips de red.
+
+         Estrategia de fade-out:
+           1. MutationObserver detecta el primer child anadido a #root.
+           2. Anade class .ritmiq-splash--hide al overlay (opacity 0 + drop).
+           3. Tras 360ms (transicion CSS), remueve el overlay del DOM.
+
+         Fallback: si por algun motivo el observer no dispara en 8s
+         (bundle muy lento, error de carga), el splash se oculta de
+         todas formas para no bloquear visibilidad. La app puede haber
+         fallado pero al menos el usuario ve el fondo, no un logo
+         pulsando para siempre.
+    ────────────────────────────────────────────────────────────────────── -->
+    <style>
+      #ritmiq-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: #0a0a0c;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        transition: opacity 360ms cubic-bezier(0.4, 0, 0.2, 1);
+        /* Evita parpadeo del body antes del primer paint */
+        pointer-events: none;
+      }
+      #ritmiq-splash.ritmiq-splash--hide {
+        opacity: 0;
+      }
+      .ritmiq-splash__logo {
+        width: 112px;
+        height: 112px;
+        border-radius: 24px;
+        background-image: url('/icon-mark.png');
+        background-size: cover;
+        background-position: center;
+        box-shadow: 0 16px 48px rgba(124, 92, 255, 0.35);
+        animation: ritmiq-splash-pulse 1800ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      .ritmiq-splash__bar {
+        width: 56px;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.10);
+        overflow: hidden;
+        position: relative;
+      }
+      .ritmiq-splash__bar::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg,
+          transparent 0%,
+          #7c5cff 50%,
+          transparent 100%);
+        animation: ritmiq-splash-slide 1400ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      @keyframes ritmiq-splash-pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50%      { transform: scale(1.04); opacity: 0.92; }
+      }
+      @keyframes ritmiq-splash-slide {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ritmiq-splash__logo { animation: none; }
+        .ritmiq-splash__bar::after { animation: none; opacity: 0.6; }
+      }
+    </style>
   </head>
   <body>
+    <div id="ritmiq-splash" aria-hidden="true">
+      <div class="ritmiq-splash__logo"></div>
+      <div class="ritmiq-splash__bar"></div>
+    </div>
     <div id="root"></div>
+    <script>
+      (function () {
+        var splash = document.getElementById('ritmiq-splash');
+        var root = document.getElementById('root');
+        if (!splash || !root) return;
+        var hidden = false;
+        function hide() {
+          if (hidden) return;
+          hidden = true;
+          splash.classList.add('ritmiq-splash--hide');
+          setTimeout(function () {
+            if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+          }, 380);
+        }
+        // Observa la primera mutacion en #root (React monto algo).
+        var mo = new MutationObserver(function () {
+          if (root.children.length > 0) {
+            mo.disconnect();
+            hide();
+          }
+        });
+        mo.observe(root, { childList: true });
+        // Fallback de seguridad: 8s.
+        setTimeout(function () { mo.disconnect(); hide(); }, 8000);
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
