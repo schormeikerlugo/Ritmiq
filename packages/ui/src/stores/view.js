@@ -1,6 +1,44 @@
 import { create } from 'zustand';
 
 /**
+ * Restaura el estado persistido de queueOpen desde localStorage.
+ *
+ * Motivacion: en desktop la "cola siempre visible" es preferencia
+ * personal del usuario. Antes el estado se perdia al recargar; ahora se
+ * persiste y restaura al boot. Mobile ignora esto por completo \u2014 alli
+ * la cola es modal full-screen, no panel lateral.
+ *
+ * Lectura defensiva: si localStorage no esta disponible (SSR, modo
+ * incognito en algunos browsers) o el valor esta corrupto, default false.
+ */
+const QUEUE_OPEN_KEY = 'ritmiq.queue-open-desktop';
+function loadQueueOpenInitial() {
+  if (typeof localStorage === 'undefined') return false;
+  // Solo aplica preferencia persistida en desktop. En mobile la cola
+  // siempre arranca cerrada (es modal full-screen).
+  if (typeof window !== 'undefined') {
+    try {
+      if (window.matchMedia?.('(max-width: 768px)').matches) return false;
+    } catch {}
+  }
+  try {
+    return localStorage.getItem(QUEUE_OPEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function persistQueueOpen(value) {
+  if (typeof localStorage === 'undefined') return;
+  // Solo persistimos cambios en desktop \u2014 mobile no debe contaminar el flag.
+  if (typeof window !== 'undefined') {
+    try {
+      if (window.matchMedia?.('(max-width: 768px)').matches) return;
+    } catch {}
+  }
+  try { localStorage.setItem(QUEUE_OPEN_KEY, value ? '1' : '0'); } catch {}
+}
+
+/**
  * Estado de navegación de la vista central.
  * - 'home'      → pantalla de inicio (recomendaciones futuras)
  * - 'library'   → todas las canciones guardadas
@@ -45,7 +83,8 @@ export const useViewStore = create((set, get) => ({
   view: { kind: 'home' },
   /** @type {View[]} historial para back. */
   history: [],
-  queueOpen: false,
+  /** Desktop: persistido en localStorage. Mobile: siempre false al boot. */
+  queueOpen: loadQueueOpenInitial(),
   sidebarOpen: false, // móvil: overlay
   nowPlayingOpen: false, // mobile fullscreen player + desktop side panel
   /** @type {null | 'account'}  Subvista interna de Ajustes (futuro:
@@ -94,8 +133,15 @@ export const useViewStore = create((set, get) => ({
     set({ view: next, history: stack.slice(0, -1), sidebarOpen: false });
   },
 
-  toggleQueue: () => set((s) => ({ queueOpen: !s.queueOpen })),
-  closeQueue:  () => set({ queueOpen: false }),
+  toggleQueue: () => set((s) => {
+    const next = !s.queueOpen;
+    persistQueueOpen(next);
+    return { queueOpen: next };
+  }),
+  closeQueue: () => {
+    persistQueueOpen(false);
+    return set({ queueOpen: false });
+  },
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   closeSidebar:  () => set({ sidebarOpen: false }),
   openNowPlaying:  () => set({ nowPlayingOpen: true }),
