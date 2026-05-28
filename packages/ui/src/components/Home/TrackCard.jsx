@@ -3,11 +3,11 @@
  * Cover cuadrado + título + subtítulo + botón play overlay en hover.
  */
 import { Icon } from '../Icon/Icon.jsx';
+import { CoverArt } from '../primitives/CoverArt.jsx';
 import styles from './TrackCard.module.css';
 
 export function TrackCard({ track, subtitle, onClick }) {
   if (!track) return null;
-  const cover = track.coverUrl;
   return (
     <button
       type="button"
@@ -16,9 +16,12 @@ export function TrackCard({ track, subtitle, onClick }) {
       aria-label={`Reproducir ${track.title}`}
     >
       <div className={styles.coverWrap}>
-        {cover
-          ? <img className={styles.cover} src={cover} alt="" loading="lazy" />
-          : <div className={styles.coverFallback}><Icon name="Music" size={28} /></div>}
+        <CoverArt
+          coverUrl={track.coverUrl}
+          seed={track.title || track.artist || ''}
+          radius="sm"
+          className={styles.cover}
+        />
         <span className={styles.playBtn} aria-hidden="true">
           <Icon name="Play" size={18} filled />
         </span>

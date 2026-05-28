@@ -1,0 +1,28 @@
+/* CoverArt \u2014 wrapper minimo con overflow hidden + centrado de fallback. */
+
+.cover {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--color-bg-3, #1a1a1f); /* fallback antes de aplicar gradient inline */
+  color: rgba(255, 255, 255, 0.85);
+  /* width+height vienen via style inline cuando `size` esta definido,
+     o se heredan del padre cuando no. */
+  flex-shrink: 0;
+}
+
+.img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.initials {
+  font-weight: var(--fw-bold, 700);
+  font-size: clamp(14px, 30%, 48px);
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  user-select: none;
+}

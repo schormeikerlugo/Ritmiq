@@ -7,6 +7,7 @@ import { isEphemeralTrack } from '../../lib/track-helpers.js';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
 import { Icon } from '../Icon/Icon.jsx';
+import { CoverArt } from '../primitives/CoverArt.jsx';
 import { hapticTap } from '../../lib/haptics.js';
 import styles from './Player.module.css';
 
@@ -197,9 +198,12 @@ export function Player() {
             data-spinning={isPlaying && !!currentTrack?.coverUrl}
             aria-hidden="true"
           >
-            {currentTrack?.coverUrl
-              ? <img src={currentTrack.coverUrl} alt="" />
-              : <div className={styles.coverPlaceholder}><Icon name="Music" size={20} /></div>}
+            <CoverArt
+              coverUrl={currentTrack?.coverUrl}
+              seed={currentTrack?.title || currentTrack?.artist || 'ritmiq'}
+              radius="sm"
+              initials={!!currentTrack}
+            />
           </div>
           <div className={styles.meta}>
             <div className={styles.title}>
