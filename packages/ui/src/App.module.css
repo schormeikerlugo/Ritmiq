@@ -124,9 +124,12 @@
   padding: var(--space-5);
 }
 
-/* Transición suave al cambiar de vista (Home → Library → Playlist…) */
+/* Transicion de entrada al cambiar de vista (Home \u2192 Library \u2192 Playlist...).
+ * Manejada por useViewTransition (GSAP) en ViewSlot \u2014 ver App.jsx. La
+ * animacion CSS se removio porque GSAP da control mas fino y respeta
+ * prefers-reduced-motion via gsap.matchMedia. will-change se queda para
+ * que el compositor reserve la capa antes del primer tween. */
 .viewSlot {
-  animation: ritmiq-fade-in-up 280ms var(--ease-emphasized);
   will-change: transform, opacity;
 }
 

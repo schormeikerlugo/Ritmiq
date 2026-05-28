@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Sidebar } from './components/Sidebar/Sidebar.jsx';
 import { Library } from './components/Library/Library.jsx';
 import { Home } from './components/Home/Home.jsx';
@@ -54,6 +54,7 @@ import { useSocialRealtime } from './lib/use-social-realtime.js';
 import { useShareReminder } from './lib/use-share-reminder.js';
 import { ShareReminderModal } from './components/ShareReminder/ShareReminderModal.jsx';
 import { usePushRegistration } from './lib/use-push.js';
+import { useViewTransition } from './lib/use-view-transition.js';
 import { useAppBadge } from './lib/use-badge.js';
 import { useSettingsStore } from './stores/settings.js';
 import { initTheme } from './stores/theme.js';
@@ -530,8 +531,8 @@ function QueueOutlet() {
 
 function MainView() {
   const view = useViewStore((s) => s.view);
-  // Una `key` única por vista hace que React remonte y dispare la animación
-  // CSS de entrada (`ritmiq-fade-in-up` en `.main > *`) en cada navegación.
+  // Una `key` única por vista hace que React remonte y dispare la
+  // transicion de entrada via useViewTransition (GSAP) en ViewSlot.
   let key = view.kind;
   if (view.kind === 'playlist') key = `playlist:${view.playlistId}`;
   else if (view.kind === 'ytPlaylist') key = `ytPlaylist:${view.ytPlaylistId}`;
@@ -579,5 +580,22 @@ function MainView() {
   else if (view.kind === 'artist') content = <ArtistView name={view.name} />;
   else if (view.kind === 'album') content = <AlbumView artist={view.artist} album={view.album} />;
   else return null;
-  return <div key={key} className={styles.viewSlot}>{content}</div>;
+  return <ViewSlot key={key}>{content}</ViewSlot>;
+}
+
+/**
+ * ViewSlot — wrapper de la vista activa con transicion de entrada GSAP.
+ *
+ * Se remonta en cada cambio de `key` (kind/id de la view), lo que dispara
+ * useViewTransition con preset 'fadeUp'. El hook respeta automaticamente
+ * prefers-reduced-motion via gsap.matchMedia.
+ *
+ * Se mantiene como componente separado (en vez de inline en MainView) para
+ * que el ref tenga ciclo de vida limpio: mount al asignar new key, unmount
+ * al cambiar. ctx.revert() limpia los tweens del slot saliente.
+ */
+function ViewSlot({ children }) {
+  const ref = useRef(null);
+  useViewTransition(ref, { preset: 'fadeUp' });
+  return <div ref={ref} className={styles.viewSlot}>{children}</div>;
 }
