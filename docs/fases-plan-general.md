@@ -19,22 +19,16 @@ useViewTransition hook, ViewSlot con GSAP, stagger HomeRow.
 
 Bundle delta: +71 KiB precache, +66 KB gzipped (GSAP core).
 
-## Fase 2 — Quick wins visuales (siguiente)
+## Fase 2 — Quick wins visuales ✓ COMPLETADA
 
-Alto impacto, bajo esfuerzo. Demo a tercero al final.
+Ver `docs/fase-2-completada.md`.
 
-| # | Commit | Esfuerzo |
-|---|---|---|
-| 2.1 | splash pantalla de carga inicial | 1.5h |
-| 2.2 | CoverArt con gradient hash placeholder | 2h |
-| 2.3 | skeletons fieles por seccion | 2h |
-| 2.4 | progress bar player con gradient accent | 45min |
-| 2.5 | nowplaying cover breathing animation | 1h |
-| 2.6 | bottomsheet drag-to-dismiss real | 2.5h |
+6 commits: splash inline, CoverArt primitive, RowSkeleton fiel,
+progress bar gradient, cover breathing, BottomSheet PointerEvents.
 
-Total: ~10h.
+Bundle delta: +9 KiB vs Fase 1 (despreciable).
 
-## Fase 3 — Sistematizar (deuda de arquitectura UI)
+## Fase 3 — Sistematizar (siguiente)
 
 | # | Commit | Esfuerzo | Riesgo |
 |---|---|---|---|
@@ -130,7 +124,8 @@ commits, hashes, verificacion manual, deploys requeridos.
 
 - ✓ Fase 0 (5 commits + docs, ver `fase-0-completada.md`).
 - ✓ Fase 1 (5 commits + docs, ver `fase-1-completada.md`).
-- ⧗ Siguiente: Fase 2.1.
+- ✓ Fase 2 (6 commits + docs, ver `fase-2-completada.md`).
+- ⧗ Siguiente: Fase 3.1.
 
 ## Decisiones tomadas
 
