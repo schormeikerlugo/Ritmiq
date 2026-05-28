@@ -92,6 +92,49 @@ export function NowPlaying() {
   const visualizerEnabled = useSettingsStore((s) => s.visualizerEnabled);
   const setVisualizerEnabled = useSettingsStore((s) => s.setVisualizerEnabled);
   const friends = useSocialStore((s) => s.friends);
+
+  /**
+   * Toggle del visualizer. CRITICO iOS PWA + Electron: inicializar el
+   * WebAudio graph SINCRONICAMENTE dentro del gesto del click. Sin esto
+   * el AudioContext queda 'suspended' y getAnalyser() devuelve null,
+   * con el resultado que el canvas no dibuja nada (causa que reporto
+   * el usuario: "no veo que haga alguna funcion").
+   *
+   * Mismo patron que PlaybackSection.handleEqToggle. Si initGraphFromGesture
+   * falla (AudioContext API no disponible o sin track sonando), aborta
+   * sin tocar el setting \u2014 puerta trasera: el state queda igual y
+   * el usuario puede reintentar tras dar play.
+   */
+  const handleVisualizerToggle = () => {
+    const next = !visualizerEnabled;
+    if (!next) {
+      // Apagar es seguro siempre, no requiere gesto.
+      setVisualizerEnabled(false);
+      return;
+    }
+    const backend = getSharedBackend();
+    if (!backend?.initGraphFromGesture) {
+      // Backend no disponible \u2014 silenciar y avisar via toast.
+      toast.error('Motor de audio no disponible. Reproduce algo primero.');
+      return;
+    }
+    // PASO 1 (sincrono): captura el gesto.
+    const initPromise = backend.initGraphFromGesture();
+    if (!initPromise) {
+      toast.error('AudioContext no disponible en este entorno.');
+      return;
+    }
+    // PASO 2 (async): si el resume tuvo exito, activar el toggle.
+    initPromise.then((ok) => {
+      if (!ok) {
+        toast.error('No se pudo inicializar el visualizador. Reproduce algo primero.');
+        return;
+      }
+      setVisualizerEnabled(true);
+    }).catch(() => {
+      toast.error('Error inicializando el visualizador.');
+    });
+  };
   /** Posición que muestra el scrubber mientras el usuario arrastra. null = no drag. */
   const [scrubPos, setScrubPos] = useState(null);
 
@@ -291,7 +334,10 @@ export function NowPlaying() {
         id: 'visualizer-toggle',
         label: visualizerEnabled ? 'Ocultar visualizador' : 'Mostrar visualizador',
         icon: 'Sparkles',
-        onClick: () => { closeSelf(); setVisualizerEnabled(!visualizerEnabled); },
+        // closeSelf() invoca un await interno; ejecutamos primero el
+        // handleVisualizerToggle para capturar el gesto antes de que
+        // la maquinaria del bottomsheet rompa el contexto sincrono.
+        onClick: () => { handleVisualizerToggle(); closeSelf(); },
       },
     ];
     openSheet({

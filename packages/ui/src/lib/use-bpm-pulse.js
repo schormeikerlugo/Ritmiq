@@ -38,20 +38,48 @@ export function useBpmPulse(backend, enabled = true) {
 
   useEffect(() => {
     if (!enabled || !backend) return undefined;
-    let analyser;
-    try {
-      analyser = backend.getAnalyser?.();
-      if (!analyser) return undefined;
-      analyser.fftSize = FFT_SIZE;
-    } catch {
-      return undefined;
-    }
 
-    const bins = new Uint8Array(analyser.frequencyBinCount);
+    // Estado del attach: el analyser puede no existir todavia (graph
+    // lazy del backend \u2014 ver html-audio-backend.js header). Hacemos
+    // polling cada 1.5s hasta 8 veces para reintentar tras un activado
+    // tardio del graph (ej. usuario activa el visualizer despues de
+    // abrir NowPlaying \u2014 el handler del visualizer init el graph y
+    // el bpm pulse debe engancharse al siguiente intento).
+    let analyser = null;
+    let bins = null;
     let raf = null;
     let lastSet = 0;
+    let attachAttempts = 0;
+    let attachTimer = null;
+    const MAX_ATTACH_ATTEMPTS = 8;
+    const ATTACH_INTERVAL_MS = 1500;
+
+    function tryAttach() {
+      try {
+        const a = backend.getAnalyser?.();
+        if (a) {
+          analyser = a;
+          analyser.fftSize = FFT_SIZE;
+          bins = new Uint8Array(analyser.frequencyBinCount);
+          raf = requestAnimationFrame(tick);
+          return true;
+        }
+      } catch {
+        // ignore
+      }
+      attachAttempts++;
+      if (attachAttempts < MAX_ATTACH_ATTEMPTS) {
+        attachTimer = setTimeout(tryAttach, ATTACH_INTERVAL_MS);
+      }
+      return false;
+    }
 
     function tick(now) {
+      // Guard defensivo \u2014 si entre frames el analyser fue desconectado.
+      if (!analyser || !bins) {
+        raf = null;
+        return;
+      }
       // Solo procesa si esta reproduciendo. Si pausado, mantiene la
       // ultima escala pero no consume CPU haciendo getByteFrequencyData.
       const isPlaying = usePlayerStore.getState().isPlaying;
@@ -81,9 +109,14 @@ export function useBpmPulse(backend, enabled = true) {
       raf = requestAnimationFrame(tick);
     }
 
-    raf = requestAnimationFrame(tick);
+    // Primer intento de attach. Si falla, programa reintentos hasta
+    // MAX_ATTACH_ATTEMPTS. tryAttach() llama requestAnimationFrame(tick)
+    // internamente cuando consigue el analyser.
+    tryAttach();
+
     return () => {
       if (raf) cancelAnimationFrame(raf);
+      if (attachTimer) clearTimeout(attachTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend, enabled]);
