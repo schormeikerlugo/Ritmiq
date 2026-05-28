@@ -1,0 +1,98 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-bg-1);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+}
+
+.sub {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+}
+
+/* Scroll horizontal en mobile cuando el svg no cabe. */
+.scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  /* scrollbar-thin en webkit (solo decorativo) */
+  scrollbar-width: thin;
+}
+
+.svg {
+  display: block;
+}
+
+.monthLabel {
+  fill: var(--color-text-3);
+  font-size: 10px;
+  font-family: var(--font-sans, inherit);
+}
+.dayLabel {
+  fill: var(--color-text-3);
+  font-size: 10px;
+  font-family: var(--font-sans, inherit);
+}
+
+/* Niveles de intensidad. 0 = sin actividad, 4 = maximo. */
+.cell {
+  cursor: pointer;
+  transition: filter var(--dur-fast) var(--ease-standard);
+}
+.cell:hover { filter: brightness(1.35); }
+.cell[data-level='0'] { fill: rgba(255, 255, 255, 0.06); }
+.cell[data-level='1'] { fill: color-mix(in oklab, var(--color-accent) 25%, transparent); }
+.cell[data-level='2'] { fill: color-mix(in oklab, var(--color-accent) 50%, transparent); }
+.cell[data-level='3'] { fill: color-mix(in oklab, var(--color-accent) 75%, transparent); }
+.cell[data-level='4'] { fill: var(--color-accent); }
+
+/* Tooltip overlay */
+.tooltip {
+  font-size: var(--fs-xs);
+  color: var(--color-text-2);
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  align-self: flex-start;
+  animation: ritmiq-fade-in var(--dur-fast) var(--ease-standard);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-end;
+  font-size: 10px;
+  color: var(--color-text-3);
+}
+.legendLabel { padding: 0 4px; }
+.legendCell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.legendCell[data-level='0'] { background: rgba(255, 255, 255, 0.06); }
+.legendCell[data-level='1'] { background: color-mix(in oklab, var(--color-accent) 25%, transparent); }
+.legendCell[data-level='2'] { background: color-mix(in oklab, var(--color-accent) 50%, transparent); }
+.legendCell[data-level='3'] { background: color-mix(in oklab, var(--color-accent) 75%, transparent); }
+.legendCell[data-level='4'] { background: var(--color-accent); }

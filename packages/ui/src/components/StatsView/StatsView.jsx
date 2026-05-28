@@ -12,6 +12,7 @@
  */
 import { useMemo, useState } from 'react';
 import { useHistoryStore, selectStatsForPeriod } from '../../stores/history.js';
+import { ActivityHeatmap } from './ActivityHeatmap.jsx';
 import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
 import { Icon } from '../Icon/Icon.jsx';
@@ -136,6 +137,9 @@ export function StatsView() {
               />
             )}
           </div>
+
+          {/* ── Heatmap anual ───────────────────────────────────────── */}
+          <ActivityHeatmap events={events} />
 
           {/* ── Trofeos ─────────────────────────────────────────────── */}
           <section className={styles.section}>
