@@ -10,22 +10,16 @@ Ver `docs/fase-0-completada.md`.
 5 commits: T4 cookie iOS, T5 refresh visibility, T7 Open Graph SSR,
 guardar discografia, abrir playlist YT.
 
-## Fase 1 — Sistema de motion (siguiente)
+## Fase 1 — Sistema de motion ✓ COMPLETADA
 
-Fundacion visual para las fases 2+. Sin esto, transiciones se sienten
-desconectadas.
+Ver `docs/fase-1-completada.md`.
 
-| # | Commit | Esfuerzo | Riesgo |
-|---|---|---|---|
-| 1.1 | `feat(tokens): duration + motion system` | 30min | nulo |
-| 1.2 | `chore(deps): instalar gsap` | 15min | bajo |
-| 1.3 | `feat(motion): hook useViewTransition` | 1h | bajo |
-| 1.4 | `feat(motion): transiciones entre vistas top-level` | 1.5h | medio |
-| 1.5 | `feat(motion): stagger entrada HomeRow cards` | 1h | bajo |
+5 commits: duration+ease tokens + reduced-motion global, install gsap,
+useViewTransition hook, ViewSlot con GSAP, stagger HomeRow.
 
-Total: ~4.5h.
+Bundle delta: +71 KiB precache, +66 KB gzipped (GSAP core).
 
-## Fase 2 — Quick wins visuales
+## Fase 2 — Quick wins visuales (siguiente)
 
 Alto impacto, bajo esfuerzo. Demo a tercero al final.
 
@@ -134,8 +128,9 @@ commits, hashes, verificacion manual, deploys requeridos.
 
 ## Estado actual
 
-- ✓ Fase 0 (5 commits, ver `fase-0-completada.md`).
-- ⧗ Siguiente: Fase 1.1.
+- ✓ Fase 0 (5 commits + docs, ver `fase-0-completada.md`).
+- ✓ Fase 1 (5 commits + docs, ver `fase-1-completada.md`).
+- ⧗ Siguiente: Fase 2.1.
 
 ## Decisiones tomadas
 
