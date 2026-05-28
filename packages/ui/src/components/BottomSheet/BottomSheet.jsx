@@ -6,7 +6,13 @@
  *  - Sube desde abajo con animacion spring (cubic-bezier emphasized).
  *  - Drag handle arriba como cue visual para arrastrar.
  *  - Backdrop con dim oscuro + blur. Click cierra.
- *  - Swipe-down en handle/header cierra con resistencia visual.
+ *  - Drag-to-dismiss via Pointer Events (touch + mouse unificado) en el
+ *    handle Y el header. Threshold por porcentaje del alto del sheet
+ *    (35%) o por velocidad (0.5 px/ms hacia abajo) para sentir natural
+ *    en cualquier tamano de viewport.
+ *  - Resistencia elastica (factor 0.92) para que el drag se sienta
+ *    refinado en lugar de seguir 1:1 al dedo.
+ *  - Backdrop dim dinamico durante el drag (mas opaco -> mas cerca).
  *  - Bloquea scroll del body mientras esta abierto.
  *  - Respeta safe-area-inset-bottom (iPhone home indicator) via CSS.
  *  - Solo activo en mobile (<=768px). En desktop renderea como Modal.
@@ -21,8 +27,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useLockBodyScroll } from '../../lib/use-lock-body-scroll.js';
 import styles from './BottomSheet.module.css';
 
-const CLOSE_THRESHOLD_PX = 80; // distancia para gatillar cierre por swipe
-const CLOSE_VELOCITY_PX_PER_MS = 0.5; // velocidad alternativa
+const CLOSE_THRESHOLD_PCT = 0.35;        // 35% del alto del sheet
+const CLOSE_VELOCITY_PX_PER_MS = 0.5;    // velocidad alternativa
+const DRAG_RESISTANCE = 0.92;            // factor de seguimiento
 
 /**
  * @param {Object} props
@@ -38,7 +45,9 @@ export function BottomSheet({ onClose, children, title, header, dismissOnBackdro
   const sheetRef = useRef(null);
   const [closing, setClosing] = useState(false);
   const [dragY, setDragY] = useState(0);
+  // Estado del drag actual. Mantener en ref evita re-renders por frame.
   const dragRef = useRef({
+    pointerId: null,
     startY: 0,
     lastY: 0,
     lastT: 0,
@@ -60,49 +69,67 @@ export function BottomSheet({ onClose, children, title, header, dismissOnBackdro
     setTimeout(() => onClose?.(), 260);
   };
 
-  // ── Swipe-down handlers ──────────────────────────────────────────────
-  const onTouchStart = (e) => {
-    const t = e.touches[0];
-    if (!t) return;
+  // ── Pointer events (touch + mouse unificados) ────────────────────────
+  // pointerdown: registra inicio + captura el pointer al elemento para
+  // que pointermove y pointerup nos lleguen aunque el cursor salga.
+  // pointermove: actualiza translateY con resistencia 0.92.
+  // pointerup: decide cierre vs snap-back con threshold + velocidad.
+
+  const onPointerDown = (e) => {
+    // Solo botton primario o touch/pen. Ignoramos right-click, etc.
+    if (e.button !== undefined && e.button !== 0) return;
+    const target = e.currentTarget;
+    try { target.setPointerCapture?.(e.pointerId); } catch {}
     dragRef.current = {
-      startY: t.clientY,
-      lastY: t.clientY,
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      lastY: e.clientY,
       lastT: performance.now(),
       velocity: 0,
       active: true,
     };
   };
 
-  const onTouchMove = (e) => {
-    if (!dragRef.current.active) return;
-    const t = e.touches[0];
-    if (!t) return;
+  const onPointerMove = (e) => {
+    const d = dragRef.current;
+    if (!d.active || d.pointerId !== e.pointerId) return;
     const now = performance.now();
-    const dy = Math.max(0, t.clientY - dragRef.current.startY);
-    // Calculo de velocidad para usar como criterio alternativo de cierre.
-    const dt = now - dragRef.current.lastT;
-    if (dt > 0) {
-      dragRef.current.velocity = (t.clientY - dragRef.current.lastY) / dt;
-    }
-    dragRef.current.lastY = t.clientY;
-    dragRef.current.lastT = now;
-    // Aplicamos la translacion con un poco de resistencia para que se
-    // sienta "elastica" — el sheet no sigue al dedo 1:1, sino con un
-    // factor 0.92 (90% del movimiento). Se siente mas refinado.
-    setDragY(dy * 0.92);
+    const dy = Math.max(0, e.clientY - d.startY);
+    const dt = now - d.lastT;
+    if (dt > 0) d.velocity = (e.clientY - d.lastY) / dt;
+    d.lastY = e.clientY;
+    d.lastT = now;
+    setDragY(dy * DRAG_RESISTANCE);
   };
 
-  const onTouchEnd = () => {
-    if (!dragRef.current.active) return;
-    const finalY = dragY / 0.92; // delta real
-    const v = dragRef.current.velocity;
-    dragRef.current.active = false;
-    if (finalY > CLOSE_THRESHOLD_PX || v > CLOSE_VELOCITY_PX_PER_MS) {
+  const onPointerUp = (e) => {
+    const d = dragRef.current;
+    if (!d.active || d.pointerId !== e.pointerId) return;
+    const target = e.currentTarget;
+    try { target.releasePointerCapture?.(e.pointerId); } catch {}
+    const finalY = dragY / DRAG_RESISTANCE; // delta real arrastrado
+    const v = d.velocity;
+    d.active = false;
+    d.pointerId = null;
+
+    // Threshold: 35% del alto del sheet (medido en runtime).
+    const sheetH = sheetRef.current?.offsetHeight ?? 600;
+    const closeThresholdPx = sheetH * CLOSE_THRESHOLD_PCT;
+
+    if (finalY > closeThresholdPx || v > CLOSE_VELOCITY_PX_PER_MS) {
       handleClose();
     } else {
       // Snap-back animado a posicion 0.
       setDragY(0);
     }
+  };
+
+  const onPointerCancel = (e) => {
+    const d = dragRef.current;
+    if (!d.active || d.pointerId !== e.pointerId) return;
+    d.active = false;
+    d.pointerId = null;
+    setDragY(0);
   };
 
   const onBackdropMouseDown = (e) => {
@@ -120,11 +147,33 @@ export function BottomSheet({ onClose, children, title, header, dismissOnBackdro
       ? { transition: 'transform 260ms var(--ease-emphasized)' }
       : undefined;
 
+  // Backdrop dim dinamico durante drag. Cuanto mas se arrastra hacia
+  // abajo, mas transparente se vuelve \u2014 cue visual de "estas cerrando".
+  // Usamos el alto del sheet como referencia: opacidad cae linealmente
+  // entre 0 (sin drag) y 50% del threshold de cierre.
+  const sheetH = sheetRef.current?.offsetHeight ?? 600;
+  const closeThresholdPx = sheetH * CLOSE_THRESHOLD_PCT;
+  const realDragY = dragY / DRAG_RESISTANCE;
+  const dragProgress = Math.min(1, realDragY / closeThresholdPx);
+  const backdropStyle = !closing && dragY > 0
+    ? { opacity: 1 - dragProgress * 0.6, transition: 'none' }
+    : undefined;
+
+  // Drag handlers comunes para el handle Y el header (mas area de
+  // captura, mejor UX en mobile).
+  const dragHandlers = {
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+  };
+
   return (
     <>
       <div
         className={styles.backdrop}
         data-closing={closing}
+        style={backdropStyle}
         onMouseDown={onBackdropMouseDown}
         aria-hidden="true"
       />
@@ -138,25 +187,16 @@ export function BottomSheet({ onClose, children, title, header, dismissOnBackdro
           ref={sheetRef}
           className={styles.sheetInner}
           data-closing={closing}
+          data-dragging={dragY > 0 && !closing ? 'true' : undefined}
           style={sheetStyle}
         >
           {/* Handle drag — area touch sensible para swipe-down */}
-          <div
-            className={styles.handleWrap}
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
-          >
+          <div className={styles.handleWrap} {...dragHandlers}>
             <div className={styles.handle} aria-hidden="true" />
           </div>
 
           {(title || header) && (
-            <header
-              className={styles.header}
-              onTouchStart={onTouchStart}
-              onTouchMove={onTouchMove}
-              onTouchEnd={onTouchEnd}
-            >
+            <header className={styles.header} {...dragHandlers}>
               {header ?? <h3 className={styles.title}>{title}</h3>}
             </header>
           )}
