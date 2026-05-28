@@ -6,7 +6,18 @@
 }
 
 .head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   padding: 0 var(--space-1);
+}
+
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .title {
@@ -15,6 +26,61 @@
   letter-spacing: -0.02em;
   margin: 0;
   color: var(--color-text-1);
+}
+
+/* Linea pequena del subtitle. Misma animacion shimmer. */
+.subLine {
+  display: block;
+  height: 10px;
+  width: 140px;
+  max-width: 60vw;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: ritmiq-shimmer 1.6s linear infinite;
+}
+
+/* Boton 'Reproducir' placeholder \u2014 pill con dot + linea. */
+.playBtnSkel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+.playBtnDot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: ritmiq-shimmer 1.6s linear infinite;
+}
+.playBtnLine {
+  display: block;
+  width: 56px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: ritmiq-shimmer 1.6s linear infinite;
 }
 
 .scroll {
@@ -48,6 +114,13 @@
   );
   background-size: 200% 100%;
   animation: ritmiq-shimmer 1.6s linear infinite;
+}
+
+/* Variante circular para cards de artistas. */
+.coverCircle {
+  border-radius: 50%;
+  width: 80%;
+  margin: 0 auto;
 }
 
 .line {
