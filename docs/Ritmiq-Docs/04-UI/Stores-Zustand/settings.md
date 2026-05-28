@@ -3,7 +3,7 @@ tipo: store
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/stores/settings.js
 tags: [store, settings, audio, eq, crossfade, persistencia]
 ---
@@ -95,3 +95,4 @@ Este store almacena **preferencias**, no aplica nada. La aplicación al backend 
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-05-27 (Fase 4.5): nuevo setting `visualizerEnabled` (default `false`) + setter `setVisualizerEnabled(enabled)`. Persistido en localStorage junto al resto. Consumido por [[Visualizer]] vía [[NowPlaying]]. Commit `5f7ec2e`.

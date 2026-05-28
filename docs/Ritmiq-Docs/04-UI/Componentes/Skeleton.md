@@ -3,7 +3,7 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/components/Skeleton/Skeleton.jsx
 tags: [componente, skeleton, loading, shimmer]
 ---
@@ -41,3 +41,4 @@ CSS `@keyframes shimmer` con `background: linear-gradient(90deg, var(--skeleton-
 
 ## Notas / Changelog
 - 2026-05-22: nivel simple.
+- 2026-05-27 (Fase 2.3): `RowSkeleton` (usado por [[Home]]) ahora replica fielmente el `HomeRow` final: añade `subLine` placeholder + `playBtnSkel` (pill con dot + line) + variante `shape='circle'` para skeletons de artistas. Layout no salta cuando llegan los datos reales. Commit `ac13429`.

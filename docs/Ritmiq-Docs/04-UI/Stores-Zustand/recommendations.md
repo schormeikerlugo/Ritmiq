@@ -3,7 +3,7 @@ tipo: store
 capa: ui
 plataforma: ambas
 estado: beta
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/stores/recommendations.js
 tags: [store, recomendaciones, lastfm, edge-function]
 ---
@@ -94,3 +94,4 @@ function recToTrack(rec) {
 
 ## Notas / Changelog
 - 2026-05-22: nivel simple. Estado `beta` por depender de Last.fm que puede tener downtime.
+- 2026-05-27 (Fase 3.2): `callRecs` ahora envuelve `callRecsRaw` con [[with-retry]] (3 intentos con backoff exponencial 500ms → 1s → 2s). La Edge Function suele fallar con 5xx cuando Last.fm rate-limit (5 req/s) golpea bajo carga. Commit `e12cf95`.

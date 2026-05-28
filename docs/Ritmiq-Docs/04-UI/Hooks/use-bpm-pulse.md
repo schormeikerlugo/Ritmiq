@@ -3,7 +3,7 @@ tipo: hook
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/lib/use-bpm-pulse.js
 tags: [hook, audio, visualizer, webaudio, performance]
 ---
@@ -111,3 +111,4 @@ function tick(now) {
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-05-27 (FIX latente de Fase 4.5): el hook salía silencioso si `getAnalyser()` devolvía `null` al mount inicial (graph WebAudio lazy-init). El cover **nunca** pulsaba al beat aunque NowPlaying estuviera abierto y el track sonando. Refactor con `tryAttach()`: polling cada 1.5s hasta 8 veces para re-intentar conseguir el analyser tras un init tardío del graph (típicamente cuando el usuario activa el visualizer). `tick()` tiene guard contra `analyser`/`bins` null. Cleanup limpia también `attachTimer`. Ver [[Decisiones-Tecnicas-ADR|ADR-015]]. Commit `ba887a2`.

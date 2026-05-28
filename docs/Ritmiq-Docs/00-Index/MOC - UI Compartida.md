@@ -3,7 +3,7 @@ tipo: moc
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 tags: [moc, ui]
 ---
 
@@ -21,6 +21,13 @@ FROM "04-UI/Componentes"
 WHERE tipo = "componente"
 SORT file.name ASC
 ```
+
+## Primitives
+
+Componentes atómicos reutilizables (`packages/ui/src/components/primitives/`). Migración progresiva de patrones repetidos. Ver [[Decisiones-Tecnicas-ADR|ADR-009]] (`CoverArt`) y [[Decisiones-Tecnicas-ADR|ADR-010]] (`ListView`).
+
+- [[CoverArt]] — cover con gradient hash placeholder. Reemplaza `cover ? <img/> : <fallback/>`.
+- [[ListView]] — lista vertical con virtualización opt-in (sin react-window).
 
 ## Hooks
 

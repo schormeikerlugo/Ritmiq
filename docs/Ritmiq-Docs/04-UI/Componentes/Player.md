@@ -3,7 +3,7 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/components/Player/Player.jsx
 tags: [componente, player, miniplayer, desktop, mobile]
 ---
@@ -57,3 +57,6 @@ const [shareOpen, setShareOpen] = useState(false); // abre ShareToFriendModal
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-27 (Fase 2.4): `barFill` ahora usa `linear-gradient(accent → accent+white 30% mix)` por default (antes solo en hover). Glow halo accent en hover/focus/scrubbing vía `box-shadow: 0 0 12px accent 60%`. `barThumb` gana ring halo en hover. Commit `7f3241c`.
+- 2026-05-27 (Fase 3.4): modo compacto automático en viewports con `max-height: 720px` (laptops 13"). `--layout-player-h` baja de 88 a 60px; `.controls` cambia de flex column a row; timestamps ocultos; cover 56→40px. Commit `6c6ca11`.
+- 2026-05-27 (commit `270da70`): mini-player cover **revertido a `<img>` directo** (no usa [[CoverArt]] primitive) para mantener selector `.cover img` que rige el `vinyl-spin` animation cuando `data-spinning=true`.

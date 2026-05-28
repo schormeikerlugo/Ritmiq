@@ -3,7 +3,7 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/components/BottomSheet/BottomSheetHost.jsx
 tags: [componente, bottom-sheet, overlay, stack, mobile]
 ---
@@ -55,3 +55,11 @@ En modo standalone iOS puede quedar un pequeño espacio entre el panel y el bord
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-05-27 (Fase 2.6): drag-to-dismiss refactor:
+  - Migración de touch events (`touchstart/move/end`) a **Pointer Events** unificados → mouse drag funciona en desktop ahora.
+  - `setPointerCapture` evita perder el drag cuando el cursor sale del sheet.
+  - Threshold de cierre cambia de px fijo (80) a **% del alto** del sheet (35%) → natural en cualquier viewport.
+  - Backdrop dim **dinámico** durante el drag (opacity 1 → 0.4).
+  - Handle visual cambia (opacity 0.85 + width 44px) durante drag.
+  - Header también captura el drag (más área).
+  - Commit `13fccfa`.

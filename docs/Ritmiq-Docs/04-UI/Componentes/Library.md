@@ -3,7 +3,7 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/components/Library/Library.jsx
 tags: [componente, biblioteca, playlists, artistas, filtros, pull-to-refresh]
 ---
@@ -60,3 +60,4 @@ Botón en el header que abre [[SpotifyImportDialog]]. Solo visible en desktop o 
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-27 (Fase 4.8): los `<li>` con `item.kind === 'track'` son **draggables** (HTML5 native). `onDragStart` setea `dataTransfer` con MIME `application/x-ritmiq-track` y `rawId`. Drop sobre los playlist items del [[Sidebar]]. Otros kinds (`playlist`, `artist`) NO son draggables. Commit `8a08302`.

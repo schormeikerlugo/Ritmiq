@@ -3,7 +3,7 @@ tipo: store
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/stores/artist.js
 tags: [store, artista, album, edge-function, cache]
 ---
@@ -114,3 +114,5 @@ async function callEdge(path, params) {
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-05-27 (Fase 0.4): nueva acción `saveDiscography(name)` que itera `details[name].albums` en serie llamando `resolveAlbum` + `saveAlbumAsPlaylist`. Reusa los caches en memoria de álbumes ya navegados. Estado de progreso en `discographySaves[name]` con `{ saving, done, total, failed, error }`. Anti doble-click. `reset()` limpia también este mapa. Commit `be78359`.
+- 2026-05-27 (Fase 3.2): `callEdge` ahora envuelve `callEdgeRaw` con [[with-retry]] (3 intentos con backoff exponencial). Cubre `artist-detail` y `album-resolve`. Status del response se anexa como `err.status` para clasificación. Commit `e12cf95`.

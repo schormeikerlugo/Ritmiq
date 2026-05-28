@@ -3,7 +3,7 @@ tipo: hook
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/lib/use-crossfade.js
 tags: [hook, crossfade, audio, fade, background]
 ---
@@ -109,3 +109,7 @@ if (seconds <= 0) {
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno. Documentado el bug de rAF en background y el fix con setInterval.
+- 2026-05-27 (Fase 4.3): añadido **fade-out** cuando `positionSeconds` entra en `dur - crossfadeSeconds`. Ahora compone dos fades:
+  1. fade-OUT al final del track (subscribe a `state.positionSeconds`).
+  2. fade-IN al cambiar `currentTrack` (lo que ya hacía).
+  Flag `fadeOutStartedRef` evita disparos repetidos. Nueva función `fadeOut(backend, seconds)` con `ease-in cubic`. Ver [[Decisiones-Tecnicas-ADR|ADR-012]]. Commit `1890ecf`.

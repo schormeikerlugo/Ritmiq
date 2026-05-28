@@ -3,7 +3,7 @@ tipo: moc
 capa: pwa
 plataforma: pwa
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 tags: [moc, pwa]
 ---
 
@@ -20,6 +20,8 @@ PWA standalone que **reutiliza ~100% de `@ritmiq/ui`** (mismas vistas, hooks y s
 - [[manifest-y-service-worker]] — `vite.config.js` con manifest W3C + workbox + runtime cache.
 - [[sw-push]] — handlers de Web Push y notification click.
 - [[apple-touch-startup]] — splash images iOS por device + media queries.
+- [[API-mark-installed]] — Vercel Edge Function `POST /api/mark-installed` que setea la cookie cross-context iOS (Fase 0.1).
+- [[Edge-Middleware-OG]] — Vercel Edge Middleware que inyecta Open Graph + Twitter Card en `/share/track/*` para rich previews (Fase 0.3).
 
 ## Dataview (auto-generado)
 

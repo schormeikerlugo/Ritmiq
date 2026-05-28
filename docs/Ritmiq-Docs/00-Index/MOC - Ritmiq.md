@@ -3,21 +3,21 @@ tipo: moc
 capa: meta
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 tags: [moc, raiz]
 ---
 
 # MOC — Ritmiq
 
-> Mapa raíz de la documentación. **180 notas** cubren todo el código del repo.
+> Mapa raíz de la documentación. **~203 notas** cubren todo el código del repo (actualizado tras Fases 0-4).
 
 ## Submapas
 
 - [[MOC - Desktop]] — 13 notas: Electron main, preload, renderer.
-- [[MOC - PWA]] — 5 notas: bootstrap, manifest, Service Worker, push, splash iOS.
-- [[MOC - UI Compartida]] — 97 notas: 39 componentes + 17 hooks + 25 helpers + 16 stores.
-- [[MOC - Backend Supabase]] — 26 notas: 13 Edge Functions + 12 tablas + índice migraciones.
-- [[MOC - Flujos]] — 9 flujos end-to-end con Mermaid.
+- [[MOC - PWA]] — 7 notas: bootstrap, manifest, Service Worker, push, splash iOS, `/api/mark-installed`, Edge Middleware OG.
+- [[MOC - UI Compartida]] — 113 notas: 47 componentes + 2 primitives + 19 hooks + 26 helpers + 19 stores.
+- [[MOC - Backend Supabase]] — 33 notas: 18 Edge Functions + 15 tablas + índice migraciones.
+- [[MOC - Flujos]] — 10 flujos end-to-end con Mermaid.
 
 ## Arquitectura
 
@@ -25,7 +25,7 @@ tags: [moc, raiz]
 - [[Monorepo-y-Workspaces]] — pnpm + Turbo.
 - [[Variables-de-Entorno]].
 - [[Build-y-Deploy]].
-- [[Decisiones-Tecnicas-ADR]] — 7 ADRs.
+- [[Decisiones-Tecnicas-ADR]] — **15 ADRs** (8 nuevos en Fases 0-4: motion engine, CoverArt, ListView virt, withRetry, crossfade simulado, EQ curve aproximada, HTML5 drag, lazy WebAudio).
 
 ## Capas técnicas
 
@@ -38,13 +38,14 @@ tags: [moc, raiz]
 | DB (schema + adapters) | `06-DB/` | 4 |
 | API cliente (Supabase + LAN discovery) | `07-API-Cliente/` | 2 |
 | YT (yt-dlp, ffmpeg, error-translator) | `08-YT/` | 3 |
-| UI Componentes | `04-UI/Componentes/` | 39 |
-| UI Helpers Lib | `04-UI/Helpers-Lib/` | 25 |
-| UI Hooks | `04-UI/Hooks/` | 17 |
-| UI Stores Zustand | `04-UI/Stores-Zustand/` | 16 |
-| Supabase Edge Functions | `09-Supabase-Backend/Edge-Functions/` | 13 |
-| Supabase Tablas | `09-Supabase-Backend/Tablas/` | 12 |
-| Flujos end-to-end | `10-Flujos/` | 9 |
+| UI Componentes | `04-UI/Componentes/` | 47 |
+| UI Componentes Primitives | `04-UI/Componentes/Primitives/` | 2 |
+| UI Helpers Lib | `04-UI/Helpers-Lib/` | 26 |
+| UI Hooks | `04-UI/Hooks/` | 19 |
+| UI Stores Zustand | `04-UI/Stores-Zustand/` | 19 |
+| Supabase Edge Functions | `09-Supabase-Backend/Edge-Functions/` | 18 |
+| Supabase Tablas | `09-Supabase-Backend/Tablas/` | 15 |
+| Flujos end-to-end | `10-Flujos/` | 10 |
 | MOCs + meta | `00-Index/` + `01-Arquitectura/` + `99-Mantenimiento/` | 15 |
 
 ## Apoyo

@@ -3,9 +3,9 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/components/NowPlaying/NowPlaying.jsx
-tags: [componente, now-playing, fullscreen, ios, mediasession, bpm]
+tags: [componente, now-playing, fullscreen, ios, mediasession, bpm, lyrics, visualizer]
 ---
 
 # `NowPlaying`
@@ -73,3 +73,6 @@ Abre [[BottomSheet]] con opciones: Guardar en playlist, Copiar link, Ver artista
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-27 (Fase 2.5): cover gana keyframe `ritmiq-cover-breathing` que anima el `box-shadow` accent (intensidad 60→100%, 4s sine inOut) cuando `data-playing="true"`. Independiente del BPM pulse. Commit `ab1372f`.
+- 2026-05-27 (Fase 4.2 + ajuste UX): añadido toggle de letras en el **footer** (icono `Music2`, antes en el header). Cuando `lyricsOpen=true`, [[LyricsPanel]] reemplaza a [[ArtistInfoPanel]] post-fold. `hasLowerPanel` sustituye a `hasArtistPanel` para mantener min-height del mainArea. Commits `555231e` + `1220428`.
+- 2026-05-27 (Fase 4.5 + FIX): añadido toggle de visualizador en el footer (icono `Sparkles`). Nuevo handler `handleVisualizerToggle` que llama `backend.initGraphFromGesture()` sincrónicamente dentro del click → ver [[Decisiones-Tecnicas-ADR|ADR-015]]. [[Visualizer]] renderizado entre `.info` y `.scrubber`. Commits `5f7ec2e`, `ba887a2`, `08f2677`, `f79cefb`.

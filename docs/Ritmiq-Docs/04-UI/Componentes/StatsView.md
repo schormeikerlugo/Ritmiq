@@ -3,7 +3,7 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/components/StatsView/StatsView.jsx
 tags: [componente, estadisticas, historial, streak, top-tracks]
 ---
@@ -56,3 +56,5 @@ Sin red, sin llamada a backend. Todo del historial en `events[]`.
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-05-27 (Fase 4.6): añadida sección [[ActivityHeatmap]] entre el grid de cards y la sección "Trofeos". Commit `289ce3d`.
+- 2026-05-27 (Fase 4.9): añadido botón `Clock` "Ver historial completo" en el header → navega a [[HistoryView]] vía `goHistory()` del [[view]] store. Commit `9ca428e`.

@@ -3,7 +3,7 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/components/SearchView/SearchView.jsx
 tags: [componente, busqueda, tabs, youtube, artistas, playlists]
 ---
@@ -57,3 +57,4 @@ Al renderizar los resultados, `prewarmStream(ytId)` se llama para los 2 primeros
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-27 (Fase 0.5): click en card de playlist YT (tabs `all` y `playlists`) ahora navega a [[YtPlaylistView]] vía `goYtPlaylist(p.id)` de [[view]] store. Antes hacía `console.info` sin acción. Removidos los TODOs L389+L456. Commit `d585e68`.

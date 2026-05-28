@@ -3,7 +3,7 @@ tipo: store
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/stores/view.js
 tags: [store, navegacion, router, historial]
 ---
@@ -116,3 +116,6 @@ function navigateTo(set, get, view) {
 
 ## Notas / Changelog
 - 2026-05-22: nivel simple.
+- 2026-05-27 (Fase 0.5): nuevo view kind `'ytPlaylist'` con `ytPlaylistId` (YouTube playlistId, no UUID). Nueva acción `goYtPlaylist(id)` con historial (exploratoria). Routea a [[YtPlaylistView]] en `App.jsx`. Commit `d585e68`.
+- 2026-05-27 (Fase 3.5): `queueOpen` ahora se persiste en `localStorage.ritmiq.queue-open-desktop`. Solo aplica en desktop (`matchMedia max-width 768px` lo rechaza). `loadQueueOpenInitial()` + `persistQueueOpen()` con guards SSR-safe. `toggleQueue` y `closeQueue` sincronizan automáticamente. Sin UI nueva. Commit `4e49180`.
+- 2026-05-27 (Fase 4.9): nuevo view kind `'history'` + acción `goHistory()`. Routea a [[HistoryView]]. Commit `9ca428e`.

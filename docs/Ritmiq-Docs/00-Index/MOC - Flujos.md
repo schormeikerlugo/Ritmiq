@@ -3,7 +3,7 @@ tipo: moc
 capa: flujo
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 tags: [moc, flujos]
 ---
 
@@ -28,6 +28,7 @@ SORT file.name ASC
 - [[Tunnel-Cloudflared]] — Cloudflare Tunnel + auto-reconexión Quick Tunnel vía `tunnel_endpoints` Realtime.
 - [[Login-y-Sesion]] — carga inicial completa con Realtime + push registration.
 - [[Compartir-con-Amigos]] — share + push + Realtime al inbox + reminder.
+- [[Lyrics-Sincronizadas]] — toggle Music2 → store → Edge lyrics → cache lyrics_cache → parseLrc → render línea activa + seek por click. *(Fase 4.1 + 4.2)*
 - [[Import-Spotify]] — sin OAuth: parse embed → matching YouTube con mutex.
 - [[Recomendaciones]] — Last.fm + Innertube + cache 12h.
 - [[Push-Notifications]] — suscripción, envío y sync (iOS edge cases).

@@ -3,7 +3,7 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/components/TopBar/TopBar.jsx
 tags: [componente, topbar, busqueda, dropdown, prewarm]
 ---
@@ -94,3 +94,4 @@ const sortedResults = useMemo(() => {
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-27 (Fase 3.3): hint visual `<kbd>⌘</kbd><kbd>K</kbd>` (o `Ctrl`/`K` en no-Mac) dentro del search input lado derecho. Visible solo en desktop con input vacío y sin focus. State `searchFocused` + `isMac` memoizado para mostrar símbolo correcto. Commit `57a0647`.

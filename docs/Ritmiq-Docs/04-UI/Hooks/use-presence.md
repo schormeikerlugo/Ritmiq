@@ -3,7 +3,7 @@ tipo: hook
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/lib/use-presence.js
 tags: [hook, presencia, social, realtime, supabase]
 ---
@@ -96,3 +96,4 @@ return () => {
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-27 (commit `dde6aac`): `clearPresence()` y `publishNow()` ahora envuelven el `supabase.from(...)` en try/catch silencioso. Cuando el cleanup del useEffect dispara durante un unmount agresivo (cierre de pestaña, navegación), el fetch se aborta a mitad y produce `ERR_CONNECTION_CLOSED` en consola. **No es un bug funcional** — la fila `presence` tiene TTL 2 min y expira sola — pero spammeaba consola del usuario.

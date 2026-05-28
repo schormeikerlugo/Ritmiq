@@ -3,7 +3,7 @@ tipo: modulo
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/lib/share.js
 tags: [helper, share, link, pwa, ios, clipboard]
 ---
@@ -13,7 +13,7 @@ tags: [helper, share, link, pwa, ios, clipboard]
 > Helpers para compartir tracks por link público (base64url + ytId), detección de entorno (standalone PWA, plataforma), manejo de cookie de instalación, y copia al portapapeles.
 
 ## Ubicación
-`packages/ui/src/lib/share.js:1` (239 líneas)
+`packages/ui/src/lib/share.js:1` (282 líneas)
 
 ## Exports
 
@@ -25,6 +25,7 @@ tags: [helper, share, link, pwa, ios, clipboard]
 | `isStandalonePWA()` | Detecta si corre como PWA instalada (no en pestaña) |
 | `markPwaInstalled()` | Setea `localStorage.ritmiq.pwa-installed = '1'` |
 | `hasPwaInstalledFlag()` | Lee el flag anterior |
+| `pingMarkInstalled({force?})` | **(T5)** POST a [[API-mark-installed|/api/mark-installed]] con throttle 24h. Refresca la cookie cross-context |
 | `hasPwaInstalledCookie()` | Lee cookie `ritmiq_installed=1` (cross-context iOS) |
 | `detectPlatform()` | `'ios'` \| `'android'` \| `'desktop'` |
 | `copyToClipboard(text)` | Clipboard API con fallback execCommand |
@@ -113,3 +114,4 @@ const isIOS = /iPad|iPhone|iPod/.test(ua) ||
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-27 (Fase 0.1 + 0.2): añadido `pingMarkInstalled({force?})` con throttle 24h vía `localStorage.ritmiq.pwa-installed-pinged-at`. Llamado en boot standalone con `force:true` (commit `697ab4f`) y en cada `visibilitychange` en standalone (commit `e6f0bff`). Ver [[API-mark-installed]] y [[Decisiones-Tecnicas-ADR|ADR-N/A: T4/T5 share roadmap]].

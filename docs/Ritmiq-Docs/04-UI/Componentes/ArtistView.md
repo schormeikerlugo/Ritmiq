@@ -3,7 +3,7 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/components/ArtistView/ArtistView.jsx
 tags: [componente, artista, last-fm, edge-function, discografia]
 ---
@@ -50,3 +50,4 @@ Bio: texto + tags Last.fm
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-05-27 (Fase 0.4): añadido botón "Guardar discografía" (icono `Plus`) en `.actions` al lado del play primary. Usa `useArtistStore.saveDiscography(name)` que itera `details[name].albums` en serie llamando `resolveAlbum` + `saveAlbumAsPlaylist`. `ConfirmDialog` previo + toast con progreso ("Guardando 4/12") + toast.success/error con resumen final. Estado `discographySaves[name]` en el store. Commit `be78359`.

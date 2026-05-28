@@ -3,7 +3,7 @@ tipo: componente
 capa: ui
 plataforma: desktop
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/components/Sidebar/Sidebar.jsx
 tags: [componente, sidebar, navegacion, desktop]
 ---
@@ -39,3 +39,4 @@ Controlado via CSS: `@media (max-width: 768px) { display: none }`. En mobile, [[
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-05-27 (Fase 4.8): los `<li>` de cada playlist son **droppables**: aceptan tracks arrastrados desde [[Library]] vía HTML5 native drag (MIME type `application/x-ritmiq-track`). `onDragOver` valida el MIME, `onDrop` llama `addTrack(playlistId, trackId)` + toast. Highlight visual con `data-drag-over=true` (background accent 18% + outline dashed). Ver [[Decisiones-Tecnicas-ADR|ADR-014]]. Commit `8a08302`.

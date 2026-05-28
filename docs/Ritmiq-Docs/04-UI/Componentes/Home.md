@@ -3,7 +3,7 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-27
 archivo: packages/ui/src/components/Home/Home.jsx
 tags: [componente, home, historial, recomendaciones, filas]
 ---
@@ -67,3 +67,4 @@ Sin props.
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-27 (Fase 1.5): `HomeRow` ahora usa [[use-view-transition]] con preset `'stagger'` para animar las cards de cada fila en secuencia (35ms entre cada una) en el primer mount. Items añadidos por paginación NO re-animan (deps=[]). Respeta `prefers-reduced-motion` vía gsap.matchMedia. Commit `2766c51`.
