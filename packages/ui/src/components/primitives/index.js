@@ -11,3 +11,4 @@ export { ConfirmDialog } from './ConfirmDialog.jsx';
 export { CoverArt } from './CoverArt.jsx';
 export { EmptyState } from './EmptyState.jsx';
 export { ErrorState } from './ErrorState.jsx';
+export { ListView } from './ListView.jsx';

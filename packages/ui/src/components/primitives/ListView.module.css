@@ -1,0 +1,22 @@
+/* ListView \u2014 scroll container + filas. Minimal por diseno: el caller
+   personaliza apariencia via className. */
+
+.list {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* contain: para que los re-paints durante scroll no propaguen al
+     contenedor padre. Solo aplica en virtualizado, pero no danino en
+     no-virtualizado. */
+  contain: layout style;
+  /* Smooth scroll cuando se hace anchor (scrollIntoView). El @media
+     reduced-motion global de tokens.css ya neutraliza esto. */
+  scroll-behavior: smooth;
+}
+
+.row {
+  /* La altura la define el caller. Aqui solo garantizamos que no se
+     contraiga si su contenido es lazy (cover loading, etc.). */
+  flex-shrink: 0;
+  display: block;
+}
