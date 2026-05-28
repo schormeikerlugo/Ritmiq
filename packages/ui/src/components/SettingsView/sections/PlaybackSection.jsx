@@ -19,6 +19,7 @@ import { Toggle } from '../controls/Toggle.jsx';
 import { Slider } from '../controls/Slider.jsx';
 import { SegmentedControl } from '../controls/SegmentedControl.jsx';
 import { Icon } from '../../Icon/Icon.jsx';
+import { EqCurve } from './EqCurve.jsx';
 import styles from '../SettingsView.module.css';
 
 /** Formatea "hace X" de forma compacta y honesta. */
@@ -143,6 +144,8 @@ export function PlaybackSection() {
             onChange={setEqPreset}
             ariaLabel="Preset de ecualizador"
           />
+          {/* Curva de respuesta combinada \u2014 reactiva a los sliders. */}
+          <EqCurve gains={eqGains} />
           <div className={styles.eqGrid}>
             {EQ_BANDS.map((band, i) => (
               <div key={band.freq} className={styles.eqBand}>
