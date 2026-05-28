@@ -7,6 +7,7 @@ import { PlaylistView } from './components/PlaylistView/PlaylistView.jsx';
 import { SearchView } from './components/SearchView/SearchView.jsx';
 import { ArtistView } from './components/ArtistView/ArtistView.jsx';
 import { AlbumView } from './components/AlbumView/AlbumView.jsx';
+import { YtPlaylistView } from './components/YtPlaylistView/YtPlaylistView.jsx';
 import { Player } from './components/Player/Player.jsx';
 import { TopBar } from './components/TopBar/TopBar.jsx';
 import { BottomNav } from './components/BottomNav/BottomNav.jsx';
@@ -533,6 +534,7 @@ function MainView() {
   // CSS de entrada (`ritmiq-fade-in-up` en `.main > *`) en cada navegación.
   let key = view.kind;
   if (view.kind === 'playlist') key = `playlist:${view.playlistId}`;
+  else if (view.kind === 'ytPlaylist') key = `ytPlaylist:${view.ytPlaylistId}`;
   else if (view.kind === 'search') key = `search:${view.query}`;
   else if (view.kind === 'artist') key = `artist:${view.name}`;
   else if (view.kind === 'album') key = `album:${view.artist}::${view.album}`;
@@ -572,6 +574,7 @@ function MainView() {
   else if (view.kind === 'friends') content = <FriendsView />;
   else if (view.kind === 'profile') content = <ProfileView userId={view.userId} />;
   else if (view.kind === 'playlist') content = <PlaylistView playlistId={view.playlistId} />;
+  else if (view.kind === 'ytPlaylist') content = <YtPlaylistView id={view.ytPlaylistId} />;
   else if (view.kind === 'search') content = <SearchView query={view.query} />;
   else if (view.kind === 'artist') content = <ArtistView name={view.name} />;
   else if (view.kind === 'album') content = <AlbumView artist={view.artist} album={view.album} />;

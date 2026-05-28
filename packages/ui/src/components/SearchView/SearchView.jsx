@@ -7,7 +7,7 @@
  *
  * Click en canción → reproduce + carga grupo como cola.
  * Click en artista → navega a `goArtist(name)`.
- * Click en playlist → por ahora no implementado (Fase B).
+ * Click en playlist → navega a YtPlaylistView via `goYtPlaylist(id)`.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchStore } from '../../stores/search.js';
@@ -44,6 +44,7 @@ export function SearchView({ query }) {
   const playNow   = usePlayerStore((s) => s.playNow);
   const goArtist  = useViewStore((s) => s.goArtist);
   const goSearch  = useViewStore((s) => s.goSearch);
+  const goYtPlaylist = useViewStore((s) => s.goYtPlaylist);
   const libraryTracks = useLibraryStore((s) => s.tracks);
 
   const [tab, setTab] = useState('all');
@@ -385,10 +386,7 @@ function SearchResults({
                       coverUrl: p.thumbnail,
                     }}
                     subtitle={p.author ?? 'Playlist'}
-                    onClick={() => {
-                      // TODO: en Fase B abrimos la playlist completa.
-                      console.info('[search] playlist click', p.id);
-                    }}
+                    onClick={() => goYtPlaylist(p.id)}
                   />
                 ))}
               </div>
@@ -455,7 +453,7 @@ function SearchResults({
                 coverUrl: p.thumbnail,
               }}
               subtitle={p.author ?? 'Playlist'}
-              onClick={() => console.info('[search] playlist click', p.id)}
+              onClick={() => goYtPlaylist(p.id)}
             />
           ))}
         </div>

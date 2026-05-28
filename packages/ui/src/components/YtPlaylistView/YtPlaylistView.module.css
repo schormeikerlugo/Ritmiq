@@ -1,0 +1,219 @@
+/* Vista de playlist publica de YouTube. Patron y tokens coherentes con
+   ArtistView.module.css para que se sienta familiar al navegar. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  padding-bottom: var(--space-6);
+}
+
+/* ── Header con cover ─────────────────────────────────────────────────── */
+.header {
+  position: relative;
+  min-height: 260px;
+  padding: var(--space-5) var(--space-4);
+  border-radius: var(--radius-lg, 12px);
+  background:
+    linear-gradient(135deg, #232a38, #161a26);
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.headerInner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.kind {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-2);
+  font-weight: var(--fw-semibold);
+}
+
+.name {
+  margin: 0;
+  font-size: clamp(1.75rem, 4.5vw, 3rem);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--color-text-1);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+.author {
+  margin: 0;
+  color: var(--color-text-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  opacity: 0.9;
+}
+
+.count {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--fs-xs);
+}
+
+/* ── Actions ────────────────────────────────────────────────────────── */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-1);
+  flex-wrap: wrap;
+}
+
+.playBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-accent);
+  color: #fff;
+  padding: 10px 22px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  border: none;
+  cursor: pointer;
+  transition: transform 180ms var(--ease-emphasized),
+              box-shadow 180ms var(--ease-emphasized);
+}
+.playBtn:hover:not(:disabled) {
+  transform: scale(1.04);
+  box-shadow: 0 8px 24px var(--color-accent-shadow);
+}
+.playBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.playBtn:active:not(:disabled) { transform: scale(0.97); }
+
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: var(--color-text);
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: transform 180ms var(--ease-emphasized),
+              background 180ms var(--ease-emphasized),
+              border-color 180ms var(--ease-emphasized);
+}
+.secondaryBtn:hover:not(:disabled) {
+  background: var(--color-surface-2);
+  transform: scale(1.03);
+}
+.secondaryBtn:active:not(:disabled) { transform: scale(0.97); }
+.secondaryBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Tracks ─────────────────────────────────────────────────────────── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  width: 100%;
+}
+
+.trackList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trackRow {
+  display: grid;
+  grid-template-columns: 28px 44px 1fr auto;
+  gap: var(--space-2);
+  align-items: center;
+  padding: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  width: 100%;
+  transition: background 180ms;
+}
+.trackRow:hover { background: rgba(255, 255, 255, 0.06); }
+.trackRow:hover .trackPlay { opacity: 1; }
+
+.trackIdx {
+  font-size: var(--fs-sm);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.trackCover {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-bg-3);
+  display: grid;
+  place-items: center;
+  color: var(--color-text-3);
+}
+.trackCover img { width: 100%; height: 100%; object-fit: cover; }
+
+.trackPlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 200ms var(--ease-emphasized);
+}
+@media (max-width: 640px) {
+  .trackPlay { opacity: 1; background: rgba(0,0,0,0.35); }
+}
+
+.trackMeta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.trackTitle {
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trackArtist {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trackDur {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}

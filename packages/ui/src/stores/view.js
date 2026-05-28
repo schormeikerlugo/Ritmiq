@@ -17,6 +17,7 @@ import { create } from 'zustand';
  *   | { kind: 'friends' }
  *   | { kind: 'profile', userId: string }
  *   | { kind: 'playlist', playlistId: string }
+ *   | { kind: 'ytPlaylist', ytPlaylistId: string }
  *   | { kind: 'search', query: string }
  *   | { kind: 'artist', name: string }
  *   | { kind: 'album', artist: string, album: string }
@@ -79,6 +80,8 @@ export const useViewStore = create((set, get) => ({
   goArtist: (name) => navigateTo(set, get, { kind: 'artist', name }),
   /** @param {string} artist @param {string} album */
   goAlbum: (artist, album) => navigateTo(set, get, { kind: 'album', artist, album }),
+  /** @param {string} ytPlaylistId YouTube playlistId (no UUID). */
+  goYtPlaylist: (ytPlaylistId) => navigateTo(set, get, { kind: 'ytPlaylist', ytPlaylistId }),
 
   /** Retrocede al view anterior si lo hay, sino va a home. */
   goBack: () => {
