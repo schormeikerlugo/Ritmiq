@@ -67,6 +67,21 @@
   --layout-sidebar-w: 240px;
   --layout-player-h: 88px;
   --layout-topbar-h: 56px;
+}
+
+/* Desktop compacto: en laptops con altura < 720px reducimos el player
+ * para ganar ~28px de altura util en la vista principal. La regla solo
+ * aplica en min-width 769px (desktop) para no interferir con el mobile
+ * pill flotante (cuyo layout es independiente). */
+@media (min-width: 769px) and (max-height: 720px) {
+  :root {
+    --layout-player-h: 60px;
+  }
+}
+
+/* Vuelve al sentinel `}` original del `:root` selector. Re-abrimos para
+ * mantener los demas tokens dentro del scope correcto. */
+:root {
 
   /* Safe areas (iOS notch / Dynamic Island / home indicator) */
   --safe-top:    env(safe-area-inset-top, 0px);
