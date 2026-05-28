@@ -36,7 +36,8 @@ Limitacion iOS conocida:
 >   - **T5**: DONE en commit pendiente — `pingMarkInstalled()` + listener
 >     `visibilitychange` en `App.jsx`.
 >   - **T6**: diferido (depende de modelo "amigos" que aun no existe).
->   - **T7**: pendiente — OG meta tags server-side para previews ricas.
+>   - **T7**: DONE en commit pendiente — `apps/pwa/middleware.js` Edge
+>     Middleware inyecta OG + Twitter Card en `/share/track/*`.
 
 ### T4 — Deteccion cross-context con cookie HttpOnly (~1h) ✓ DONE
 
@@ -131,7 +132,7 @@ Ritmiq. Hasta que exista, T6 no aplica. Diferir a Fase 3.
 
 ---
 
-### T7 — Open Graph + Twitter Card meta tags (~30min, opcional)
+### T7 — Open Graph + Twitter Card meta tags ✓ DONE
 
 Para que cuando alguien pegue el link en WhatsApp / Twitter / iMessage
 se vea una preview rica (cover + titulo + artista). Hoy se ve URL plana.
@@ -149,17 +150,22 @@ Plan:
 
 2. Implementacion A — `apps/pwa/middleware.js` (Vercel Edge):
 
-   ```js
-   import { NextResponse } from 'next/server';
-   export const config = { matcher: '/share/track/:ytId*' };
-   export default function middleware(req) {
-     const url = new URL(req.url);
-     const match = url.pathname.match(/^\/share\/track\/([^/]+)/);
-     if (!match) return NextResponse.next();
-     const meta = url.searchParams.get('meta');
-     // Decodifica meta, inyecta OG tags en el HTML response...
-   }
-   ```
+   Implementado sin dependencia de Next.js (Vercel soporta middleware
+   "framework=all"). El middleware:
+     - Solo activa en matcher `/share/track/:ytId*`.
+     - Decodifica `?meta=<b64>` (espejo de `b64urlDecode` en share.js).
+     - Si meta es invalido o falta title, deja pasar al SPA sin tocar.
+     - Si es valido, fetchea el index.html del propio origen, reemplaza
+       `<title>` y inyecta `<meta og:*>` + `<meta twitter:*>` antes de
+       `</head>`. Cover usa `?meta.c` con fallback a `/icon-512.png`.
+     - cache-control: public, max-age=300, s-maxage=300.
+     - Todos los valores escapan HTML (escapeHtml local) para evitar
+       inyeccion via meta del share.
+
+   **Importante deploy**: Vercel detecta `middleware.js` solo si esta en
+   la raiz del project. Como este monorepo usa Root Directory =
+   `apps/pwa` en la config del project Vercel, el archivo vive en
+   `apps/pwa/middleware.js`. Si se cambia Root Directory, mover.
 
 ---
 
