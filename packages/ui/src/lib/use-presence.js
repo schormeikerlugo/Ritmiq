@@ -113,23 +113,39 @@ export function usePresence(userId, showActivity) {
 
 // ── helpers ──────────────────────────────────────────────────────────
 
+/**
+ * Silencia errores de red al limpiar presencia: cuando el cleanup del
+ * useEffect dispara durante un unmount agresivo (navegacion, cierre de
+ * pestana, app a background) el fetch se aborta a mitad y produce
+ * ERR_CONNECTION_CLOSED. No es un bug funcional \u2014 la fila presence
+ * tiene TTL de 2min y expira sola \u2014 pero spammea la consola.
+ */
 async function clearPresence(userId) {
   if (!userId) return;
-  await supabase.from('presence').delete().eq('user_id', userId);
+  try {
+    await supabase.from('presence').delete().eq('user_id', userId);
+  } catch {
+    // Esperado en unmount/cierre. La fila expira sola via TTL.
+  }
 }
 
 async function publishNow(userId, track, position) {
   if (!userId || !track) return;
   const expiresAt = new Date(Date.now() + EXPIRES_SECS * 1000).toISOString();
-  await supabase.from('presence').upsert({
-    user_id:          userId,
-    yt_id:            track.ytId ?? track.yt_id ?? null,
-    title:            track.title ?? null,
-    artist:           track.artist ?? null,
-    cover_url:        track.coverUrl ?? track.cover_url ?? null,
-    duration_seconds: track.durationSeconds ?? track.duration_seconds ?? null,
-    position_seconds: Math.floor(position),
-    started_at:       new Date().toISOString(),
-    expires_at:       expiresAt,
-  }, { onConflict: 'user_id' });
+  try {
+    await supabase.from('presence').upsert({
+      user_id:          userId,
+      yt_id:            track.ytId ?? track.yt_id ?? null,
+      title:            track.title ?? null,
+      artist:           track.artist ?? null,
+      cover_url:        track.coverUrl ?? track.cover_url ?? null,
+      duration_seconds: track.durationSeconds ?? track.duration_seconds ?? null,
+      position_seconds: Math.floor(position),
+      started_at:       new Date().toISOString(),
+      expires_at:       expiresAt,
+    }, { onConflict: 'user_id' });
+  } catch {
+    // Mismo razonamiento: si la red se corto durante el publish, se
+    // intentara de nuevo en el siguiente tick del interval.
+  }
 }
