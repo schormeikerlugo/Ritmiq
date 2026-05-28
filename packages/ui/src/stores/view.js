@@ -59,6 +59,7 @@ function persistQueueOpen(value) {
  *   | { kind: 'search', query: string }
  *   | { kind: 'artist', name: string }
  *   | { kind: 'album', artist: string, album: string }
+ *   | { kind: 'history' }
  * } View
  */
 
@@ -104,6 +105,7 @@ export const useViewStore = create((set, get) => ({
   /** @param {null|'account'} sub */
   setSettingsSubview: (sub) => set({ settingsSubview: sub }),
   goStats:     () => set({ view: { kind: 'stats' }, history: [], sidebarOpen: false }),
+  goHistory:   () => set({ view: { kind: 'history' }, history: [], sidebarOpen: false }),
   goFriends:   () => set({ view: { kind: 'friends' }, history: [], sidebarOpen: false }),
   /** @param {string} userId */
   goProfile:   (userId) => navigateTo(set, get, { kind: 'profile', userId }),

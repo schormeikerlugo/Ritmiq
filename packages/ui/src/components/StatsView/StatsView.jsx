@@ -48,6 +48,7 @@ export function StatsView() {
   const replayMilestone = useHistoryStore((s) => s.replayMilestone);
   const playNow = usePlayerStore((s) => s.playNow);
   const goArtist = useViewStore((s) => s.goArtist);
+  const goHistory = useViewStore((s) => s.goHistory);
   const [period, setPeriod] = useState(30);
 
   const stats = useMemo(
@@ -72,6 +73,14 @@ export function StatsView() {
           Lo que mas has escuchado en los ultimos{' '}
           {period === 365 ? '12 meses' : `${period} dias`}.
         </p>
+        <button
+          type="button"
+          className={styles.historyLink}
+          onClick={goHistory}
+        >
+          <Icon name="Clock" size={14} />
+          <span>Ver historial completo</span>
+        </button>
       </header>
 
       <div className={styles.periodTabs} role="tablist">

@@ -32,6 +32,30 @@
   color: var(--color-text-2);
 }
 
+.historyLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-2);
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  margin-top: var(--space-1);
+  align-self: flex-start;
+  transition: background var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard);
+}
+.historyLink:hover {
+  background: var(--color-bg-2);
+  color: var(--color-text-1);
+  border-color: color-mix(in oklab, var(--color-accent) 50%, var(--color-border));
+}
+
 .periodTabs {
   display: flex;
   gap: var(--space-1);

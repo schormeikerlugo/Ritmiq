@@ -8,6 +8,7 @@ import { SearchView } from './components/SearchView/SearchView.jsx';
 import { ArtistView } from './components/ArtistView/ArtistView.jsx';
 import { AlbumView } from './components/AlbumView/AlbumView.jsx';
 import { YtPlaylistView } from './components/YtPlaylistView/YtPlaylistView.jsx';
+import { HistoryView } from './components/HistoryView/HistoryView.jsx';
 import { Player } from './components/Player/Player.jsx';
 import { TopBar } from './components/TopBar/TopBar.jsx';
 import { BottomNav } from './components/BottomNav/BottomNav.jsx';
@@ -588,6 +589,7 @@ function MainView() {
   else if (view.kind === 'search') content = <SearchView query={view.query} />;
   else if (view.kind === 'artist') content = <ArtistView name={view.name} />;
   else if (view.kind === 'album') content = <AlbumView artist={view.artist} album={view.album} />;
+  else if (view.kind === 'history') content = <HistoryView />;
   else return null;
   return <ViewSlot key={key}>{content}</ViewSlot>;
 }
