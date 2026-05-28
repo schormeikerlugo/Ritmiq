@@ -12,11 +12,12 @@
 
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase.js';
+import { withRetry } from '../lib/with-retry.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-async function callRecs(kind, seed) {
+async function callRecsRaw(kind, seed) {
   if (!SUPABASE_URL) throw new Error('Supabase URL no configurado');
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('sin sesión');
@@ -31,9 +32,22 @@ async function callRecs(kind, seed) {
   });
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
-    throw new Error(j.error ?? `recommendations ${r.status}`);
+    const err = new Error(j.error ?? `recommendations ${r.status}`);
+    err.status = r.status;
+    throw err;
   }
   return r.json();
+}
+
+// withRetry: 3 intentos con backoff exponencial. La edge function suele
+// fallar con 5xx cuando Last.fm rate-limit (5 req/s) golpea bajo carga.
+function callRecs(kind, seed) {
+  return withRetry(() => callRecsRaw(kind, seed), {
+    maxAttempts: 3,
+    onRetry: (attempt, err, delay) => {
+      console.info(`[recommendations] retry ${attempt} en ${delay}ms (${err?.message})`);
+    },
+  });
 }
 
 /** Convierte un RecTrack del servidor en un Track-like del player. */

@@ -11,13 +11,14 @@ import { supabase } from '../lib/supabase.js';
 import { api, isDesktop } from '../lib/api.js';
 import { pushTrack } from '../lib/sync.js';
 import { tryOrQueue } from '../lib/sync-queue.js';
+import { withRetry } from '../lib/with-retry.js';
 import { usePlaylistsStore } from './playlists.js';
 import { useLibraryStore } from './library.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-async function callEdge(path, params) {
+async function callEdgeRaw(path, params) {
   if (!SUPABASE_URL) throw new Error('Supabase URL no configurado');
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token ?? SUPABASE_ANON;
@@ -31,9 +32,22 @@ async function callEdge(path, params) {
   });
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
-    throw new Error(j.error ?? `${path} ${r.status}`);
+    const err = new Error(j.error ?? `${path} ${r.status}`);
+    err.status = r.status;
+    throw err;
   }
   return r.json();
+}
+
+// withRetry maneja 5xx/429/408/network transitorios de Last.fm + Innertube.
+// 3 intentos con backoff 500ms -> 1s -> 2s + jitter 20%.
+function callEdge(path, params) {
+  return withRetry(() => callEdgeRaw(path, params), {
+    maxAttempts: 3,
+    onRetry: (attempt, err, delay) => {
+      console.info(`[artist] retry ${attempt} en ${delay}ms (${err?.message})`);
+    },
+  });
 }
 
 const callArtistDetail = (name) => callEdge('artist-detail', { name });

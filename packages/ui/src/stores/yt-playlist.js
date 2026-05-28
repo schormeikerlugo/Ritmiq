@@ -8,11 +8,12 @@
  */
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase.js';
+import { withRetry } from '../lib/with-retry.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-async function callEdge(path, params) {
+async function callEdgeRaw(path, params) {
   if (!SUPABASE_URL) throw new Error('Supabase URL no configurado');
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token ?? SUPABASE_ANON;
@@ -26,9 +27,22 @@ async function callEdge(path, params) {
   });
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
-    throw new Error(j.error ?? `${path} ${r.status}`);
+    const err = new Error(j.error ?? `${path} ${r.status}`);
+    err.status = r.status;
+    throw err;
   }
   return r.json();
+}
+
+// Envuelve callEdgeRaw con retry exponencial. Innertube + Last.fm tienen
+// 5xx esporadicos que con 2 reintentos bastan para esconder al usuario.
+function callEdge(path, params) {
+  return withRetry(() => callEdgeRaw(path, params), {
+    maxAttempts: 3,
+    onRetry: (attempt, err, delay) => {
+      console.info(`[yt-playlist] retry ${attempt} en ${delay}ms (${err?.message})`);
+    },
+  });
 }
 
 export const useYtPlaylistStore = create((set, get) => ({
