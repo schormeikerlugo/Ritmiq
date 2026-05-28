@@ -28,19 +28,22 @@ progress bar gradient, cover breathing, BottomSheet PointerEvents.
 
 Bundle delta: +9 KiB vs Fase 1 (despreciable).
 
-## Fase 3 — Sistematizar (siguiente)
+## Fase 3 — Sistematizar ✓ COMPLETADA
 
-| # | Commit | Esfuerzo | Riesgo |
-|---|---|---|---|
-| 3.1 | `<ListView>` primitive + virtualizacion react-window | 4h | alto |
-| 3.2 | sistema central retry exponencial | 3h | medio |
-| 3.3 | shortcuts descubrimiento + indicators | 2h | bajo |
-| 3.4 | desktop mini-player condensado al scroll | 3h | medio |
-| 3.5 | desktop cola siempre visible (3 columnas) | 3h | medio |
+Ver `docs/fase-3-completada.md`.
 
-Total: ~15h.
+5 commits: ListView primitive, withRetry helper, shortcuts onboarding,
+player compacto auto, queue persist.
 
-## Fase 4 — Features diferenciadoras
+Bundle delta: +5 KiB vs Fase 2.
+
+Cambios de scope vs plan original:
+- 3.1 sin react-window: virtualizacion propia con IntersectionObserver +
+  slice + rAF throttle. 0 KB extra. Limitado a itemHeight uniforme.
+- 3.4 no es "condensado al scroll" sino "compacto cuando viewport
+  altura < 720px" \u2014 mas previsible que toggle por scroll, sin UI extra.
+
+## Fase 4 — Features diferenciadoras (siguiente)
 
 | # | Commit | Esfuerzo |
 |---|---|---|
@@ -125,7 +128,8 @@ commits, hashes, verificacion manual, deploys requeridos.
 - ✓ Fase 0 (5 commits + docs, ver `fase-0-completada.md`).
 - ✓ Fase 1 (5 commits + docs, ver `fase-1-completada.md`).
 - ✓ Fase 2 (6 commits + docs, ver `fase-2-completada.md`).
-- ⧗ Siguiente: Fase 3.1.
+- ✓ Fase 3 (5 commits + docs, ver `fase-3-completada.md`).
+- ⧗ Siguiente: Fase 4.1.
 
 ## Decisiones tomadas
 
