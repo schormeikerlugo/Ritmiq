@@ -337,8 +337,24 @@ export function Library() {
         {sorted.map((item) => {
           const active  = isItemActive(item);
           const playing = active && isPlaying;
+          // Solo tracks individuales son draggeables a playlists del sidebar.
+          // Las rows de playlist o artist no tienen sentido como drop source.
+          const draggableProps = item.kind === 'track' ? {
+            draggable: true,
+            onDragStart: (e) => {
+              try {
+                e.dataTransfer.setData('application/x-ritmiq-track', item.rawId);
+                e.dataTransfer.setData('text/plain', item.title);
+                e.dataTransfer.effectAllowed = 'copy';
+              } catch {}
+            },
+          } : null;
           return (
-            <li key={item.id} className={styles.row}>
+            <li
+              key={item.id}
+              className={styles.row}
+              {...(draggableProps ?? {})}
+            >
             <button
               type="button"
               className={styles.rowBtn}

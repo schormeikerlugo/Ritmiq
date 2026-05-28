@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useViewStore } from '../../stores/view.js';
 import { useSocialStore } from '../../stores/social.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { toast } from '../../stores/toast.js';
 import { playPlaylist } from '../../lib/play-helpers.js';
 import logotipoUrl from '../../assets/logotipo.png';
 import styles from './Sidebar.module.css';
@@ -9,10 +11,32 @@ import styles from './Sidebar.module.css';
 export function Sidebar() {
   const playlists = usePlaylistsStore((s) => s.playlists);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
+  const addTrack = usePlaylistsStore((s) => s.addTrack);
   const { view, goHome, goLibrary, goDownloads, goSettings, goFriends, goPlaylist } = useViewStore();
   const pendingCount = useSocialStore((s) =>
     s.incomingRequests.length + s.inbox.filter((i) => !i.readAt).length
   );
+  // Estado del drag-over: id de la playlist sobre la que el cursor esta
+  // arrastrando un track. Usado para highlight visual del item.
+  const [dragOverId, setDragOverId] = useState(null);
+
+  /**
+   * Maneja drop de un track sobre una playlist del sidebar. El track debe
+   * venir con MIME type 'application/x-ritmiq-track' (seteado por Library
+   * Library.jsx). Otros drops (archivos, URLs externas, etc.) se ignoran.
+   */
+  const onDropToPlaylist = async (e, playlistId, playlistName) => {
+    e.preventDefault();
+    setDragOverId(null);
+    const trackId = e.dataTransfer.getData('application/x-ritmiq-track');
+    if (!trackId) return;
+    try {
+      await addTrack(playlistId, trackId);
+      toast.success(`Anadida a "${playlistName}"`, { icon: 'Check' });
+    } catch (err) {
+      toast.error(`No se pudo anadir: ${err?.message ?? err}`);
+    }
+  };
 
   // Ordenar: Favoritas primero, luego por created_at.
   const sorted = playlists.slice().sort((a, b) => {
@@ -96,8 +120,31 @@ export function Sidebar() {
         <ul className={styles.list}>
           {sorted.map((pl) => {
             const active = view.kind === 'playlist' && view.playlistId === pl.id;
+            const isDragOver = dragOverId === pl.id;
             return (
-              <li key={pl.id}>
+              <li
+                key={pl.id}
+                data-drag-over={isDragOver || undefined}
+                onDragOver={(e) => {
+                  // Solo aceptamos nuestro MIME custom. Si el browser
+                  // reporta types vacios (algunos eventos), permitimos
+                  // por defecto \u2014 onDrop validara de nuevo.
+                  const types = Array.from(e.dataTransfer?.types ?? []);
+                  if (types.length === 0 || types.includes('application/x-ritmiq-track')) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
+                    if (dragOverId !== pl.id) setDragOverId(pl.id);
+                  }
+                }}
+                onDragLeave={(e) => {
+                  // Solo limpiamos si el cursor salio del <li> realmente,
+                  // no si entro a un hijo.
+                  if (!e.currentTarget.contains(e.relatedTarget)) {
+                    setDragOverId((cur) => (cur === pl.id ? null : cur));
+                  }
+                }}
+                onDrop={(e) => onDropToPlaylist(e, pl.id, pl.name)}
+              >
                 <button
                   className={styles.link}
                   data-active={active}
