@@ -76,6 +76,7 @@
   transition: background var(--dur-fast) var(--ease-standard);
 }
 .headerBtn:active { background: rgba(255,255,255,0.08); }
+.headerBtn[data-active='true'] { color: var(--color-accent); }
 
 .headerTitle {
   display: flex;

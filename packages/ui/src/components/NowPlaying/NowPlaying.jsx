@@ -27,6 +27,7 @@ import { useWakeLock } from '../../lib/use-wake-lock.js';
 import { hapticTap } from '../../lib/haptics.js';
 import { useSocialStore } from '../../stores/social.js';
 import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
+import { LyricsPanel } from './LyricsPanel.jsx';
 import styles from './NowPlaying.module.css';
 
 function fmt(sec) {
@@ -85,6 +86,7 @@ export function NowPlaying() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [shareToFriendOpen, setShareToFriendOpen] = useState(false);
+  const [lyricsOpen, setLyricsOpen] = useState(false);
   const friends = useSocialStore((s) => s.friends);
   /** Posición que muestra el scrubber mientras el usuario arrastra. null = no drag. */
   const [scrubPos, setScrubPos] = useState(null);
@@ -331,6 +333,15 @@ export function NowPlaying() {
         </div>
         <button
           className={styles.headerBtn}
+          data-active={lyricsOpen}
+          aria-label={lyricsOpen ? 'Ocultar letra' : 'Mostrar letra'}
+          onClick={() => setLyricsOpen((v) => !v)}
+          title="Letra"
+        >
+          <Icon name="Music2" size={20} />
+        </button>
+        <button
+          className={styles.headerBtn}
           aria-label="Más opciones"
           onClick={() => openMoreMenu()}
         >
@@ -364,6 +375,10 @@ export function NowPlaying() {
           <Icon name="Heart" filled={fav} size={26} />
         </button>
       </div>
+
+      {lyricsOpen && currentTrack && (
+        <LyricsPanel track={currentTrack} />
+      )}
 
       <div className={styles.scrubber}>
         <input
