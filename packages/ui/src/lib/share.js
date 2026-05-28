@@ -173,6 +173,52 @@ export function hasPwaInstalledFlag() {
 }
 
 /**
+ * Llama al endpoint /api/mark-installed para refrescar la cookie
+ * ritmiq_installed (Max-Age 1 ano). Solo debe llamarse desde dentro de la
+ * PWA standalone — es responsabilidad del caller validar isStandalonePWA()
+ * antes de invocarla.
+ *
+ * Throttle: una vez por dia. Persiste el ultimo timestamp de exito en
+ * localStorage bajo `ritmiq.pwa-installed-pinged-at`. Si la llamada falla
+ * (offline, 5xx, fetch rechazado), NO actualiza el timestamp para que el
+ * siguiente visibility re-intente.
+ *
+ * Motivacion (T5):
+ *   La cookie expira en 1 ano. Si el usuario reinstala la PWA, cambia de
+ *   device, o limpia cookies, el flag queda stale. Refrescar en cada
+ *   transicion hidden→visible (con throttle diario) mantiene la deteccion
+ *   cross-context en Safari iOS actualizada sin spammear el endpoint.
+ *
+ * @param {{ force?: boolean }} [opts] — force=true ignora el throttle.
+ * @returns {Promise<boolean>} true si se llamo al endpoint y respondio OK.
+ */
+const PINGED_AT_KEY = 'ritmiq.pwa-installed-pinged-at';
+const PING_THROTTLE_MS = 24 * 60 * 60 * 1000; // 24h
+export async function pingMarkInstalled(opts = {}) {
+  if (typeof fetch === 'undefined') return false;
+  if (!opts.force) {
+    try {
+      const lastRaw = localStorage.getItem(PINGED_AT_KEY);
+      const last = lastRaw ? Number.parseInt(lastRaw, 10) : 0;
+      if (Number.isFinite(last) && Date.now() - last < PING_THROTTLE_MS) {
+        return false;
+      }
+    } catch {}
+  }
+  try {
+    const res = await fetch('/api/mark-installed', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    if (!res?.ok) return false;
+    try { localStorage.setItem(PINGED_AT_KEY, String(Date.now())); } catch {}
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Detecta si la PWA esta instalada via cookie de primer origen.
  *
  * En iOS, localStorage esta SEGREGADO entre Safari y la PWA standalone —

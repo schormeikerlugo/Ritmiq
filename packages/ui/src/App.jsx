@@ -27,7 +27,7 @@ import { Onboarding } from './components/Onboarding/Onboarding.jsx';
 import { SharedView } from './components/SharedView/SharedView.jsx';
 import {
   parseShareFromUrl, clearShareFromUrl,
-  isStandalonePWA, markPwaInstalled,
+  isStandalonePWA, markPwaInstalled, pingMarkInstalled,
 } from './lib/share.js';
 import { usePlayerStore } from './stores/player.js';
 import { metaToCandidate } from './lib/track-helpers.js';
@@ -66,11 +66,17 @@ initTheme();
 // origen. En iOS, localStorage es SEGREGADO entre Safari y la PWA standalone,
 // pero las cookies del mismo origen SI se comparten — esto permite que la
 // SharedView en Safari detecte correctamente si el device ya tiene la PWA.
+//
+// El listener de visibilitychange (registrado dentro del componente App)
+// refresca la cookie cuando la PWA pasa de hidden→visible, throttled a una
+// vez por dia. Esto cubre el caso de la cookie expirando (Max-Age 1 ano) o
+// del usuario limpiando cookies — T5 del roadmap.
 if (isStandalonePWA()) {
   markPwaInstalled();
-  // fire-and-forget: no bloquear el arranque, no reportar errores al usuario.
-  fetch('/api/mark-installed', { method: 'POST', credentials: 'same-origin' })
-    .catch(() => {});
+  // Force=true en boot para garantizar al menos un ping al arrancar la PWA,
+  // ignorando el throttle. Las llamadas siguientes (visibilitychange) si lo
+  // respetan.
+  pingMarkInstalled({ force: true });
 }
 import {
   autoDetectLanFromHost, setLanBaseUrl, getLanBaseUrlSync, setAccessToken,
@@ -141,6 +147,26 @@ export function App() {
 
   // Inicializar sesión Supabase al montar
   useEffect(() => { init(); }, [init]);
+
+  // T5 — Refresh periodico de la cookie /api/mark-installed.
+  // Cuando la PWA standalone pasa de hidden→visible (usuario vuelve a la
+  // app tras minimizarla o cambiar de tab/app), re-pingea el endpoint con
+  // throttle de 24h. Mantiene la cookie viva en Safari iOS aunque el user
+  // no abra la PWA standalone con frecuencia.
+  // Solo registra el listener si estamos en standalone — en pestana del
+  // navegador no aporta nada y solo gastaria ciclos.
+  useEffect(() => {
+    if (!isStandalonePWA()) return;
+    if (typeof document === 'undefined') return;
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        // pingMarkInstalled respeta el throttle internamente.
+        pingMarkInstalled();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   // Recovery flow: Supabase dispara onAuthStateChange con 'PASSWORD_RECOVERY'
   // cuando el user pulsa el link del email. Escuchamos directamente al cliente.

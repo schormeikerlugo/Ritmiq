@@ -31,7 +31,14 @@ Limitacion iOS conocida:
 
 ## Tareas pendientes (T4 + T5 + T6)
 
-### T4 — Deteccion cross-context con cookie HttpOnly (~1h)
+> Estado actualizado 2026-05-27:
+>   - **T4**: DONE en commit `697ab4f` — endpoint `apps/pwa/api/mark-installed.js`.
+>   - **T5**: DONE en commit pendiente — `pingMarkInstalled()` + listener
+>     `visibilitychange` en `App.jsx`.
+>   - **T6**: diferido (depende de modelo "amigos" que aun no existe).
+>   - **T7**: pendiente — OG meta tags server-side para previews ricas.
+
+### T4 — Deteccion cross-context con cookie HttpOnly (~1h) ✓ DONE
 
 Cookies de primer origen SI son compartidas entre Safari y la PWA
 standalone en iOS (a diferencia de localStorage). Plan:
@@ -79,14 +86,21 @@ muestra el banner "Abrir en Ritmiq" en vez del de instalacion.
 
 ---
 
-### T5 — Refresh periodico del flag (~15min)
+### T5 — Refresh periodico del flag (~15min) ✓ DONE
 
 La cookie expira en 1 año (Max-Age 31536000). Si el usuario reinstala la
-PWA o cambia de device, el flag puede quedar stale. Plan:
+PWA o cambia de device, el flag puede quedar stale.
 
-- Llamar a `/api/mark-installed` no solo al boot standalone, sino tambien
-  cada vez que la PWA pasa de hidden → visible (`visibilitychange`),
-  throttled a una vez por dia (timestamp en localStorage).
+Implementado:
+- `pingMarkInstalled({ force? })` en `packages/ui/src/lib/share.js`:
+  llama a `/api/mark-installed`, throttle de 24h via timestamp en
+  localStorage (`ritmiq.pwa-installed-pinged-at`). Si la llamada falla,
+  NO actualiza el timestamp para que el siguiente intento re-pruebe.
+- `App.jsx` boot: `pingMarkInstalled({ force: true })` al detectar
+  standalone — primer ping garantizado.
+- `App.jsx` useEffect: listener `visibilitychange` que llama a
+  `pingMarkInstalled()` (respetando throttle) cada vez que la PWA
+  vuelve a estar visible. Solo se registra en standalone.
 
 ---
 
