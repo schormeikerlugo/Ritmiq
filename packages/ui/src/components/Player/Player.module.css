@@ -237,10 +237,19 @@
 .barFill {
   position: relative;
   height: 4px;
-  background: var(--color-text-1);
+  /* Gradient accent: tinta sutil del accent base hacia un tono mas claro
+   * en el extremo derecho. Visualmente "el progreso brilla mas donde
+   * acabas de pasar". Linear-gradient simple, sin animacion (la posicion
+   * relativa del fill cambia con la duration del track \u2014 si la barra
+   * va a la derecha, el gradient se ve como un sweep natural). */
+  background: linear-gradient(
+    90deg,
+    var(--color-accent) 0%,
+    color-mix(in oklab, var(--color-accent) 70%, white) 100%
+  );
   border-radius: var(--radius-pill);
   transition: width 80ms linear, height 120ms var(--ease-standard),
-              background 120ms var(--ease-standard);
+              box-shadow 200ms var(--ease-emphasized);
   z-index: 1;
 }
 
@@ -257,18 +266,20 @@
   transform: scale(0.6);
   transition: opacity 120ms var(--ease-standard),
               transform 120ms var(--ease-standard),
-              background 120ms var(--ease-standard);
+              background 120ms var(--ease-standard),
+              box-shadow 200ms var(--ease-emphasized);
   pointer-events: none;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 /* Hover / focus / scrubbing: engrosamos visualmente la barra y
- * mostramos el thumb para feedback claro. */
+ * mostramos el thumb para feedback claro. El fill mantiene su gradient
+ * pero gana un glow halo accent. */
 .bar:hover .barFill,
 .bar:focus-visible .barFill,
 .bar[data-scrubbing] .barFill {
-  background: var(--color-accent);
   height: 6px;
+  box-shadow: 0 0 12px color-mix(in oklab, var(--color-accent) 60%, transparent);
 }
 .bar:hover::before,
 .bar:focus-visible::before,
@@ -282,6 +293,8 @@
   opacity: 1;
   transform: scale(1);
   background: var(--color-accent);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45),
+              0 0 0 4px color-mix(in oklab, var(--color-accent) 25%, transparent);
 }
 
 .bar:focus-visible {
