@@ -20,6 +20,7 @@ import { ResetPasswordView } from './components/Auth/views/ResetPasswordView.jsx
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { MilestoneToast } from './components/MilestoneToast/MilestoneToast.jsx';
 import { DailyStreakToast } from './components/DailyStreakToast/DailyStreakToast.jsx';
+import { MonthlyWrappedAutoTrigger } from './components/StatsView/MonthlyWrapped.jsx';
 import { ToastHost } from './components/Toast/ToastHost.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
 import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
@@ -523,6 +524,9 @@ export function App() {
           link copiado, share enviado, etc.). Stack vertical bottom-center
           en mobile, bottom-right en desktop. Auto-dismiss 3.5s. */}
       <ToastHost />
+      {/* Auto-trigger del modal Wrapped: muestra resumen del mes anterior
+          una vez por mes despues del dia 2. Persiste flag en localStorage. */}
+      <MonthlyWrappedAutoTrigger />
     </div>
   );
 }
