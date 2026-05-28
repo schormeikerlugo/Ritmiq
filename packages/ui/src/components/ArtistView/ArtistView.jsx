@@ -18,13 +18,14 @@
  * Fase C añadirá: click en álbum expande tracklist + botón "Reproducir
  * álbum" + "+ Guardar como playlist".
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useArtistStore } from '../../stores/artist.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
 import { Icon } from '../Icon/Icon.jsx';
-import { ErrorState } from '../primitives/index.js';
+import { ConfirmDialog, ErrorState } from '../primitives/index.js';
 import { HeroSkeleton, TrackRowSkeleton } from '../Skeleton/index.js';
+import { toast } from '../../stores/toast.js';
 import styles from './ArtistView.module.css';
 
 function fmtListeners(n) {
@@ -60,9 +61,12 @@ function topTrackToTrack(t, artistName) {
 }
 
 export function ArtistView({ name }) {
-  const fetchArtist = useArtistStore((s) => s.fetch);
-  const details     = useArtistStore((s) => s.details[name]);
-  const playNow     = usePlayerStore((s) => s.playNow);
+  const fetchArtist     = useArtistStore((s) => s.fetch);
+  const details         = useArtistStore((s) => s.details[name]);
+  const saveDiscography = useArtistStore((s) => s.saveDiscography);
+  const discoSave       = useArtistStore((s) => s.discographySaves[name]);
+  const playNow         = usePlayerStore((s) => s.playNow);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (name) fetchArtist(name);
@@ -94,6 +98,44 @@ export function ArtistView({ name }) {
   const playAll = () => {
     if (tracks.length === 0) return;
     playNow(tracks, 0);
+  };
+
+  const albumCount = details.albums?.length ?? 0;
+  const discoBusy = !!discoSave?.saving;
+
+  // Confirm + ejecucion asincrona. ConfirmDialog cierra al terminar onConfirm,
+  // pero el guardado real continua en background con el toast informando.
+  // Si lanzamos sin await, el dialog se cierra inmediato y el usuario sigue
+  // navegando; el progreso se observa via toast + estado en store.
+  const handleSaveDiscography = () => {
+    setConfirmOpen(false);
+    const startedAt = Date.now();
+    toast.info(`Guardando discografia de ${details.name}... (0 / ${albumCount})`, {
+      duration: 0, // permanente hasta dismiss manual
+      icon: 'Disc3',
+    });
+    saveDiscography(details.name).then((res) => {
+      // Cerramos el toast persistente (todos los infos en pantalla) antes
+      // del resumen \u2014 dismiss por id seria ideal pero no guardamos el id.
+      // El nuevo toast empuja al anterior fuera por FIFO de MAX_VISIBLE=3
+      // si hace falta. Pragmatico.
+      const elapsed = Math.round((Date.now() - startedAt) / 1000);
+      if (res.total === 0) {
+        toast.error(`${details.name}: no hay albumes para guardar`);
+      } else if (res.failed.length === 0) {
+        toast.success(
+          `${res.done} albumes guardados (${elapsed}s)`,
+          { icon: 'Check' },
+        );
+      } else {
+        toast.error(
+          `${res.done - res.failed.length}/${res.total} guardados. Fallaron: ${res.failed.slice(0, 3).join(', ')}${res.failed.length > 3 ? '...' : ''}`,
+          { duration: 6000 },
+        );
+      }
+    }).catch((err) => {
+      toast.error(`Error guardando discografia: ${err?.message ?? err}`);
+    });
   };
 
   return (
@@ -129,8 +171,50 @@ export function ArtistView({ name }) {
           <Icon name="Play" size={18} filled />
           <span>Reproducir</span>
         </button>
-        {/* TODO Fase D: guardar discografía completa */}
+        {albumCount > 0 && (
+          <button
+            className={styles.secondaryBtn}
+            onClick={() => setConfirmOpen(true)}
+            disabled={discoBusy}
+            title={discoBusy
+              ? `Guardando... ${discoSave.done}/${discoSave.total}`
+              : `Guardar ${albumCount} albumes como playlists`}
+          >
+            <Icon name={discoBusy ? 'Loader' : 'Plus'} size={16} />
+            <span>
+              {discoBusy
+                ? `Guardando ${discoSave.done}/${discoSave.total}`
+                : 'Guardar discografia'}
+            </span>
+          </button>
+        )}
       </div>
+
+      {confirmOpen && (
+        <ConfirmDialog
+          title={`Guardar discografia de ${details.name}`}
+          icon="Disc3"
+          confirmLabel={`Guardar ${albumCount} albumes`}
+          cancelLabel="Cancelar"
+          variant="primary"
+          body={
+            <>
+              <p>
+                Se crearan {albumCount} playlists en tu biblioteca, una por
+                cada album. Cada playlist se rellena con los tracks del album
+                resueltos a YouTube.
+              </p>
+              <p style={{ marginTop: 8, color: 'var(--color-text-muted)', fontSize: 'var(--fs-xs)' }}>
+                El proceso puede tardar varios minutos. Puedes seguir
+                navegando mientras se guarda; el progreso se muestra como
+                toast.
+              </p>
+            </>
+          }
+          onConfirm={handleSaveDiscography}
+          onClose={() => setConfirmOpen(false)}
+        />
+      )}
 
       {/* ─── Top tracks ─────────────────────────────────────────────── */}
       {tracks.length > 0 && (

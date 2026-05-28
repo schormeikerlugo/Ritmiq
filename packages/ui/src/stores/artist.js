@@ -46,6 +46,12 @@ export const useArtistStore = create((set, get) => ({
   albums: {},          // key = `${artist}::${album}` (lowercase)
   /** @type {Record<string, { saving:boolean, error:string|null, progress:number }>} */
   saves: {},
+  /**
+   * Estado de "guardar discografia completa" por artista.
+   * key = artistName (mismo casing que useArtistStore.details).
+   * @type {Record<string, { saving:boolean, done:number, total:number, failed:string[], error:string|null }>}
+   */
+  discographySaves: {},
 
   /** @param {string} name */
   async fetch(name) {
@@ -196,5 +202,86 @@ export const useArtistStore = create((set, get) => ({
     }
   },
 
-  reset() { set({ details: {}, albums: {}, saves: {} }); },
+  /**
+   * Guarda la discografia completa del artista como N playlists (una por
+   * album). Itera albumes en serie para no saturar Last.fm/Innertube ni
+   * Supabase. Si un album falla, continua con el resto y reporta al final.
+   *
+   * Reusa resolveAlbum + saveAlbumAsPlaylist que ya cachean en memoria,
+   * asi que llamar a este metodo tras navegar manualmente por algunos
+   * albumes evita re-resolverlos.
+   *
+   * @param {string} name nombre del artista (debe estar en details).
+   * @returns {Promise<{ done:number, total:number, failed:string[], playlistIds:string[] }>}
+   */
+  async saveDiscography(name) {
+    const key = String(name ?? '').trim();
+    if (!key) return { done: 0, total: 0, failed: [], playlistIds: [] };
+
+    const details = get().details[key];
+    const albums = details?.albums ?? [];
+    if (albums.length === 0) {
+      return { done: 0, total: 0, failed: [], playlistIds: [] };
+    }
+
+    // Evitar doble-click: si ya esta corriendo, devuelve el estado actual.
+    const existing = get().discographySaves[key];
+    if (existing?.saving) {
+      return { done: existing.done, total: existing.total, failed: existing.failed, playlistIds: [] };
+    }
+
+    set((s) => ({
+      discographySaves: {
+        ...s.discographySaves,
+        [key]: { saving: true, done: 0, total: albums.length, failed: [], error: null },
+      },
+    }));
+
+    const failed = [];
+    const playlistIds = [];
+    let done = 0;
+
+    for (const al of albums) {
+      try {
+        // 1. Resolver el album a tracks reproducibles (puede venir de cache
+        //    en memoria si el user ya lo abrio antes).
+        const resolved = await get().resolveAlbum(key, al.title);
+        if (!resolved?.tracks || resolved.tracks.length === 0) {
+          failed.push(al.title);
+        } else {
+          // 2. Persistir como playlist. saveAlbumAsPlaylist devuelve playlist.id
+          //    o null si fallo.
+          const plId = await get().saveAlbumAsPlaylist({
+            artist: key,
+            album: al.title,
+            coverUrl: al.coverUrl ?? resolved.coverUrl ?? null,
+            tracks: resolved.tracks,
+          });
+          if (plId) playlistIds.push(plId);
+          else failed.push(al.title);
+        }
+      } catch (err) {
+        console.warn('[discography] album save failed', al?.title, err?.message);
+        failed.push(al.title);
+      }
+      done++;
+      set((s) => ({
+        discographySaves: {
+          ...s.discographySaves,
+          [key]: { saving: true, done, total: albums.length, failed: [...failed], error: null },
+        },
+      }));
+    }
+
+    set((s) => ({
+      discographySaves: {
+        ...s.discographySaves,
+        [key]: { saving: false, done, total: albums.length, failed: [...failed], error: null },
+      },
+    }));
+
+    return { done, total: albums.length, failed, playlistIds };
+  },
+
+  reset() { set({ details: {}, albums: {}, saves: {}, discographySaves: {} }); },
 }));

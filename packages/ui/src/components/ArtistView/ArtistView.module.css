@@ -141,6 +141,33 @@
 }
 .playBtn:active:not(:disabled) { transform: scale(0.97); }
 
+/* Boton secundario para acciones del header (ej. Guardar discografia).
+   Usa borde + texto del accent en vez de fill solid \u2014 no compite
+   visualmente con el play primario. */
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: var(--color-text);
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: transform 180ms var(--ease-emphasized),
+              background 180ms var(--ease-emphasized),
+              border-color 180ms var(--ease-emphasized);
+}
+.secondaryBtn:hover:not(:disabled) {
+  background: var(--color-surface-2);
+  border-color: var(--color-border-strong, var(--color-border));
+  transform: scale(1.03);
+}
+.secondaryBtn:active:not(:disabled) { transform: scale(0.97); }
+.secondaryBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
 /* ── Secciones ──────────────────────────────────────────────────────── */
 .section {
   display: flex;
