@@ -67,6 +67,38 @@
   background: var(--color-bg-3);
 }
 
+/* Hint de shortcut Ctrl/Cmd+K en el input. Solo visible en desktop con
+   input vacio y sin focus. Estilo discreto, no compite con el placeholder. */
+.kbdHint {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  opacity: 0.6;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+.kbd {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-2);
+  background: var(--color-bg-3);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  min-width: 18px;
+  text-align: center;
+  line-height: 1;
+}
+@media (max-width: 768px) {
+  /* En mobile no hay teclado fisico habitual, ocultamos. */
+  .kbdHint { display: none; }
+}
+
 .spinner {
   position: absolute;
   right: var(--space-4);

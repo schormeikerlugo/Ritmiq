@@ -32,6 +32,13 @@ export function TopBar() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+  // Detecta Mac para mostrar el simbolo correcto. SSR-safe.
+  const isMac = useMemo(
+    () => typeof navigator !== 'undefined' &&
+      /Mac|iPhone|iPad|iPod/.test(navigator.platform || ''),
+    [],
+  );
   const wrapRef = useRef(null);
   const reqRef = useRef(0);
 
@@ -221,18 +228,28 @@ export function TopBar() {
           type="search"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onFocus={() => {
+          onFocus={(e) => {
+            setSearchFocused(true);
             // Abre el dropdown al enfocar si hay resultados activos O
             // si el input esta vacio y hay historial — asi el user ve
             // sus busquedas recientes inmediatamente al hacer focus.
             if (results.length || localMatches.length) setOpen(true);
             else if (!value.trim() && recents.length > 0) setOpen(true);
           }}
+          onBlur={() => setSearchFocused(false)}
           placeholder="Busca canciones, artistas o pega un link de YouTube…"
           disabled={busy && !value}
           autoComplete="off"
         />
         {busy && <span className={styles.spinner} aria-hidden="true" />}
+        {/* Indicador de shortcut en desktop, oculto al escribir o al
+            tener focus. Estilo "macOS menu" minimalista. */}
+        {!busy && !value && !searchFocused && (
+          <span className={styles.kbdHint} aria-hidden="true">
+            <kbd className={styles.kbd}>{isMac ? '⌘' : 'Ctrl'}</kbd>
+            <kbd className={styles.kbd}>K</kbd>
+          </span>
+        )}
 
         {/* ── Recientes — solo visibles con input vacio + open + hay recents ── */}
         {open && !value.trim() && recents.length > 0 && (

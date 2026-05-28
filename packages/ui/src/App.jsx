@@ -44,6 +44,7 @@ import { useSearchStore } from './stores/search.js';
 import { useViewStore } from './stores/view.js';
 import { usePlayerEngine } from './lib/use-player.js';
 import { useGlobalShortcuts } from './lib/use-shortcuts.js';
+import { useShortcutsOnboarding } from './lib/use-shortcuts-onboarding.js';
 import { useDesktopNotifications } from './lib/use-desktop-notifications.js';
 import { useRadioAutoExtend } from './lib/use-radio.js';
 import { useCrossfade } from './lib/use-crossfade.js';
@@ -412,6 +413,10 @@ export function App() {
   // fisico conectado. Internamente ignoran eventos desde campos editables
   // y cuando hay un BottomSheet abierto.
   useGlobalShortcuts();
+  // Onboarding toast first-time: avisa al user que ? abre la lista de
+  // atajos. Solo se muestra una vez por device, solo en desktop/PWA con
+  // teclado fisico probable. Persistido en localStorage.
+  useShortcutsOnboarding(user?.id ?? null);
   // Notificaciones nativas del SO al cambiar pista — solo desktop y solo
   // cuando la ventana no esta enfocada (evita spam si el user mira la app).
   useDesktopNotifications();
