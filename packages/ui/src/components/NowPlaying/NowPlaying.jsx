@@ -341,6 +341,7 @@ export function NowPlaying() {
       <div className={styles.coverWrap}>
         <div
           className={styles.cover}
+          data-playing={isPlaying && !!currentTrack ? 'true' : undefined}
           style={{ transform: `scale(${bpmScale.toFixed(3)})` }}
         >
           {currentTrack?.coverUrl

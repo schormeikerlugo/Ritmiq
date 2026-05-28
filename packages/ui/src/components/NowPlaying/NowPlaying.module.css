@@ -126,10 +126,41 @@
   /* Transition corta (linear) para que el BPM pulse se vea suave entre
      frames de rAF sin restarle reactividad. El hook setea scale a ~30Hz;
      una transicion de 80ms suaviza sin "lagear" detras del beat. */
-  transition: transform 80ms linear;
+  transition: transform 80ms linear,
+              box-shadow 600ms var(--ease-emphasized);
   transform-origin: center;
   will-change: transform;
 }
+
+/* Breathing glow cuando hay reproduccion activa. El halo accent del
+ * box-shadow respira sutilmente (intensidad 60% \u2192 100% \u2192 60%, 4s
+ * sine inOut). Independiente del BPM pulse (que afecta transform.scale);
+ * trabajan en propiedades diferentes y se componen sin conflicto.
+ *
+ * Cuando data-playing=true se anade el animation: ritmiq-cover-breathing.
+ * Si data-playing no esta, se mantiene el box-shadow base estatico.
+ *
+ * El @media reduced-motion global anula esta animacion via el reset que
+ * aplica a *, *::before, *::after. */
+.cover[data-playing="true"] {
+  animation:
+    ritmiq-fade-in var(--dur-slow) var(--ease-standard),
+    ritmiq-cover-breathing 4s var(--ease-inout, ease-in-out) infinite 800ms;
+}
+
+@keyframes ritmiq-cover-breathing {
+  0%, 100% {
+    box-shadow:
+      0 30px 60px -20px rgba(0, 0, 0, 0.6),
+      0 0 60px -16px var(--color-accent-glow);
+  }
+  50% {
+    box-shadow:
+      0 30px 60px -20px rgba(0, 0, 0, 0.6),
+      0 0 100px -6px var(--color-accent-glow);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cover { transition: none; transform: none !important; }
 }
