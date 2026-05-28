@@ -346,6 +346,7 @@
 }
 .footerBtn:active { color: var(--color-text-1); }
 .footerBtn:disabled { opacity: 0.4; }
+.footerBtn[data-active='true'] { color: var(--color-accent); }
 
 /* Desktop: NowPlaying se muestra como side panel a la derecha cuando el
    user hace click en el cover/meta del player. NO es modal fullscreen:

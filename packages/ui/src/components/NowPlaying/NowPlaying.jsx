@@ -330,15 +330,6 @@ export function NowPlaying() {
             onClick: () => { closeSelf(); startRadio(); },
             disabled: !currentTrack?.artist,
           },
-      {
-        id: 'visualizer-toggle',
-        label: visualizerEnabled ? 'Ocultar visualizador' : 'Mostrar visualizador',
-        icon: 'Sparkles',
-        // closeSelf() invoca un await interno; ejecutamos primero el
-        // handleVisualizerToggle para capturar el gesto antes de que
-        // la maquinaria del bottomsheet rompa el contexto sincrono.
-        onClick: () => { handleVisualizerToggle(); closeSelf(); },
-      },
     ];
     openSheet({
       title: 'Opciones',
@@ -496,6 +487,15 @@ export function NowPlaying() {
           title="Letra"
         >
           <Icon name="Music2" size={20} />
+        </button>
+        <button
+          className={styles.footerBtn}
+          data-active={visualizerEnabled || undefined}
+          aria-label={visualizerEnabled ? 'Ocultar visualizador' : 'Mostrar visualizador'}
+          onClick={handleVisualizerToggle}
+          title="Visualizador"
+        >
+          <Icon name="Sparkles" size={20} />
         </button>
         <button
           className={styles.footerBtn}
