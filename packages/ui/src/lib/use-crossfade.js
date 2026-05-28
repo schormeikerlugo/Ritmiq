@@ -1,18 +1,20 @@
 /**
  * Crossfade simple basado en el `audio.volume` del HTMLMediaElement.
  *
- * NOTA: NO es crossfade real (dos audios solapados). Es un fade-out al
- * cambiar de track manualmente: cuando el usuario pulsa next/prev y el
- * audio actual esta sonando, hacemos un fade-out rapido (X segundos
- * configurable) antes del swap. El track nuevo arranca con fade-in
- * inmediato hasta el volumen del store.
+ * NOTA: NO es crossfade real (dos audios solapados). Compone dos fades
+ * para conseguir el efecto perceptual:
  *
- * Justificacion: el crossfade real con solapamiento requeriria dual
- * <audio> elements + WebAudio graph + reescritura del flow de
- * use-player.js. El flow actual es delicado por iOS background playback;
- * un fade-out simple aporta el 80% del UX sin tocar lo que funciona.
+ *   1. Fade-OUT cuando el track actual entra en sus ultimos N segundos
+ *      (subscripcion a positionSeconds del store). Suaviza la salida.
+ *   2. Fade-IN cuando un track nuevo arranca (subscripcion al cambio
+ *      de currentTrack.id).
  *
- * Si el setting crossfadeSeconds === 0 → el hook es no-op.
+ * Crossfade REAL con dos audios solapados requeriria dual <audio> +
+ * WebAudio graph + reescritura del flow de use-player.js. El flow actual
+ * es delicado por iOS background playback; estos dos fades aportan el
+ * 80% del UX sin tocar lo que funciona.
+ *
+ * Si el setting crossfadeSeconds === 0 → ambas ramas son no-op.
  *
  * @module @ritmiq/ui/lib/use-crossfade
  */
@@ -27,29 +29,49 @@ export function useCrossfade(backend) {
   const lastTrackIdRef = useRef(null);
   /** @type {React.MutableRefObject<ReturnType<typeof setInterval>|null>} */
   const intervalRef = useRef(null);
+  // Flag para no disparar fade-out repetido durante los ultimos N
+  // segundos de un mismo track. Se resetea al cambiar currentTrack.
+  const fadeOutStartedRef = useRef(false);
 
   useEffect(() => {
     if (!backend) return;
     const unsub = usePlayerStore.subscribe((state, prev) => {
       const seconds = useSettingsStore.getState().crossfadeSeconds;
-      if (seconds <= 0) {
-        lastTrackIdRef.current = state.currentTrack?.id ?? null;
-        return;
-      }
       const curId = state.currentTrack?.id;
       const prevId = lastTrackIdRef.current;
-      if (curId === prevId) return;
-      lastTrackIdRef.current = curId;
-      if (!curId) return;
 
-      // El swap del backend ya ocurrio (state ya tiene el currentTrack
-      // nuevo). Aqui solo hacemos fade-in del volumen sobre el elemento
-      // que esta sonando ahora.
-      //
-      // Cancela cualquier fade en curso para evitar dos intervals
-      // pisandose el volumen del mismo <audio>.
-      cancelFade();
-      intervalRef.current = fadeIn(backend, seconds);
+      // ── Cambio de track \u2192 fade-in del nuevo audio ──────────────────
+      if (curId !== prevId) {
+        lastTrackIdRef.current = curId;
+        fadeOutStartedRef.current = false; // reset para el nuevo track
+        if (seconds > 0 && curId) {
+          // El swap del backend ya ocurrio (state ya tiene el currentTrack
+          // nuevo). Aqui solo hacemos fade-in del volumen sobre el elemento
+          // que esta sonando ahora.
+          cancelFade();
+          intervalRef.current = fadeIn(backend, seconds);
+        }
+        return;
+      }
+
+      // ── Misma cancion: detectar entrada en zona de fade-out ────────
+      // Solo cuando reproduce, hay duration valida, y la posicion entra
+      // en los ultimos `seconds` antes del final. Disparo unico por track.
+      if (seconds <= 0) return;
+      if (!state.isPlaying) return;
+      if (fadeOutStartedRef.current) return;
+      const dur = state.durationSeconds;
+      const pos = state.positionSeconds;
+      if (!Number.isFinite(dur) || dur <= 0) return;
+      if (!Number.isFinite(pos)) return;
+      const remaining = dur - pos;
+      // 0.15s de tolerancia para no perder el window por timeupdate
+      // muestreado a baja frecuencia (~4Hz).
+      if (remaining > 0 && remaining <= seconds + 0.15) {
+        fadeOutStartedRef.current = true;
+        cancelFade();
+        intervalRef.current = fadeOut(backend, Math.max(0.3, remaining));
+      }
     });
     return () => {
       unsub();
@@ -121,6 +143,42 @@ function fadeIn(backend, seconds) {
     try { el.volume = targetVol * eased; } catch {}
     if (t >= 1) {
       try { el.volume = targetVol; } catch {}
+      clearInterval(id);
+    }
+  }, 33);
+  return id;
+}
+
+/**
+ * Fade-out del volumen del audio backend desde el volumen actual hasta 0
+ * en `seconds`. Se dispara cuando el track entra en sus ultimos N
+ * segundos. Cuando termina, el `ended` event del <audio> avanza al
+ * siguiente track y `fadeIn` lo vuelve a subir desde 0.
+ *
+ * Si el usuario interrumpe (next/prev manual o pause), `cancelFade()`
+ * del hook padre limpia el interval; el siguiente cambio de track
+ * disparara su propio fade-in que restaura `el.volume = targetVol`.
+ *
+ * @param {ReturnType<import('./html-audio-backend.js').createHtmlAudioBackend>} backend
+ * @param {number} seconds
+ * @returns {ReturnType<typeof setInterval>|null}
+ */
+function fadeOut(backend, seconds) {
+  const el = backend.element?.();
+  if (!el) return null;
+  const startVol = el.volume;
+  if (startVol <= 0.001) return null;
+  const startTime = performance.now();
+  const durMs = Math.max(200, seconds * 1000);
+
+  const id = setInterval(() => {
+    const t = Math.min(1, (performance.now() - startTime) / durMs);
+    // Ease-in cubic \u2014 mas perceptible al inicio del fade (cuando el
+    // usuario aun esta escuchando) y desvanece rapido al final.
+    const eased = Math.pow(t, 3);
+    try { el.volume = Math.max(0, startVol * (1 - eased)); } catch {}
+    if (t >= 1) {
+      try { el.volume = 0; } catch {}
       clearInterval(id);
     }
   }, 33);
