@@ -43,23 +43,25 @@ Cambios de scope vs plan original:
 - 3.4 no es "condensado al scroll" sino "compacto cuando viewport
   altura < 720px" \u2014 mas previsible que toggle por scroll, sin UI extra.
 
-## Fase 4 — Features diferenciadoras (siguiente)
+## Fase 4 — Features diferenciadoras ✓ COMPLETADA
 
-| # | Commit | Esfuerzo |
-|---|---|---|
-| 4.1 | edge function lyrics (lrclib.net) | 3h |
-| 4.2 | vista lyrics sincronizadas en NowPlaying | 3h |
-| 4.3 | crossfade + gapless | 4h |
-| 4.4 | EQ visual 5 bandas | 4h |
-| 4.5 | visualizer canvas en NowPlaying | 3h |
-| 4.6 | stats heatmap GitHub-style | 2h |
-| 4.7 | wrapped mensual | 3h |
-| 4.8 | drag & drop tracks entre playlists (desktop) | 3h |
-| 4.9 | historial buscable con filtros | 3h |
+Ver `docs/fase-4-completada.md`.
 
-Total: ~28h.
+9 commits: lyrics infra + UI, crossfade fade-out, EQ curve SVG,
+visualizer canvas, heatmap, wrapped mensual, drag-to-playlist, history.
 
-## Fase 5 — Recomendaciones Fase 3 backend
+Bundle delta: +35 KiB vs Fase 3. Mejor ratio feature/peso del proyecto.
+
+Cambios de scope vs plan:
+- 4.3 crossfade simulado (fade-in + fade-out compuestos) en lugar de
+  crossfade real con dos audios solapados. Documentado en la docstring.
+- 4.4 EQ ya tenia 6 bandas implementadas; lo nuevo fue el visualizer
+  SVG de la curva combinada.
+- 4.8 drag-and-drop con HTML5 native en lugar de dnd-kit (que ya esta
+  en uso en PlaylistView para sortable interno; cross-context con
+  sortable es complejo).
+
+## Fase 5 — Recomendaciones Fase 3 backend (siguiente)
 
 Ver `docs/RECOMMENDATIONS.md` lineas 262-280.
 
@@ -129,7 +131,8 @@ commits, hashes, verificacion manual, deploys requeridos.
 - ✓ Fase 1 (5 commits + docs, ver `fase-1-completada.md`).
 - ✓ Fase 2 (6 commits + docs, ver `fase-2-completada.md`).
 - ✓ Fase 3 (5 commits + docs, ver `fase-3-completada.md`).
-- ⧗ Siguiente: Fase 4.1.
+- ✓ Fase 4 (9 commits + docs, ver `fase-4-completada.md`).
+- ⧗ Siguiente: Fase 5.1.
 
 ## Decisiones tomadas
 
