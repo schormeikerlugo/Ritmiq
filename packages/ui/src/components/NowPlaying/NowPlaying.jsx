@@ -307,7 +307,15 @@ export function NowPlaying() {
   // ArtistInfoPanel justo despues del fold, dejando que asome solo ~10%
   // del titulo "Acerca del artista" como hint de scroll. Sin artista,
   // los controles fluyen naturalmente sin necesidad de min-height.
-  const hasArtistPanel = !!currentTrack?.artist;
+  // hasArtistPanel: si hay artista, en el fold inicial mostramos solo
+  // los controles y se asoma ~10% del titulo "Acerca del artista" tras
+  // el fold. Cuando lyricsOpen=true ocupamos ese mismo espacio con la
+  // letra. data-with-panel sigue activo en ambos casos para que el
+  // .mainArea conserve su min-height ~100vh y empuje el panel debajo.
+  const hasLowerPanel = lyricsOpen
+    ? !!currentTrack
+    : !!currentTrack?.artist;
+  const hasArtistPanel = hasLowerPanel;
 
   return (
     <div
@@ -343,15 +351,6 @@ export function NowPlaying() {
         </div>
         <button
           className={styles.headerBtn}
-          data-active={lyricsOpen}
-          aria-label={lyricsOpen ? 'Ocultar letra' : 'Mostrar letra'}
-          onClick={() => setLyricsOpen((v) => !v)}
-          title="Letra"
-        >
-          <Icon name="Music2" size={20} />
-        </button>
-        <button
-          className={styles.headerBtn}
           aria-label="Más opciones"
           onClick={() => openMoreMenu()}
         >
@@ -385,10 +384,6 @@ export function NowPlaying() {
           <Icon name="Heart" filled={fav} size={26} />
         </button>
       </div>
-
-      {lyricsOpen && currentTrack && (
-        <LyricsPanel track={currentTrack} />
-      )}
 
       <Visualizer enabled={visualizerEnabled && !!currentTrack} />
 
@@ -447,8 +442,14 @@ export function NowPlaying() {
       </div>
 
       <div className={styles.footer}>
-        <button className={styles.footerBtn} aria-label="Dispositivos" disabled>
-          <Icon name="Cast" size={20} />
+        <button
+          className={styles.footerBtn}
+          data-active={lyricsOpen || undefined}
+          aria-label={lyricsOpen ? 'Ocultar letra' : 'Mostrar letra'}
+          onClick={() => setLyricsOpen((v) => !v)}
+          title="Letra"
+        >
+          <Icon name="Music2" size={20} />
         </button>
         <button
           className={styles.footerBtn}
@@ -461,13 +462,24 @@ export function NowPlaying() {
 
       </div>{/* /.mainArea */}
 
-      {/* Acerca del artista + Explora [Artist]. Solo se carga si hay
-          artista — el ArtistInfoPanel decide internamente que mostrar.
-          Posicionado tras .mainArea (con min-height ~100vh) de modo que
-          solo asoma ~10% del titulo en el fold inicial, invitando al scroll. */}
-      {hasArtistPanel && (
+      {/* Panel inferior (despues del fold).
+       *
+       * Cuando lyricsOpen=true Y hay track con artista/titulo: mostrar
+       * LyricsPanel ocupando ese espacio. Sustituye al ArtistInfoPanel
+       * para no duplicar contenido y aprovechar la altura disponible
+       * tras los controles principales.
+       *
+       * Cuando lyricsOpen=false: ArtistInfoPanel normal (asoma ~10% en
+       * el fold para invitar al scroll, como antes).
+       *
+       * Cuando no hay artista (track sin metadata): nada (mainArea no
+       * tiene min-height 100vh y los controles fluyen normales).
+       */}
+      {lyricsOpen && currentTrack ? (
+        <LyricsPanel track={currentTrack} />
+      ) : hasArtistPanel ? (
         <ArtistInfoPanel artistName={currentTrack.artist} />
-      )}
+      ) : null}
 
       {saveOpen && currentTrack && (
         <SaveDialog track={currentTrack} onClose={() => setSaveOpen(false)} />

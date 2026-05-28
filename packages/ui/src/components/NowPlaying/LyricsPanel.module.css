@@ -1,29 +1,30 @@
-/* LyricsPanel \u2014 panel de letras sincronizadas dentro de NowPlaying.
-   Compactado entre infoText y scrubber. */
+/* LyricsPanel \u2014 panel de letras sincronizadas en NowPlaying.
+ *
+ * Layout: se renderiza despues del .mainArea (post-fold), reemplazando
+ * al ArtistInfoPanel cuando lyricsOpen=true. Sin max-height: usa todo
+ * el espacio disponible debajo de los controles. Sin margin lateral
+ * porque el container parent (NowPlaying.module.css .root) ya provee
+ * el padding global. */
 
 .panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: var(--radius-md);
-  margin: 0 var(--space-4);
-  max-height: 220px;
-  overflow: hidden;
-  animation: ritmiq-fade-in var(--dur-normal) var(--ease-standard);
+  gap: var(--space-3);
+  padding: var(--space-5) 0 var(--space-8);
+  animation: ritmiq-fade-in-up var(--dur-slow, 400ms) var(--ease-emphasized);
 }
 
 .head {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: var(--fs-xs);
+  font-size: 14px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-text-3);
-  font-weight: var(--fw-semibold);
+  letter-spacing: 0.05em;
+  color: var(--color-text-2);
   flex-shrink: 0;
+  margin: 0 0 var(--space-2) 0;
 }
 
 .muted {
@@ -48,43 +49,37 @@
   animation: ritmiq-shimmer 1.6s linear infinite;
 }
 
-/* Synced mode: lista con scroll vertical, linea activa resaltada. */
+/* Synced mode: lista con scroll vertical, linea activa resaltada.
+ * Sin max-height ni mascara fade porque ahora vivimos en el flujo
+ * natural del panel inferior (post-fold) y la pagina entera ya
+ * scrollea verticalmente. La linea activa se centra via scrollIntoView
+ * con behavior smooth sobre el scroll del .root padre. */
 .lines {
   list-style: none;
   margin: 0;
   padding: 0;
-  overflow-y: auto;
-  scroll-behavior: smooth;
-  /* Mascara fade arriba y abajo para que las lineas que salen del
-     viewport se atenuen en lugar de cortarse abruptamente. */
-  mask-image: linear-gradient(180deg,
-    transparent 0%,
-    black 18%,
-    black 82%,
-    transparent 100%);
-  -webkit-mask-image: linear-gradient(180deg,
-    transparent 0%,
-    black 18%,
-    black 82%,
-    transparent 100%);
-  flex: 1;
-  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .lineItem {
-  padding: 6px 0;
+  padding: 8px 0;
   font-size: var(--fs-md);
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--color-text-3);
   cursor: pointer;
   transition: color var(--dur-fast) var(--ease-standard),
               transform var(--dur-fast) var(--ease-standard),
-              opacity var(--dur-fast) var(--ease-standard);
+              opacity var(--dur-fast) var(--ease-standard),
+              font-size var(--dur-fast) var(--ease-standard);
   user-select: none;
   border: none;
   background: none;
   text-align: left;
   width: 100%;
+  scroll-margin-top: 30vh;
+  scroll-margin-bottom: 30vh;
 }
 .lineItem:hover { color: var(--color-text-2); }
 .lineItem:focus-visible {
@@ -93,14 +88,14 @@
   border-radius: 4px;
 }
 
-.lineNear { opacity: 0.75; }
-.lineFar  { opacity: 0.35; }
+.lineNear { opacity: 0.85; }
+.lineFar  { opacity: 0.45; }
 
 .lineActive {
   color: var(--color-text-1);
-  font-weight: var(--fw-semibold);
-  font-size: var(--fs-lg);
-  transform: translateX(2px);
+  font-weight: var(--fw-bold);
+  font-size: clamp(var(--fs-lg), 4vw, var(--fs-2xl));
+  letter-spacing: -0.01em;
 }
 
 /* Plain mode: bloque scrollable simple. */
@@ -118,9 +113,5 @@
 }
 
 @media (max-width: 640px) {
-  .panel {
-    margin: 0 var(--space-3);
-    max-height: 180px;
-  }
-  .lineActive { font-size: var(--fs-md); }
+  .lineActive { font-size: clamp(var(--fs-lg), 5vw, var(--fs-xl)); }
 }
