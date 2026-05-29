@@ -88,19 +88,25 @@ Decidido diferir hasta el final.
 
 Total: ~14h.
 
-## Fase 7 — Performance / tecnica
+## Fase 7 — Performance / tecnica ✓ COMPLETADA
 
-Bundle hoy: 936 KB en un solo chunk. Objetivo < 400 KB inicial.
+Ver `docs/fase-7-completada.md`.
 
-| # | Commit | Esfuerzo |
-|---|---|---|
-| 7.1 | code-splitting por ruta (React.lazy) | 2h |
-| 7.2 | split Auth + Onboarding | 1h |
-| 7.3 | SW runtime cache de covers | 1.5h |
-| 7.4 | container queries en cards/rows | 2h |
-| 7.5 | Playwright E2E smoke critical flows | 4h |
+5 commits: code-splitting por ruta (10 chunks lazy), split Auth+Onboarding
+(3 chunks mas), SW runtime cache de covers YT+Last.fm, container queries
+en HomeRow/RowSkeleton, Playwright smoke tests + skeleton de suite.
 
-Total: ~10.5h.
+Bundle delta vs Fase 5:
+  raw: 1123 KB \u2192 931 KB (-17%)
+  gzip: 323 KB \u2192 287 KB (-11%)
+  13 chunks lazy generados (~144 KB raw fuera del bundle inicial)
+
+Notas:
+- 7.5 Playwright V1 cubre solo smoke (boot + code-splitting). Tests de
+  flujos (Auth/Play/Share) documentados como follow-up en e2e/README.md.
+- Container queries soportados desde Chrome 105 / Safari 16. Sin
+  fallback explicito; degradacion gradual a fixed 180px en browsers
+  viejos (~1% del trafico).
 
 ## Fase 8 — Jam mode (OPCIONAL — al final)
 
@@ -135,7 +141,9 @@ commits, hashes, verificacion manual, deploys requeridos.
 - ✓ Fase 3 (5 commits + docs, ver `fase-3-completada.md`).
 - ✓ Fase 4 (9 commits + docs, ver `fase-4-completada.md`).
 - ✓ Fase 5 (4 commits + docs, ver `fase-5-completada.md`).
-- ⧗ Siguiente: Fase 7.1 (saltando Fase 6 opcional al final).
+- ✓ Fase 7 (5 commits + docs, ver `fase-7-completada.md`).
+- ⧗ Restante: Fase 6 (opcional, multi-fuente recs) y Fase 8 (opcional, jam mode).
+       Vault Obsidian pendiente de actualizar con Fase 5 + Fase 7.
 
 ## Decisiones tomadas
 
