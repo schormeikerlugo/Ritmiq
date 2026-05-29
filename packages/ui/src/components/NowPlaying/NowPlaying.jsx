@@ -18,6 +18,7 @@ import { getDominantColor } from '../../lib/dominant-color.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { EditTrackDialog } from '../EditTrackDialog/EditTrackDialog.jsx';
+import { JamModal } from '../Jam/JamModal.jsx';
 import { ArtistInfoPanel } from './ArtistInfoPanel.jsx';
 import { useBottomSheet } from '../../stores/bottom-sheet.js';
 import { buildShareLink, copyToClipboard } from '../../lib/share.js';
@@ -87,6 +88,7 @@ export function NowPlaying() {
   const [closing, setClosing] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [jamOpen, setJamOpen] = useState(false);
   const [shareToFriendOpen, setShareToFriendOpen] = useState(false);
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const visualizerEnabled = useSettingsStore((s) => s.visualizerEnabled);
@@ -330,6 +332,12 @@ export function NowPlaying() {
             onClick: () => { closeSelf(); startRadio(); },
             disabled: !currentTrack?.artist,
           },
+      {
+        id: 'jam-mode',
+        label: 'Jam con amigos',
+        icon: 'Users',
+        onClick: () => { closeSelf(); setJamOpen(true); },
+      },
     ];
     openSheet({
       title: 'Opciones',
@@ -533,6 +541,10 @@ export function NowPlaying() {
 
       {editOpen && currentTrack && (
         <EditTrackDialog track={currentTrack} onClose={() => setEditOpen(false)} />
+      )}
+
+      {jamOpen && (
+        <JamModal onClose={() => setJamOpen(false)} />
       )}
 
       {shareToFriendOpen && currentTrack && (

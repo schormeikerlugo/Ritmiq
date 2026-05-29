@@ -1,0 +1,110 @@
+.menu, .join, .create, .guest {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.intro {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-2);
+  line-height: 1.5;
+}
+
+.menuActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Display del codigo de la sesion: grande, copiable. */
+.codeDisplay {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-bg-2);
+  border: 2px dashed var(--color-accent);
+  border-radius: var(--radius-md);
+  padding: 16px 24px;
+  cursor: pointer;
+  align-self: center;
+  color: var(--color-text-1);
+  transition: background var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard);
+}
+.codeDisplay:hover {
+  background: var(--color-bg-3);
+}
+.codeDisplay:active { transform: scale(0.98); }
+
+.codeText {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: clamp(28px, 6vw, 40px);
+  letter-spacing: 0.18em;
+  font-weight: var(--fw-bold);
+}
+
+.codeInput {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 24px;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* Lista de participantes */
+.participants {
+  background: var(--color-bg-2);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+.partTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-2) 0;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-3);
+}
+.partList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.partItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--color-text-2);
+}
+.partId {
+  font-variant-numeric: tabular-nums;
+}
+.hostIcon {
+  color: var(--color-accent);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--color-danger, #f87171);
+  background: color-mix(in oklab, var(--color-danger, #f87171) 12%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
