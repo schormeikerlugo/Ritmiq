@@ -22,7 +22,13 @@ import { toast } from '../../stores/toast.js';
 import { copyToClipboard } from '../../lib/share.js';
 import styles from './JamModal.module.css';
 
-export function JamModal({ onClose }) {
+/** Construye la URL de invitacion deep-link para un codigo de jam. */
+function buildJamLink(code) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ritmiq.app';
+  return `${origin}/jam/${code}`;
+}
+
+export function JamModal({ onClose, initialCode = '' }) {
   const mode = useJamStore((s) => s.mode);
   const session = useJamStore((s) => s.session);
   const participants = useJamStore((s) => s.participants);
@@ -31,17 +37,18 @@ export function JamModal({ onClose }) {
   const leaveSession = useJamStore((s) => s.leaveSession);
   const transferHost = useJamStore((s) => s.transferHost);
 
-  const [view, setView] = useState('menu');
-  const [code, setCode] = useState('');
+  const [view, setView] = useState(initialCode ? 'join' : 'menu');
+  const [code, setCode] = useState(initialCode);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
   // Si ya hay sesion activa al abrir el modal, ir directo al estado correspondiente.
+  // initialCode (deep-link) tiene prioridad solo cuando estamos idle.
   useEffect(() => {
     if (mode === 'hosting') setView('create');
     else if (mode === 'guest') setView('guest');
-    else setView('menu');
-  }, [mode]);
+    else setView(initialCode ? 'join' : 'menu');
+  }, [mode, initialCode]);
 
   const handleCreate = async () => {
     setBusy(true);
@@ -77,7 +84,27 @@ export function JamModal({ onClose }) {
   const handleCopyCode = async () => {
     if (!session?.code) return;
     const ok = await copyToClipboard(session.code);
-    if (ok) toast.success('Codigo copiado');
+    if (ok) toast.success('Código copiado');
+  };
+
+  // Comparte la invitación: Web Share API nativa (mobile) con fallback a
+  // copiar el link deep-link al portapapeles (desktop / sin soporte).
+  const handleShareInvite = async () => {
+    if (!session?.code) return;
+    const url = buildJamLink(session.code);
+    const text = `Únete a mi jam en Ritmiq con el código ${session.code}`;
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: 'Jam en Ritmiq', text, url });
+        return;
+      } catch (e) {
+        // El usuario canceló el share nativo: no es error. Solo abortamos
+        // si fue AbortError; si fue otra cosa, caemos al fallback.
+        if (e?.name === 'AbortError') return;
+      }
+    }
+    const ok = await copyToClipboard(url);
+    if (ok) toast.success('Enlace de invitación copiado');
   };
 
   const handleLeave = async () => {
@@ -194,11 +221,15 @@ export function JamModal({ onClose }) {
             type="button"
             className={styles.codeDisplay}
             onClick={handleCopyCode}
-            aria-label="Copiar codigo"
+            aria-label="Copiar código"
           >
             <span className={styles.codeText}>{session.code}</span>
             <Icon name="Link" size={16} />
           </button>
+
+          <Button variant="ghost" onClick={handleShareInvite} className={styles.shareBtn}>
+            <Icon name="Share2" size={16} /> Compartir invitación
+          </Button>
 
           {renderParticipants(true)}
 

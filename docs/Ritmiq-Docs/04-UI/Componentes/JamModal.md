@@ -19,6 +19,7 @@ tags: [componente, jam, modal, colaborativo]
 | Prop | Tipo | Descripción |
 |---|---|---|
 | `onClose` | `() => void` | Cierra el modal (también se llama al salir de la jam). |
+| `initialCode` | `string` | (Bloque 3.3) Código pre-rellenado desde el deep-link `/jam/<code>`; abre directo en la vista `join`. |
 
 ## Estados internos
 - `view`: `'menu' | 'create' | 'join' | 'guest'` — sincronizado con `mode` del store via `useEffect`.
@@ -36,6 +37,11 @@ tags: [componente, jam, modal, colaborativo]
 Helper que pinta la lista. El badge de Host usa `p.role === 'host'` (con fallback a
 `session.hostId` para sesiones legacy). Si `canTransfer` y el participante es guest, muestra
 botón "Pasar control" → `transferHost(user_id)`.
+
+## Compartir invitación (Bloque 3.3)
+`handleShareInvite` usa `navigator.share` (Web Share API nativa, mobile) con la URL
+`buildJamLink(code)` = `<origin>/jam/<CODE>`. Fallback a `copyToClipboard` del enlace en
+desktop / sin soporte. `AbortError` (usuario cancela) se ignora silenciosamente.
 
 ## Dependencias salientes
 - [[jam|store jam]] (`createSession`, `joinSession`, `leaveSession`).
@@ -55,4 +61,6 @@ botón "Pasar control" → `transferHost(user_id)`.
 | Quitar el `useEffect` que sincroniza `view` con `mode` | Al reabrir con sesión activa, muestra el menú en vez del estado correcto. |
 
 ## Notas / Changelog
-- 2026-05-29: nota creada (F12, doc retroactiva de Fase 8.2). Anotado bug de `\u2026`.
+- 2026-05-29: nota creada (F12, doc retroactiva de Fase 8.2).
+- 2026-05-29: badge por `role` + "Pasar control" (Bloque 3.2); fix `\u2026`.
+- 2026-05-29: `initialCode` deep-link + "Compartir invitación" Web Share (Bloque 3.3).

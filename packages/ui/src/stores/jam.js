@@ -53,6 +53,19 @@ export const useJamStore = create((set, get) => ({
   _heartbeatTimer: null,
 
   /**
+   * Codigo pendiente de unirse via deep-link (/jam/<code>). App.jsx lo
+   * setea al detectar la URL; cuando hay user logueado se monta el
+   * JamModal con este codigo. Se limpia tras consumirlo.
+   * @type {string|null}
+   */
+  pendingJoinCode: null,
+  setPendingJoinCode(code) {
+    const norm = String(code ?? '').trim().toUpperCase();
+    set({ pendingJoinCode: /^[A-Z0-9]{6}$/.test(norm) ? norm : null });
+  },
+  clearPendingJoinCode() { set({ pendingJoinCode: null }); },
+
+  /**
    * Crea una sesion nueva como host. Inserta en jam_sessions + join
    * automatico como participant + suscribe a CDC.
    */
@@ -360,6 +373,7 @@ export const useJamStore = create((set, get) => ({
       state: { currentTrack: null, positionSeconds: 0, isPlaying: false, queue: [] },
       _channels: [],
       _heartbeatTimer: null,
+      pendingJoinCode: null,
     });
   },
 }));

@@ -93,6 +93,8 @@ import { useRadioAutoExtend } from './lib/use-radio.js';
 import { useCrossfade } from './lib/use-crossfade.js';
 import { useApplyAudioSettings } from './lib/use-apply-audio-settings.js';
 import { useJamSync } from './lib/use-jam-sync.js';
+import { useJamStore } from './stores/jam.js';
+import { JamModal } from './components/Jam/JamModal.jsx';
 import { useSocialStore } from './stores/social.js';
 import { usePresence } from './lib/use-presence.js';
 import { useSocialRealtime } from './lib/use-social-realtime.js';
@@ -142,6 +144,18 @@ import styles from './App.module.css';
 // el track se anade a la cola y el param se limpia de la URL.
 const initialShare = parseShareFromUrl();
 
+// Detecta un deep-link de invitacion a Jam: /jam/<CODE> (6 chars). Si lo
+// encuentra, devuelve el codigo normalizado y limpia la URL para que un
+// reload no re-dispare el join. El codigo se entrega al store jam como
+// pendingJoinCode → App monta el JamModal cuando hay user logueado.
+function detectJamDeepLink() {
+  if (typeof window === 'undefined') return null;
+  const m = (window.location.pathname ?? '').match(/^\/jam\/([A-Za-z0-9]{6})\/?$/);
+  if (!m) return null;
+  return m[1].toUpperCase();
+}
+const initialJamCode = detectJamDeepLink();
+
 // Detecta si el usuario llega via link de recovery de password.
 // Supabase mete el access_token en el hash con type=recovery.
 function detectRecoveryFromUrl() {
@@ -165,6 +179,19 @@ export function App() {
   const closeSidebar = useViewStore((s) => s.closeSidebar);
   const nowPlayingOpen = useViewStore((s) => s.nowPlayingOpen);
   const viewKind = useViewStore((s) => s.view.kind);
+
+  // Deep-link de invitacion a Jam (/jam/<code>): al boot setea el codigo
+  // pendiente en el store y limpia la URL. El JamModal global (mas abajo)
+  // se monta cuando hay user logueado + pendingJoinCode.
+  const pendingJoinCode = useJamStore((s) => s.pendingJoinCode);
+  const setPendingJoinCode = useJamStore((s) => s.setPendingJoinCode);
+  const clearPendingJoinCode = useJamStore((s) => s.clearPendingJoinCode);
+  useEffect(() => {
+    if (initialJamCode) {
+      setPendingJoinCode(initialJamCode);
+      window.history.replaceState({}, '', '/');
+    }
+  }, [setPendingJoinCode]);
 
   // Presencia "Escuchando ahora" — publica el track actual a los amigos.
   const eqEnabled    = useSettingsStore((s) => s.eqEnabled);
@@ -575,6 +602,15 @@ export function App() {
       {/* Recordatorio: muestra shares no vistos >2min cuando el usuario
           no esta en la bandeja. Se auto-cierra al ignorar o ver. */}
       <ShareReminderModal />
+      {/* Invitacion a Jam via deep-link (/jam/<code>). Se monta cuando el
+          store tiene un codigo pendiente; el JamModal lo recibe como
+          initialCode y va directo a la vista join con auto-fill. */}
+      {pendingJoinCode && (
+        <JamModal
+          initialCode={pendingJoinCode}
+          onClose={clearPendingJoinCode}
+        />
+      )}
       {/* Modal bloqueante con animacion epica cuando se desbloquea un
           hito de racha (3, 7, 14, 30, 50, 100, 200, 365, 500, 1000 dias)
           o de horas escuchadas (1, 10, 50, 100, 500, 1000, 5000h). */}

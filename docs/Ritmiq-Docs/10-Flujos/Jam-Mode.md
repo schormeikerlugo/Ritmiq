@@ -74,6 +74,17 @@ sequenceDiagram
 - **Código legible**: 6 chars de `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (sin 0/O, 1/I).
 - **Cleanup 24h**: cron `ritmiq-cleanup-jam-sessions` borra sesiones stale. Ver [[jam_sessions]].
 
+## Invitación via deep-link (Bloque 3.3)
+
+- **Compartir**: en la vista `create`, "Compartir invitación" usa `navigator.share` (mobile)
+  o copia el enlace `<origin>/jam/<CODE>` al portapapeles (desktop). Ver [[JamModal]].
+- **Recibir**: [[App|App.jsx]] detecta `/jam/<code>` al boot (`detectJamDeepLink`), limpia la
+  URL con `replaceState` y setea `pendingJoinCode` en [[jam|store jam]]. Cuando hay user
+  logueado, monta el [[JamModal]] con `initialCode` → vista `join` pre-rellenada.
+- ⚠️ **Verificación pendiente en prod**: `/jam/<code>` depende del SPA fallback de Vercel
+  (Vite preset). `/share/track/*` ya funciona así; el middleware OG NO intercepta `/jam`. Si
+  en prod diera 404, añadir un `vercel.json` con rewrite SPA para `/jam/:code`.
+
 ## Gotchas conocidos
 
 - **SELECT abierto**: la RLS de [[jam_sessions]] es `using (true)` → conociendo un código se

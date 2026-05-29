@@ -99,6 +99,9 @@
 .hostIcon {
   color: var(--color-accent);
 }
+.shareBtn {
+  margin: 4px auto 12px;
+}
 .transferBtn {
   margin-left: auto;
   font-size: var(--fs-xs);
