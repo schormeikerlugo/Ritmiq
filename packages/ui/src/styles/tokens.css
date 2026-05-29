@@ -225,6 +225,12 @@ input, textarea, [contenteditable='true'], code, pre,
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes ritmiq-fade-in-down {
+  /* Espejo de fade-in-up. Lo usa DropdownMenu cuando hace flip arriba
+     (menu nace desde abajo y sube hacia su posicion). */
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 @keyframes ritmiq-fade-in-right {
   from { opacity: 0; transform: translateX(12px); }
   to   { opacity: 1; transform: translateX(0); }

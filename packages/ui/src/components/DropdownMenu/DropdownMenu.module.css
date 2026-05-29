@@ -20,10 +20,25 @@
   color: var(--color-text-1);
 }
 
+/*
+ * El menu se renderiza via React portal en <body> con position: fixed.
+ * Las coords (top/left) las inyecta el JSX como style inline desde
+ * getBoundingClientRect() del trigger, con flip vertical automatico y
+ * clamp al viewport. NO definimos top/left aqui para no pisar el inline style.
+ *
+ * Por que portal+fixed: el ancestro .row de PlaylistView usa
+ * `content-visibility: auto` que aplica `contain: paint` implicito —
+ * eso clipea cualquier descendiente al box del row (56px) y rompia el menu.
+ *
+ * max-height: en menus mas altos que el viewport (caso extremo: pantalla
+ * muy chica con muchos items) habilitamos scroll interno en lugar de
+ * dejar items cortados. calc(100vh - 16px) deja 8px de margen arriba/abajo.
+ */
 .menu {
-  position: absolute;
-  top: calc(100% + var(--space-1));
   min-width: 220px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -31,14 +46,11 @@
   padding: var(--space-1);
   list-style: none;
   margin: 0;
-  z-index: 60;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
-
-.menu[data-align='left']  { left: 0; }
-.menu[data-align='right'] { right: 0; }
 
 .item {
   display: flex;
