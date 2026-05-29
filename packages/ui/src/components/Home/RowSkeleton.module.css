@@ -1,8 +1,12 @@
-/* Mismo layout que HomeRow para evitar saltos cuando llegan los datos. */
+/* Mismo layout que HomeRow para evitar saltos cuando llegan los datos.
+ * Container query igual que HomeRow (Fase 7.4) para que la transicion
+ * skeleton -> real sea coherente cuando el ancho del container cambia. */
 .row {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  container-type: inline-size;
+  container-name: home-row-skel;
 }
 
 .head {
@@ -136,7 +140,7 @@
   animation: ritmiq-shimmer 1.6s linear infinite;
 }
 
-@media (max-width: 640px) {
+@container home-row-skel (max-width: 640px) {
   .scroll {
     grid-auto-columns: 150px;
   }

@@ -2,6 +2,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  /* Container query (Fase 7.4): las cards adentro responden al ancho
+   * DEL CONTENEDOR, no del viewport. Asi cuando el user abre el queue
+   * panel (que reduce el main panel ~340px) las cards encogen sin
+   * media queries duplicados. */
+  container-type: inline-size;
+  container-name: home-row;
 }
 
 .head {
@@ -74,7 +80,14 @@
   min-width: 0;
 }
 
-@media (max-width: 640px) {
+/* Container query: si el HomeRow vive en un container <= 640px (mobile
+ * o desktop con queue + nowplaying panels abiertos), las cards encogen
+ * a 150px y el titulo baja un punto.
+ *
+ * Reemplaza el @media (max-width: 640px) anterior. Beneficio: si en
+ * desktop el user abre la cola y reduce el main a < 640px, las cards
+ * tambien encogen automaticamente sin necesidad de un media query nuevo. */
+@container home-row (max-width: 640px) {
   .scroll {
     grid-auto-columns: 150px;
   }
