@@ -22,10 +22,21 @@ create table public.jam_participants (
   user_id       uuid not null references auth.users(id) on delete cascade,
   joined_at     timestamptz not null default now(),
   last_seen_at  timestamptz not null default now(),
+  role          text not null default 'guest' check (role in ('host','guest')),
   primary key (session_id, user_id)
 );
 ```
 PK compuesta `(session_id, user_id)` → un user = una fila por sesión.
+
+## Columna `role` (Bloque 3.2)
+Migración `supabase/migrations/20260529000000_jam_roles.sql`. `'host'` | `'guest'`,
+default `'guest'`. El control real de escritura lo protege `jam_sessions.host_id` (RLS);
+`role` es para **UI** (badge) + la función de transferencia.
+
+### `jam_transfer_host(p_session_id, p_new_host_id)`
+RPC `security definer` que valida que el caller es el host actual, reasigna
+`jam_sessions.host_id` y actualiza ambos roles atómicamente. Solo `authenticated` puede
+invocarla; la validación de host está dentro. Ver [[jam|store jam]] `transferHost`.
 
 ## Realtime
 ```sql
@@ -56,3 +67,4 @@ El store re-fetch la lista entera en cualquier cambio (`event: '*'`).
 
 ## Notas / Changelog
 - 2026-05-29: nota creada (F12, doc retroactiva de Fase 8).
+- 2026-05-29: columna `role` + `jam_transfer_host` (Bloque 3.2, mig `20260529000000`).

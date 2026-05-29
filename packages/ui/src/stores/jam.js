@@ -39,7 +39,7 @@ export const useJamStore = create((set, get) => ({
   mode: 'idle',
   /** @type {null | { id: string, code: string, hostId: string }} */
   session: null,
-  /** @type {Array<{ user_id: string, joined_at: string }>} */
+  /** @type {Array<{ user_id: string, joined_at: string, role: 'host'|'guest' }>} */
   participants: [],
   /** Estado del player canonico de la sesion (solo lectura para guests). */
   state: {
@@ -90,10 +90,12 @@ export const useJamStore = create((set, get) => ({
       },
     });
 
-    // Auto-join como participant (para mostrarse en la lista).
+    // Auto-join como participant (para mostrarse en la lista). El creador
+    // es el host, asi que su rol es 'host'.
     await supabase.from('jam_participants').upsert({
       session_id: inserted.id,
       user_id: user.id,
+      role: 'host',
       last_seen_at: new Date().toISOString(),
     });
 
@@ -137,6 +139,7 @@ export const useJamStore = create((set, get) => ({
     await supabase.from('jam_participants').upsert({
       session_id: ses.id,
       user_id: user.id,
+      role: isHost ? 'host' : 'guest',
       last_seen_at: new Date().toISOString(),
     });
 
@@ -223,6 +226,32 @@ export const useJamStore = create((set, get) => ({
     }
   },
 
+  /**
+   * Transfiere el control de la sesion a otro participante. Solo el host
+   * actual puede ejecutarla (validado server-side por jam_transfer_host).
+   * Tras el RPC, el cambio de host_id llega via CDC y el ex-host pasa a
+   * 'guest' automaticamente (mode recalculado en el subscribe).
+   *
+   * @param {string} newHostUserId user_id del nuevo host (debe estar en la sesion)
+   */
+  async transferHost(newHostUserId) {
+    const { session, mode } = get();
+    if (mode !== 'hosting' || !session) throw new Error('solo el host puede transferir');
+    if (!newHostUserId || newHostUserId === session.hostId) return;
+
+    const { error } = await supabase.rpc('jam_transfer_host', {
+      p_session_id: session.id,
+      p_new_host_id: newHostUserId,
+    });
+    if (error) throw error;
+
+    // Optimista: el ex-host pasa a guest localmente. El CDC confirmara.
+    set({
+      mode: 'guest',
+      session: { ...session, hostId: newHostUserId },
+    });
+  },
+
   /** Internal: suscripcion a Postgres CDC + presencia. */
   async _subscribe(sessionId) {
     const sesChannel = supabase
@@ -232,9 +261,22 @@ export const useJamStore = create((set, get) => ({
         schema: 'public',
         table: 'jam_sessions',
         filter: `id=eq.${sessionId}`,
-      }, (payload) => {
+      }, async (payload) => {
         const row = payload.new;
-        // Solo aplicar para guests; el host ya aplico optimistically.
+        const { session, mode } = get();
+
+        // Detectar transferencia de host: si host_id cambio, recalcular
+        // el mode local de este cliente.
+        if (session && row.host_id && row.host_id !== session.hostId) {
+          const { data: { user } } = await supabase.auth.getSession().then((r) => r.data);
+          const amNewHost = user?.id === row.host_id;
+          set({
+            mode: amNewHost ? 'hosting' : 'guest',
+            session: { ...session, hostId: row.host_id },
+          });
+        }
+
+        // Aplicar el state solo para guests; el host ya aplico optimistically.
         if (get().mode === 'guest') {
           set({
             state: {
@@ -270,7 +312,7 @@ export const useJamStore = create((set, get) => ({
         // Re-fetch la lista entera. Volumen bajo (max ~10 participantes).
         const { data } = await supabase
           .from('jam_participants')
-          .select('user_id, joined_at, last_seen_at')
+          .select('user_id, joined_at, last_seen_at, role')
           .eq('session_id', sessionId);
         set({ participants: data ?? [] });
       })
@@ -279,7 +321,7 @@ export const useJamStore = create((set, get) => ({
     // Trigger inicial.
     const { data: initialParts } = await supabase
       .from('jam_participants')
-      .select('user_id, joined_at, last_seen_at')
+      .select('user_id, joined_at, last_seen_at, role')
       .eq('session_id', sessionId);
     set({
       _channels: [sesChannel, partChannel],

@@ -29,6 +29,7 @@ export function JamModal({ onClose }) {
   const createSession = useJamStore((s) => s.createSession);
   const joinSession = useJamStore((s) => s.joinSession);
   const leaveSession = useJamStore((s) => s.leaveSession);
+  const transferHost = useJamStore((s) => s.transferHost);
 
   const [view, setView] = useState('menu');
   const [code, setCode] = useState('');
@@ -90,6 +91,52 @@ export function JamModal({ onClose }) {
       setBusy(false);
     }
   };
+
+  const handleTransfer = async (userId) => {
+    setError(null);
+    try {
+      await transferHost(userId);
+      toast.success('Control transferido');
+    } catch (e) {
+      setError(String(e?.message ?? e));
+    }
+  };
+
+  // Lista de participantes reutilizable. Muestra badge de host (por role)
+  // y, si el viewer es host, un boton para pasar el control a cada guest.
+  const renderParticipants = (canTransfer) => (
+    <div className={styles.participants}>
+      <h3 className={styles.partTitle}>
+        <Icon name="Users" size={14} /> Participantes ({participants.length})
+      </h3>
+      <ul className={styles.partList}>
+        {participants.map((p) => {
+          const isHost = p.role === 'host' || p.user_id === session?.hostId;
+          return (
+            <li key={p.user_id} className={styles.partItem}>
+              {isHost && (
+                <Icon name="BadgeCheck" size={12} className={styles.hostIcon} />
+              )}
+              <span className={styles.partId}>
+                {p.user_id.slice(0, 8)}…
+                {isHost && ' (Host)'}
+              </span>
+              {canTransfer && !isHost && (
+                <button
+                  type="button"
+                  className={styles.transferBtn}
+                  onClick={() => handleTransfer(p.user_id)}
+                  aria-label="Pasar el control a este participante"
+                >
+                  Pasar control
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 
   return (
     <Modal onClose={onClose} title="Jam" size="md">
@@ -153,24 +200,7 @@ export function JamModal({ onClose }) {
             <Icon name="Link" size={16} />
           </button>
 
-          <div className={styles.participants}>
-            <h3 className={styles.partTitle}>
-              <Icon name="Users" size={14} /> Participantes ({participants.length})
-            </h3>
-            <ul className={styles.partList}>
-              {participants.map((p) => (
-                <li key={p.user_id} className={styles.partItem}>
-                  {p.user_id === session.hostId && (
-                    <Icon name="BadgeCheck" size={12} className={styles.hostIcon} />
-                  )}
-                  <span className={styles.partId}>
-                    {p.user_id.slice(0, 8)}\u2026
-                    {p.user_id === session.hostId && ' (Host)'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {renderParticipants(true)}
 
           {error && <p className={styles.error}>{error}</p>}
           <div className={styles.actions}>
@@ -187,24 +217,7 @@ export function JamModal({ onClose }) {
             Estas en una jam con codigo <strong>{session.code}</strong>.
             El host controla la reproduccion.
           </p>
-          <div className={styles.participants}>
-            <h3 className={styles.partTitle}>
-              <Icon name="Users" size={14} /> Participantes ({participants.length})
-            </h3>
-            <ul className={styles.partList}>
-              {participants.map((p) => (
-                <li key={p.user_id} className={styles.partItem}>
-                  {p.user_id === session.hostId && (
-                    <Icon name="BadgeCheck" size={12} className={styles.hostIcon} />
-                  )}
-                  <span className={styles.partId}>
-                    {p.user_id.slice(0, 8)}\u2026
-                    {p.user_id === session.hostId && ' (Host)'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {renderParticipants(false)}
           <div className={styles.actions}>
             <Button variant="danger" onClick={handleLeave} loading={busy}>
               Salir de la jam

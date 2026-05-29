@@ -59,6 +59,9 @@ sequenceDiagram
 - **Host → participants** (no peer-to-peer, sin WebRTC, sin transmisión de audio).
 - Cada cliente reproduce el mismo `ytId` desde su propia conexión.
 - Solo el host puede `UPDATE jam_sessions` (RLS). Los guests solo leen.
+- **Roles** (Bloque 3.2): `jam_participants.role` (`host`/`guest`) para UI. El host puede
+  **pasar el control** via `jam_transfer_host` → reasigna `host_id` y los roles; el cambio
+  llega por CDC y cada cliente recalcula su `mode`. Ver [[jam_participants]] y [[jam|store jam]].
 
 ## Decisiones documentadas
 

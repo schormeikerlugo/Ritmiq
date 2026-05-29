@@ -99,6 +99,20 @@
 .hostIcon {
   color: var(--color-accent);
 }
+.transferBtn {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--color-accent);
+  background: none;
+  border: 1px solid color-mix(in oklab, var(--color-accent) 40%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.transferBtn:hover {
+  background: color-mix(in oklab, var(--color-accent) 14%, transparent);
+}
 
 .error {
   margin: 0;

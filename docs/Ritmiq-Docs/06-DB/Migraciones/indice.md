@@ -41,6 +41,14 @@ tags: [migraciones, indice, postgres]
 | 2026-05-22 | `push_delivery_log.sql` | Tabla `push_delivery_log` para errores no-expirados | [[push_subscriptions]] |
 | 2026-05-23 | `streak_reminders.sql` | Tabla `streak_reminder_log` + cron horario para [[streak-reminder]] | [[streak_reminder_log]] |
 | 2026-05-23 | `profiles_timezone.sql` | Columna `profiles.timezone` (IANA) para streak reminders por hora local | [[profiles]] |
+| 2026-05-27 | `lyrics_cache.sql` | Tabla `lyrics_cache` (TTL letras) | [[lyrics_cache]] |
+| 2026-05-27 | `daily_mix_cron.sql` | Cron diario de daily mix (prune + refresh via pg_net) | — |
+| 2026-05-28 | `spotify_tokens.sql` | Tabla `spotify_tokens` (OAuth PKCE) | [[spotify_tokens]] |
+| 2026-05-28 | `jam_mode.sql` | Tablas `jam_sessions` + `jam_participants` + Realtime + RLS + cron 24h | [[jam_sessions]], [[jam_participants]] |
+| 2026-05-29 | `jam_roles.sql` | Columna `jam_participants.role` + RPC `jam_transfer_host` (pasar control) | [[jam_participants]] |
+
+> Nota: este índice se actualizó parcialmente en F12 (entradas de F4-F8). Las migraciones de
+> streaks/stream_url_cache/tracks_global anteriores a 2026-05-27 aún no están listadas aquí.
 
 ## Cómo añadir una migración
 

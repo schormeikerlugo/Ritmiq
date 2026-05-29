@@ -29,8 +29,13 @@ tags: [componente, jam, modal, colaborativo]
 ## Render principal por vista
 - **menu**: botones "Iniciar jam" / "Unirse a jam".
 - **join**: `TextField` de 6 chars (auto-uppercase) + "Unirse".
-- **create**: muestra el código (copiable) + lista de participantes con badge de Host.
-- **guest**: info de la sesión + participantes + "Salir".
+- **create**: muestra el código (copiable) + `renderParticipants(true)` (con botón "Pasar control").
+- **guest**: info de la sesión + `renderParticipants(false)` + "Salir".
+
+## `renderParticipants(canTransfer)` (Bloque 3.2)
+Helper que pinta la lista. El badge de Host usa `p.role === 'host'` (con fallback a
+`session.hostId` para sesiones legacy). Si `canTransfer` y el participante es guest, muestra
+botón "Pasar control" → `transferHost(user_id)`.
 
 ## Dependencias salientes
 - [[jam|store jam]] (`createSession`, `joinSession`, `leaveSession`).
@@ -40,9 +45,9 @@ tags: [componente, jam, modal, colaborativo]
 - **No se cierra solo**: si hay sesión activa, el modal no se auto-cierra; el user sale explícitamente.
 - **Validación de código**: `/^[A-Z0-9]{6}$/` antes de llamar a `joinSession`.
 
-> 🐛 **Bug conocido (a corregir)**: las líneas `:167` y `:201` usan el escape literal `\u2026`
-> en JSX en vez del carácter `…`, por lo que se renderiza el texto `\u2026` en pantalla.
-> Corregir al tocar este archivo (ver [[Jam-Mode]] y Bloque 3.3 del plan de mejoras).
+> ✅ **Bug corregido (Bloque 3.2)**: las dos listas de participantes inline usaban el escape
+> literal `\u2026` (se renderizaba el texto `\u2026`). Al unificar en `renderParticipants` se
+> reemplazó por el carácter `…` real.
 
 ## Qué puede romper este cambio
 | Cambio | Síntoma |

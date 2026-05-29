@@ -24,9 +24,11 @@ tags: [store, zustand, jam, realtime, colaborativo]
   state: { currentTrack, positionSeconds, isPlaying, queue },  // canónico de la sesión
   _channels: [], _heartbeatTimer: null,                         // internos
   createSession(), joinSession(code), leaveSession(),
-  hostBroadcast(patch), reset(),
+  hostBroadcast(patch), transferHost(newHostUserId), reset(),
 }
 ```
+
+> `participants[].role` es `'host' | 'guest'` (Bloque 3.2).
 
 ## Anatomía del código (snippets comentados)
 
@@ -80,8 +82,22 @@ if (_heartbeatTimer) clearInterval(_heartbeatTimer);
 
 **Por qué**: si se desuscribe después de las queries, podría llegar un CDC tardío y revivir state ya limpiado.
 
+### transferHost: pasar el control (Bloque 3.2)
+`packages/ui/src/stores/jam.js`
+
+```js
+const { error } = await supabase.rpc('jam_transfer_host', {
+  p_session_id: session.id, p_new_host_id: newHostUserId,
+});
+// Optimista: el ex-host pasa a guest localmente. El CDC confirmara.
+set({ mode: 'guest', session: { ...session, hostId: newHostUserId } });
+```
+
+**Por qué**: el RPC reasigna `host_id` server-side; el subscribe de UPDATE detecta el cambio
+de `host_id` y recalcula el `mode` de **cada** cliente (el nuevo host pasa a `hosting`).
+
 ## Side-effects
-- DB: CRUD en [[jam_sessions]] + [[jam_participants]].
+- DB: CRUD en [[jam_sessions]] + [[jam_participants]] + RPC `jam_transfer_host`.
 - Realtime: 2 canales (`jam:<id>`, `jam-participants:<id>`).
 - Timer: heartbeat `setInterval` 30s.
 
@@ -104,3 +120,4 @@ if (_heartbeatTimer) clearInterval(_heartbeatTimer);
 
 ## Notas / Changelog
 - 2026-05-29: nota creada (F12, doc retroactiva de Fase 8.1).
+- 2026-05-29: `transferHost` + `role` en participants + recálculo de mode en subscribe (Bloque 3.2).
