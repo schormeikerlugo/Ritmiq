@@ -61,18 +61,20 @@ Cambios de scope vs plan:
   en uso en PlaylistView para sortable interno; cross-context con
   sortable es complejo).
 
-## Fase 5 — Recomendaciones Fase 3 backend (siguiente)
+## Fase 5 — Recomendaciones backend ✓ COMPLETADA
 
-Ver `docs/RECOMMENDATIONS.md` lineas 262-280.
+Ver `docs/fase-5-completada.md`.
 
-| # | Commit | Esfuerzo |
-|---|---|---|
-| 5.1 | edge function enrich-tags (artist_tags cache) | 3h |
-| 5.2 | Home: filas "Mix por genero real" | 1.5h |
-| 5.3 | Daily Mix pg_cron 4am | 3h |
-| 5.4 | heuristica hora del dia | 1.5h |
+4 commits: enrich-tags edge function + cliente, Home con genero capitalizado +
+pre-enrich, pg_cron 04 UTC (prune + refresh artist_tags via pg_net + vault),
+heuristica hora del dia con reorderByMood (no destructivo).
 
-Total: ~9h.
+Bundle delta: +6 KiB vs Fase 4.
+
+Notas:
+- `reorderByMood` aplicado pero sin efecto observable hasta que el server
+  devuelva `track.tags`. Puerta trasera: cuando se anada, se activa solo.
+- Cron en UTC (no por user timezone) por simplicidad del scope.
 
 ## Fase 6 — Multi-fuente recs (OPCIONAL — al final)
 
@@ -132,7 +134,8 @@ commits, hashes, verificacion manual, deploys requeridos.
 - ✓ Fase 2 (6 commits + docs, ver `fase-2-completada.md`).
 - ✓ Fase 3 (5 commits + docs, ver `fase-3-completada.md`).
 - ✓ Fase 4 (9 commits + docs, ver `fase-4-completada.md`).
-- ⧗ Siguiente: Fase 5.1.
+- ✓ Fase 5 (4 commits + docs, ver `fase-5-completada.md`).
+- ⧗ Siguiente: Fase 7.1 (saltando Fase 6 opcional al final).
 
 ## Decisiones tomadas
 
