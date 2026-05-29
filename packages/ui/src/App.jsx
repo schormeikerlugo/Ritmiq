@@ -1,33 +1,56 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Sidebar } from './components/Sidebar/Sidebar.jsx';
 import { Library } from './components/Library/Library.jsx';
 import { Home } from './components/Home/Home.jsx';
 import { Downloads } from './components/Downloads/Downloads.jsx';
 import { PlaylistView } from './components/PlaylistView/PlaylistView.jsx';
 import { SearchView } from './components/SearchView/SearchView.jsx';
-import { ArtistView } from './components/ArtistView/ArtistView.jsx';
-import { AlbumView } from './components/AlbumView/AlbumView.jsx';
-import { YtPlaylistView } from './components/YtPlaylistView/YtPlaylistView.jsx';
-import { HistoryView } from './components/HistoryView/HistoryView.jsx';
 import { Player } from './components/Player/Player.jsx';
 import { TopBar } from './components/TopBar/TopBar.jsx';
 import { BottomNav } from './components/BottomNav/BottomNav.jsx';
-import { SettingsView } from './components/SettingsView/SettingsView.jsx';
-import { StatsView } from './components/StatsView/StatsView.jsx';
-import { FriendsView } from './components/FriendsView/FriendsView.jsx';
-import { ProfileView } from './components/ProfileView/ProfileView.jsx';
 import { AuthScreen } from './components/Auth/AuthScreen.jsx';
 import { ResetPasswordView } from './components/Auth/views/ResetPasswordView.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { MilestoneToast } from './components/MilestoneToast/MilestoneToast.jsx';
 import { DailyStreakToast } from './components/DailyStreakToast/DailyStreakToast.jsx';
-import { MonthlyWrappedAutoTrigger } from './components/StatsView/MonthlyWrapped.jsx';
 import { ToastHost } from './components/Toast/ToastHost.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
 import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
 import { BottomSheetHost } from './components/BottomSheet/BottomSheetHost.jsx';
 import { Onboarding } from './components/Onboarding/Onboarding.jsx';
 import { SharedView } from './components/SharedView/SharedView.jsx';
+import { TrackRowSkeleton } from './components/Skeleton/index.js';
+
+// ── Code-splitting por ruta (Fase 7.1) ────────────────────────────────
+// Vistas de uso frecuente o always-mounted quedan en el bundle inicial
+// (arriba). Las menos frecuentes / mas pesadas se lazy-load: cada una
+// se baja en su propio chunk cuando el user navega a esa vista por
+// primera vez en la sesion. Vite emite un /assets/<Name>-<hash>.js
+// independiente por cada dynamic import().
+//
+// Suspense fallback: un TrackRowSkeleton breve (la mayoria de chunks
+// pesan < 50 KB y bajan en < 200ms en red estable).
+const SettingsView   = lazy(() => import('./components/SettingsView/SettingsView.jsx')
+  .then((m) => ({ default: m.SettingsView })));
+const StatsView      = lazy(() => import('./components/StatsView/StatsView.jsx')
+  .then((m) => ({ default: m.StatsView })));
+const FriendsView    = lazy(() => import('./components/FriendsView/FriendsView.jsx')
+  .then((m) => ({ default: m.FriendsView })));
+const ProfileView    = lazy(() => import('./components/ProfileView/ProfileView.jsx')
+  .then((m) => ({ default: m.ProfileView })));
+const HistoryView    = lazy(() => import('./components/HistoryView/HistoryView.jsx')
+  .then((m) => ({ default: m.HistoryView })));
+const ArtistView     = lazy(() => import('./components/ArtistView/ArtistView.jsx')
+  .then((m) => ({ default: m.ArtistView })));
+const AlbumView      = lazy(() => import('./components/AlbumView/AlbumView.jsx')
+  .then((m) => ({ default: m.AlbumView })));
+const YtPlaylistView = lazy(() => import('./components/YtPlaylistView/YtPlaylistView.jsx')
+  .then((m) => ({ default: m.YtPlaylistView })));
+
+// MonthlyWrappedAutoTrigger: invisible la mayoria del tiempo (solo
+// abre modal una vez al mes), perfecto candidate a chunk separado.
+const MonthlyWrappedAutoTrigger = lazy(() => import('./components/StatsView/MonthlyWrapped.jsx')
+  .then((m) => ({ default: m.MonthlyWrappedAutoTrigger })));
 import {
   parseShareFromUrl, clearShareFromUrl,
   isStandalonePWA, markPwaInstalled, pingMarkInstalled,
@@ -526,8 +549,14 @@ export function App() {
           en mobile, bottom-right en desktop. Auto-dismiss 3.5s. */}
       <ToastHost />
       {/* Auto-trigger del modal Wrapped: muestra resumen del mes anterior
-          una vez por mes despues del dia 2. Persiste flag en localStorage. */}
-      <MonthlyWrappedAutoTrigger />
+          una vez por mes despues del dia 2. Persiste flag en localStorage.
+          Lazy: el componente decide internamente si renderizar; cuando es
+          null no descarga el chunk. Cuando si decide abrir, Suspense
+          fallback null porque el modal va sobre un overlay que ya tiene
+          su propio loading state. */}
+      <Suspense fallback={null}>
+        <MonthlyWrappedAutoTrigger />
+      </Suspense>
     </div>
   );
 }
@@ -577,20 +606,32 @@ function MainView() {
   }, [key]);
 
   let content;
+  let isLazy = false;
   if (view.kind === 'home') content = <Home />;
   else if (view.kind === 'library') content = <Library />;
   else if (view.kind === 'downloads') content = <Downloads />;
-  else if (view.kind === 'settings') content = <SettingsView />;
-  else if (view.kind === 'stats') content = <StatsView />;
-  else if (view.kind === 'friends') content = <FriendsView />;
-  else if (view.kind === 'profile') content = <ProfileView userId={view.userId} />;
+  else if (view.kind === 'settings') { content = <SettingsView />; isLazy = true; }
+  else if (view.kind === 'stats') { content = <StatsView />; isLazy = true; }
+  else if (view.kind === 'friends') { content = <FriendsView />; isLazy = true; }
+  else if (view.kind === 'profile') { content = <ProfileView userId={view.userId} />; isLazy = true; }
   else if (view.kind === 'playlist') content = <PlaylistView playlistId={view.playlistId} />;
-  else if (view.kind === 'ytPlaylist') content = <YtPlaylistView id={view.ytPlaylistId} />;
+  else if (view.kind === 'ytPlaylist') { content = <YtPlaylistView id={view.ytPlaylistId} />; isLazy = true; }
   else if (view.kind === 'search') content = <SearchView query={view.query} />;
-  else if (view.kind === 'artist') content = <ArtistView name={view.name} />;
-  else if (view.kind === 'album') content = <AlbumView artist={view.artist} album={view.album} />;
-  else if (view.kind === 'history') content = <HistoryView />;
+  else if (view.kind === 'artist') { content = <ArtistView name={view.name} />; isLazy = true; }
+  else if (view.kind === 'album') { content = <AlbumView artist={view.artist} album={view.album} />; isLazy = true; }
+  else if (view.kind === 'history') { content = <HistoryView />; isLazy = true; }
   else return null;
+
+  // Suspense wraps SOLO las vistas lazy. Las eager no lo necesitan y
+  // anadir un Suspense innecesario hace que React inserte un boundary
+  // que sutilmente cambia el comportamiento del reconciler.
+  if (isLazy) {
+    content = (
+      <Suspense fallback={<TrackRowSkeleton count={6} />}>
+        {content}
+      </Suspense>
+    );
+  }
   return <ViewSlot key={key}>{content}</ViewSlot>;
 }
 
