@@ -29,6 +29,11 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  isAllowedTag,
+  lfm,
+  topTagsByArtist,
+} from '../_shared/lastfm.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -37,7 +42,6 @@ const CORS = {
 };
 
 const CACHE_TTL_HOURS = 12;
-const LASTFM_BASE = 'https://ws.audioscrobbler.com/2.0/';
 const INNERTUBE_URL = 'https://www.youtube.com/youtubei/v1/search?prettyPrint=false';
 const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 
@@ -62,23 +66,8 @@ interface Payload {
 /* ────────────────────────────────────────────────────────────────────── */
 /* Helpers — Last.fm                                                       */
 /* ────────────────────────────────────────────────────────────────────── */
-
-async function lfm(method: string, params: Record<string, string>): Promise<any> {
-  const apiKey = Deno.env.get('LASTFM_API_KEY');
-  if (!apiKey) throw new Error('LASTFM_API_KEY no configurada');
-  const url = new URL(LASTFM_BASE);
-  url.searchParams.set('method', method);
-  url.searchParams.set('api_key', apiKey);
-  url.searchParams.set('format', 'json');
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const r = await fetch(url.toString(), {
-    headers: { 'User-Agent': 'Ritmiq/0.1' },
-  });
-  if (!r.ok) throw new Error(`lastfm ${method} ${r.status}`);
-  const j = await r.json();
-  if (j.error) throw new Error(`lastfm ${method}: ${j.message}`);
-  return j;
-}
+/* lfm(), isAllowedTag, TAG_BLACKLIST, topTagsByArtist viven en
+   _shared/lastfm.ts (Fase 7 cleanup). Importados arriba. */
 
 async function similarArtists(artist: string, limit = 8): Promise<Array<{ name: string }>> {
   const j = await lfm('artist.getSimilar', { artist, limit: String(limit), autocorrect: '1' });
@@ -102,43 +91,6 @@ async function topTracksByTag(tag: string, limit = 12): Promise<Array<{ title: s
   const j = await lfm('tag.getTopTracks', { tag, limit: String(limit) });
   const items = j?.tracks?.track ?? [];
   return items.map((x: any) => ({ title: String(x.name), artist: String(x.artist?.name ?? '') }));
-}
-
-async function topTagsByArtist(artist: string): Promise<string[]> {
-  try {
-    const j = await lfm('artist.getTopTags', { artist, autocorrect: '1' });
-    const items = j?.toptags?.tag ?? [];
-    return items.slice(0, 10).map((x: any) => String(x.name).toLowerCase());
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Lista negra de tags que nunca queremos usar como "género":
- *  - genéricos / no descriptivos
- *  - décadas (00s, 10s, 20s) — son periodo, no género
- *  - meta-listas del usuario en Last.fm
- *  - vocales (no son género real)
- */
-const TAG_BLACKLIST = new Set<string>([
-  'seen live', 'awesome', 'favorite', 'favourite', 'favorites', 'favourites',
-  'all', 'albums i own', 'tracks i own', 'love at first listen',
-  'male vocalists', 'female vocalists', 'male vocalist', 'female vocalist',
-  'cool', 'great', 'amazing', 'best', 'good', 'beautiful', 'epic',
-  'classic', 'masterpiece', 'spotify',
-]);
-
-function isAllowedTag(tag: string): boolean {
-  const t = tag.toLowerCase().trim();
-  if (TAG_BLACKLIST.has(t)) return false;
-  // Décadas tipo "00s", "10s", "70s", "1990s", etc.
-  if (/^\d{2,4}s?$/.test(t)) return false;
-  // Años puros.
-  if (/^(19|20)\d{2}$/.test(t)) return false;
-  // Muy corto.
-  if (t.length < 3) return false;
-  return true;
 }
 
 /**

@@ -30,6 +30,7 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { isAllowedTag, topTagsByArtist } from '../_shared/lastfm.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -37,57 +38,16 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const LASTFM_BASE = 'https://ws.audioscrobbler.com/2.0/';
 const CACHE_TTL_MS = 30 * 86400_000;
 const MAX_ARTISTS_PER_REQUEST = 50;
 const CONCURRENCY = 5;
 const MAX_TAGS_PER_ARTIST = 5;
-
-const TAG_BLACKLIST = new Set<string>([
-  'seen live', 'awesome', 'favorite', 'favourite', 'favorites', 'favourites',
-  'all', 'albums i own', 'tracks i own', 'love at first listen',
-  'male vocalists', 'female vocalists', 'male vocalist', 'female vocalist',
-  'cool', 'great', 'amazing', 'best', 'good', 'beautiful', 'epic',
-  'classic', 'masterpiece', 'spotify',
-]);
-
-function isAllowedTag(tag: string): boolean {
-  const t = tag.toLowerCase().trim();
-  if (TAG_BLACKLIST.has(t)) return false;
-  if (/^\d{2,4}s?$/.test(t)) return false;
-  if (/^(19|20)\d{2}$/.test(t)) return false;
-  if (t.length < 3) return false;
-  return true;
-}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...CORS, 'content-type': 'application/json' },
   });
-}
-
-async function lfm(method: string, params: Record<string, string>): Promise<any> {
-  const apiKey = Deno.env.get('LASTFM_API_KEY');
-  if (!apiKey) throw new Error('LASTFM_API_KEY no configurada');
-  const url = new URL(LASTFM_BASE);
-  url.searchParams.set('method', method);
-  url.searchParams.set('api_key', apiKey);
-  url.searchParams.set('format', 'json');
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const r = await fetch(url.toString());
-  if (!r.ok) throw new Error(`lastfm ${method} ${r.status}`);
-  return r.json();
-}
-
-async function topTagsByArtist(artist: string): Promise<string[]> {
-  try {
-    const j = await lfm('artist.getTopTags', { artist, autocorrect: '1' });
-    const items = j?.toptags?.tag ?? [];
-    return items.slice(0, 10).map((x: any) => String(x.name).toLowerCase());
-  } catch {
-    return [];
-  }
 }
 
 /** Resuelve y persiste los tags de un único artista. */
