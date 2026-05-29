@@ -20,6 +20,13 @@
 import { useEffect, useMemo } from 'react';
 import { useAuthStore } from '../../stores/auth.js';
 import { enrichArtistTags } from '../../lib/enrich-tags.js';
+import {
+  getGreeting as getGreetingFromTime,
+  getTimeOfDay,
+  getMoodBias,
+  getMoodSubtitle,
+  reorderByMood,
+} from '../../lib/time-of-day.js';
 import { useSocialStore } from '../../stores/social.js';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
@@ -36,14 +43,6 @@ import { playPlaylist } from '../../lib/play-helpers.js';
 import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
 import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
 import styles from './Home.module.css';
-
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 6)  return 'Buenas noches';
-  if (h < 12) return 'Buenos días';
-  if (h < 20) return 'Buenas tardes';
-  return 'Buenas noches';
-}
 
 /**
  * Capitaliza un tag de Last.fm para display.
@@ -134,8 +133,28 @@ export function Home() {
   const byTrackRec       = trackSeed?.artist && trackSeed?.title
     ? recStore[`mix-by-track:${trackSeed.artist}::${trackSeed.title}`]
     : null;
-  const genreRec         = recStore['auto-genre-mix:'];
-  const discoverRec      = recStore['discover:'];
+  const genreRecRaw      = recStore['auto-genre-mix:'];
+  const discoverRecRaw   = recStore['discover:'];
+
+  // Heuristica hora del dia (Fase 5.4): reordena (no filtra) las
+  // recomendaciones de genre-mix y discover segun mood actual:
+  //   - manana → bias energetico
+  //   - noche  → bias mellow
+  //   - tarde  → sin reordering (devuelve raw order del server)
+  // El bias es chico (max ±1.0) para que los top tracks del server
+  // sigan arriba aunque no matcheen el mood. Si en el futuro el server
+  // devuelve `track.tags`, este reordering se vuelve mas efectivo
+  // automaticamente (ahora retorna 0 score sin tags).
+  const tod = getTimeOfDay();
+  const moodBias = getMoodBias();
+  const genreRec = useMemo(() => {
+    if (!genreRecRaw) return genreRecRaw;
+    return { ...genreRecRaw, tracks: reorderByMood(genreRecRaw.tracks ?? [], { mood: moodBias }) };
+  }, [genreRecRaw, moodBias]);
+  const discoverRec = useMemo(() => {
+    if (!discoverRecRaw) return discoverRecRaw;
+    return { ...discoverRecRaw, tracks: reorderByMood(discoverRecRaw.tracks ?? [], { mood: moodBias }) };
+  }, [discoverRecRaw, moodBias]);
 
   // Pull-to-refresh — refresca historial + recomendaciones de Last.fm.
   // Solo activo en mobile (max-width 768px). El historial vive como
@@ -172,7 +191,7 @@ export function Home() {
       <PullIndicator pullDistance={pullDistance} refreshing={refreshing} />
       <header className={styles.header}>
         <h1 className={styles.title}>
-          {getGreeting()}{name ? `, ${name}` : ''}
+          {getGreetingFromTime()}{name ? `, ${name}` : ''}
         </h1>
         <p className={styles.subtitle}>
           ¿Qué quieres escuchar hoy?
@@ -297,11 +316,21 @@ export function Home() {
         />
       )}
 
-      {/* ─── Para descubrir (Fase 2) ─── */}
+      {/* ─── Para descubrir (Fase 2 + 5.4 reordenado por hora) ─── */}
       {topArtists.length >= 2 && (
         <HomeRow
-          title="Para descubrir"
-          subtitle="Artistas nuevos que podrían gustarte"
+          title={
+            tod === 'morning' ? 'Para empezar el día'
+              : tod === 'night' ? 'Para acompañar la noche'
+              : tod === 'evening' ? 'Para la tarde'
+              : 'Para descubrir'
+          }
+          subtitle={
+            tod === 'morning' ? 'Energía nueva que podría gustarte'
+              : tod === 'night' ? 'Sonidos suaves para descubrir'
+              : tod === 'evening' ? 'Algo nuevo y tranquilo'
+              : 'Artistas nuevos que podrían gustarte'
+          }
           items={discoverRec?.tracks ?? []}
           loading={discoverRec?.loading}
           onPlayAll={discoverRec?.tracks?.length ? () => playRow(discoverRec.tracks) : undefined}
