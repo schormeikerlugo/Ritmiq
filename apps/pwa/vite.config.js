@@ -136,13 +136,14 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
-    // Subir el limite del warning a 1000 KB \u2014 nuestro bundle actual es
-    // ~850 KB (251 KB gzip) lo cual es aceptable para una PWA con audio
-    // engine + queue + 11 vistas + 5 stores. Code-splitting agresivo
-    // a nivel ruta romperia el flow de navegacion instantanea SPA.
+    // Limite del warning ajustado a 950 KB tras Fase 7.
     //
-    // Cuando el bundle supere 1100 KB se podra splittear por rutas
-    // dinamicas (Stats, Friends) que son visitas menos frecuentes.
-    chunkSizeWarningLimit: 1000,
+    // Post-Fase 7 el bundle inicial es ~931 KB raw / ~287 KB gzip. 13
+    // chunks lazy adicionales (Settings, Stats, Friends, Auth, etc.) que
+    // se descargan on-demand y no cuentan para este warning.
+    //
+    // Si el inicial supera 950 KB, hay que evaluar mover algo mas a lazy
+    // o investigar imports recien anadidos.
+    chunkSizeWarningLimit: 950,
   },
 });
