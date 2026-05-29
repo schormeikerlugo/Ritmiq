@@ -92,6 +92,7 @@ import { useDesktopNotifications } from './lib/use-desktop-notifications.js';
 import { useRadioAutoExtend } from './lib/use-radio.js';
 import { useCrossfade } from './lib/use-crossfade.js';
 import { useApplyAudioSettings } from './lib/use-apply-audio-settings.js';
+import { useJamSync } from './lib/use-jam-sync.js';
 import { useSocialStore } from './stores/social.js';
 import { usePresence } from './lib/use-presence.js';
 import { useSocialRealtime } from './lib/use-social-realtime.js';
@@ -472,6 +473,11 @@ export function App() {
   // Aplica settings de EQ al backend cuando cambian en el store. Lazy:
   // si el usuario nunca toca el EQ, no inicializa el WebAudio graph.
   useApplyAudioSettings(backend);
+  // Bridge entre useJamStore y usePlayerStore (Fase 8.3):
+  //   - hosting: broadcast cambios del player al jam_sessions row.
+  //   - guest: aplica el state del jam al player local.
+  // No-op si mode === "idle".
+  useJamSync();
 
   // Si llega via link compartido Y aun no esta logueado, mostrar landing
   // publica. Click en "Abrir Ritmiq" cierra share view → flujo normal de
