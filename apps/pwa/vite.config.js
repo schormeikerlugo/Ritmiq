@@ -65,11 +65,40 @@ export default defineConfig({
         navigateFallbackDenylist: [/\/stream\//, /\.trycloudflare\.com/, /\.cfargotunnel\.com/],
         runtimeCaching: [
           {
+            // Covers de Supabase Storage (cover_url personalizado del usuario,
+            // playlists con cover propio, etc.).
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'ritmiq-covers',
               expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+          {
+            // YouTube thumbnails (i.ytimg.com / i9.ytimg.com / i1.ytimg.com).
+            // Es la fuente mas grande de covers en la app: cada track
+            // recomendado, cada resultado de search, todo el historial.
+            // CacheFirst con LRU 1000 entries / 30 dias \u2014 mas grande que
+            // ritmiq-covers porque el catalogo YouTube es enorme y el user
+            // vuelve a ver los mismos tracks frecuentemente. (Fase 7.3)
+            urlPattern: /^https:\/\/i[0-9]*\.ytimg\.com\/.*/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ritmiq-yt-covers',
+              expiration: { maxEntries: 1000, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Imagenes de artistas de Last.fm (CDN Fastly). Vienen via
+            // artist-detail edge function. Volumen menor que YouTube pero
+            // mismo patron: misma URL re-visitada al volver al artista.
+            urlPattern: /^https:\/\/lastfm\.freetls\.fastly\.net\/.*/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ritmiq-artist-covers',
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
           {
