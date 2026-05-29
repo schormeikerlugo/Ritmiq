@@ -31,13 +31,11 @@ Limitacion iOS conocida:
 
 ## Tareas pendientes (T4 + T5 + T6)
 
-> Estado actualizado 2026-05-27:
+> Estado actualizado 2026-05-28:
 >   - **T4**: DONE en commit `697ab4f` — endpoint `apps/pwa/api/mark-installed.js`.
->   - **T5**: DONE en commit pendiente — `pingMarkInstalled()` + listener
->     `visibilitychange` en `App.jsx`.
->   - **T6**: diferido (depende de modelo "amigos" que aun no existe).
->   - **T7**: DONE en commit pendiente — `apps/pwa/middleware.js` Edge
->     Middleware inyecta OG + Twitter Card en `/share/track/*`.
+>   - **T5**: DONE en commit `e6f0bff` — `pingMarkInstalled()` + listener `visibilitychange` en `App.jsx`.
+>   - **T6**: **re-evaluable** — el modelo de amigos SÍ existe ahora (`friendships` table + `send-share` edge + `use-share-reminder`). T6 era "Web Push para abrir la PWA al recibir un share". Pero hoy ya tenemos push del share via `send-push-notification` que abre la PWA cuando el receptor toca la notificación. **T6 funcionalmente cubierto** sin la implementación específica descrita abajo.
+>   - **T7**: DONE en commit `2a28bb2` — `apps/pwa/middleware.js` Edge Middleware inyecta OG + Twitter Card en `/share/track/*`.
 
 ### T4 — Deteccion cross-context con cookie HttpOnly (~1h) ✓ DONE
 
@@ -130,6 +128,13 @@ Plan:
 Dependencia critica: **no tenemos modelo de "amigos / seguidores"** en
 Ritmiq. Hasta que exista, T6 no aplica. Diferir a Fase 3.
 
+**UPDATE 2026-05-28**: el modelo de amigos sí existe ahora (`friendships`
+table) y el push del share ya está implementado en `send-push-notification`
+edge function + `use-push` hook. El push notification cuando el receptor
+toca la notificación abre la PWA (manejado por el SW). T6 funcionalmente
+cubierto — no se necesita una implementación dedicada del flujo descrito
+en esta sección. **Cerrado como wontfix**.
+
 ---
 
 ### T7 — Open Graph + Twitter Card meta tags ✓ DONE
@@ -174,7 +179,7 @@ Plan:
 - **T4 + T5** son los mas valiosos — completan la deteccion cross-context
   en iOS. Recomendado retomarlos cuando el deploy a Vercel este estable
   y validemos el MVP con usuarios reales.
-- **T6** depende de feature de "amigos" que no existe — diferir.
+- **T6** funcionalmente cubierto por `send-push-notification` + `friendships`. La implementación original de T6 (Web Push + `clients.openWindow`) NO se hizo, pero el caso de uso ("abrir la PWA al recibir un share") ya está resuelto vía el push existente. **Cerrado como wontfix con caveat**.
 - **T7** mejora ranking de comparticion social — nice to have, no critico.
 
 Cuando se retome: hacer commit independiente por T, no agrupar.

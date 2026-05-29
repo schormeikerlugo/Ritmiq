@@ -261,20 +261,19 @@ código. Pero:
 
 ## Roadmap futuro
 
-Ideas exploradas en `docs/arquitectura.md` y aún no implementadas:
+### Fase 3 — Refinamiento ✓ COMPLETADA (Fase 5 del plan general — 2026-05-27)
 
-### Fase 3 — Refinamiento
-- **`artist_tags` activo**: edge function `enrich-tags` que para cada
-  artista del usuario llama `artist.getTopTags` y lo cachea. Habilita
-  filas "Mix de [Género real]" en lugar de usar nombre de artista.
-- **Daily Mix programado** con cron de Supabase (`pg_cron`): regenerar
-  cache a las 4am de cada usuario, así el Home matutino siempre tiene
-  contenido fresco sin esperar al primer load.
-- **Hora del día**: heurística para sugerir música suave en la noche o
-  energética en la mañana.
+Ver `docs/fase-5-completada.md`. Implementado:
 
-### Fase 4 — Multi-fuente
+- **`artist_tags` activo**: ✓ edge function `enrich-tags` dedicada (Fase 5.1, commit `894b44d`). Cliente fire-and-forget en `lib/enrich-tags.js`.
+- **Daily Mix programado** con `pg_cron`: ✓ 2 cron jobs a las 04:00 / 04:15 UTC (Fase 5.3, commit `1187475`). Prune de `recommendation_cache` stale + refresh de `artist_tags` para top 30 artistas activos vía `pg_net` POST.
+- **Hora del día**: ✓ heurística `time-of-day.js` con franjas morning/afternoon/evening/night. `reorderByMood` no destructivo (Fase 5.4, commit `bae3b42`). Titles contextuales en el Home.
+- **Filas "Mix de [Género real]"** con capitalización (`Hip-Hop`, `R&B`, `EDM`): ✓ Fase 5.2, commit `b769edf`.
+
+### Fase 4 — Multi-fuente (PENDIENTE — opcional)
+
 - **YouTube Music recomendaciones** vía Innertube (sin Last.fm).
-- **Spotify Web API**: requiere OAuth por usuario, retorno: mucho mejor
-  cobertura latina + audio-features.
+- **Spotify Web API**: requiere OAuth por usuario, retorno: mucho mejor cobertura latina + audio-features.
 - **Combinar sources** con scoring híbrido.
+
+Diferida en el plan general (`docs/fases-plan-general.md` → Fase 6).
