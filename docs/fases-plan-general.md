@@ -76,17 +76,23 @@ Notas:
   devuelva `track.tags`. Puerta trasera: cuando se anada, se activa solo.
 - Cron en UTC (no por user timezone) por simplicidad del scope.
 
-## Fase 6 — Multi-fuente recs (OPCIONAL — al final)
+## Fase 6 — Multi-fuente recs ✓ COMPLETADA
 
-Decidido diferir hasta el final.
+Ver `docs/fase-6-completada.md`.
 
-| # | Commit | Esfuerzo |
-|---|---|---|
-| 6.1 | recs fuente YouTube Music Innertube | 4h |
-| 6.2 | scoring hibrido | 2h |
-| 6.3 | Spotify Web API OAuth opcional | 8h |
+3 commits: yt-recs Innertube watch-next + scoring hibrido con consensus
+boost + infraestructura Spotify OAuth PKCE (sin UI todavia, requiere
+registro Spotify para activar).
 
-Total: ~14h.
+Bundle delta: +3 KB vs Fase 7.
+
+Notas:
+- Spotify OAuth queda como infraestructura. La UI de "Conectar Spotify"
+  + pagina /auth/spotify-callback son trabajo aparte cuando se decida
+  activar (requiere registrar app en developer.spotify.com).
+- `yt-recs` cache es global (mismo cache para todos los users con el
+  mismo seedYtId). `user_id` se persiste solo para satisfacer FK de
+  recommendation_cache.
 
 ## Fase 7 — Performance / tecnica ✓ COMPLETADA
 
