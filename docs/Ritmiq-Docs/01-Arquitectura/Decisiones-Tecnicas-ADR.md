@@ -127,6 +127,16 @@ Cada decisión sigue el formato:
 - **Decisión**: instalar `@playwright/test` en `apps/pwa` (devDependency). Config con `chromium only` V1, auto-arranca `vite preview`. Suite V1: smoke (boot + AuthScreen visible + code-splitting valido). Tests V2 (Auth, Play, Share flows) documentados en `e2e/README.md` como follow-up que requieren seed user en Supabase o mocks MSW.
 - **Consecuencias**: la suite **no está integrada a CI** todavía. Se corre manualmente con `pnpm run test:e2e`. Cuando se decida agregarla a GitHub Actions, hacer cache de `~/.cache/ms-playwright` para evitar descargar Chromium en cada run. Si la suite V2 requiere DB live, evaluar mover a un proyecto Supabase de test separado.
 
+## ADR-019 — Sync de Jam mode via Realtime broadcast + drift compensation (no WebRTC)
+
+- **Contexto**: en el [[Jam-Mode]] cada cliente reproduce el mismo `ytId` desde su propia red, pero sin un reloj compartido los clientes acumulan drift de 1-3s. La V1 ([[use-jam-sync]]) corregía con un seek duro al superar 2s, audible y molesto. Sincronización exacta requeriría WebRTC o un servidor de timing.
+- **Decisión**: **no** introducir WebRTC. Mantener el broadcast via Supabase Realtime Postgres CDC y mejorar la corrección de drift en el guest con tres niveles:
+  - `drift >= 1.5s` → seek duro (inevitable, audible).
+  - `0.5s <= drift < 1.5s` → compensación con `playbackRate` (0.98 / 1.02), inaudible.
+  - `drift < 0.5s` → reset de rate a 1.0 (alineado).
+  Para esto se añadió `setRate(rate)` a [[html-audio-backend]] y [[howler-backend]], más un evento `ritmiq:set-rate` que escucha [[use-player]] (paralelo a `ritmiq:seek`).
+- **Consecuencias**: drift pequeño se corrige sin saltos audibles; solo drift grande hace seek. 0 KB extra (sin libs). **No es sync de precisión** (no hay corrección de latencia de red ni reloj NTP); aceptable para uso personal/familiar. Si en el futuro se requiere sync sub-segundo (ej. fiesta con altavoces múltiples), evaluar WebRTC DataChannel con timestamp de host + offset estimado. El `playbackRate` con valores 0.98/1.02 puede ser audible para oídos entrenados → si molesta, estrechar a 0.99/1.01.
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

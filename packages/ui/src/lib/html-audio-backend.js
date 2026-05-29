@@ -365,6 +365,14 @@ export function createHtmlAudioBackend() {
 
     setVolume(v) { if (audio) audio.volume = Math.max(0, Math.min(1, v)); },
 
+    // Ritmo de reproduccion. Usado por el sync de Jam para compensar drift
+    // pequeno sin seeks audibles (0.97-1.03). Clamp defensivo.
+    setRate(rate) {
+      if (!audio) return;
+      const r = Math.max(0.5, Math.min(2, Number(rate) || 1));
+      audio.playbackRate = r;
+    },
+
     onEnded(cb) { endedCbs.add(cb); return () => endedCbs.delete(cb); },
     onPosition(cb) { posCbs.add(cb); return () => posCbs.delete(cb); },
 

@@ -596,6 +596,18 @@ export function usePlayerEngine() {
     return () => window.removeEventListener('ritmiq:seek', onSeek);
   }, [backend]);
 
+  /* ── Listener para set-rate (drift compensation de Jam) ─────────────── */
+  useEffect(() => {
+    const onSetRate = (ev) => {
+      const rate = ev?.detail?.rate;
+      if (typeof rate === 'number' && typeof backend.setRate === 'function') {
+        backend.setRate(rate);
+      }
+    };
+    window.addEventListener('ritmiq:set-rate', onSetRate);
+    return () => window.removeEventListener('ritmiq:set-rate', onSetRate);
+  }, [backend]);
+
   /* ── Track actual: cargar y reproducir ──────────────────────────────── */
   useEffect(() => {
     if (!currentTrack) return;

@@ -76,6 +76,12 @@ export function createHowlerBackend() {
     setVolume(v) {
       howl?.volume(v);
     },
+    // Ritmo de reproduccion. Usado por el sync de Jam para compensar drift
+    // pequeno sin seeks audibles (0.97-1.03). Clamp defensivo.
+    setRate(rate) {
+      const r = Math.max(0.5, Math.min(2, Number(rate) || 1));
+      howl?.rate(r);
+    },
     onEnded(cb) {
       endedCbs.add(cb);
       return () => endedCbs.delete(cb);

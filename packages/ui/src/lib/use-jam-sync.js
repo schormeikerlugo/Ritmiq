@@ -25,6 +25,23 @@ import { usePlayerStore } from '../stores/player.js';
 
 const POSITION_BROADCAST_INTERVAL_MS = 5000;
 
+// Umbrales de correccion de drift en el guest (Fase 8 / Bloque 3.1).
+//   - drift >= HARD: seek duro (salto audible, pero inevitable).
+//   - SOFT <= drift < HARD: compensacion con playbackRate (inaudible).
+//   - drift < SOFT: nada (ya alineado), resetear rate a 1.
+const DRIFT_HARD_SECONDS = 1.5;
+const DRIFT_SOFT_SECONDS = 0.5;
+// Rate de compensacion suave: 2% mas rapido/lento hasta alinear.
+const RATE_CATCH_UP = 1.02;
+const RATE_SLOW_DOWN = 0.98;
+
+function dispatchSeek(seconds) {
+  window.dispatchEvent(new CustomEvent('ritmiq:seek', { detail: { seconds } }));
+}
+function dispatchRate(rate) {
+  window.dispatchEvent(new CustomEvent('ritmiq:set-rate', { detail: { rate } }));
+}
+
 /**
  * Hook que mantiene sincronizados el player local y el jam state.
  * Montar en App.jsx una sola vez (igual que useApplyAudioSettings).
@@ -39,6 +56,8 @@ export function useJamSync() {
   modeRef.current = mode;
   const lastBroadcastPosRef = useRef(0);
   const lastTrackIdRef = useRef(null);
+  // Rate actualmente aplicado por el guest (para no re-disparar el evento).
+  const guestRateRef = useRef(1);
 
   // ── HOSTING: subscribe a cambios del player local y broadcast ─────
   useEffect(() => {
@@ -104,25 +123,42 @@ export function useJamSync() {
 
     if (!sameTrack) {
       player.playNow([currentTrack], 0);
+      // Reset de rate: el track nuevo arranca a velocidad normal.
+      if (guestRateRef.current !== 1) {
+        guestRateRef.current = 1;
+        dispatchRate(1);
+      }
       // Pequeno delay para que el track cargue antes del seek.
       setTimeout(() => {
-        if (positionSeconds > 0) {
-          window.dispatchEvent(new CustomEvent('ritmiq:seek', {
-            detail: { seconds: positionSeconds },
-          }));
-        }
-        if (!isPlaying) {
-          usePlayerStore.setState({ isPlaying: false });
-        }
+        if (positionSeconds > 0) dispatchSeek(positionSeconds);
+        if (!isPlaying) usePlayerStore.setState({ isPlaying: false });
       }, 250);
       return;
     }
 
-    // Mismo track: corregir position si drift > 2s.
-    if (Math.abs(player.positionSeconds - positionSeconds) > 2) {
-      window.dispatchEvent(new CustomEvent('ritmiq:seek', {
-        detail: { seconds: positionSeconds },
-      }));
+    // Mismo track: correccion de drift en tres niveles.
+    const drift = player.positionSeconds - positionSeconds; // <0: guest atrasado
+    const absDrift = Math.abs(drift);
+
+    if (absDrift >= DRIFT_HARD_SECONDS) {
+      // Drift grande: seek duro (audible pero necesario). Reset rate.
+      dispatchSeek(positionSeconds);
+      if (guestRateRef.current !== 1) {
+        guestRateRef.current = 1;
+        dispatchRate(1);
+      }
+    } else if (absDrift >= DRIFT_SOFT_SECONDS) {
+      // Drift mediano: compensar con playbackRate (inaudible).
+      // Si el guest esta atrasado (drift<0) acelera; si adelantado, frena.
+      const targetRate = drift < 0 ? RATE_CATCH_UP : RATE_SLOW_DOWN;
+      if (guestRateRef.current !== targetRate) {
+        guestRateRef.current = targetRate;
+        dispatchRate(targetRate);
+      }
+    } else if (guestRateRef.current !== 1) {
+      // Ya alineado: volver a velocidad normal.
+      guestRateRef.current = 1;
+      dispatchRate(1);
     }
 
     // Corregir play/pause si difiere.
