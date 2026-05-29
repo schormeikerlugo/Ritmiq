@@ -49,3 +49,9 @@ apps/desktop/bin/yt-dlp.exe
 # cloudflared binary (descarga via script o postinstall)
 apps/desktop/bin/cloudflared
 apps/desktop/bin/cloudflared.exe
+
+# Playwright artifacts (Fase 7.5)
+apps/pwa/playwright-report/
+apps/pwa/test-results/
+apps/pwa/blob-report/
+apps/pwa/playwright/.cache/
