@@ -95,3 +95,9 @@ function recToTrack(rec) {
 ## Notas / Changelog
 - 2026-05-22: nivel simple. Estado `beta` por depender de Last.fm que puede tener downtime.
 - 2026-05-27 (Fase 3.2): `callRecs` ahora envuelve `callRecsRaw` con [[with-retry]] (3 intentos con backoff exponencial 500ms → 1s → 2s). La Edge Function suele fallar con 5xx cuando Last.fm rate-limit (5 req/s) golpea bajo carga. Commit `e12cf95`.
+- 2026-05-27 (Fase 5): tabla [[artist_tags]] ahora se mantiene proactivamente:
+  - [[enrich-tags]] edge function dedicada (batch + concurrencia 5).
+  - [[enrich-tags|lib/enrich-tags.js]] cliente fire-and-forget llamado desde [[Home]].
+  - Cron `cron_refresh_artist_tags @ 04:15 UTC` con top 30 artistas activos.
+  - Cron `cron_prune_recommendation_cache @ 04:00 UTC` borra entradas con `refreshed_at > 24h`.
+  Commits `894b44d` (5.1), `b769edf` (5.2), `1187475` (5.3), `bae3b42` (5.4).

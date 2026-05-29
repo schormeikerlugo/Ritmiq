@@ -3,7 +3,7 @@ tipo: adr
 capa: meta
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-27
+ultima-revision: 2026-05-28
 tags: [adr, decisiones]
 ---
 # ADR — Decisiones Técnicas
@@ -108,6 +108,24 @@ Cada decisión sigue el formato:
 - **Contexto**: el backend [[html-audio-backend]] crea el `AudioContext + MediaElementSource + Analyser` solo cuando alguien llama a `ensureGraph()`. Una vez creado, el audio del `<audio>` pasa siempre por el graph (no se puede volver atrás). Riesgo de regresión en iOS background → init lazy deliberado.
 - **Decisión**: cada feature que requiere el `AnalyserNode` (EQ, Visualizer, BPM Pulse) tiene la responsabilidad de invocar `backend.initGraphFromGesture()` **sincrónicamente dentro de un onClick** del usuario. iOS Safari y Electron requieren ese token de gesto para hacer `resume()` del AudioContext.
 - **Consecuencias**: si el toggle no se activa dentro de un gesto, el graph queda `suspended` → silencio. El patrón se replica en `PlaybackSection.handleEqToggle` y `NowPlaying.handleVisualizerToggle`. [[use-bpm-pulse]] usa polling de re-attach hasta 8 veces para enganchar al graph cuando otro feature lo cree después.
+
+## ADR-016 — Code-splitting por ruta con `React.lazy` + `Suspense`
+
+- **Contexto**: el bundle inicial de la PWA llegó a 1.1 MB raw / 323 KB gzipped tras Fase 5. Muchas vistas (Settings, Stats, Friends, Profile, etc.) son baja frecuencia y aumentaban el TTI sin justificación.
+- **Decisión**: separar las vistas en chunks vía `lazy(() => import(...).then(m => ({ default: m.X })))` por named exports. Wrapping con `<Suspense fallback={<TrackRowSkeleton/>}>` para vistas con UI; `fallback={null}` para componentes invisibles condicionalmente (Auth, Onboarding, MonthlyWrapped). Vistas eager: Home, Library, PlaylistView, SearchView, Player, TopBar, Sidebar, BottomNav, NowPlaying, QueuePanel, ToastHost, AuthScreen → split en Fase 7.2 incluso esta última.
+- **Consecuencias**: bundle inicial 931 KB raw / 287 KB gzipped (-17% / -11%). 13 chunks lazy generados (~144 KB raw fuera del boot). Microparada de 50-200ms al navegar a vista lazy por primera vez (skeleton durante descarga); imperceptible tras 2da visita por SW cache.
+
+## ADR-017 — CSS Container Queries para componentes responsive al contenedor
+
+- **Contexto**: las cards del Home (HomeRow + RowSkeleton) usaban `@media (max-width: 640px)` para encoger. En desktop, abrir el queue panel reducía el main panel ~340px pero las cards mantenían 180px porque el viewport seguía siendo > 640px.
+- **Decisión**: migrar `HomeRow.module.css` y `RowSkeleton.module.css` a `container-type: inline-size` + `container-name: home-row` + `@container home-row (max-width: 640px)`. **No** se migran los media queries que sí son por preferencia mobile vs desktop (ej. ocultar quick-play en mobile).
+- **Consecuencias**: cards encogen cuando el queue panel se abre, sin nuevo media query. Sin fallback explícito: browsers viejos (~1% del tráfico) ven cards en 180px siempre — degradación gradual aceptable. Soporte: Chrome 105+ (Electron 33 ✅), Safari 16+, Firefox 110+.
+
+## ADR-018 — Playwright para E2E + suite skeleton (sin CI gate todavía)
+
+- **Contexto**: cero E2E al cerrar Fase 6. Las regresiones de boot (chunk error, SW broken, módulos rotos por refactor) se descubrían en mano. Necesitábamos al menos un smoke automatizable.
+- **Decisión**: instalar `@playwright/test` en `apps/pwa` (devDependency). Config con `chromium only` V1, auto-arranca `vite preview`. Suite V1: smoke (boot + AuthScreen visible + code-splitting valido). Tests V2 (Auth, Play, Share flows) documentados en `e2e/README.md` como follow-up que requieren seed user en Supabase o mocks MSW.
+- **Consecuencias**: la suite **no está integrada a CI** todavía. Se corre manualmente con `pnpm run test:e2e`. Cuando se decida agregarla a GitHub Actions, hacer cache de `~/.cache/ms-playwright` para evitar descargar Chromium en cada run. Si la suite V2 requiere DB live, evaluar mover a un proyecto Supabase de test separado.
 
 ---
 

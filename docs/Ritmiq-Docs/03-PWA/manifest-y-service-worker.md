@@ -3,9 +3,9 @@ tipo: modulo
 capa: pwa
 plataforma: pwa
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-05-28
 archivo: apps/pwa/vite.config.js
-tags: [pwa, manifest, service-worker, workbox, vite]
+tags: [pwa, manifest, service-worker, workbox, vite, runtime-cache]
 ---
 
 # `vite.config.js` — manifest + Service Worker
@@ -116,3 +116,9 @@ Lee variables `.env*` desde la raíz del monorepo (`/home/.../Ritmiq/.env.produc
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-05-28 (Fase 7.3): añadidas 2 reglas `runtimeCaching` para covers de YouTube y Last.fm:
+  - `ritmiq-yt-covers` CacheFirst para `^https://i[0-9]*\\.ytimg\\.com/.*`, LRU 1000 / 30d.
+  - `ritmiq-artist-covers` CacheFirst para `^https://lastfm\\.freetls\\.fastly\\.net/.*`, LRU 300 / 30d.
+  - `cacheableResponse: { statuses: [0, 200] }` para aceptar respuestas opaque (cross-origin sin CORS headers, así viene YouTube).
+  Reduce ~50-80 KB por scroll completo del Home en visitas posteriores. Commit `f90a241`.
+- 2026-05-28 (Fase 7.1+7.2): Workbox precachea automáticamente los 13 chunks lazy generados por React.lazy → `precache` final 67 entries / ~2320 KB. La 2da sesión del user, todos los chunks ya están en cache (navegar a Settings es instantáneo). Ver [[Code-Splitting]] para el catálogo completo.

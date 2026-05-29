@@ -3,21 +3,21 @@ tipo: moc
 capa: meta
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-27
+ultima-revision: 2026-05-28
 tags: [moc, raiz]
 ---
 
 # MOC — Ritmiq
 
-> Mapa raíz de la documentación. **~203 notas** cubren todo el código del repo (actualizado tras Fases 0-4).
+> Mapa raíz de la documentación. **~215 notas** cubren todo el código del repo (actualizado tras Fases 0-5 y 7).
 
 ## Submapas
 
 - [[MOC - Desktop]] — 13 notas: Electron main, preload, renderer.
 - [[MOC - PWA]] — 7 notas: bootstrap, manifest, Service Worker, push, splash iOS, `/api/mark-installed`, Edge Middleware OG.
-- [[MOC - UI Compartida]] — 113 notas: 47 componentes + 2 primitives + 19 hooks + 26 helpers + 19 stores.
-- [[MOC - Backend Supabase]] — 33 notas: 18 Edge Functions + 15 tablas + índice migraciones.
-- [[MOC - Flujos]] — 10 flujos end-to-end con Mermaid.
+- [[MOC - UI Compartida]] — 115 notas: 47 componentes + 2 primitives + 19 hooks + 28 helpers + 19 stores.
+- [[MOC - Backend Supabase]] — 35 notas: 19 Edge Functions + 16 tablas + índice migraciones.
+- [[MOC - Flujos]] — 12 flujos end-to-end con Mermaid.
 
 ## Arquitectura
 
@@ -25,7 +25,10 @@ tags: [moc, raiz]
 - [[Monorepo-y-Workspaces]] — pnpm + Turbo.
 - [[Variables-de-Entorno]].
 - [[Build-y-Deploy]].
-- [[Decisiones-Tecnicas-ADR]] — **15 ADRs** (8 nuevos en Fases 0-4: motion engine, CoverArt, ListView virt, withRetry, crossfade simulado, EQ curve aproximada, HTML5 drag, lazy WebAudio).
+- [[Decisiones-Tecnicas-ADR]] — **18 ADRs** (11 nuevos en Fases 0-7: motion engine, CoverArt, ListView virt, withRetry, crossfade simulado, EQ curve aproximada, HTML5 drag, lazy WebAudio, code-splitting React.lazy, container queries, Playwright E2E).
+- [[Sistema-Motion]] — fundación visual (tokens + GSAP + reduced-motion).
+- [[Code-Splitting]] — estrategia de chunks lazy en la PWA.
+- [[Cron-Jobs]] — pg_cron diarios para mantenimiento de `artist_tags` y `recommendation_cache`.
 
 ## Capas técnicas
 
@@ -40,12 +43,12 @@ tags: [moc, raiz]
 | YT (yt-dlp, ffmpeg, error-translator) | `08-YT/` | 3 |
 | UI Componentes | `04-UI/Componentes/` | 47 |
 | UI Componentes Primitives | `04-UI/Componentes/Primitives/` | 2 |
-| UI Helpers Lib | `04-UI/Helpers-Lib/` | 26 |
+| UI Helpers Lib | `04-UI/Helpers-Lib/` | 28 |
 | UI Hooks | `04-UI/Hooks/` | 19 |
 | UI Stores Zustand | `04-UI/Stores-Zustand/` | 19 |
-| Supabase Edge Functions | `09-Supabase-Backend/Edge-Functions/` | 18 |
-| Supabase Tablas | `09-Supabase-Backend/Tablas/` | 15 |
-| Flujos end-to-end | `10-Flujos/` | 10 |
+| Supabase Edge Functions | `09-Supabase-Backend/Edge-Functions/` | 19 |
+| Supabase Tablas | `09-Supabase-Backend/Tablas/` | 16 |
+| Flujos end-to-end | `10-Flujos/` | 12 |
 | MOCs + meta | `00-Index/` + `01-Arquitectura/` + `99-Mantenimiento/` | 15 |
 
 ## Apoyo

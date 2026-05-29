@@ -3,7 +3,7 @@ tipo: moc
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-27
+ultima-revision: 2026-05-28
 tags: [moc, ui]
 ---
 
