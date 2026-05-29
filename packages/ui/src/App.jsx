@@ -8,8 +8,6 @@ import { SearchView } from './components/SearchView/SearchView.jsx';
 import { Player } from './components/Player/Player.jsx';
 import { TopBar } from './components/TopBar/TopBar.jsx';
 import { BottomNav } from './components/BottomNav/BottomNav.jsx';
-import { AuthScreen } from './components/Auth/AuthScreen.jsx';
-import { ResetPasswordView } from './components/Auth/views/ResetPasswordView.jsx';
 import { DownloadProgress } from './components/DownloadProgress/DownloadProgress.jsx';
 import { MilestoneToast } from './components/MilestoneToast/MilestoneToast.jsx';
 import { DailyStreakToast } from './components/DailyStreakToast/DailyStreakToast.jsx';
@@ -17,9 +15,29 @@ import { ToastHost } from './components/Toast/ToastHost.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
 import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
 import { BottomSheetHost } from './components/BottomSheet/BottomSheetHost.jsx';
-import { Onboarding } from './components/Onboarding/Onboarding.jsx';
 import { SharedView } from './components/SharedView/SharedView.jsx';
 import { TrackRowSkeleton } from './components/Skeleton/index.js';
+
+// ── Auth + Onboarding lazy (Fase 7.2) ─────────────────────────────────
+// El 99% de las sesiones empiezan con usuario YA logueado: el codigo
+// de signin/signup/reset password (~958 lineas de jsx + CSS) NO se usa
+// pero se descargaba en el bundle inicial. Lo separamos:
+//
+//   AuthScreen + sus 4 views (Sign{In,Up}, Forgot/ResetPassword)
+//   ResetPasswordView (caso recovery flow)
+//   Onboarding (3 pasos al primer login por device, una sola vez en
+//   la vida del usuario en este device)
+//
+// Fallback para los 3: null. El splash inline del index.html aun esta
+// presente cuando React monta por primera vez; al detectar !user el
+// chunk Auth se descarga (~50-200ms) y luego React lo monta encima.
+// Para el usuario es indistinguible del comportamiento previo.
+const AuthScreen = lazy(() => import('./components/Auth/AuthScreen.jsx')
+  .then((m) => ({ default: m.AuthScreen })));
+const ResetPasswordView = lazy(() => import('./components/Auth/views/ResetPasswordView.jsx')
+  .then((m) => ({ default: m.ResetPasswordView })));
+const Onboarding = lazy(() => import('./components/Onboarding/Onboarding.jsx')
+  .then((m) => ({ default: m.Onboarding })));
 
 // ── Code-splitting por ruta (Fase 7.1) ────────────────────────────────
 // Vistas de uso frecuente o always-mounted quedan en el bundle inicial
@@ -478,11 +496,21 @@ export function App() {
   }
   // Recovery flow tiene prioridad sobre login normal: el user ya tiene
   // sesion temporal (Supabase la crea automaticamente al validar el link).
+  // Suspense fallback null: el splash inline del index.html sigue visible
+  // durante la descarga del chunk Auth.
   if (recoveryMode) {
-    return <ResetPasswordView />;
+    return (
+      <Suspense fallback={null}>
+        <ResetPasswordView />
+      </Suspense>
+    );
   }
   if (!user) {
-    return <AuthScreen />;
+    return (
+      <Suspense fallback={null}>
+        <AuthScreen />
+      </Suspense>
+    );
   }
 
   return (
@@ -530,8 +558,14 @@ export function App() {
           por el store useBottomSheet. Ver BottomSheetHost.jsx. */}
       <BottomSheetHost />
       {/* Onboarding 3 pasos al primer login en cada dispositivo. Se
-          auto-cierra y persiste el flag de completado en localStorage. */}
-      <Onboarding />
+          auto-cierra y persiste el flag de completado en localStorage.
+          Lazy: el componente decide internamente si renderizar (lee el
+          flag). Cuando devuelve null, el chunk NO se descarga. Cuando
+          si renderiza (1 vez en la vida del user en este device), el
+          chunk se baja con fallback null. */}
+      <Suspense fallback={null}>
+        <Onboarding />
+      </Suspense>
       {/* Recordatorio: muestra shares no vistos >2min cuando el usuario
           no esta en la bandeja. Se auto-cierra al ignorar o ver. */}
       <ShareReminderModal />
