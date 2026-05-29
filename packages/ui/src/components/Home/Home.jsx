@@ -31,6 +31,8 @@ import { useSocialStore } from '../../stores/social.js';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useHistoryStore, selectRecentTracks, selectTopTracks, selectTopArtists, selectContinueListening } from '../../stores/history.js';
+import { useYtRecsStore } from '../../stores/yt-recs.js';
+import { combineTwoSources } from '../../lib/hybrid-scoring.js';
 import { useRecommendationsStore } from '../../stores/recommendations.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
@@ -102,6 +104,8 @@ export function Home() {
   /* ── Recomendaciones Last.fm (Fase 2) ────────────────────────────────── */
   const recStore = useRecommendationsStore((s) => s.sections);
   const fetchRec = useRecommendationsStore((s) => s.fetch);
+  const ytRecsEntries = useYtRecsStore((s) => s.entries);
+  const fetchYtRecs   = useYtRecsStore((s) => s.fetch);
 
   // Seed para "Mix de [Artista]" — el artista #1 del usuario.
   const topArtistSeed = topArtists[0]?.artist ?? null;
@@ -112,6 +116,12 @@ export function Home() {
     if (topArtistSeed) fetchRec('similar-artist', topArtistSeed).catch(() => {});
     if (trackSeed?.artist && trackSeed?.title) {
       fetchRec('mix-by-track', `${trackSeed.artist}::${trackSeed.title}`).catch(() => {});
+    }
+    // Fase 6.2: ademas del mix-by-track de Last.fm, traer yt-recs si
+    // el seed tiene ytId. El scoring hibrido (combineTwoSources)
+    // combina ambas fuentes en una sola fila con consensus boost.
+    if (trackSeed?.ytId) {
+      fetchYtRecs(trackSeed.ytId).catch(() => {});
     }
     // Mix de género automático — el server deriva el tag dominante del
     // historial del usuario vía artist_tags. No necesita seed cliente.
@@ -130,9 +140,40 @@ export function Home() {
   }, [topArtistSeed, trackSeed?.ytId, trackSeed?.artist, topArtists.length, fetchRec]);
 
   const similarArtistRec = topArtistSeed ? recStore[`similar-artist:${topArtistSeed}`] : null;
-  const byTrackRec       = trackSeed?.artist && trackSeed?.title
+
+  // mix-by-track: hibrido entre Last.fm (mix-by-track) + YT recs
+  // (yt-recs con seed=ytId). El scoring combina ambas con consensus
+  // boost para los tracks que aparecen en las dos fuentes.
+  const byTrackLastfm = trackSeed?.artist && trackSeed?.title
     ? recStore[`mix-by-track:${trackSeed.artist}::${trackSeed.title}`]
     : null;
+  const byTrackYt = trackSeed?.ytId ? ytRecsEntries[trackSeed.ytId] : null;
+  const byTrackRec = useMemo(() => {
+    // Si ninguna fuente tiene tracks, devolvemos lo que haya (para loading
+    // states / errors).
+    const lastfmTracks = byTrackLastfm?.tracks ?? [];
+    const ytTracks = byTrackYt?.tracks ?? [];
+    if (lastfmTracks.length === 0 && ytTracks.length === 0) {
+      return byTrackLastfm ?? byTrackYt ?? null;
+    }
+    const merged = combineTwoSources(
+      'lastfm', lastfmTracks,
+      'yt', ytTracks,
+      { limit: 20 },
+    );
+    return {
+      ...byTrackLastfm,
+      tracks: merged,
+      loading: byTrackLastfm?.loading || byTrackYt?.loading,
+      // Indicador de cuantas fuentes contribuyeron (UI puede mostrar
+      // badge si > 1).
+      sourcesUsed: [
+        ...(lastfmTracks.length > 0 ? ['Last.fm'] : []),
+        ...(ytTracks.length > 0 ? ['YouTube'] : []),
+      ],
+    };
+  }, [byTrackLastfm, byTrackYt]);
+
   const genreRecRaw      = recStore['auto-genre-mix:'];
   const discoverRecRaw   = recStore['discover:'];
 
