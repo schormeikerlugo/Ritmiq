@@ -114,17 +114,21 @@ Notas:
   fallback explicito; degradacion gradual a fixed 180px en browsers
   viejos (~1% del trafico).
 
-## Fase 8 — Jam mode (OPCIONAL — al final)
+## Fase 8 — Jam mode ✓ COMPLETADA
 
-Decidido diferir hasta el final.
+Ver `docs/fase-8-completada.md`.
 
-| # | Commit | Esfuerzo |
-|---|---|---|
-| 8.1 | protocolo sync supabase realtime | 6h |
-| 8.2 | UI invitar + unirse a jam | 4h |
-| 8.3 | cola colaborativa | 4h |
+3 commits: tablas jam_sessions + jam_participants + Realtime + RLS +
+store + UI modal + bridge useJamSync entre player y jam state.
 
-Total: ~14h.
+Notas:
+- Modelo host\u2192participants (no peer-to-peer). El host controla; los
+  guests reciben updates via Realtime CDC.
+- Sin transmision de audio: cada participante reproduce el mismo
+  ytId localmente. No hay TURN/STUN; el catalogo de YouTube es
+  publico y resoluble por cada cliente.
+- Position throttle de broadcast 5s. Drift maximo ~5s antes de la
+  proxima correccion.
 
 ## Workflow por commit
 
@@ -147,9 +151,11 @@ commits, hashes, verificacion manual, deploys requeridos.
 - ✓ Fase 3 (5 commits + docs, ver `fase-3-completada.md`).
 - ✓ Fase 4 (9 commits + docs, ver `fase-4-completada.md`).
 - ✓ Fase 5 (4 commits + docs, ver `fase-5-completada.md`).
+- ✓ Fase 6 (3 commits + docs, ver `fase-6-completada.md`).
 - ✓ Fase 7 (5 commits + docs, ver `fase-7-completada.md`).
-- ⧗ Restante: Fase 6 (opcional, multi-fuente recs) y Fase 8 (opcional, jam mode).
-       Vault Obsidian pendiente de actualizar con Fase 5 + Fase 7.
+- ✓ Fase 8 (3 commits + docs, ver `fase-8-completada.md`).
+
+**Las 8 fases del plan general estan ejecutadas.**
 
 ## Decisiones tomadas
 
