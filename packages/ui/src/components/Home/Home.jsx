@@ -19,6 +19,7 @@
  */
 import { useEffect, useMemo } from 'react';
 import { useAuthStore } from '../../stores/auth.js';
+import { enrichArtistTags } from '../../lib/enrich-tags.js';
 import { useSocialStore } from '../../stores/social.js';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
@@ -42,6 +43,31 @@ function getGreeting() {
   if (h < 12) return 'Buenos días';
   if (h < 20) return 'Buenas tardes';
   return 'Buenas noches';
+}
+
+/**
+ * Capitaliza un tag de Last.fm para display.
+ * Last.fm guarda tags en lowercase ("hip-hop", "indie rock"). Para titulos
+ * de UI los queremos en Title Case respetando palabras compuestas y siglas.
+ *
+ * Casos:
+ *   "hip-hop"       → "Hip-Hop"
+ *   "indie rock"    → "Indie Rock"
+ *   "rnb"           → "RnB"      (sigla conocida)
+ *   "edm"           → "EDM"
+ *   "r&b"           → "R&B"
+ */
+const TAG_ABBREVIATIONS = new Set(['rnb', 'edm', 'idm', 'r&b', 'iem', 'lofi']);
+function capitalizeTag(tag) {
+  if (!tag || typeof tag !== 'string') return '';
+  const norm = tag.trim().toLowerCase();
+  if (!norm) return '';
+  if (TAG_ABBREVIATIONS.has(norm)) {
+    if (norm === 'rnb' || norm === 'r&b') return 'R&B';
+    return norm.toUpperCase();
+  }
+  // Title case con preservacion de guiones y &.
+  return norm.replace(/([a-z])([a-z]*)/g, (_m, first, rest) => first.toUpperCase() + rest);
 }
 
 export function Home() {
@@ -93,6 +119,15 @@ export function Home() {
     if (topArtists.length >= 1) fetchRec('auto-genre-mix', '').catch(() => {});
     // Discover solo si tenemos historial suficiente.
     if (topArtists.length >= 2) fetchRec('discover', '').catch(() => {});
+
+    // Pre-enriquece artist_tags para los top 10 artistas del usuario.
+    // Fire-and-forget: la edge function actualiza el cache para que la
+    // proxima llamada a auto-genre-mix tenga datos frescos sin esperar
+    // a Last.fm. Throttled internamente a 60s entre llamadas (Fase 5.1).
+    if (topArtists.length > 0) {
+      const names = topArtists.map((a) => a.artist).filter(Boolean).slice(0, 10);
+      if (names.length > 0) enrichArtistTags(names);
+    }
   }, [topArtistSeed, trackSeed?.ytId, trackSeed?.artist, topArtists.length, fetchRec]);
 
   const similarArtistRec = topArtistSeed ? recStore[`similar-artist:${topArtistSeed}`] : null;
@@ -240,11 +275,15 @@ export function Home() {
         />
       )}
 
-      {/* ─── Mix por género real (Fase 3 — auto-genre-mix) ─── */}
+      {/* ─── Mix por género real (Fase 5.2 — auto-genre-mix + enrich-tags) ─── */}
       {topArtists.length >= 1 && (
         <HomeRow
-          title={genreRec?.seed ? `Mix de ${genreRec.seed}` : 'Mix por género'}
-          subtitle="Tu género más escuchado"
+          title={genreRec?.seed ? `Mix de ${capitalizeTag(genreRec.seed)}` : 'Mix por género'}
+          subtitle={
+            genreRec?.seed
+              ? `Tu género más escuchado: ${capitalizeTag(genreRec.seed)}`
+              : 'Calculando tu género dominante…'
+          }
           items={genreRec?.tracks ?? []}
           loading={genreRec?.loading}
           onPlayAll={genreRec?.tracks?.length ? () => playRow(genreRec.tracks) : undefined}
