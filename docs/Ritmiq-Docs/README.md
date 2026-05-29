@@ -44,7 +44,8 @@ Repositorio de código: `/home/lenovics/portafolio Dev/Ritmiq`
 | `08-YT/` | Wrappers yt-dlp, ffmpeg, error-translator | 3 |
 | `09-Supabase-Backend/Edge-Functions/` | Edge Functions deployables | 19 |
 | `09-Supabase-Backend/Tablas/` | Tablas principales del schema Postgres | 16 |
-| `10-Flujos/` | Diagramas end-to-end con Mermaid | 12 |
+| `10-Flujos/` | Diagramas end-to-end con Mermaid | 13 |
+| `50-Roadmap/` | Features postergadas (Spotify, time-of-day, onboarding, observabilidad, distribución) | 6 |
 | `99-Mantenimiento/` | Plantillas, convenciones, workflow, E2E Playwright | 4 |
 
 ## Fases de construcción del vault
@@ -112,6 +113,27 @@ GSAP motion engine · `CoverArt` gradient hash · `ListView` virtualización pro
 ### ADRs nuevos (016-018)
 
 Code-splitting con `React.lazy` · CSS Container Queries · Playwright E2E (sin CI gate todavía).
+
+## Cambios en la actualización F12 (2026-05-29)
+
+Documentación de las **Fases 6 (recomendaciones avanzadas) y 8 (Jam mode)** que habían
+quedado sin documentar, más la nueva carpeta `50-Roadmap/` y el Jam mode robusto.
+
+### Notas nuevas
+
+- **Carpeta `50-Roadmap/`** (6): `README`, `Activar-Spotify-OAuth`, `Time-Of-Day-Home`,
+  `Onboarding-Para-Distribucion`, `Observabilidad-Error-Logs`, `Distribucion-Amigos-Plan`.
+- **Edge Functions** (F6): `yt-recs`, `spotify-callback`, `innertube` (shared).
+- **Tablas** (F6+F8): `spotify_tokens`, `jam_sessions`, `jam_participants`.
+- **Helpers** (F6): `hybrid-scoring`, `spotify-oauth`.
+- **Stores** (F6+F8): `yt-recs`, `jam`.
+- **Componentes** (F8): `JamModal`.
+- **Hooks** (F8): `use-jam-sync`.
+- **Flujo** (F8): `Jam-Mode`.
+
+### ADR nuevo (019)
+
+Sync de Jam mode vía Realtime broadcast + drift compensation (no WebRTC).
 
 ## Cómo usar este vault
 

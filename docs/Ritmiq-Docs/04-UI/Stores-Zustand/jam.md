@@ -1,0 +1,106 @@
+---
+tipo: store
+capa: ui
+plataforma: ambas
+estado: estable
+ultima-revision: 2026-05-29
+archivo: packages/ui/src/stores/jam.js
+tags: [store, zustand, jam, realtime, colaborativo]
+---
+
+# `jam` (store)
+
+> Estado del modo Jam (escucha colaborativa). Tres modos: `idle`, `hosting`, `guest`. El host emite comandos a [[jam_sessions]]; los guests los reciben via Realtime CDC y los aplican al player local (vía [[use-jam-sync]]).
+
+## Ubicación
+`packages/ui/src/stores/jam.js`
+
+## Estado / Slice
+```js
+{
+  mode: 'idle' | 'hosting' | 'guest',
+  session: null | { id, code, hostId },
+  participants: [{ user_id, joined_at, last_seen_at }],
+  state: { currentTrack, positionSeconds, isPlaying, queue },  // canónico de la sesión
+  _channels: [], _heartbeatTimer: null,                         // internos
+  createSession(), joinSession(code), leaveSession(),
+  hostBroadcast(patch), reset(),
+}
+```
+
+## Anatomía del código (snippets comentados)
+
+### Generación de código con retry de colisión
+`packages/ui/src/stores/jam.js:66-79`
+
+```js
+for (let attempt = 0; attempt < 5; attempt++) {
+  code = makeCode();
+  const { data, error } = await supabase.from('jam_sessions').insert({ ... }).select().single();
+  if (!error) { inserted = data; break; }
+  if (error.code !== '23505') throw error;   // 23505 = unique violation → reintentar
+}
+```
+
+**Por qué**: el `code` es UNIQUE. Si colisiona (raro: 32^6 combos), reintenta hasta 5 veces.
+
+### hostBroadcast optimista
+`packages/ui/src/stores/jam.js:207-217`
+
+```js
+// Optimistic local: aplicamos el cambio al state local antes del
+// round-trip a Postgres. Mas responsivo.
+set((s) => ({ state: { ...s.state, ...patch } }));
+await supabase.from('jam_sessions').update(payload).eq('id', session.id);
+```
+
+**Por qué**: el host no espera el round-trip a Postgres para ver su propio cambio. Los guests sí esperan el CDC.
+
+### Subscribe: guests aplican, hosts ignoran
+`packages/ui/src/stores/jam.js:236-247`
+
+```js
+// Solo aplicar para guests; el host ya aplico optimistically.
+if (get().mode === 'guest') {
+  set({ state: { currentTrack: row.current_track, ... } });
+}
+```
+
+**Por qué**: evita un doble-set en el host (optimista + CDC echo).
+
+### Cleanup antes de queries en leave
+`packages/ui/src/stores/jam.js:159-167`
+
+```js
+// Cleanup channels + heartbeat ANTES de las queries para que los
+// updates de los otros no causen un re-render con state stale.
+for (const ch of _channels) { await supabase.removeChannel(ch); }
+if (_heartbeatTimer) clearInterval(_heartbeatTimer);
+```
+
+**Por qué**: si se desuscribe después de las queries, podría llegar un CDC tardío y revivir state ya limpiado.
+
+## Side-effects
+- DB: CRUD en [[jam_sessions]] + [[jam_participants]].
+- Realtime: 2 canales (`jam:<id>`, `jam-participants:<id>`).
+- Timer: heartbeat `setInterval` 30s.
+
+## Casos de borde y gotchas
+- **Join como host**: si el code es de una sesión propia, `mode='hosting'` (no guest).
+- **Host DELETE → guests auto-leave**: el subscribe escucha DELETE y llama `leaveSession()` en guests.
+- **Guest no puede emitir**: `hostBroadcast` retorna temprano si `mode !== 'hosting'`; además RLS rechaza.
+
+## Qué puede romper este cambio
+| Cambio | Síntoma |
+|---|---|
+| No limpiar `_channels` en leave/reset | Memory leak + updates fantasma tras salir. |
+| Cambiar el nombre del canal `jam:<id>` | Sin coordinación, guests y host escuchan canales distintos → sin sync. |
+
+## Dependencias salientes
+- [[supabase]], [[jam_sessions]], [[jam_participants]].
+
+## Dependencias entrantes
+- [[JamModal]] (UI), [[use-jam-sync]] (bridge al player).
+
+## Notas / Changelog
+- 2026-05-29: nota creada (F12, doc retroactiva de Fase 8.1).
