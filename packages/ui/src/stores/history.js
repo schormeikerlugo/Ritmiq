@@ -24,6 +24,36 @@ import { isEphemeralId } from '../lib/track-helpers.js';
 
 const HISTORY_LIMIT = 500;
 
+// Gate de 24h para el "welcome milestone" (el modal del trofeo que se
+// re-muestra al arrancar la app). Sin esto reaparece en cada inicio porque
+// el flag _welcomeShown es solo de sesión. Con este cooldown local solo
+// puede aparecer una vez cada 24h por dispositivo. NO afecta a los
+// milestones NUEVOS que llegan por Realtime (esos son eventos genuinos).
+const WELCOME_MILESTONE_KEY = 'ritmiq.welcome-milestone-last-shown';
+const WELCOME_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 horas
+
+/** true si han pasado >= 24h desde el último welcome (o nunca se mostró). */
+function welcomeCooldownElapsed() {
+  try {
+    const raw = localStorage.getItem(WELCOME_MILESTONE_KEY);
+    if (!raw) return true;
+    const last = Number(raw);
+    if (!Number.isFinite(last)) return true;
+    return Date.now() - last >= WELCOME_COOLDOWN_MS;
+  } catch {
+    return true;
+  }
+}
+
+/** Registra el momento en que se mostró el welcome milestone. */
+function markWelcomeShown() {
+  try {
+    localStorage.setItem(WELCOME_MILESTONE_KEY, String(Date.now()));
+  } catch {
+    /* noop */
+  }
+}
+
 /** @typedef {{ ytId?: string|null, trackId?: string|null, title:string, artist?:string|null, coverUrl?:string|null, durationSeconds?:number|null, durationPlayedSeconds?:number|null, playedAt:string, source?:string|null }} HistoryEvent */
 
 // Helpers de IndexedDB para cola offline.
@@ -487,10 +517,21 @@ export const useHistoryStore = create((set, get) => ({
    *
    * Tras ejecutar marca _welcomeShown=true para evitar re-disparos
    * cuando subscribeStreak entregue actualizaciones de milestones.
+   *
+   * COOLDOWN 24h: el welcome solo puede aparecer una vez cada 24h por
+   * dispositivo (localStorage `ritmiq.welcome-milestone-last-shown`). Esto
+   * evita que el modal del trofeo reaparezca en cada arranque de la app.
    */
   showWelcomeMilestone() {
     const s = get();
     if (s._welcomeShown) return;
+    // Gate de 24h por dispositivo: si ya mostramos el welcome hace < 24h,
+    // no lo repetimos en este arranque. Marcamos shown de sesión para no
+    // re-evaluar en cada render.
+    if (!welcomeCooldownElapsed()) {
+      set({ _welcomeShown: true });
+      return;
+    }
     if (s.milestoneToastQueue.length > 0) {
       // Hay algo mas urgente en la cola — no contamines el welcome.
       // Marcamos como mostrado igualmente para no insistir.
@@ -514,6 +555,10 @@ export const useHistoryStore = create((set, get) => ({
       set({ _welcomeShown: true });
       return;
     }
+    // Registramos el cooldown de 24h SOLO cuando de verdad mostramos el
+    // welcome (encolamos un trofeo). Así, si en este arranque no había nada
+    // que mostrar, no consumimos la ventana de 24h.
+    markWelcomeShown();
     set((st) => ({
       _welcomeShown: true,
       milestoneToastQueue: [
