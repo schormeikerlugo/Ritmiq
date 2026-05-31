@@ -36,6 +36,7 @@ import {
   ExternalLink,
   Eye, EyeOff, Mail, Lock, AtSign,
   Radio, Crown, Copy,
+  Trophy, Star, Award, TrendingUp, CalendarDays,
 } from 'lucide-react';
 
 const ICONS = {
@@ -59,6 +60,7 @@ const ICONS = {
   ExternalLink,
   Eye, EyeOff, Mail, Lock, AtSign,
   Radio, Crown, Copy,
+  Trophy, Star, Award, TrendingUp, CalendarDays,
 };
 
 /**
