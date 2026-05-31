@@ -137,6 +137,12 @@ Cada decisión sigue el formato:
   Para esto se añadió `setRate(rate)` a [[html-audio-backend]] y [[howler-backend]], más un evento `ritmiq:set-rate` que escucha [[use-player]] (paralelo a `ritmiq:seek`).
 - **Consecuencias**: drift pequeño se corrige sin saltos audibles; solo drift grande hace seek. 0 KB extra (sin libs). **No es sync de precisión** (no hay corrección de latencia de red ni reloj NTP); aceptable para uso personal/familiar. Si en el futuro se requiere sync sub-segundo (ej. fiesta con altavoces múltiples), evaluar WebRTC DataChannel con timestamp de host + offset estimado. El `playbackRate` con valores 0.98/1.02 puede ser audible para oídos entrenados → si molesta, estrechar a 0.99/1.01.
 
+## ADR-020 — Glows pulsantes: animar solo `transform`/`opacity` (no `box-shadow`/`filter`)
+
+- **Contexto**: varios elementos tenían un "glow pulsante" animando directamente `box-shadow` o `filter: drop-shadow` en un `@keyframes` infinito (StatsView llama de racha `ritmiq-streak-pulse`, PlaylistView FAB `fabGlow`, Library quick-play `quickPlayGlow`). En **Electron desktop (Linux)** se veían a tirones; en **PWA móvil** fluían bien. Causa: `box-shadow`/`filter` no se componen en GPU → fuerzan **repintado (paint) en cada frame**. El compositor del WebView móvil lo absorbe; Chromium/Electron en Linux no, de ahí el jank.
+- **Decisión**: regla general — **nunca animar `box-shadow`/`filter` en bucle**. El glow se pinta **una sola vez** como `box-shadow` estático en un **pseudo-elemento** (`::after`) detrás del elemento, y el `@keyframes` anima solo su **`opacity` + `transform: scale()`** (ambas compuestas por GPU, sin paint). Se añade `will-change: transform, opacity`. Las animaciones tipo equalizer (`fabPulseBars`, `pulseBars`) ya usaban `transform: scaleY()` → no se tocaron.
+- **Consecuencias**: el efecto visual es prácticamente idéntico pero suave en todas las plataformas. Coste: un pseudo-elemento extra por botón con glow. El guard de `prefers-reduced-motion` apaga el pseudo (`animation:none; opacity:0`). De paso se corrigieron dos bugs de sintaxis CSS con doble paréntesis (`var(--color-accent-hover))` en PlaylistView y `drop-shadow(...))` en `App.module.css`). **Pendiente (segundo pase opcional)**: los glows de los modales de hito (`sparkGlowBreath`, `fanfareGlowPulse`, `dailyGlowBreath`, `hoursGlowBreath`) tienen el mismo patrón pero aparecen rara vez; se dejaron para después.
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

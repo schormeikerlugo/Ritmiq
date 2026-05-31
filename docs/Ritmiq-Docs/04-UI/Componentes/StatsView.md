@@ -67,3 +67,6 @@ Sin red, sin llamada a backend. Todo del historial en `events[]`.
   - **GSAP**: entrada con `stagger` vía [[use-view-transition]] (`childSelector` = `.animBlock`), re-anima al cambiar de periodo. Respeta `prefers-reduced-motion`.
   - Verificado con Playwright (chromium headless) a 1300px (desktop) y 390px (móvil).
   - Commit `feat(stats): rediseno StatsView con bento...`.
+- 2026-05-31 (fix anim): el pulso de la llama de racha (`ritmiq-streak-pulse`) animaba
+  `filter: drop-shadow` → se veía a tirones en Electron desktop. Migrado a un `::after` con
+  el glow estático que anima solo `opacity` + `scale` (GPU). Ver [[Decisiones-Tecnicas-ADR|ADR-020]].

@@ -135,6 +135,11 @@ quedado sin documentar, más la nueva carpeta `50-Roadmap/` y el Jam mode robust
 
 Sync de Jam mode vía Realtime broadcast + drift compensation (no WebRTC).
 
+### ADR nuevo (020)
+
+Glows pulsantes: animar solo `transform`/`opacity` vía pseudo-elemento (no `box-shadow`/`filter`)
+para evitar jank en Electron desktop. Afecta [[StatsView]], [[PlaylistView]], [[Library]].
+
 ## Cómo usar este vault
 
 1. **Para entender una función concreta**: abrí su nota (ej. `04-UI/Stores-Zustand/library.md`). Cada nota tiene la firma, sus dependencias entrantes/salientes, snippets comentados, casos de borde, y matriz "qué puede romper este cambio".

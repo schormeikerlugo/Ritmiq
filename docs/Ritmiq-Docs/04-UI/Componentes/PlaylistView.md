@@ -70,3 +70,8 @@ Sin props. Lee `view.playlistId` del store.
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-31 (fix anim): el FAB de play en estado `data-playing` usaba `fabGlow` animando
+  `box-shadow` → tirones en Electron desktop. Migrado a un `::after` con el ring/glow
+  estático que anima solo `opacity` + `scale` (GPU). Las `fabPulseBars` (eq) ya usaban
+  `scaleY` y no se tocaron. De paso, corregido bug de sintaxis `var(--color-accent-hover))`
+  (doble paréntesis) en `.playFab[data-active]`. Ver [[Decisiones-Tecnicas-ADR|ADR-020]].
