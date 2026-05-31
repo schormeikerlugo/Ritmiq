@@ -138,6 +138,7 @@
   gap: var(--space-2);
 }
 .playFab {
+  position: relative;
   display: grid;
   place-items: center;
   width: 56px;
@@ -167,29 +168,34 @@
    Tono accent ligeramente mas vivo + ring sutil para distinguirlo
    visualmente del estado idle. */
 .playFab[data-active] {
-  background: var(--color-accent-hover));
+  background: var(--color-accent-hover);
   box-shadow:
     0 8px 22px var(--color-accent-shadow),
     0 0 0 3px color-mix(in srgb, var(--color-accent) 25%, transparent);
 }
 
-/* Estado: ademas esta sonando. Glow pulsante con ring que se expande
-   y contrae \u2014 senal visual de "fuente activa" a distancia. Las
-   pulseBars internas (.fabPulseBars) muestran la animacion estilo eq. */
-.playFab[data-playing] {
-  animation: fabGlow 1.4s ease-in-out infinite;
+/* Estado: ademas esta sonando. Glow pulsante via pseudo-elemento. Las
+   pulseBars internas (.fabPulseBars) muestran la animacion estilo eq.
+
+   IMPORTANTE: NO animamos box-shadow (fuerza repintado por frame → jank
+   en Electron desktop). El ring/glow se pinta una vez en el ::after y
+   solo animamos su opacity + scale (compuestas por GPU). */
+.playFab[data-playing]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow:
+    0 12px 34px var(--color-accent),
+    0 0 0 8px color-mix(in srgb, var(--color-accent) 16%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: fabGlowPulse 1.4s ease-in-out infinite;
 }
-@keyframes fabGlow {
-  0%, 100% {
-    box-shadow:
-      0 8px 22px var(--color-accent-shadow),
-      0 0 0 3px color-mix(in srgb, var(--color-accent) 25%, transparent);
-  }
-  50% {
-    box-shadow:
-      0 12px 34px var(--color-accent),
-      0 0 0 8px color-mix(in srgb, var(--color-accent) 14%, transparent);
-  }
+@keyframes fabGlowPulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.96); }
+  50%      { opacity: 1;    transform: scale(1.04); }
 }
 
 /* 4 barras estilo equalizer dentro del FAB. 4 (no 3 como en Library)
@@ -222,7 +228,7 @@
 
 /* prefers-reduced-motion: sin glow ni eq animado. */
 @media (prefers-reduced-motion: reduce) {
-  .playFab[data-playing] { animation: none; }
+  .playFab[data-playing]::after { animation: none; opacity: 0; }
   .fabPulseBars span { animation: none; transform: scaleY(0.7); }
 }
 

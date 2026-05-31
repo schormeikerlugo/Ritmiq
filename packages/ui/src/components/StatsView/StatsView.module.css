@@ -144,17 +144,8 @@
   background: radial-gradient(circle, color-mix(in oklab, var(--color-accent) 38%, transparent), transparent 70%);
   pointer-events: none;
 }
-.streakCard[data-active='true'] .streakIcon {
-  animation: ritmiq-streak-pulse 2.6s var(--ease-standard) infinite;
-}
-@keyframes ritmiq-streak-pulse {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
-  50% { transform: scale(1.08); filter: drop-shadow(0 0 10px color-mix(in oklab, var(--color-accent) 60%, transparent)); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .streakCard[data-active='true'] .streakIcon { animation: none; }
-}
 .streakIcon {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 48px;
@@ -162,6 +153,38 @@
   border-radius: var(--radius-md);
   background: color-mix(in oklab, var(--color-accent) 22%, transparent);
   color: var(--color-accent);
+}
+/* Glow pulsante via pseudo-elemento: animamos solo opacity + scale
+   (compuestas por GPU). NO animamos box-shadow/filter porque fuerzan
+   repintado en cada frame → jank en Electron desktop. El glow se pinta
+   una sola vez como box-shadow estático en el ::after. */
+.streakIcon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 14px 2px color-mix(in oklab, var(--color-accent) 60%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.streakCard[data-active='true'] .streakIcon {
+  animation: ritmiq-streak-icon 2.6s var(--ease-standard) infinite;
+}
+.streakCard[data-active='true'] .streakIcon::after {
+  animation: ritmiq-streak-glow 2.6s var(--ease-standard) infinite;
+}
+@keyframes ritmiq-streak-icon {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+@keyframes ritmiq-streak-glow {
+  0%, 100% { opacity: 0; transform: scale(0.92); }
+  50%      { opacity: 1; transform: scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .streakCard[data-active='true'] .streakIcon,
+  .streakCard[data-active='true'] .streakIcon::after { animation: none; }
 }
 .streakBody {
   display: flex;

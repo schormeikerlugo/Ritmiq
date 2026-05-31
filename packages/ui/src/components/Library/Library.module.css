@@ -315,15 +315,26 @@
   background: var(--color-accent-hover);
   transform: scale(1.08);
 }
-/* Estado: ademas esta reproduciendo. Sutil glow pulsante alrededor
-   del overlay para llamar la atencion sin distraer. Las barras
-   tipo equalizer (.pulseBars) viven dentro y se animan aparte. */
-.quickPlay[data-playing] {
-  animation: quickPlayGlow 1.4s ease-in-out infinite;
+/* Estado: ademas esta reproduciendo. Glow pulsante via pseudo-elemento.
+   Las barras tipo equalizer (.pulseBars) viven dentro y se animan aparte.
+
+   IMPORTANTE: NO animamos box-shadow (fuerza repintado por frame → jank
+   en Electron desktop). El glow se pinta una vez en el ::after y solo
+   animamos su opacity + scale (compuestas por GPU). */
+.quickPlay[data-playing]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 4px 22px var(--color-accent), 0 0 0 4px color-mix(in srgb, var(--color-accent) 22%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: quickPlayGlowPulse 1.4s ease-in-out infinite;
 }
-@keyframes quickPlayGlow {
-  0%, 100% { box-shadow: 0 4px 12px var(--color-accent-shadow); }
-  50%      { box-shadow: 0 4px 22px var(--color-accent), 0 0 0 4px color-mix(in srgb, var(--color-accent) 22%, transparent); }
+@keyframes quickPlayGlowPulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.94); }
+  50%      { opacity: 1;   transform: scale(1.05); }
 }
 
 /* Equalizer bars dentro del overlay cuando data-playing. 3 barras
@@ -355,7 +366,7 @@
 
 /* Respeto prefers-reduced-motion: sin animacion, solo color estatico. */
 @media (prefers-reduced-motion: reduce) {
-  .quickPlay[data-playing] { animation: none; }
+  .quickPlay[data-playing]::after { animation: none; opacity: 0; }
   .pulseBars span { animation: none; transform: scaleY(0.7); }
 }
 
