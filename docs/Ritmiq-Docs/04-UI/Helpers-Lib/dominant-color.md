@@ -56,3 +56,16 @@ const darken = 0.7;  // oscurecer para que el texto blanco sea legible
 
 ## Notas / Changelog
 - 2026-05-22: nivel simple.
+- 2026-05-31 (fix CORS/SW): el background de [[NowPlaying]] dejó de adoptar el color de la
+  carátula en PWA. Causa: desde la cache runtime de covers (Fase 7.3, commit `f90a241`) el
+  Service Worker sirve las covers de `i.ytimg.com`/Last.fm como respuestas **opaque**
+  (`cacheableResponse: { statuses: [0, 200] }`). Un `new Image()` con `crossOrigin='anonymous'`
+  contra una respuesta opaque deja el canvas **tainted** → `getImageData` lanza `SecurityError`
+  → `null` → background gris.
+  - **Solución** (`loadSampleableImage`): `fetch(url, { mode:'cors' })` → `blob()` →
+    `URL.createObjectURL` → cargar la imagen desde el `blob:` URL same-origin (nunca queda
+    tainted). Si el blob viene vacío (opaque) o el fetch falla, fallback a `<img crossOrigin>`
+    con cache-buster `?dc=1` para esquivar la entrada opaque del SW y obtener CORS real de red.
+    El `blob:` URL se revoca en el `finally`.
+  - Verificado con Playwright contra una cover real de `i.ytimg.com`: `getImageData` ya no
+    lanza (vía `fetch-blob`).
