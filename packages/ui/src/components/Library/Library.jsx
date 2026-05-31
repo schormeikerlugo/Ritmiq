@@ -28,6 +28,9 @@ import { EmptyState } from '../primitives/index.js';
 import { playPlaylist, playArtistFromLibrary } from '../../lib/play-helpers.js';
 import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
 import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
+import { useDownloadsStats } from '../../lib/use-downloads-stats.js';
+import { DownloadsSummary, fmtBytes } from '../Downloads/DownloadsSummary.jsx';
+import { isDesktop } from '../../lib/api.js';
 import styles from './Library.module.css';
 
 const FILTERS = [
@@ -68,6 +71,10 @@ export function Library() {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+
+  // Estadísticas de descargas (nº + peso) para mostrar el resumen cuando el
+  // filtro activo es "Descargados". Mismo hook que la vista Downloads.
+  const downloadsStats = useDownloadsStats();
 
   useEffect(() => { loadLib(); }, [loadLib]);
 
@@ -118,14 +125,18 @@ export function Library() {
 
     // Descargados.
     if (filter === 'downloaded') {
-      const dl = tracks.filter((t) => t.isDownloaded);
+      const dl = tracks.filter((t) =>
+        isDesktop ? t.isDownloaded : downloadsStats.sizeByTrack[t.id] != null
+      );
       for (const t of dl) {
+        const size = downloadsStats.sizeByTrack[t.id] ?? 0;
+        const sizeLabel = size > 0 ? ` · ${fmtBytes(size)}` : '';
         list.push({
           kind: 'track',
           id: `tr:${t.id}`,
           rawId: t.id,
           title: t.title,
-          subtitle: `Canción descargada · ${t.artist ?? '—'}`,
+          subtitle: `${t.artist ?? '—'}${sizeLabel}`,
           coverUrl: t.coverUrl,
           track: t,
           updatedAt: t.createdAt,
@@ -134,7 +145,7 @@ export function Library() {
     }
 
     return list;
-  }, [filter, playlists, favoritesId, events, tracks]);
+  }, [filter, playlists, favoritesId, events, tracks, downloadsStats.sizeByTrack]);
 
   // Filtro de búsqueda (cuando search input visible).
   const filtered = useMemo(() => {
@@ -291,6 +302,16 @@ export function Library() {
           label="Ordenar por"
         />
       </div>
+
+      {/* Resumen de descargas (nº de canciones + peso) cuando el filtro
+          activo es "Descargados". Visible en PWA y desktop. */}
+      {filter === 'downloaded' && (
+        <DownloadsSummary
+          count={downloadsStats.count}
+          totalSize={downloadsStats.totalSize}
+          compact
+        />
+      )}
 
       {/* Skeleton mientras carga la biblioteca/playlists por primera vez.
           Sustituye el flash de "empty state" → empty state real cuando no

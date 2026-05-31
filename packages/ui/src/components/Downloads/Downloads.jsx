@@ -1,23 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlayerStore } from '../../stores/player.js';
-import { useAuthStore } from '../../stores/auth.js';
-import { listLocalDownloads, storageEstimate, clearAllLocal } from '../../lib/local-downloads.js';
-import { isDesktop, api } from '../../lib/api.js';
+import { storageEstimate, clearAllLocal } from '../../lib/local-downloads.js';
+import { useDownloadsStats } from '../../lib/use-downloads-stats.js';
+import { isDesktop } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { ConfirmDialog, EmptyState } from '../primitives/index.js';
 import { TrackRowSkeleton } from '../Skeleton/index.js';
 import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
 import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
+import { DownloadsSummary, fmtBytes } from './DownloadsSummary.jsx';
 import styles from './Downloads.module.css';
-
-function fmtBytes(n) {
-  if (!n) return '0 B';
-  const u = ['B', 'KB', 'MB', 'GB'];
-  let i = 0; let v = n;
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
-  return `${v.toFixed(v < 10 ? 2 : 0)} ${u[i]}`;
-}
 
 function fmtDur(s) {
   if (!Number.isFinite(s)) return '—';
@@ -32,61 +25,34 @@ export function Downloads() {
   const undownload = useLibraryStore((s) => s.undownload);
   const playNow = usePlayerStore((s) => s.playNow);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
-  const userId = useAuthStore((s) => s.user?.id ?? null);
 
-  const [localItems, setLocalItems] = useState([]);
   const [estimate, setEstimate] = useState({ usage: 0, quota: 0 });
-  // Desktop: tamaño en disco por trackId (del IPC library:downloadsStats).
-  const [desktopSizes, setDesktopSizes] = useState({ totalSize: 0, sizeByTrack: {} });
   const [confirmClear, setConfirmClear] = useState(false);
 
+  // Estadísticas compartidas (count + totalSize + sizeByTrack), válidas en
+  // desktop y PWA. El mismo hook alimenta el filtro "Descargados" de la
+  // Biblioteca, evitando lógica duplicada.
+  const { count, totalSize, sizeByTrack, refresh: refreshStats } = useDownloadsStats();
+
   const refresh = async () => {
-    if (isDesktop) {
-      // En desktop el estado isDownloaded ya viene en `tracks`. El peso en
-      // disco lo trae el IPC downloadsStats (suma de statSync de los .opus).
-      setLocalItems([]);
-      try {
-        const stats = await api.libraryDownloadsStats?.(userId);
-        if (stats && typeof stats === 'object') {
-          setDesktopSizes({
-            totalSize: stats.totalSize ?? 0,
-            sizeByTrack: stats.sizeByTrack ?? {},
-          });
-        }
-      } catch {
-        // Preload viejo sin el método: el conteo sigue funcionando, sin peso.
-      }
-      return;
-    }
-    const items = await listLocalDownloads();
-    setLocalItems(items);
-    setEstimate(await storageEstimate());
+    await refreshStats();
+    if (!isDesktop) setEstimate(await storageEstimate());
   };
 
-  useEffect(() => { refresh(); }, [tracks]);
+  useEffect(() => { if (!isDesktop) storageEstimate().then(setEstimate); }, [tracks]);
 
-  // Pull-to-refresh — recarga el listado local desde IndexedDB + estimate.
+  // Pull-to-refresh — recarga estadísticas + estimate.
   const { bind: ptrBind, pullDistance, refreshing } = usePullToRefresh({
     onRefresh: refresh,
   });
 
-  const downloadedTracks = useMemo(() => {
-    if (isDesktop) {
-      return tracks
-        .filter((t) => t.isDownloaded)
-        .map((t) => ({ ...t, _localSize: desktopSizes.sizeByTrack[t.id] ?? 0 }));
-    }
-    const sizeMap = new Map(localItems.map((i) => [i.trackId, i.size]));
-    return tracks
-      .filter((t) => sizeMap.has(t.id))
-      .map((t) => ({ ...t, _localSize: sizeMap.get(t.id) ?? 0 }));
-  }, [tracks, localItems, desktopSizes]);
+  const downloadedTracks = useMemo(
+    () => tracks
+      .filter((t) => (isDesktop ? t.isDownloaded : sizeByTrack[t.id] != null))
+      .map((t) => ({ ...t, _localSize: sizeByTrack[t.id] ?? 0 })),
+    [tracks, sizeByTrack],
+  );
 
-  // Peso total: en desktop viene del IPC (suma real en disco); en PWA se
-  // suma del tamaño de cada blob de IndexedDB.
-  const totalSize = isDesktop
-    ? desktopSizes.totalSize
-    : downloadedTracks.reduce((acc, t) => acc + (t._localSize ?? 0), 0);
   const usedPct = estimate.quota > 0 ? (estimate.usage / estimate.quota) * 100 : 0;
 
   const performClearAll = async () => {
@@ -113,33 +79,7 @@ export function Downloads() {
         </p>
       </header>
 
-      {downloadedTracks.length > 0 && (
-        <div className={styles.summary}>
-          <div className={styles.summaryItem}>
-            <span className={styles.summaryIcon} aria-hidden="true">
-              <Icon name="ArrowDownToLine" size={18} />
-            </span>
-            <div className={styles.summaryText}>
-              <span className={styles.summaryValue}>{downloadedTracks.length}</span>
-              <span className={styles.summaryLabel}>
-                {downloadedTracks.length === 1 ? 'canción descargada' : 'canciones descargadas'}
-              </span>
-            </div>
-          </div>
-          <div className={styles.summaryDivider} aria-hidden="true" />
-          <div className={styles.summaryItem}>
-            <span className={styles.summaryIcon} aria-hidden="true">
-              <Icon name="Disc3" size={18} />
-            </span>
-            <div className={styles.summaryText}>
-              <span className={styles.summaryValue}>
-                {totalSize > 0 ? fmtBytes(totalSize) : '—'}
-              </span>
-              <span className={styles.summaryLabel}>ocupados en disco</span>
-            </div>
-          </div>
-        </div>
-      )}
+      <DownloadsSummary count={count} totalSize={totalSize} />
 
       {!isDesktop && estimate.quota > 0 && (
         <div className={styles.storage}>

@@ -35,6 +35,14 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg, 16px);
 }
+/* Variante compacta para incrustar dentro de la Biblioteca (filtro
+   Descargados): menos padding y un margen inferior para separar de la lista. */
+.summary[data-compact] {
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.summary[data-compact] .summaryValue { font-size: var(--fs-lg); }
+.summary[data-compact] .summaryIcon { width: 36px; height: 36px; }
 .summaryItem {
   display: flex;
   align-items: center;
