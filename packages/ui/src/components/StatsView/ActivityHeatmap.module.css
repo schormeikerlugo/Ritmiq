@@ -1,10 +1,10 @@
 .wrap {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  gap: var(--space-3);
+  padding: var(--space-4);
   background: var(--color-bg-1);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg, 16px);
   border: 1px solid var(--color-border);
 }
 
@@ -13,86 +13,106 @@
   flex-direction: column;
   gap: 4px;
 }
-
 .title {
   margin: 0;
   font-size: var(--fs-md);
-  font-weight: var(--fw-semibold);
-  letter-spacing: -0.02em;
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.01em;
+  color: var(--color-text-1);
 }
-
 .sub {
   margin: 0;
   font-size: var(--fs-xs);
   color: var(--color-text-3);
 }
 
-/* Scroll horizontal en mobile cuando el svg no cabe. */
+/* Scroll horizontal cuando el svg no cabe (PWA móvil). En desktop el svg
+   se ajusta al ancho (max-width = natural) y no hay scroll. Sombras de
+   borde como hint de que hay más contenido. */
 .scroll {
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 4px;
-  /* scrollbar-thin en webkit (solo decorativo) */
   scrollbar-width: thin;
+  padding-bottom: 2px;
+  background:
+    linear-gradient(to right, var(--color-bg-1) 30%, transparent),
+    linear-gradient(to right, transparent, var(--color-bg-1) 70%) 100% 0,
+    radial-gradient(farthest-side at 0 50%, rgba(0,0,0,0.28), transparent),
+    radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.28), transparent) 100% 0;
+  background-repeat: no-repeat;
+  background-size: 36px 100%, 36px 100%, 14px 100%, 14px 100%;
+  background-attachment: local, local, scroll, scroll;
 }
 
 .svg {
   display: block;
+  width: 100%;
+  height: auto;
 }
 
 .monthLabel {
   fill: var(--color-text-3);
   font-size: 10px;
+  font-weight: 500;
   font-family: var(--font-sans, inherit);
 }
 .dayLabel {
   fill: var(--color-text-3);
-  font-size: 10px;
+  font-size: 9.5px;
   font-family: var(--font-sans, inherit);
 }
 
-/* Niveles de intensidad. 0 = sin actividad, 4 = maximo. */
+/* Niveles de intensidad. 0 = sin actividad, 4 = máximo. */
 .cell {
   cursor: pointer;
   transition: filter var(--dur-fast) var(--ease-standard);
+  stroke: rgba(255, 255, 255, 0.04);
+  stroke-width: 1;
 }
-.cell:hover { filter: brightness(1.35); }
-.cell[data-level='0'] { fill: rgba(255, 255, 255, 0.06); }
-.cell[data-level='1'] { fill: color-mix(in oklab, var(--color-accent) 25%, transparent); }
-.cell[data-level='2'] { fill: color-mix(in oklab, var(--color-accent) 50%, transparent); }
-.cell[data-level='3'] { fill: color-mix(in oklab, var(--color-accent) 75%, transparent); }
+.cell:hover { filter: brightness(1.4); }
+.cell[data-level='0'] { fill: rgba(255, 255, 255, 0.07); }
+.cell[data-level='1'] { fill: color-mix(in oklab, var(--color-accent) 28%, transparent); }
+.cell[data-level='2'] { fill: color-mix(in oklab, var(--color-accent) 52%, transparent); }
+.cell[data-level='3'] { fill: color-mix(in oklab, var(--color-accent) 76%, transparent); }
 .cell[data-level='4'] { fill: var(--color-accent); }
 
-/* Tooltip overlay */
+/* Footer: tooltip / hint a la izquierda, leyenda a la derecha. */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-height: 26px;
+}
+.footHint {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+}
 .tooltip {
   font-size: var(--fs-xs);
   color: var(--color-text-2);
-  background: var(--color-bg-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 6px 10px;
-  align-self: flex-start;
   animation: ritmiq-fade-in var(--dur-fast) var(--ease-standard);
 }
+.tooltip strong { color: var(--color-text-1); }
 
 .legend {
   display: flex;
   align-items: center;
   gap: 4px;
-  align-self: flex-end;
   font-size: 10px;
   color: var(--color-text-3);
 }
-.legendLabel { padding: 0 4px; }
+.legendLabel { padding: 0 2px; }
 .legendCell {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
   display: inline-block;
 }
-.legendCell[data-level='0'] { background: rgba(255, 255, 255, 0.06); }
-.legendCell[data-level='1'] { background: color-mix(in oklab, var(--color-accent) 25%, transparent); }
-.legendCell[data-level='2'] { background: color-mix(in oklab, var(--color-accent) 50%, transparent); }
-.legendCell[data-level='3'] { background: color-mix(in oklab, var(--color-accent) 75%, transparent); }
+.legendCell[data-level='0'] { background: rgba(255, 255, 255, 0.07); }
+.legendCell[data-level='1'] { background: color-mix(in oklab, var(--color-accent) 28%, transparent); }
+.legendCell[data-level='2'] { background: color-mix(in oklab, var(--color-accent) 52%, transparent); }
+.legendCell[data-level='3'] { background: color-mix(in oklab, var(--color-accent) 76%, transparent); }
 .legendCell[data-level='4'] { background: var(--color-accent); }
