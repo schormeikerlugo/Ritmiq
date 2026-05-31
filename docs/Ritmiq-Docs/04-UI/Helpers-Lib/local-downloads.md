@@ -7,7 +7,7 @@ ultima-revision: 2026-05-22
 archivo: packages/ui/src/lib/local-downloads.js
 tags: [helper, descargas, indexeddb, dexie, cache, pwa]
 ---
-
+x
 # `lib/local-downloads.js`
 
 > Gestión de descargas offline en la PWA (y caché de metadata). `RitmiqLocalDB` extiende Dexie con stores para blobs de audio, caché de tracks/playlists y una cola offline de eventos de historial.

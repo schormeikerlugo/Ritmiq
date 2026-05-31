@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "00-Index/MOC - Ritmiq.md",
+                "file": "02-Desktop/Main-Process/access-token.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "MOC - Ritmiq"
+              "title": "access-token"
             }
           }
         ]
@@ -186,6 +186,19 @@
   },
   "active": "ed620bd3e5b952e7",
   "lastOpenFiles": [
+    "06-DB/Migraciones/indice.md",
+    "04-UI/Componentes/Player.md",
+    "06-DB/sqlite-adapter.md",
+    "06-DB/schema.md",
+    "06-DB/dexie-adapter.md",
+    "01-Arquitectura/Monorepo-y-Workspaces.md",
+    "04-UI/Helpers-Lib/api.md",
+    "01-Arquitectura/Code-Splitting.md",
+    "04-UI/Helpers-Lib/local-downloads.md",
+    "Sin título.md",
+    "04-UI/Componentes/EditTrackDialog.md",
+    "04-UI/Stores-Zustand/social.md",
+    "00-Index/MOC - Ritmiq.md",
     "README.md",
     "02-Desktop/Main-Process/access-token.md",
     "00-Index/MOC - Desktop.md",
@@ -198,20 +211,7 @@
     "09-Supabase-Backend/Edge-Functions/respond-friend-request.md",
     "09-Supabase-Backend/Edge-Functions/resolve-stream.md",
     "00-Index/MOC - PWA.md",
-    "04-UI/Componentes/Player.md",
     "04-UI/Componentes/QueuePanel.md",
-    "04-UI/Componentes/ShareReminder.md",
-    "04-UI/Componentes/SearchView.md",
-    "04-UI/Componentes/PullToRefresh.md",
-    "04-UI/Componentes/FriendsView.md",
-    "04-UI/Componentes/DropdownMenu.md",
-    "04-UI/Componentes/BottomSheet.md",
-    "04-UI/Componentes/Auth.md",
-    "04-UI/Componentes/ArtistView.md",
-    "04-UI/Componentes/AlbumView.md",
-    "06-DB/Migraciones/indice.md",
-    "10-Flujos/Recomendaciones.md",
-    "10-Flujos/Push-Notifications.md",
     "Sin título.base",
     "Sin título 1.base",
     "Sin título 2.base",
