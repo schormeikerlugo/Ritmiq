@@ -62,6 +62,7 @@ const electronApi = isElectron
       libraryDownload:         (idOrPayload) => window.ritmiq.library.download(idOrPayload),
       libraryUndownload:       (id) => window.ritmiq.library.undownload(id),
       libraryFileSize:         (id) => window.ritmiq.library.fileSize(id),
+      libraryDownloadsStats:   optionalCall(window.ritmiq.library.downloadsStats),
       librarySyncRemote:       optionalCall(window.ritmiq.library.syncRemote),
       libraryDeleteRemote:     optionalCall(window.ritmiq.library.deleteRemote),
       libraryUpdate:           optionalCall(window.ritmiq.library.update),
@@ -180,6 +181,9 @@ const webApi = {
     return true;
   },
   libraryFileSize: async (trackId) => getLocalSize(trackId),
+  // En PWA la PWA calcula los stats desde IndexedDB (listLocalDownloads +
+  // storageEstimate) directamente en el componente; este método no se usa.
+  libraryDownloadsStats: async () => null,
   librarySyncRemote: async () => true,    // no-op en PWA: no hay SQLite local
   libraryDeleteRemote: async () => true,
   libraryUpdate: async () => true,        // no-op en PWA: el UPDATE va directo a Supabase via pushTrack

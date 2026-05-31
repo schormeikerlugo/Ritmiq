@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('ritmiq', {
     download: (trackIdOrPayload) => ipcRenderer.invoke('library:download', trackIdOrPayload),
     undownload: (trackId) => ipcRenderer.invoke('library:undownload', trackId),
     fileSize: (trackId) => ipcRenderer.invoke('library:fileSize', trackId),
+    downloadsStats: (userId) => ipcRenderer.invoke('library:downloadsStats', userId),
     syncRemote: (track) => ipcRenderer.invoke('library:syncRemote', track),
     deleteRemote: (trackId) => ipcRenderer.invoke('library:deleteRemote', trackId),
     update: (trackId, patch) => ipcRenderer.invoke('library:update', { trackId, patch }),

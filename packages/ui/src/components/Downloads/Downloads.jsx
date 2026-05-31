@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlayerStore } from '../../stores/player.js';
+import { useAuthStore } from '../../stores/auth.js';
 import { listLocalDownloads, storageEstimate, clearAllLocal } from '../../lib/local-downloads.js';
-import { isDesktop } from '../../lib/api.js';
+import { isDesktop, api } from '../../lib/api.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { ConfirmDialog, EmptyState } from '../primitives/index.js';
 import { TrackRowSkeleton } from '../Skeleton/index.js';
@@ -31,15 +32,30 @@ export function Downloads() {
   const undownload = useLibraryStore((s) => s.undownload);
   const playNow = usePlayerStore((s) => s.playNow);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const userId = useAuthStore((s) => s.user?.id ?? null);
 
   const [localItems, setLocalItems] = useState([]);
   const [estimate, setEstimate] = useState({ usage: 0, quota: 0 });
+  // Desktop: tamaño en disco por trackId (del IPC library:downloadsStats).
+  const [desktopSizes, setDesktopSizes] = useState({ totalSize: 0, sizeByTrack: {} });
   const [confirmClear, setConfirmClear] = useState(false);
 
   const refresh = async () => {
     if (isDesktop) {
-      // En desktop el estado isDownloaded ya viene en `tracks`.
+      // En desktop el estado isDownloaded ya viene en `tracks`. El peso en
+      // disco lo trae el IPC downloadsStats (suma de statSync de los .opus).
       setLocalItems([]);
+      try {
+        const stats = await api.libraryDownloadsStats?.(userId);
+        if (stats && typeof stats === 'object') {
+          setDesktopSizes({
+            totalSize: stats.totalSize ?? 0,
+            sizeByTrack: stats.sizeByTrack ?? {},
+          });
+        }
+      } catch {
+        // Preload viejo sin el método: el conteo sigue funcionando, sin peso.
+      }
       return;
     }
     const items = await listLocalDownloads();
@@ -55,14 +71,22 @@ export function Downloads() {
   });
 
   const downloadedTracks = useMemo(() => {
-    if (isDesktop) return tracks.filter((t) => t.isDownloaded);
+    if (isDesktop) {
+      return tracks
+        .filter((t) => t.isDownloaded)
+        .map((t) => ({ ...t, _localSize: desktopSizes.sizeByTrack[t.id] ?? 0 }));
+    }
     const sizeMap = new Map(localItems.map((i) => [i.trackId, i.size]));
     return tracks
       .filter((t) => sizeMap.has(t.id))
       .map((t) => ({ ...t, _localSize: sizeMap.get(t.id) ?? 0 }));
-  }, [tracks, localItems]);
+  }, [tracks, localItems, desktopSizes]);
 
-  const totalSize = downloadedTracks.reduce((acc, t) => acc + (t._localSize ?? 0), 0);
+  // Peso total: en desktop viene del IPC (suma real en disco); en PWA se
+  // suma del tamaño de cada blob de IndexedDB.
+  const totalSize = isDesktop
+    ? desktopSizes.totalSize
+    : downloadedTracks.reduce((acc, t) => acc + (t._localSize ?? 0), 0);
   const usedPct = estimate.quota > 0 ? (estimate.usage / estimate.quota) * 100 : 0;
 
   const performClearAll = async () => {
@@ -85,10 +109,37 @@ export function Downloads() {
       <header className={styles.header}>
         <h1 className={styles.title}>Descargas</h1>
         <p className={styles.subtitle}>
-          {downloadedTracks.length} {downloadedTracks.length === 1 ? 'canción' : 'canciones'}
-          {!isDesktop && totalSize > 0 && ` · ${fmtBytes(totalSize)}`}
+          Música guardada en este dispositivo para escuchar sin internet.
         </p>
       </header>
+
+      {downloadedTracks.length > 0 && (
+        <div className={styles.summary}>
+          <div className={styles.summaryItem}>
+            <span className={styles.summaryIcon} aria-hidden="true">
+              <Icon name="ArrowDownToLine" size={18} />
+            </span>
+            <div className={styles.summaryText}>
+              <span className={styles.summaryValue}>{downloadedTracks.length}</span>
+              <span className={styles.summaryLabel}>
+                {downloadedTracks.length === 1 ? 'canción descargada' : 'canciones descargadas'}
+              </span>
+            </div>
+          </div>
+          <div className={styles.summaryDivider} aria-hidden="true" />
+          <div className={styles.summaryItem}>
+            <span className={styles.summaryIcon} aria-hidden="true">
+              <Icon name="Disc3" size={18} />
+            </span>
+            <div className={styles.summaryText}>
+              <span className={styles.summaryValue}>
+                {totalSize > 0 ? fmtBytes(totalSize) : '—'}
+              </span>
+              <span className={styles.summaryLabel}>ocupados en disco</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!isDesktop && estimate.quota > 0 && (
         <div className={styles.storage}>
@@ -139,7 +190,7 @@ export function Downloads() {
                     <span className={styles.rowTitle}>{t.title}</span>
                     <span className={styles.rowArtist}>
                       {t.artist ?? '—'}
-                      {!isDesktop && t._localSize > 0 && ` · ${fmtBytes(t._localSize)}`}
+                      {t._localSize > 0 && ` · ${fmtBytes(t._localSize)}`}
                     </span>
                   </div>
                 </button>

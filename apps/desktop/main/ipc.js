@@ -528,6 +528,35 @@ export function registerIpc({ db, lan, accessToken }) {
     try { return statSync(row.file_path).size; } catch { return 0; }
   });
 
+  // Estadisticas de descargas locales: cuantas canciones y cuanto pesan en
+  // disco. Recorre los tracks descargados del usuario y suma los tamanos
+  // reales del filesystem en una sola llamada (evita N IPC de fileSize).
+  // Devuelve tambien el tamano por trackId para mostrarlo en cada fila.
+  ipcMain.handle('library:downloadsStats', async (_e, userId) => {
+    let rows;
+    if (userId) {
+      rows = db.prepare(
+        'SELECT id, file_path FROM tracks WHERE user_id = ? AND is_downloaded = 1 AND file_path IS NOT NULL'
+      ).all(userId);
+    } else {
+      rows = db.prepare(
+        'SELECT id, file_path FROM tracks WHERE is_downloaded = 1 AND file_path IS NOT NULL'
+      ).all();
+    }
+    let totalSize = 0;
+    let count = 0;
+    const sizeByTrack = {};
+    for (const r of rows) {
+      if (!r.file_path || !existsSync(r.file_path)) continue;
+      let size = 0;
+      try { size = statSync(r.file_path).size; } catch { continue; }
+      sizeByTrack[r.id] = size;
+      totalSize += size;
+      count += 1;
+    }
+    return { count, totalSize, sizeByTrack };
+  });
+
   // ── PLAYLISTS ────────────────────────────────────────────────────────
   ipcMain.handle('playlists:list', (_e, userId) => {
     return db.prepare('SELECT * FROM playlists WHERE user_id = ? ORDER BY created_at')
