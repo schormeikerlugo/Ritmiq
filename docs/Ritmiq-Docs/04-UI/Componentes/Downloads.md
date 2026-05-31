@@ -62,3 +62,10 @@ Recarga la lista de downloads locales y las estadísticas de storage al tirar.
     peso en disco), divisor central; en móvil (≤480px) se apila vertical. Subtítulo cambiado
     a "Música guardada en este dispositivo para escuchar sin internet". Peso por canción en
     cada fila en ambas plataformas (antes solo PWA).
+- 2026-05-31 (refactor sin redundancia): la lógica de cálculo se extrajo al hook
+  **`useDownloadsStats`** (`lib/use-downloads-stats.js`) → `{ count, totalSize, sizeByTrack, refresh }`,
+  válido en desktop (IPC) y PWA (IndexedDB). La tarjeta se extrajo al componente reutilizable
+  **`DownloadsSummary`** (`components/Downloads/DownloadsSummary.jsx`, exporta también
+  `fmtBytes`). Ambos los consume tanto esta vista como el filtro "Descargados" de [[Library]]
+  → **la métrica ahora también aparece en PWA móvil** (donde se accede a descargas vía el chip
+  "Descargados", no esta vista). `DownloadsSummary` acepta `compact` para la variante embebida.

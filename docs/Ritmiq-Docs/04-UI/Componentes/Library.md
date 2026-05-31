@@ -65,3 +65,7 @@ Botón en el header que abre [[SpotifyImportDialog]]. Solo visible en desktop o 
   animando `box-shadow` → tirones en Electron desktop. Migrado a un `::after` con el glow
   estático que anima solo `opacity` + `scale` (GPU). Las `pulseBars` (eq) ya usaban `scaleY`
   y no se tocaron. Ver [[Decisiones-Tecnicas-ADR|ADR-020]].
+- 2026-05-31: el filtro **"Descargados"** ahora muestra el resumen [[Downloads|DownloadsSummary]]
+  (nº de canciones + peso) en variante `compact`, alimentado por el hook `useDownloadsStats`.
+  Es el punto de acceso a descargas en **PWA móvil** (el BottomNav no tiene tab de Descargas).
+  Cada fila del filtro incluye el peso de la canción en el subtítulo (`artista · X MB`).
