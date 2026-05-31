@@ -140,3 +140,16 @@ Solo Lun / Mié / Vie para no saturar visualmente.
 ## Changelog
 
 - 2026-05-27 — Creado en Fase 4.6. Commit `289ce3d`.
+- 2026-05-31 (**fix layout + rediseño**): el SVG se **comprimía** (etiquetas de mes
+  solapadas "MayJun", celdas minúsculas) porque tenía `width`/`height` en px dentro de un
+  contenedor más angosto. Solución:
+  - SVG con `viewBox` + `width:100%` + `style={{ minWidth: svgW*0.62, maxWidth: svgW }}` y
+    `preserveAspectRatio="xMinYMin meet"`. **Desktop**: cabe completo ajustándose al panel.
+    **PWA móvil**: cuando el panel < `minWidth`, el `.scroll` (`overflow-x:auto`) muestra
+    scroll horizontal con **sombras-hint** en los bordes (background gradients local/scroll).
+  - **Etiquetas de mes sin solape**: filtro `MONTH_LABEL_MIN_GAP_WEEKS` (3 semanas mínimo)
+    para no pintar dos labels demasiado juntos.
+  - Celdas con `GAP` 3, `rx` 2.5, stroke sutil, nivel 0 con más contraste; leyenda y
+    footer (tooltip/hint + leyenda) en una fila. Días `Lun/Mié/Vie` con tilde; tooltip
+    "reproducción/reproducciones … del último año". Tildes en todo el texto.
+  - Verificado con Playwright a 1300px y 390px.

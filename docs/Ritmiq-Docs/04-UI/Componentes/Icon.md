@@ -43,3 +43,8 @@ El componente lazy-carga solo los íconos que se importan. Los más frecuentes:
 
 ## Notas / Changelog
 - 2026-05-22: nivel simple.
+- 2026-05-29: registrados `Radio`, `Crown`, `Copy`, `LogIn` (modal de Jam + invitación).
+- 2026-05-31: registrados `Trophy`, `Star`, `Award`, `TrendingUp`, `CalendarDays` para el
+  rediseño de [[StatsView]]. Antes `Trophy`/`Star`/`Award` **no estaban en el set** → la
+  stat card "días récord" y los trofeos 30/100/365 mostraban un cuadro vacío. Recordatorio:
+  todo icono usado debe estar en el objeto `ICONS` o no renderiza.

@@ -58,3 +58,12 @@ Sin red, sin llamada a backend. Todo del historial en `events[]`.
 - 2026-05-22: nivel medio.
 - 2026-05-27 (Fase 4.6): añadida sección [[ActivityHeatmap]] entre el grid de cards y la sección "Trofeos". Commit `289ce3d`.
 - 2026-05-27 (Fase 4.9): añadido botón `Clock` "Ver historial completo" en el header → navega a [[HistoryView]] vía `goHistory()` del [[view]] store. Commit `9ca428e`.
+- 2026-05-31 (**rediseño ambicioso**): reescritura completa de la UI.
+  - **Hero**: eyebrow con punto accent, botón "Ver historial" alineado a la derecha en desktop (debajo en móvil), tildes corregidas en todo el texto.
+  - **Bento de métricas**: la racha actual es ahora una `FeatureStreakCard` grande destacada (icono `Flame` con pulse, glow, mensaje contextual "¡Estás en tu mejor racha!" / "Tu récord: N días"). Las otras 6 métricas en un grid 3×2. **Acento sutil** (velo accent tenue) en lugar de borde duro `data-highlight`. **Contexto derivado**: sublabels "~N/día activo" y "~N min/día".
+  - **Iconos corregidos**: racha → `Flame` (antes `AlertCircle`, semánticamente erróneo); récord → `Trophy`; días activos → `CalendarDays`; escuchadas → `Headphones`.
+  - **Trofeos**: **barra de progreso** hacia cada hito bloqueado ("Faltan N días"), estado desbloqueado con `Check` + glow por tier. Iconos `Star`/`Trophy`/`Award` ahora visibles (se registraron en [[Icon]]).
+  - **Tops**: usan [[CoverArt]] (gradient hash) en vez de `<Icon>` plano; **medallas** oro/plata/bronce para top 3.
+  - **GSAP**: entrada con `stagger` vía [[use-view-transition]] (`childSelector` = `.animBlock`), re-anima al cambiar de periodo. Respeta `prefers-reduced-motion`.
+  - Verificado con Playwright (chromium headless) a 1300px (desktop) y 390px (móvil).
+  - Commit `feat(stats): rediseno StatsView con bento...`.
