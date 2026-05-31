@@ -2,13 +2,27 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+
+const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'));
+// Sello de build: fecha legible para mostrar en "Acerca de" y confirmar
+// que la PWA se actualizó. Se inyecta en tiempo de build.
+const BUILD_DATE = new Date().toISOString().slice(0, 10);
 
 export default defineConfig({
   envDir: resolve(process.cwd(), '../..'),
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_DATE__: JSON.stringify(BUILD_DATE),
+  },
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt': cuando hay una versión nueva, NO recargamos solos (eso
+      // cortaría la reproducción). Avisamos con un toast "Actualizar" y el
+      // usuario decide. Las descargas (IndexedDB) nunca se borran al
+      // actualizar el SW; solo se reinician al desinstalar la PWA.
+      registerType: 'prompt',
       includeAssets: [
         'favicon.ico', 'favicon.svg',
         'apple-touch-icon.png',
@@ -54,6 +68,10 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         navigateFallback: '/index.html',
+        // Purga las precaches de versiones anteriores al activarse el SW
+        // nuevo, para que el almacenamiento de assets no crezca sin límite
+        // entre actualizaciones. NO afecta a IndexedDB (descargas/offline).
+        cleanupOutdatedCaches: true,
         // Inyecta handlers de Web Push y notification click en el SW
         // auto-generado por VitePWA. El archivo vive en public/ y se sirve
         // como /sw-push.js junto al sw.js de workbox.

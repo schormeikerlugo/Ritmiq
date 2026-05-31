@@ -8,7 +8,8 @@
     ".": "./src/index.js",
     "./styles/*": "./src/styles/*",
     "./components/*": "./src/components/*",
-    "./lib/*": "./src/lib/*"
+    "./lib/*": "./src/lib/*",
+    "./stores/*": "./src/stores/*"
   },
   "peerDependencies": {
     "react": "^18.3.0",

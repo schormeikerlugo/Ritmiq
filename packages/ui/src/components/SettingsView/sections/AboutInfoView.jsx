@@ -6,6 +6,8 @@
  */
 import { isDesktop } from '../../../lib/api.js';
 import { useViewStore } from '../../../stores/view.js';
+import { usePwaUpdateStore } from '../../../stores/pwa-update.js';
+import { useToastStore } from '../../../stores/toast.js';
 import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { LinkButton } from '../controls/LinkButton.jsx';
@@ -19,6 +21,42 @@ const DEV_SITE = 'https://schormeiker.com';
 /** @param {{ onBack: () => void }} props */
 export function AboutInfoView({ onBack }) {
   const goStats = useViewStore((s) => s.goStats);
+  const version = usePwaUpdateStore((s) => s.version);
+  const buildDate = usePwaUpdateStore((s) => s.buildDate);
+  const checking = usePwaUpdateStore((s) => s.checking);
+  const needRefresh = usePwaUpdateStore((s) => s.needRefresh);
+  const bound = usePwaUpdateStore((s) => s.bound);
+  const checkForUpdate = usePwaUpdateStore((s) => s.checkForUpdate);
+  const applyUpdate = usePwaUpdateStore((s) => s.applyUpdate);
+  const showToast = useToastStore((s) => s.show);
+
+  // La versión mostrada: la del build inyectada (PWA) o un fallback estable.
+  const versionLabel = version
+    ? `${version}${buildDate ? ` (${buildDate})` : ''}`
+    : '0.1.0';
+
+  const handleCheck = async () => {
+    if (needRefresh) {
+      applyUpdate();
+      return;
+    }
+    const found = await checkForUpdate();
+    if (found) {
+      showToast({
+        message: 'Hay una actualización lista. Pulsa "Actualizar".',
+        variant: 'info',
+        icon: 'ArrowDownToLine',
+        duration: 4000,
+      });
+    } else {
+      showToast({
+        message: 'Ya tienes la última versión.',
+        variant: 'success',
+        icon: 'Check',
+        duration: 3000,
+      });
+    }
+  };
 
   return (
     <section className={styles.wrap}>
@@ -104,12 +142,38 @@ export function AboutInfoView({ onBack }) {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="Detalles técnicos">
-        <SettingRow label="Versión" description="0.1.0" />
+      <SettingsGroup
+        title="Versión y actualizaciones"
+        hint={
+          !isDesktop
+            ? 'Al actualizar no se borran tus descargas ni tus playlists; siguen guardadas en el dispositivo.'
+            : undefined
+        }
+      >
+        <SettingRow label="Versión" description={versionLabel} />
         <SettingRow
           label="Modo"
           description={isDesktop ? 'Desktop (Electron)' : 'PWA (Web)'}
         />
+        {!isDesktop && bound && (
+          <SettingRow
+            label="Actualizaciones"
+            description={
+              needRefresh
+                ? 'Hay una versión nueva lista para instalar.'
+                : 'Comprueba si hay una versión nueva de la app.'
+            }
+            control={
+              <LinkButton onClick={handleCheck}>
+                {checking
+                  ? 'Buscando…'
+                  : needRefresh
+                    ? 'Actualizar'
+                    : 'Buscar actualizaciones'}
+              </LinkButton>
+            }
+          />
+        )}
       </SettingsGroup>
     </section>
   );
