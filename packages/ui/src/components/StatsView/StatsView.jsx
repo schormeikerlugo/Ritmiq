@@ -1,22 +1,24 @@
 /**
- * "Tu mes en Ritmiq" — stats personales de los ultimos 30 dias.
+ * "Tu actividad" — stats personales del periodo seleccionado.
  *
  * Datos agregados desde useHistoryStore via selectStatsForPeriod:
- *  - Totales: plays, minutos, tracks unicos, artistas unicos.
+ *  - Totales: plays, minutos, tracks únicos, artistas únicos.
  *  - Top 5 tracks + Top 5 artistas.
- *  - Racha de dias consecutivos escuchando.
+ *  - Racha de días consecutivos escuchando + récord histórico.
  *
  * Sin red — todo se calcula client-side desde el historial cacheado.
+ * Entrada animada con GSAP (stagger), respeta prefers-reduced-motion.
  *
  * @module @ritmiq/ui/components/StatsView
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useHistoryStore, selectStatsForPeriod } from '../../stores/history.js';
 import { ActivityHeatmap } from './ActivityHeatmap.jsx';
 import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
+import { useViewTransition } from '../../lib/use-view-transition.js';
 import { Icon } from '../Icon/Icon.jsx';
-import { EmptyState } from '../primitives/index.js';
+import { CoverArt, EmptyState } from '../primitives/index.js';
 import styles from './StatsView.module.css';
 
 const PERIODS = [
@@ -35,10 +37,10 @@ function fmtMinutes(min) {
 }
 
 const MILESTONES_DEFS = [
-  { value: 7,   icon: 'Flame',     label: '7 dias',   tier: 'bronze' },
-  { value: 30,  icon: 'Star',      label: '30 dias',  tier: 'silver' },
-  { value: 100, icon: 'Trophy',    label: '100 dias', tier: 'gold' },
-  { value: 365, icon: 'Award',     label: '1 ano',    tier: 'diamond' },
+  { value: 7,   icon: 'Flame',  label: '7 días',   tier: 'bronze' },
+  { value: 30,  icon: 'Star',   label: '30 días',  tier: 'silver' },
+  { value: 100, icon: 'Trophy', label: '100 días', tier: 'gold' },
+  { value: 365, icon: 'Award',  label: '1 año',    tier: 'diamond' },
 ];
 
 export function StatsView() {
@@ -50,6 +52,16 @@ export function StatsView() {
   const goArtist = useViewStore((s) => s.goArtist);
   const goHistory = useViewStore((s) => s.goHistory);
   const [period, setPeriod] = useState(30);
+
+  const rootRef = useRef(null);
+  // Stagger de entrada de las secciones de nivel superior. Cambia con el
+  // periodo para re-animar al alternar tabs.
+  useViewTransition(rootRef, {
+    preset: 'stagger',
+    deps: [period],
+    childSelector: `.${styles.animBlock}`,
+    staggerEach: 0.05,
+  });
 
   const stats = useMemo(
     () => selectStatsForPeriod(events, { days: period, topLimit: 5, streakSnapshot }),
@@ -63,16 +75,31 @@ export function StatsView() {
   const longestStreak = stats.longestStreak ?? 0;
 
   const periodLabel = PERIODS.find((p) => p.id === period)?.label.toLowerCase() ?? 'periodo';
+  const periodDaysLabel = period === 365 ? '12 meses' : `${period} días`;
+
+  // Contexto derivado para sublabels: promedio diario de minutos sobre los
+  // días activos (no sobre el periodo entero, así refleja la intensidad
+  // real de escucha en los días que sí usó la app).
+  const avgMinPerActiveDay = stats.activeDays > 0
+    ? Math.round(stats.totalMinutes / stats.activeDays)
+    : 0;
+  const avgPlaysPerActiveDay = stats.activeDays > 0
+    ? Math.round(stats.totalPlays / stats.activeDays)
+    : 0;
 
   return (
-    <section className={styles.wrap}>
-      <header className={styles.header}>
-        <span className={styles.eyebrow}>Tu actividad</span>
-        <h1 className={styles.title}>Tu {periodLabel} en Ritmiq</h1>
-        <p className={styles.subtitle}>
-          Lo que mas has escuchado en los ultimos{' '}
-          {period === 365 ? '12 meses' : `${period} dias`}.
-        </p>
+    <section className={styles.wrap} ref={rootRef}>
+      <header className={`${styles.header} ${styles.animBlock}`}>
+        <div className={styles.headerText}>
+          <span className={styles.eyebrow}>
+            <span className={styles.eyebrowDot} aria-hidden="true" />
+            Tu actividad
+          </span>
+          <h1 className={styles.title}>Tu {periodLabel} en Ritmiq</h1>
+          <p className={styles.subtitle}>
+            Lo que más has escuchado en los últimos {periodDaysLabel}.
+          </p>
+        </div>
         <button
           type="button"
           className={styles.historyLink}
@@ -83,7 +110,7 @@ export function StatsView() {
         </button>
       </header>
 
-      <div className={styles.periodTabs} role="tablist">
+      <div className={`${styles.periodTabs} ${styles.animBlock}`} role="tablist" aria-label="Periodo">
         {PERIODS.map((p) => (
           <button
             key={p.id}
@@ -98,99 +125,122 @@ export function StatsView() {
       </div>
 
       {stats.totalPlays === 0 ? (
-        <EmptyState
-          icon="Music"
-          title="Aún no tenemos datos de este periodo"
-          subtitle="Reproduce algo y vuelve aquí para ver tus estadísticas."
-        />
+        <div className={styles.animBlock}>
+          <EmptyState
+            icon="Music"
+            title="Aún no tenemos datos de este periodo"
+            subtitle="Reproduce algo y vuelve aquí para ver tus estadísticas."
+          />
+        </div>
       ) : (
         <>
-          <div className={styles.statsGrid}>
-            <StatCard
-              icon="ListMusic"
-              value={String(stats.totalPlays)}
-              label="reproducciones"
+          {/* ── Bento de métricas ─────────────────────────────────────
+              La racha actual es la métrica emocional → card grande
+              destacada. El resto son métricas neutras en grid. */}
+          <div className={`${styles.bento} ${styles.animBlock}`}>
+            <FeatureStreakCard
+              streak={stats.streak}
+              longest={longestStreak}
             />
-            <StatCard
-              icon="Music"
-              value={fmtMinutes(stats.totalMinutes)}
-              label="escuchadas"
-            />
-            <StatCard
-              icon="Disc3"
-              value={String(stats.uniqueTracks)}
-              label="canciones distintas"
-            />
-            <StatCard
-              icon="User"
-              value={String(stats.uniqueArtists)}
-              label="artistas distintos"
-            />
-            <StatCard
-              icon="CheckCircle2"
-              value={String(stats.activeDays)}
-              label={stats.activeDays === 1 ? 'dia activo' : 'dias activos'}
-            />
-            <StatCard
-              icon="AlertCircle"
-              value={String(stats.streak)}
-              label={stats.streak === 1 ? 'dia de racha' : 'dias de racha'}
-              highlight={stats.streak >= 3}
-            />
-            {longestStreak > 0 && (
+            <div className={styles.bentoGrid}>
+              <StatCard
+                icon="ListMusic"
+                value={String(stats.totalPlays)}
+                label="reproducciones"
+                hint={avgPlaysPerActiveDay > 0 ? `~${avgPlaysPerActiveDay}/día activo` : undefined}
+              />
+              <StatCard
+                icon="Headphones"
+                value={fmtMinutes(stats.totalMinutes)}
+                label="escuchadas"
+                hint={avgMinPerActiveDay > 0 ? `~${fmtMinutes(avgMinPerActiveDay)}/día` : undefined}
+              />
+              <StatCard
+                icon="Disc3"
+                value={String(stats.uniqueTracks)}
+                label="canciones distintas"
+              />
+              <StatCard
+                icon="User"
+                value={String(stats.uniqueArtists)}
+                label="artistas distintos"
+              />
+              <StatCard
+                icon="CalendarDays"
+                value={String(stats.activeDays)}
+                label={stats.activeDays === 1 ? 'día activo' : 'días activos'}
+              />
               <StatCard
                 icon="Trophy"
                 value={String(longestStreak)}
-                label={longestStreak === 1 ? 'dia record' : 'dias record'}
-                highlight={longestStreak >= 7}
+                label={longestStreak === 1 ? 'día récord' : 'días récord'}
+                accent={longestStreak >= 7}
               />
-            )}
+            </div>
           </div>
 
           {/* ── Heatmap anual ───────────────────────────────────────── */}
-          <ActivityHeatmap events={events} />
+          <div className={styles.animBlock}>
+            <ActivityHeatmap events={events} />
+          </div>
 
           {/* ── Trofeos ─────────────────────────────────────────────── */}
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Trofeos</h2>
-            <p className={styles.trophyHint}>
-              Desbloquea hitos manteniendo tu racha viva.
-            </p>
+          <section className={`${styles.section} ${styles.animBlock}`}>
+            <div className={styles.sectionHead}>
+              <h2 className={styles.sectionTitle}>Trofeos</h2>
+              <p className={styles.sectionSub}>
+                Desbloquea hitos manteniendo tu racha viva.
+              </p>
+            </div>
             <div className={styles.trophyGrid}>
               {MILESTONES_DEFS.map((m) => {
                 const unlocked = unlockedSet.has(m.value);
                 const achieved = milestones.find((x) => x.milestone === m.value);
-                const remaining = Math.max(0, m.value - (stats.streak ?? 0));
+                const current = stats.streak ?? 0;
+                const remaining = Math.max(0, m.value - current);
+                const progress = unlocked
+                  ? 100
+                  : Math.min(100, Math.round((current / m.value) * 100));
                 return (
                   <div
                     key={m.value}
                     className={styles.trophyCard}
                     data-tier={m.tier}
                     data-unlocked={unlocked}
-                    title={
-                      unlocked
-                        ? `Desbloqueado el ${achieved?.achievedAt ?? ''}`
-                        : `Te faltan ${remaining} ${remaining === 1 ? 'dia' : 'dias'}`
-                    }
                   >
                     {unlocked && (
                       <button
                         type="button"
                         className={styles.trophyReplay}
                         onClick={() => replayMilestone(m.value)}
-                        aria-label={`Volver a ver animacion de ${m.label}`}
+                        aria-label={`Volver a ver la animación de ${m.label}`}
                         title="Volver a ver"
                       >
                         <Icon name="Repeat" size={12} />
                       </button>
                     )}
                     <span className={styles.trophyIcon} aria-hidden="true">
-                      <Icon name={m.icon} size={22} filled={unlocked} />
+                      <Icon name={m.icon} size={24} filled={unlocked} />
                     </span>
                     <span className={styles.trophyLabel}>{m.label}</span>
-                    <span className={styles.trophyState}>
-                      {unlocked ? 'Desbloqueado' : `Faltan ${remaining}`}
-                    </span>
+
+                    {unlocked ? (
+                      <span className={styles.trophyState} data-unlocked="true">
+                        <Icon name="Check" size={11} /> Desbloqueado
+                      </span>
+                    ) : (
+                      <>
+                        <div className={styles.trophyBar} aria-hidden="true">
+                          <span
+                            className={styles.trophyBarFill}
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <span className={styles.trophyState}>
+                          {remaining === 1 ? 'Falta 1 día' : `Faltan ${remaining} días`}
+                        </span>
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -198,21 +248,19 @@ export function StatsView() {
           </section>
 
           {stats.topTracks.length > 0 && (
-            <section className={styles.section}>
+            <section className={`${styles.section} ${styles.animBlock}`}>
               <h2 className={styles.sectionTitle}>Top canciones</h2>
               <ol className={styles.topList}>
                 {stats.topTracks.map((t, i) => (
                   <li key={t.id ?? `t-${i}`} className={styles.topRow}>
-                    <span className={styles.topRank}>{i + 1}</span>
+                    <span className={styles.topRank} data-medal={i < 3 ? i + 1 : undefined}>
+                      {i + 1}
+                    </span>
                     <button
                       className={styles.topItem}
                       onClick={() => playNow(t)}
                     >
-                      <div className={styles.topCover}>
-                        {t.coverUrl
-                          ? <img src={t.coverUrl} alt="" loading="lazy" />
-                          : <Icon name="Music" size={18} />}
-                      </div>
+                      <CoverArt coverUrl={t.coverUrl} seed={t.title || t.artist} size={44} radius="sm" />
                       <div className={styles.topMeta}>
                         <span className={styles.topTitle}>{t.title}</span>
                         <span className={styles.topSub}>{t.artist ?? '—'}</span>
@@ -228,21 +276,19 @@ export function StatsView() {
           )}
 
           {stats.topArtists.length > 0 && (
-            <section className={styles.section}>
+            <section className={`${styles.section} ${styles.animBlock}`}>
               <h2 className={styles.sectionTitle}>Top artistas</h2>
               <ol className={styles.topList}>
                 {stats.topArtists.map((a, i) => (
                   <li key={`a-${a.artist}`} className={styles.topRow}>
-                    <span className={styles.topRank}>{i + 1}</span>
+                    <span className={styles.topRank} data-medal={i < 3 ? i + 1 : undefined}>
+                      {i + 1}
+                    </span>
                     <button
                       className={styles.topItem}
                       onClick={() => goArtist(a.artist)}
                     >
-                      <div className={styles.topCover} data-shape="circle">
-                        {a.coverUrl
-                          ? <img src={a.coverUrl} alt="" loading="lazy" />
-                          : <Icon name="User" size={18} />}
-                      </div>
+                      <CoverArt coverUrl={a.coverUrl} seed={a.artist} size={44} radius="pill" />
                       <div className={styles.topMeta}>
                         <span className={styles.topTitle}>{a.artist}</span>
                       </div>
@@ -261,14 +307,44 @@ export function StatsView() {
   );
 }
 
-function StatCard({ icon, value, label, highlight }) {
+/**
+ * Card grande destacada de la racha actual (métrica emocional).
+ * Muestra la racha activa con icono de llama + el récord como referencia.
+ */
+function FeatureStreakCard({ streak, longest }) {
+  const isRecord = streak > 0 && streak >= longest;
   return (
-    <div className={styles.statCard} data-highlight={!!highlight}>
+    <div className={styles.streakCard} data-active={streak >= 3}>
+      <div className={styles.streakGlow} aria-hidden="true" />
+      <span className={styles.streakIcon} aria-hidden="true">
+        <Icon name="Flame" size={28} filled={streak >= 1} />
+      </span>
+      <div className={styles.streakBody}>
+        <span className={styles.streakValue}>{streak}</span>
+        <span className={styles.streakLabel}>
+          {streak === 1 ? 'día de racha' : 'días de racha'}
+        </span>
+      </div>
+      <span className={styles.streakFoot}>
+        {isRecord && streak > 0
+          ? '¡Estás en tu mejor racha!'
+          : longest > 0
+            ? `Tu récord: ${longest} ${longest === 1 ? 'día' : 'días'}`
+            : 'Escucha algo cada día para construir tu racha.'}
+      </span>
+    </div>
+  );
+}
+
+function StatCard({ icon, value, label, hint, accent }) {
+  return (
+    <div className={styles.statCard} data-accent={!!accent}>
       <span className={styles.statIcon} aria-hidden="true">
         <Icon name={icon} size={18} />
       </span>
       <span className={styles.statValue}>{value}</span>
       <span className={styles.statLabel}>{label}</span>
+      {hint && <span className={styles.statHint}>{hint}</span>}
     </div>
   );
 }
