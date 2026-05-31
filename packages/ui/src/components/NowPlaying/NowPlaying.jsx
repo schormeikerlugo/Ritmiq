@@ -31,6 +31,7 @@ import { LyricsPanel } from './LyricsPanel.jsx';
 import { Visualizer } from './Visualizer.jsx';
 import { useSettingsStore } from '../../stores/settings.js';
 import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
+import { useMobileViewport } from '../../lib/use-mobile-viewport.js';
 import styles from './NowPlaying.module.css';
 
 function fmt(sec) {
@@ -48,6 +49,10 @@ export function NowPlaying() {
   // del Player en desktop).
   const lyricsOpen = useViewStore((s) => s.lyricsOpen);
   const setLyricsOpen = useViewStore((s) => s.setLyricsOpen);
+  // En desktop NowPlaying es un panel lateral que se cierra hacia la derecha
+  // (animación fade-in-right); en móvil es fullscreen que baja. La flecha de
+  // cerrar refleja la dirección: derecha en desktop, abajo en móvil.
+  const isMobile = useMobileViewport(768);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -382,7 +387,7 @@ export function NowPlaying() {
         onTouchEnd={onTouchEnd}
       >
         <button className={styles.headerBtn} onClick={handleClose} aria-label="Cerrar">
-          <Icon name="ChevronDown" size={24} />
+          <Icon name={isMobile ? 'ChevronDown' : 'ChevronRight'} size={24} />
         </button>
         <div className={styles.headerTitle}>
           <span className={styles.eyebrow}>
