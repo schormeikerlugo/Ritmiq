@@ -88,6 +88,9 @@ export const useViewStore = create((set, get) => ({
   queueOpen: loadQueueOpenInitial(),
   sidebarOpen: false, // móvil: overlay
   nowPlayingOpen: false, // mobile fullscreen player + desktop side panel
+  /** Letras abiertas dentro de NowPlaying. Estado compartido para que el
+   *  botón del Player (footer desktop) y el de NowPlaying lo controlen. */
+  lyricsOpen: false,
   /** @type {null | 'account'}  Subvista interna de Ajustes (futuro:
    *  'devices', 'pairing', etc.). null = grid principal de Ajustes. */
   settingsSubview: null,
@@ -148,4 +151,8 @@ export const useViewStore = create((set, get) => ({
   closeSidebar:  () => set({ sidebarOpen: false }),
   openNowPlaying:  () => set({ nowPlayingOpen: true }),
   closeNowPlaying: () => set({ nowPlayingOpen: false }),
+  toggleLyrics: () => set((s) => ({ lyricsOpen: !s.lyricsOpen })),
+  setLyricsOpen: (v) => set({ lyricsOpen: !!v }),
+  /** Abre NowPlaying y muestra las letras (botón del Player en desktop). */
+  openLyrics: () => set({ nowPlayingOpen: true, lyricsOpen: true }),
 }));

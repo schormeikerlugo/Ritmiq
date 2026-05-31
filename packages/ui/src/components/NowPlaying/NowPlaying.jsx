@@ -44,6 +44,10 @@ export function NowPlaying() {
   const open = useViewStore((s) => s.nowPlayingOpen);
   const close = useViewStore((s) => s.closeNowPlaying);
   const toggleQueue = useViewStore((s) => s.toggleQueue);
+  // Letras: estado compartido (lo controlan tanto NowPlaying como el botón
+  // del Player en desktop).
+  const lyricsOpen = useViewStore((s) => s.lyricsOpen);
+  const setLyricsOpen = useViewStore((s) => s.setLyricsOpen);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -90,7 +94,6 @@ export function NowPlaying() {
   const [editOpen, setEditOpen] = useState(false);
   const [jamOpen, setJamOpen] = useState(false);
   const [shareToFriendOpen, setShareToFriendOpen] = useState(false);
-  const [lyricsOpen, setLyricsOpen] = useState(false);
   const visualizerEnabled = useSettingsStore((s) => s.visualizerEnabled);
   const setVisualizerEnabled = useSettingsStore((s) => s.setVisualizerEnabled);
   const friends = useSocialStore((s) => s.friends);
@@ -491,7 +494,7 @@ export function NowPlaying() {
           className={styles.footerBtn}
           data-active={lyricsOpen || undefined}
           aria-label={lyricsOpen ? 'Ocultar letra' : 'Mostrar letra'}
-          onClick={() => setLyricsOpen((v) => !v)}
+          onClick={() => setLyricsOpen(!lyricsOpen)}
           title="Letra"
         >
           <Icon name="Music2" size={20} />

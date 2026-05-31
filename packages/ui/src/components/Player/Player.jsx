@@ -3,6 +3,7 @@ import { usePlayerStore } from '../../stores/player.js';
 import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { useViewStore } from '../../stores/view.js';
+import { useJamStore } from '../../stores/jam.js';
 import { isEphemeralTrack } from '../../lib/track-helpers.js';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
@@ -30,6 +31,12 @@ export function Player() {
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
   const addTrack = usePlaylistsStore((s) => s.addTrack);
   const openNowPlaying = useViewStore((s) => s.openNowPlaying);
+  const openLyrics = useViewStore((s) => s.openLyrics);
+  const lyricsOpen = useViewStore((s) => s.lyricsOpen);
+  const toggleLyrics = useViewStore((s) => s.toggleLyrics);
+  const nowPlayingOpen = useViewStore((s) => s.nowPlayingOpen);
+  const openJamModal = useJamStore((s) => s.openJamModal);
+  const jamMode = useJamStore((s) => s.mode);
 
   const [saveOpen, setSaveOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -176,6 +183,17 @@ export function Player() {
     openNowPlaying();
   };
 
+  // Letra (desktop): si NowPlaying ya está abierto, alternar el panel de
+  // letra in-situ; si está cerrado, abrirlo mostrando la letra.
+  const onLyrics = () => {
+    if (!currentTrack) return;
+    if (nowPlayingOpen) toggleLyrics();
+    else openLyrics();
+  };
+
+  // Jam con amigos: abre el modal global (App.jsx lo monta).
+  const onJam = () => { openJamModal(); };
+
   return (
     <div className={styles.player} data-empty={!currentTrack}>
       {/* Barra fina superior de progreso, visible solo en mobile (CSS). */}
@@ -300,6 +318,25 @@ export function Player() {
       </div>
 
       <div className={styles.right}>
+        <button
+          className={styles.iconBtn}
+          data-active={lyricsOpen || undefined}
+          onClick={onLyrics}
+          disabled={!currentTrack}
+          aria-label={lyricsOpen ? 'Ocultar letra' : 'Mostrar letra'}
+          title="Letra"
+        >
+          <Icon name="Music2" size={18} />
+        </button>
+        <button
+          className={styles.iconBtn}
+          data-active={jamMode !== 'idle' || undefined}
+          onClick={onJam}
+          aria-label="Jam con amigos"
+          title="Jam con amigos"
+        >
+          <Icon name="Users" size={18} />
+        </button>
         <QueueToggle />
         <span className={styles.volIcon} aria-hidden="true">
           <Icon name={volume === 0 ? 'VolumeX' : 'Volume2'} size={16} />

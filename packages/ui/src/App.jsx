@@ -186,6 +186,8 @@ export function App() {
   const pendingJoinCode = useJamStore((s) => s.pendingJoinCode);
   const setPendingJoinCode = useJamStore((s) => s.setPendingJoinCode);
   const clearPendingJoinCode = useJamStore((s) => s.clearPendingJoinCode);
+  const jamModalOpen = useJamStore((s) => s.jamModalOpen);
+  const closeJamModal = useJamStore((s) => s.closeJamModal);
   useEffect(() => {
     if (initialJamCode) {
       setPendingJoinCode(initialJamCode);
@@ -602,13 +604,14 @@ export function App() {
       {/* Recordatorio: muestra shares no vistos >2min cuando el usuario
           no esta en la bandeja. Se auto-cierra al ignorar o ver. */}
       <ShareReminderModal />
-      {/* Invitacion a Jam via deep-link (/jam/<code>). Se monta cuando el
-          store tiene un codigo pendiente; el JamModal lo recibe como
-          initialCode y va directo a la vista join con auto-fill. */}
-      {pendingJoinCode && (
+      {/* JamModal global. Se monta cuando:
+            - hay un codigo pendiente de deep-link (/jam/<code>), o
+            - se abrio explicitamente (boton del Player en desktop, etc.).
+          Al cerrar limpia ambos flags. */}
+      {(pendingJoinCode || jamModalOpen) && (
         <JamModal
-          initialCode={pendingJoinCode}
-          onClose={clearPendingJoinCode}
+          initialCode={pendingJoinCode ?? ''}
+          onClose={() => { clearPendingJoinCode(); closeJamModal(); }}
         />
       )}
       {/* Modal bloqueante con animacion epica cuando se desbloquea un

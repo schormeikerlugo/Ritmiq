@@ -20,12 +20,12 @@ Sin props. Lee todo desde stores.
 
 ## Stores consumidos
 
-| Store | Campos leídos |
-|---|---|
-| [[player]] | `currentTrack`, `isPlaying`, `positionSeconds`, `durationSeconds`, `volume`, `shuffle`, `repeat`, `error`, `togglePlay`, `setVolume`, `toggleShuffle`, `cycleRepeat`, `next`, `prev` |
-| [[library]] | `tracks` (para saber si inLibrary), `persistEphemeral` |
-| [[playlists]] | `toggleFavorite`, `isFavorite`, `favoritesId`, `addTrack` |
-| [[view]] | `openNowPlaying` |
+| Store         | Campos leídos                                                                                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [[player]]    | `currentTrack`, `isPlaying`, `positionSeconds`, `durationSeconds`, `volume`, `shuffle`, `repeat`, `error`, `togglePlay`, `setVolume`, `toggleShuffle`, `cycleRepeat`, `next`, `prev` |
+| [[library]]   | `tracks` (para saber si inLibrary), `persistEphemeral`                                                                                                                               |
+| [[playlists]] | `toggleFavorite`, `isFavorite`, `favoritesId`, `addTrack`                                                                                                                            |
+| [[view]]      | `openNowPlaying`                                                                                                                                                                     |
 
 ## Estado local
 
@@ -60,3 +60,4 @@ const [shareOpen, setShareOpen] = useState(false); // abre ShareToFriendModal
 - 2026-05-27 (Fase 2.4): `barFill` ahora usa `linear-gradient(accent → accent+white 30% mix)` por default (antes solo en hover). Glow halo accent en hover/focus/scrubbing vía `box-shadow: 0 0 12px accent 60%`. `barThumb` gana ring halo en hover. Commit `7f3241c`.
 - 2026-05-27 (Fase 3.4): modo compacto automático en viewports con `max-height: 720px` (laptops 13"). `--layout-player-h` baja de 88 a 60px; `.controls` cambia de flex column a row; timestamps ocultos; cover 56→40px. Commit `6c6ca11`.
 - 2026-05-27 (commit `270da70`): mini-player cover **revertido a `<img>` directo** (no usa [[CoverArt]] primitive) para mantener selector `.cover img` que rige el `vinyl-spin` animation cuando `data-spinning=true`.
+- 2026-05-29: en el bloque `.right` (visible solo en desktop) se añadieron dos botones de acceso rápido: **Letra** (icono `Music2`) → `onLyrics` (toggle in-situ si NowPlaying abierto, si no `openLyrics()` de [[view]]) y **Jam** (icono `Users`) → `openJamModal()` de [[jam|store jam]] (el [[JamModal]] se monta en [[App|App.jsx]]). En móvil `.right` está oculto; ahí Jam/Letra siguen en [[NowPlaying]].

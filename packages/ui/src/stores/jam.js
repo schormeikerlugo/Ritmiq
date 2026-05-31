@@ -66,6 +66,14 @@ export const useJamStore = create((set, get) => ({
   clearPendingJoinCode() { set({ pendingJoinCode: null }); },
 
   /**
+   * Flag global del JamModal. Lo abre el botón del Player (footer desktop)
+   * y cualquier punto de entrada. App.jsx monta el modal cuando es true.
+   */
+  jamModalOpen: false,
+  openJamModal() { set({ jamModalOpen: true }); },
+  closeJamModal() { set({ jamModalOpen: false }); },
+
+  /**
    * Crea una sesion nueva como host. Inserta en jam_sessions + join
    * automatico como participant + suscribe a CDC.
    */

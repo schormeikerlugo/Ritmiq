@@ -31,6 +31,9 @@ tags: [store, zustand, jam, realtime, colaborativo]
 > `participants[].role` es `'host' | 'guest'` (Bloque 3.2).
 > `pendingJoinCode` + `setPendingJoinCode`/`clearPendingJoinCode` para el deep-link
 > `/jam/<code>` (Bloque 3.3): [[App|App.jsx]] lo setea al boot y monta el [[JamModal]].
+> `jamModalOpen` + `openJamModal`/`closeJamModal`: flag global del modal, usado por el botón
+> Jam del [[Player]] (footer desktop). [[App|App.jsx]] monta el modal con
+> `pendingJoinCode || jamModalOpen`.
 
 ## Anatomía del código (snippets comentados)
 
