@@ -27,7 +27,7 @@ import {
   ArrowLeft,
   Info, Trash2, Pencil, Music, Music2,
   AlertTriangle, AlertCircle, Loader2, CheckCircle2, Circle, Clock,
-  CornerDownRight, Share2, Send, Settings, LogOut, User,
+  CornerDownRight, Share2, Send, Settings, LogOut, LogIn, User,
   Users, UserPlus, UserCheck, UserMinus, UserX,
   Headphones, Inbox, FolderPlus,
   MessageCircle, Bell, BellOff, Sparkles, Flame, BadgeCheck,
@@ -35,6 +35,7 @@ import {
   Sun, Moon, Monitor,
   ExternalLink,
   Eye, EyeOff, Mail, Lock, AtSign,
+  Radio, Crown, Copy,
 } from 'lucide-react';
 
 const ICONS = {
@@ -49,7 +50,7 @@ const ICONS = {
   // Loader es un alias a Loader2 — el codigo usa "Loader" en algunas vistas
   Loader2, Loader: Loader2,
   CheckCircle2, Circle, Clock,
-  CornerDownRight, Share2, Send, Settings, LogOut, User,
+  CornerDownRight, Share2, Send, Settings, LogOut, LogIn, User,
   Users, UserPlus, UserCheck, UserMinus, UserX,
   Headphones, Inbox, FolderPlus,
   MessageCircle, Bell, BellOff, Sparkles, Flame, BadgeCheck,
@@ -57,6 +58,7 @@ const ICONS = {
   Sun, Moon, Monitor,
   ExternalLink,
   Eye, EyeOff, Mail, Lock, AtSign,
+  Radio, Crown, Copy,
 };
 
 /**

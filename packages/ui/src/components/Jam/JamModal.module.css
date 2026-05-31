@@ -4,18 +4,40 @@
   gap: var(--space-3);
 }
 
+/* Hero del menu inicial: icono accent dentro de un halo suave. */
+.hero {
+  display: grid;
+  place-items: center;
+  margin: var(--space-1) 0 var(--space-1);
+}
+.heroIcon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-pill);
+  color: var(--color-accent);
+  background: color-mix(in oklab, var(--color-accent) 14%, transparent);
+  box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-accent) 7%, transparent);
+}
+
 .intro {
   margin: 0;
   font-size: var(--fs-sm);
   color: var(--color-text-2);
   line-height: 1.5;
+  text-align: center;
+}
+.menu .intro {
+  max-width: 36ch;
+  margin: 0 auto;
 }
 
 .menuActions {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin-top: var(--space-2);
+  margin-top: var(--space-1);
 }
 
 .actions {
@@ -25,31 +47,46 @@
   margin-top: var(--space-2);
 }
 
-/* Display del codigo de la sesion: grande, copiable. */
+/* Display del codigo de la sesion: grande, copiable, hint de copiar. */
 .codeDisplay {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--space-2);
   background: var(--color-bg-2);
-  border: 2px dashed var(--color-accent);
-  border-radius: var(--radius-md);
-  padding: 16px 24px;
+  border: 2px dashed color-mix(in oklab, var(--color-accent) 55%, transparent);
+  border-radius: var(--radius-lg, 16px);
+  padding: 18px 24px;
   cursor: pointer;
-  align-self: center;
+  align-self: stretch;
   color: var(--color-text-1);
   transition: background var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard),
               transform var(--dur-fast) var(--ease-standard);
 }
 .codeDisplay:hover {
   background: var(--color-bg-3);
+  border-color: var(--color-accent);
 }
-.codeDisplay:active { transform: scale(0.98); }
+.codeDisplay:active { transform: scale(0.99); }
 
 .codeText {
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: clamp(28px, 6vw, 40px);
-  letter-spacing: 0.18em;
+  font-size: clamp(30px, 7vw, 42px);
+  letter-spacing: 0.22em;
+  /* Compensa el letter-spacing final para que el texto quede centrado. */
+  text-indent: 0.22em;
   font-weight: var(--fw-bold);
+  line-height: 1.1;
+}
+.codeCopyHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-3);
 }
 
 .codeInput {
@@ -58,6 +95,10 @@
   letter-spacing: 0.18em;
   text-align: center;
   text-transform: uppercase;
+}
+
+.shareBtn {
+  margin-top: calc(var(--space-1) * -1);
 }
 
 /* Lista de participantes */
@@ -76,31 +117,71 @@
   letter-spacing: 0.08em;
   color: var(--color-text-3);
 }
+.partCount {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-3);
+  color: var(--color-text-2);
+  font-size: var(--fs-2xs, 10px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
 .partList {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-height: 200px;
+  gap: 2px;
+  max-height: 220px;
   overflow-y: auto;
 }
 .partItem {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
   font-size: var(--fs-sm);
   color: var(--color-text-2);
+  transition: background var(--dur-fast) var(--ease-standard);
 }
-.partId {
-  font-variant-numeric: tabular-nums;
+.partItem:hover {
+  background: color-mix(in oklab, var(--color-text-1) 5%, transparent);
 }
-.hostIcon {
+.partAvatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-3);
+  color: var(--color-text-2);
+}
+.partItem:has(.partBadge) .partAvatar {
+  background: color-mix(in oklab, var(--color-accent) 18%, transparent);
   color: var(--color-accent);
 }
-.shareBtn {
-  margin: 4px auto 12px;
+.partId {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-1);
+}
+.partBadge {
+  font-size: var(--fs-2xs, 10px);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--color-accent) 18%, transparent);
+  color: var(--color-accent);
 }
 .transferBtn {
   margin-left: auto;
@@ -108,8 +189,8 @@
   color: var(--color-accent);
   background: none;
   border: 1px solid color-mix(in oklab, var(--color-accent) 40%, transparent);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
   cursor: pointer;
   transition: background 120ms ease;
 }
@@ -124,4 +205,5 @@
   background: color-mix(in oklab, var(--color-danger, #f87171) 12%, transparent);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
+  text-align: center;
 }

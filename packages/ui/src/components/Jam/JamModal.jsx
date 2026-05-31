@@ -134,20 +134,22 @@ export function JamModal({ onClose, initialCode = '' }) {
   const renderParticipants = (canTransfer) => (
     <div className={styles.participants}>
       <h3 className={styles.partTitle}>
-        <Icon name="Users" size={14} /> Participantes ({participants.length})
+        <Icon name="Users" size={14} />
+        Participantes
+        <span className={styles.partCount}>{participants.length}</span>
       </h3>
       <ul className={styles.partList}>
         {participants.map((p) => {
           const isHost = p.role === 'host' || p.user_id === session?.hostId;
           return (
             <li key={p.user_id} className={styles.partItem}>
-              {isHost && (
-                <Icon name="BadgeCheck" size={12} className={styles.hostIcon} />
-              )}
-              <span className={styles.partId}>
-                {p.user_id.slice(0, 8)}…
-                {isHost && ' (Host)'}
+              <span className={styles.partAvatar} aria-hidden="true">
+                <Icon name={isHost ? 'Crown' : 'User'} size={14} />
               </span>
+              <span className={styles.partId}>
+                {p.user_id.slice(0, 8)}
+              </span>
+              {isHost && <span className={styles.partBadge}>Host</span>}
               {canTransfer && !isHost && (
                 <button
                   type="button"
@@ -169,16 +171,35 @@ export function JamModal({ onClose, initialCode = '' }) {
     <Modal onClose={onClose} title="Jam" size="md">
       {view === 'menu' && (
         <div className={styles.menu}>
+          <div className={styles.hero} aria-hidden="true">
+            <span className={styles.heroIcon}>
+              <Icon name="Radio" size={26} />
+            </span>
+          </div>
           <p className={styles.intro}>
-            Escucha musica con tus amigos en tiempo real. El host controla
-            la reproduccion; los demas siguen sincronizados.
+            Escucha música con tus amigos en tiempo real. El host controla
+            la reproducción; los demás siguen sincronizados.
           </p>
           <div className={styles.menuActions}>
-            <Button variant="primary" onClick={handleCreate} loading={busy}>
-              <Icon name="Plus" size={16} /> Iniciar jam
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              iconLeft="Plus"
+              onClick={handleCreate}
+              loading={busy}
+              loadingText="Creando jam…"
+            >
+              Iniciar jam
             </Button>
-            <Button variant="ghost" onClick={() => setView('join')}>
-              <Icon name="Users" size={16} /> Unirse a jam
+            <Button
+              variant="subtle"
+              size="lg"
+              fullWidth
+              iconLeft="Users"
+              onClick={() => setView('join')}
+            >
+              Unirse a una jam
             </Button>
           </div>
           {error && <p className={styles.error}>{error}</p>}
@@ -188,7 +209,7 @@ export function JamModal({ onClose, initialCode = '' }) {
       {view === 'join' && (
         <div className={styles.join}>
           <p className={styles.intro}>
-            Ingresa el codigo de 6 caracteres que tu amigo comparte.
+            Ingresa el código de 6 caracteres que tu amigo comparte.
           </p>
           <TextField
             value={code}
@@ -205,7 +226,14 @@ export function JamModal({ onClose, initialCode = '' }) {
             <Button variant="ghost" onClick={() => setView('menu')}>
               Volver
             </Button>
-            <Button variant="primary" onClick={handleJoin} loading={busy} disabled={code.length !== 6}>
+            <Button
+              variant="primary"
+              iconLeft="LogIn"
+              onClick={handleJoin}
+              loading={busy}
+              loadingText="Uniéndose…"
+              disabled={code.length !== 6}
+            >
               Unirse
             </Button>
           </div>
@@ -215,27 +243,36 @@ export function JamModal({ onClose, initialCode = '' }) {
       {view === 'create' && session && (
         <div className={styles.create}>
           <p className={styles.intro}>
-            Comparte este codigo con tus amigos para que se unan:
+            Comparte este código con tus amigos para que se unan:
           </p>
           <button
             type="button"
             className={styles.codeDisplay}
             onClick={handleCopyCode}
             aria-label="Copiar código"
+            title="Copiar código"
           >
             <span className={styles.codeText}>{session.code}</span>
-            <Icon name="Link" size={16} />
+            <span className={styles.codeCopyHint}>
+              <Icon name="Copy" size={14} /> Copiar
+            </span>
           </button>
 
-          <Button variant="ghost" onClick={handleShareInvite} className={styles.shareBtn}>
-            <Icon name="Share2" size={16} /> Compartir invitación
+          <Button
+            variant="subtle"
+            fullWidth
+            iconLeft="Share2"
+            onClick={handleShareInvite}
+            className={styles.shareBtn}
+          >
+            Compartir invitación
           </Button>
 
           {renderParticipants(true)}
 
           {error && <p className={styles.error}>{error}</p>}
           <div className={styles.actions}>
-            <Button variant="danger" onClick={handleLeave} loading={busy}>
+            <Button variant="danger" iconLeft="X" onClick={handleLeave} loading={busy}>
               Cerrar jam
             </Button>
           </div>
@@ -245,12 +282,12 @@ export function JamModal({ onClose, initialCode = '' }) {
       {view === 'guest' && session && (
         <div className={styles.guest}>
           <p className={styles.intro}>
-            Estas en una jam con codigo <strong>{session.code}</strong>.
-            El host controla la reproduccion.
+            Estás en una jam con código <strong>{session.code}</strong>.
+            El host controla la reproducción.
           </p>
           {renderParticipants(false)}
           <div className={styles.actions}>
-            <Button variant="danger" onClick={handleLeave} loading={busy}>
+            <Button variant="danger" iconLeft="LogOut" onClick={handleLeave} loading={busy}>
               Salir de la jam
             </Button>
           </div>

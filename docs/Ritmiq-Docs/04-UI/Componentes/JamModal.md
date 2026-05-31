@@ -64,3 +64,10 @@ desktop / sin soporte. `AbortError` (usuario cancela) se ignora silenciosamente.
 - 2026-05-29: nota creada (F12, doc retroactiva de Fase 8.2).
 - 2026-05-29: badge por `role` + "Pasar control" (Bloque 3.2); fix `\u2026`.
 - 2026-05-29: `initialCode` deep-link + "Compartir invitación" Web Share (Bloque 3.3).
+- 2026-05-29: **rediseño UX**. Tildes corregidas en todos los textos ("música",
+  "reproducción", "código", "Estás"). Botones del menú ahora usan `iconLeft` + `fullWidth` +
+  `size="lg"` (antes el `<Icon>` como children rompía el botón en 2 líneas). Hero icon
+  (`Radio`) en el menú. Código de sesión con hint "Copiar" (icono `Copy`). Lista de
+  participantes con avatares (`Crown` host / `User` guest), badge "Host" pill, contador en
+  el título, hover por fila. Iconos nuevos registrados en [[Icon]]: `Radio`, `Crown`, `Copy`,
+  `LogIn`.
