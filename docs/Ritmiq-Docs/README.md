@@ -140,6 +140,11 @@ Sync de Jam mode vía Realtime broadcast + drift compensation (no WebRTC).
 Glows pulsantes: animar solo `transform`/`opacity` vía pseudo-elemento (no `box-shadow`/`filter`)
 para evitar jank en Electron desktop. Afecta [[StatsView]], [[PlaylistView]], [[Library]].
 
+### ADR nuevo (021)
+
+Actualización de la PWA: `prompt` + auto-check 24h + control de versión, sin reinstalar y sin
+perder descargas (IndexedDB sobrevive). Flujo en [[Actualizaciones]] (`03-PWA/`).
+
 ## Cómo usar este vault
 
 1. **Para entender una función concreta**: abrí su nota (ej. `04-UI/Stores-Zustand/library.md`). Cada nota tiene la firma, sus dependencias entrantes/salientes, snippets comentados, casos de borde, y matriz "qué puede romper este cambio".

@@ -122,3 +122,4 @@ Lee variables `.env*` desde la raíz del monorepo (`/home/.../Ritmiq/.env.produc
   - `cacheableResponse: { statuses: [0, 200] }` para aceptar respuestas opaque (cross-origin sin CORS headers, así viene YouTube).
   Reduce ~50-80 KB por scroll completo del Home en visitas posteriores. Commit `f90a241`.
 - 2026-05-28 (Fase 7.1+7.2): Workbox precachea automáticamente los 13 chunks lazy generados por React.lazy → `precache` final 67 entries / ~2320 KB. La 2da sesión del user, todos los chunks ya están en cache (navegar a Settings es instantáneo). Ver [[Code-Splitting]] para el catálogo completo.
+- 2026-05-31: `registerType` cambiado de `autoUpdate` a **`prompt`** + `cleanupOutdatedCaches: true`. El registro del SW y el flujo de actualización in-app (toast "Actualizar" + auto-check 24h + control de versión) están documentados en [[Actualizaciones]]. Las descargas (IndexedDB) NO se borran al actualizar. Ver [[Decisiones-Tecnicas-ADR|ADR-021]].
