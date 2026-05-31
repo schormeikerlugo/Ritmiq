@@ -49,3 +49,6 @@ tags: [componente, dropdown, menu-contextual, accesibilidad]
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-05-29: nuevas props `triggerClassName` y `wrapClassName` para personalizar el botón
+  trigger y su wrapper. Usadas por [[NowPlaying]] (header `⋯`) con `wrapClassName` =
+  `display:contents` para integrarse en su grid sin caja extra.

@@ -31,6 +31,8 @@ function useIsMobileViewport() {
  * @param {Array<DropdownItem>} props.items
  * @param {'left'|'right'} [props.align]
  * @param {string} [props.label]                    aria-label del trigger
+ * @param {string} [props.triggerClassName]         Clase extra para el botón trigger
+ * @param {string} [props.wrapClassName]            Clase extra para el wrapper
  *
  * @typedef {Object} DropdownItem
  * @property {string} [id]
@@ -41,7 +43,7 @@ function useIsMobileViewport() {
  * @property {boolean} [disabled]
  * @property {boolean} [separator]    Si true, renderiza un separador en lugar de item
  */
-export function DropdownMenu({ trigger, items, align = 'right', label }) {
+export function DropdownMenu({ trigger, items, align = 'right', label, triggerClassName, wrapClassName }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const triggerRef = useRef(null);
@@ -286,11 +288,11 @@ export function DropdownMenu({ trigger, items, align = 'right', label }) {
   );
 
   return (
-    <div className={styles.wrap} ref={ref}>
+    <div className={`${styles.wrap} ${wrapClassName ?? ''}`} ref={ref}>
       <button
         ref={triggerRef}
         type="button"
-        className={styles.trigger}
+        className={`${styles.trigger} ${triggerClassName ?? ''}`}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         aria-label={label ?? 'Más opciones'}
         aria-haspopup="menu"

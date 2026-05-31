@@ -20,7 +20,6 @@ import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { EditTrackDialog } from '../EditTrackDialog/EditTrackDialog.jsx';
 import { JamModal } from '../Jam/JamModal.jsx';
 import { ArtistInfoPanel } from './ArtistInfoPanel.jsx';
-import { useBottomSheet } from '../../stores/bottom-sheet.js';
 import { buildShareLink, copyToClipboard } from '../../lib/share.js';
 import { getSharedBackend } from '../../lib/use-player.js';
 import { useBpmPulse } from '../../lib/use-bpm-pulse.js';
@@ -31,6 +30,7 @@ import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx
 import { LyricsPanel } from './LyricsPanel.jsx';
 import { Visualizer } from './Visualizer.jsx';
 import { useSettingsStore } from '../../stores/settings.js';
+import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
 import styles from './NowPlaying.module.css';
 
 function fmt(sec) {
@@ -81,7 +81,6 @@ export function NowPlaying() {
   // no, pero el hook silenciosamente no hace nada \u2014 sin crash.
   useWakeLock(open && isPlaying);
   const stopRadio = usePlayerStore((s) => s.stopRadio);
-  const openSheet = useBottomSheet((s) => s.open);
 
   // BPM-reactive pulse del cover. Solo activo cuando NowPlaying esta
   // visible (open === true) para no consumir CPU en idle. El primer
@@ -291,62 +290,60 @@ export function NowPlaying() {
     setEditOpen(true);
   };
 
-  const openMoreMenu = () => {
-    const closeSelf = () => useBottomSheet.getState().closeAll();
-    const items = [
-      {
-        id: 'save',
-        label: 'Guardar en biblioteca o playlist...',
-        icon: 'Plus',
-        onClick: () => { closeSelf(); setSaveOpen(true); },
-      },
-      {
-        id: 'edit',
-        label: 'Editar título y artista',
-        icon: 'Pencil',
-        disabled: !currentTrack?.ytId && !currentTrack?.id,
-        onClick: () => { closeSelf(); openEditDialog(); },
-      },
-      {
-        id: 'share',
-        label: 'Compartir link...',
-        icon: 'Share2',
-        disabled: !currentTrack?.ytId,
-        onClick: () => { closeSelf(); shareCurrent(); },
-      },
-      {
-        id: 'share-friend',
-        label: 'Compartir con amigo',
-        icon: 'UserPlus',
-        disabled: !currentTrack?.ytId || friends.length === 0,
-        onClick: () => { closeSelf(); setShareToFriendOpen(true); },
-      },
-      radioMode
-        ? {
-            id: 'radio-stop',
-            label: 'Detener modo Radio',
-            icon: 'X',
-            onClick: () => { closeSelf(); stopRadio(); },
-          }
-        : {
-            id: 'radio-start',
-            label: 'Iniciar modo Radio',
-            icon: 'Disc3',
-            onClick: () => { closeSelf(); startRadio(); },
-            disabled: !currentTrack?.artist,
-          },
-      {
-        id: 'jam-mode',
-        label: 'Jam con amigos',
-        icon: 'Users',
-        onClick: () => { closeSelf(); setJamOpen(true); },
-      },
-    ];
-    openSheet({
-      title: 'Opciones',
-      content: <MoreMenuBody items={items} />,
-    });
-  };
+  // Items del menú "⋯". DropdownMenu se encarga del cierre y de elegir el
+  // patrón por plataforma: dropdown anclado en desktop, bottom-sheet en PWA
+  // móvil. El `icon` es un nodo React (no string) para el render del dropdown.
+  const moreItems = [
+    {
+      id: 'save',
+      label: 'Guardar en biblioteca o playlist…',
+      icon: <Icon name="Plus" size={16} />,
+      onClick: () => setSaveOpen(true),
+    },
+    {
+      id: 'edit',
+      label: 'Editar título y artista',
+      icon: <Icon name="Pencil" size={16} />,
+      disabled: !currentTrack?.ytId && !currentTrack?.id,
+      onClick: () => openEditDialog(),
+    },
+    { separator: true },
+    {
+      id: 'share',
+      label: 'Compartir enlace…',
+      icon: <Icon name="Share2" size={16} />,
+      disabled: !currentTrack?.ytId,
+      onClick: () => shareCurrent(),
+    },
+    {
+      id: 'share-friend',
+      label: 'Compartir con un amigo',
+      icon: <Icon name="UserPlus" size={16} />,
+      disabled: !currentTrack?.ytId || friends.length === 0,
+      onClick: () => setShareToFriendOpen(true),
+    },
+    { separator: true },
+    radioMode
+      ? {
+          id: 'radio-stop',
+          label: 'Detener modo Radio',
+          icon: <Icon name="X" size={16} />,
+          onClick: () => stopRadio(),
+        }
+      : {
+          id: 'radio-start',
+          label: 'Iniciar modo Radio',
+          icon: <Icon name="Disc3" size={16} />,
+          onClick: () => startRadio(),
+          disabled: !currentTrack?.artist,
+        },
+    {
+      id: 'jam-mode',
+      label: 'Jam con amigos',
+      icon: <Icon name="Users" size={16} />,
+      onClick: () => setJamOpen(true),
+    },
+  ];
 
   if (!open && !closing) return null;
 
@@ -397,13 +394,14 @@ export function NowPlaying() {
           </span>
           <span className={styles.context}>{currentTrack?.album || currentTrack?.artist || 'Ritmiq'}</span>
         </div>
-        <button
-          className={styles.headerBtn}
-          aria-label="Más opciones"
-          onClick={() => openMoreMenu()}
-        >
-          <Icon name="MoreHorizontal" size={22} />
-        </button>
+        <DropdownMenu
+          align="right"
+          label="Más opciones"
+          items={moreItems}
+          trigger={<Icon name="MoreHorizontal" size={22} />}
+          triggerClassName={styles.headerBtn}
+          wrapClassName={styles.headerMenuWrap}
+        />
       </header>
 
       <div className={styles.coverWrap}>
@@ -560,22 +558,3 @@ export function NowPlaying() {
   );
 }
 
-/** Cuerpo del bottom sheet de "Más opciones" del NowPlaying. */
-function MoreMenuBody({ items }) {
-  return (
-    <div className={styles.moreMenu}>
-      {items.map((it) => (
-        <button
-          key={it.id}
-          type="button"
-          className={styles.moreItem}
-          disabled={it.disabled}
-          onClick={it.onClick}
-        >
-          <Icon name={it.icon} size={18} />
-          <span>{it.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
