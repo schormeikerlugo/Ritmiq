@@ -22,15 +22,11 @@ export function getDominantColor(url) {
   if (inflight.has(url)) return inflight.get(url);
 
   const p = (async () => {
+    let blobUrl = null;
     try {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.referrerPolicy = 'no-referrer';
-      img.src = url;
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
+      const img = await loadSampleableImage(url);
+      if (img.blobUrl) blobUrl = img.blobUrl;
+      const el = img.el;
       const canvas = document.createElement('canvas');
       // Reducimos a un tamaño pequeño para acelerar el sampleo.
       const SIZE = 24;
@@ -38,7 +34,7 @@ export function getDominantColor(url) {
       canvas.height = SIZE;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) return FALLBACK;
-      ctx.drawImage(img, 0, 0, SIZE, SIZE);
+      ctx.drawImage(el, 0, 0, SIZE, SIZE);
       const data = ctx.getImageData(0, 0, SIZE, SIZE).data;
 
       // Promedio simple con ponderación por saturación (los píxeles vivos
@@ -76,10 +72,74 @@ export function getDominantColor(url) {
       cache.set(url, FALLBACK);
       return FALLBACK;
     } finally {
+      if (blobUrl) { try { URL.revokeObjectURL(blobUrl); } catch {} }
       inflight.delete(url);
     }
   })();
 
   inflight.set(url, p);
   return p;
+}
+
+/**
+ * Carga una imagen que el canvas pueda leer sin quedar "tainted".
+ *
+ * El problema: las covers (YouTube, Last.fm) no devuelven cabeceras CORS, y
+ * desde la Fase 7.3 el Service Worker las cachea como respuestas *opaque*.
+ * Una `new Image()` con `crossOrigin='anonymous'` falla contra una respuesta
+ * opaque → `getImageData` lanza SecurityError → background gris.
+ *
+ * Solución: `fetch()` de la URL (pasa por el SW cache y devuelve el body
+ * como blob), creamos un `blob:` URL same-origin y cargamos la imagen desde
+ * ahí. Un blob: URL nunca queda tainted, así que `getImageData` funciona.
+ * Si el fetch falla (sin red y sin cache), fallback a `<img>` directo (que
+ * al menos dibuja, aunque podría quedar tainted → caería al catch del caller).
+ *
+ * @param {string} url
+ * @returns {Promise<{ el: HTMLImageElement, blobUrl: string|null }>}
+ */
+async function loadSampleableImage(url) {
+  try {
+    // mode 'cors' + referrer none: i.ytimg.com y la mayoría de CDNs de
+    // covers devuelven CORS. El body se lee como blob → blob: URL same-origin
+    // que el canvas puede leer sin tainting (sirve aunque el SW lo intercepte
+    // con una respuesta CORS cacheada).
+    const res = await fetch(url, { mode: 'cors', referrerPolicy: 'no-referrer' });
+    if (res.ok) {
+      const blob = await res.blob();
+      // Una respuesta opaque (SW) puede dar un blob de tamaño 0 → inservible.
+      if (blob && blob.size > 0) {
+        const blobUrl = URL.createObjectURL(blob);
+        const el = await loadImg(blobUrl);
+        return { el, blobUrl };
+      }
+    }
+  } catch {
+    // Sigue al fallback.
+  }
+  // Fallback: <img crossOrigin> directo, evitando el cache del SW con un
+  // cache-buster (el pattern del SW no matchea con query distinto → red
+  // directa con CORS real, no la opaque cacheada).
+  const el = new Image();
+  el.crossOrigin = 'anonymous';
+  el.referrerPolicy = 'no-referrer';
+  el.src = url + (url.includes('?') ? '&' : '?') + 'dc=1';
+  await loadImgEl(el);
+  return { el, blobUrl: null };
+}
+
+/** Carga una imagen desde un src y resuelve el elemento. */
+function loadImg(src) {
+  const el = new Image();
+  el.src = src;
+  return loadImgEl(el).then(() => el);
+}
+
+/** Resuelve cuando la imagen carga (o rechaza al fallar). */
+function loadImgEl(el) {
+  return new Promise((resolve, reject) => {
+    if (el.complete && el.naturalWidth > 0) { resolve(); return; }
+    el.onload = () => resolve();
+    el.onerror = reject;
+  });
 }
