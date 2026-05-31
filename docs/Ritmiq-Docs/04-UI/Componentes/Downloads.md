@@ -48,3 +48,17 @@ Recarga la lista de downloads locales y las estadísticas de storage al tirar.
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-05-31: **resumen de descargas** (nº de canciones + peso ocupado) visible en **desktop
+  y PWA**.
+  - **PWA**: el peso ya venía de los blobs de IndexedDB (`listLocalDownloads` → `size`).
+  - **Desktop**: antes solo se mostraba el conteo (el peso vive en el filesystem, no en
+    `tracks`). Nuevo IPC **`library:downloadsStats(userId)`** (`apps/desktop/main/ipc.js`)
+    que recorre los tracks descargados y suma `statSync(file_path).size` en una sola llamada,
+    devolviendo `{ count, totalSize, sizeByTrack }`. Expuesto en el preload
+    (`library.downloadsStats`) y en `api.js` (`libraryDownloadsStats`, vía `optionalCall`
+    para tolerar preloads viejos). El componente lo consume en `refresh()` y rellena
+    `_localSize` por fila + el total.
+  - UI: tarjeta `.summary` con dos métricas (icono `ArrowDownToLine` = canciones, `Disc3` =
+    peso en disco), divisor central; en móvil (≤480px) se apila vertical. Subtítulo cambiado
+    a "Música guardada en este dispositivo para escuchar sin internet". Peso por canción en
+    cada fila en ambas plataformas (antes solo PWA).
