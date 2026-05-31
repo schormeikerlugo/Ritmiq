@@ -110,3 +110,4 @@ Replica el patrón de [[NowPlaying]] `onScrubCommit`: actualiza el store + dispa
 ## Changelog
 
 - 2026-05-27 — Creado en Fase 4.2. Commits `555231e` (UI inicial) + `1220428` (reposicionado a panel inferior).
+- 2026-05-29 — Fix UX desktop: en el panel lateral (`min-width:769px`) la letra **se solapaba con el header** del [[NowPlaying]] (el `margin-bottom` del header no separa porque vive en `.mainArea`, contenedor hermano del panel). Añadidos estilos desktop a `.panel`: `padding-top: space-3` (separación del header divisor), `padding-bottom: space-6`, tipografía contenida (`.lineActive` clamp md→lg, `.lineItem` fs-sm) por el ancho estrecho (380px). Verificado con screenshot Playwright (chromium headless). Se descartó `position:sticky` en `.head` porque tapaba el header al scrollear.

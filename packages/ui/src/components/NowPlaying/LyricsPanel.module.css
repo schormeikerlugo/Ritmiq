@@ -115,3 +115,34 @@
 @media (max-width: 640px) {
   .lineActive { font-size: clamp(var(--fs-lg), 5vw, var(--fs-xl)); }
 }
+
+/* ── Desktop (panel lateral) ──────────────────────────────────────────
+ * En desktop NowPlaying es un panel angosto (380px). El LyricsPanel se
+ * renderiza justo debajo del header divisor; no hay cover/controles que
+ * lo empujen (están ocultos). Reducimos el padding superior para que la
+ * letra pegue al header en vez de caer al fondo / solaparse, y hacemos
+ * el encabezado sticky para que "Letra sincronizada" siempre sea visible
+ * mientras se scrollea la letra. Tipografía más contenida por el ancho. */
+@media (min-width: 769px) {
+  .panel {
+    /* El panel fluye debajo del header divisor del NowPlaying. El header
+       vive en .mainArea (contenedor hermano), así que su margin-bottom no
+       separa del panel → damos un padding-top propio. Sin sticky (taparía
+       el header al scrollear el .root). */
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-6);
+    gap: var(--space-2);
+  }
+  .head {
+    margin: 0 0 var(--space-2) 0;
+    font-size: 12px;
+  }
+  .lineItem {
+    padding: 6px 0;
+    font-size: var(--fs-sm);
+  }
+  .lineActive {
+    /* Más contenido por el ancho estrecho del panel. */
+    font-size: clamp(var(--fs-md), 2.4vw, var(--fs-lg));
+  }
+}
