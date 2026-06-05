@@ -207,3 +207,127 @@
   padding: 8px 12px;
   text-align: center;
 }
+
+/* ── Mini-wizard / intro educativa ──────────────────────────────────── */
+.introWizard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  padding-top: var(--space-2);
+}
+
+.introSkip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: none;
+  color: var(--color-text-3);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard);
+}
+.introSkip:hover {
+  background: var(--color-bg-2);
+  color: var(--color-text-1);
+}
+
+.introIconWrap {
+  display: grid;
+  place-items: center;
+  margin: var(--space-3) 0 var(--space-1);
+}
+/* Halo estatico (no animamos box-shadow/filter — ver ADR-020). El latido
+   se hace con un pseudo-elemento animando solo opacity + transform. */
+.introIconCircle {
+  position: relative;
+  /* Nuevo stacking context propio: el ::after con z-index negativo queda
+     DENTRO de este contexto (detras del icono pero SOBRE el card), no
+     detras del modal. */
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent), #5a3eff);
+  color: #fff;
+}
+.introIconCircle[data-accent='true'] {
+  background: linear-gradient(135deg, var(--color-accent) 0%, #5cd0ff 50%, #ff5d8f 100%);
+}
+.introIconCircle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  z-index: -1;
+  animation: jam-intro-halo 2.2s ease-out infinite;
+}
+@keyframes jam-intro-halo {
+  0%   { opacity: 0.45; transform: scale(1); }
+  70%  { opacity: 0;    transform: scale(1.5); }
+  100% { opacity: 0;    transform: scale(1.5); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .introIconCircle::after { animation: none; }
+}
+
+.introTitle {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  color: var(--color-text-1);
+}
+.introBody {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-2);
+  line-height: 1.55;
+  max-width: 34ch;
+}
+
+.introDots {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 var(--space-2);
+}
+.introDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-bg-3);
+  transition: background var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard);
+}
+.introDot[data-active='true'] {
+  background: var(--color-accent);
+  transform: scale(1.25);
+}
+
+/* Link "¿Cómo funciona?" en el menu para re-ver la intro. */
+.introLink {
+  align-self: center;
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: none;
+  color: var(--color-text-3);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+.introLink:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}

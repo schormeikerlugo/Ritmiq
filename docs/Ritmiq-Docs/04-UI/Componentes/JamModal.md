@@ -10,7 +10,7 @@ tags: [componente, jam, modal, colaborativo]
 
 # `JamModal`
 
-> Modal para crear o unirse a un Jam. Cuatro vistas internas: `menu`, `create` (hosting), `join`, `guest`. Refleja el [[jam|store jam]].
+> Modal para crear o unirse a un Jam. Cinco vistas internas: `intro` (mini-wizard educativo), `menu`, `create` (hosting), `join`, `guest`. Refleja el [[jam|store jam]].
 
 ## Ubicación
 `packages/ui/src/components/Jam/JamModal.jsx`
@@ -22,13 +22,28 @@ tags: [componente, jam, modal, colaborativo]
 | `initialCode` | `string` | (Bloque 3.3) Código pre-rellenado desde el deep-link `/jam/<code>`; abre directo en la vista `join`. |
 
 ## Estados internos
-- `view`: `'menu' | 'create' | 'join' | 'guest'` — sincronizado con `mode` del store via `useEffect`.
+- `view`: `'intro' | 'menu' | 'create' | 'join' | 'guest'` — sincronizado con `mode` del store via `useEffect`.
 - `code`: input del código (join).
 - `busy`: loading durante create/join/leave.
 - `error`: mensaje de error inline.
+- `introStep`: paso actual (0-2) del mini-wizard `intro`.
+
+## Mini-wizard `intro` (educativo)
+Vista de 3 pasos que explica el modelo del Jam (escucha sincronizada / host con control /
+cada quien con su conexión + drift). Patrón visual calcado del [[Onboarding]] pero **dentro**
+del `Modal` (no backdrop propio): círculo de icono con gradiente (`data-accent` morado→cian→rosa
+en pasos 2-3), halo latiendo vía pseudo-elemento `::after` (solo opacity+scale, ver
+[[Decisiones-Tecnicas-ADR|ADR-020]]), dots de progreso, botón "Saltar" y CTA "Continuar"/"Entendido".
+
+- **Gate**: `localStorage` `ritmiq.jam-intro-seen` (por dispositivo, igual que Onboarding).
+  Se marca al terminar **o** al saltar; no se vuelve a mostrar automáticamente.
+- **Disparo**: solo si `mode === 'idle'`, no visto y **sin** `initialCode`. Un deep-link
+  `/jam/<code>` salta la intro (el invitado va directo a `join`).
+- **Re-ver**: link "¿Cómo funciona una jam?" en la vista `menu` → `setView('intro')`.
+- Iconos: `Radio` / `Crown` / `Wifi` (todos ya en [[Icon]]).
 
 ## Render principal por vista
-- **menu**: botones "Iniciar jam" / "Unirse a jam".
+- **menu**: botones "Iniciar jam" / "Unirse a jam" + link "¿Cómo funciona una jam?".
 - **join**: `TextField` de 6 chars (auto-uppercase) + "Unirse".
 - **create**: muestra el código (copiable) + `renderParticipants(true)` (con botón "Pasar control").
 - **guest**: info de la sesión + `renderParticipants(false)` + "Salir".
@@ -59,6 +74,8 @@ desktop / sin soporte. `AbortError` (usuario cancela) se ignora silenciosamente.
 | Cambio | Síntoma |
 |---|---|
 | Quitar el `useEffect` que sincroniza `view` con `mode` | Al reabrir con sesión activa, muestra el menú en vez del estado correcto. |
+| Quitar `isolation: isolate` de `.introIconCircle` | El halo `::after` (z-index:-1) se va detrás del modal y el círculo del icono se ve plano (sin gradiente). |
+| Borrar el `localStorage` `ritmiq.jam-intro-seen` | La intro vuelve a aparecer la próxima vez que se abre el modal (comportamiento esperado para re-onboarding). |
 
 ## Notas / Changelog
 - 2026-05-29: nota creada (F12, doc retroactiva de Fase 8.2).
@@ -71,3 +88,10 @@ desktop / sin soporte. `AbortError` (usuario cancela) se ignora silenciosamente.
   participantes con avatares (`Crown` host / `User` guest), badge "Host" pill, contador en
   el título, hover por fila. Iconos nuevos registrados en [[Icon]]: `Radio`, `Crown`, `Copy`,
   `LogIn`.
+- 2026-05-31: **mini-wizard `intro`** de 3 pasos (escucha sincronizada / host con control /
+  cada quien con su conexión). Aparece la 1ª vez (gate `ritmiq.jam-intro-seen`, por
+  dispositivo), salta en deep-link, re-verible desde "¿Cómo funciona una jam?" en el menú.
+  Estilo calcado de [[Onboarding]] dentro del `Modal`; halo del icono con `::after`
+  (opacity+scale, [[Decisiones-Tecnicas-ADR|ADR-020]]) y `isolation:isolate` en el círculo
+  para que el halo quede sobre el card. Iconos `Radio`/`Crown`/`Wifi` (ya en [[Icon]]).
+  Verificado con Playwright en 1300px y 390px.

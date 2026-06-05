@@ -85,6 +85,14 @@ sequenceDiagram
   (Vite preset). `/share/track/*` ya funciona así; el middleware OG NO intercepta `/jam`. Si
   en prod diera 404, añadir un `vercel.json` con rewrite SPA para `/jam/:code`.
 
+## Intro educativa (mini-wizard)
+
+La 1ª vez que el usuario abre el [[JamModal]] ve una intro de 3 pasos que explica el modelo
+(escucha sincronizada / el host controla / cada quien reproduce desde su propia red, con un
+desfase de 1-2s que se corrige solo). Gate `localStorage` `ritmiq.jam-intro-seen`. Un
+deep-link `/jam/<code>` salta la intro (el invitado va directo a unirse). Re-verible desde
+"¿Cómo funciona una jam?" en el menú. Detalles en [[JamModal]].
+
 ## Gotchas conocidos
 
 - **SELECT abierto**: la RLS de [[jam_sessions]] es `using (true)` → conociendo un código se

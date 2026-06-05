@@ -28,6 +28,43 @@ function buildJamLink(code) {
   return `${origin}/jam/${code}`;
 }
 
+/**
+ * Mini-wizard educativo del Jam. Se muestra la PRIMERA vez que el user
+ * abre el modal (gate localStorage, por dispositivo, igual que el
+ * Onboarding general). Tras verlo se puede re-abrir con el boton "Como
+ * funciona" del menu. No interrumpe sesiones activas ni joins por
+ * deep-link (el invitado con prisa va directo a 'join').
+ */
+const LS_JAM_INTRO = 'ritmiq.jam-intro-seen';
+
+function hasSeenJamIntro() {
+  if (typeof localStorage === 'undefined') return true;
+  try { return localStorage.getItem(LS_JAM_INTRO) === '1'; } catch { return true; }
+}
+function markJamIntroSeen() {
+  try { localStorage.setItem(LS_JAM_INTRO, '1'); } catch {}
+}
+
+const JAM_INTRO_STEPS = [
+  {
+    icon: 'Radio',
+    title: 'Escuchen juntos, en tiempo real',
+    body: 'Crea una sala y comparte el código de 6 caracteres. Tú y tus amigos escuchan la misma canción a la vez, sincronizados.',
+  },
+  {
+    icon: 'Crown',
+    title: 'Tú llevas el control',
+    body: 'Como host, lo que reproduces, pausas o adelantas se sincroniza con todos. Puedes pasarle el control a otra persona cuando quieras.',
+    accent: true,
+  },
+  {
+    icon: 'Wifi',
+    title: 'Cada quien con su conexión',
+    body: 'No se transmite audio: cada persona reproduce desde su propia red, así suena en buena calidad. Puede haber un desfase de 1-2 segundos que se corrige solo.',
+    accent: true,
+  },
+];
+
 export function JamModal({ onClose, initialCode = '' }) {
   const mode = useJamStore((s) => s.mode);
   const session = useJamStore((s) => s.session);
@@ -37,18 +74,44 @@ export function JamModal({ onClose, initialCode = '' }) {
   const leaveSession = useJamStore((s) => s.leaveSession);
   const transferHost = useJamStore((s) => s.transferHost);
 
-  const [view, setView] = useState(initialCode ? 'join' : 'menu');
+  // Estado inicial: si hay sesion activa lo decide el effect de mode; si
+  // estamos idle, la intro educativa tiene prioridad la primera vez
+  // (salvo que venga un initialCode de deep-link: el invitado quiere
+  // unirse ya, no estorbamos).
+  const idleStart = initialCode ? 'join' : (hasSeenJamIntro() ? 'menu' : 'intro');
+  const [view, setView] = useState(idleStart);
   const [code, setCode] = useState(initialCode);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [introStep, setIntroStep] = useState(0);
 
   // Si ya hay sesion activa al abrir el modal, ir directo al estado correspondiente.
   // initialCode (deep-link) tiene prioridad solo cuando estamos idle.
   useEffect(() => {
     if (mode === 'hosting') setView('create');
     else if (mode === 'guest') setView('guest');
-    else setView(initialCode ? 'join' : 'menu');
+    else setView(initialCode ? 'join' : (hasSeenJamIntro() ? 'menu' : 'intro'));
   }, [mode, initialCode]);
+
+  // Avanza la intro o, en el ultimo paso, la marca como vista y cae al menu.
+  const handleIntroNext = () => {
+    if (introStep >= JAM_INTRO_STEPS.length - 1) {
+      markJamIntroSeen();
+      setIntroStep(0);
+      setView('menu');
+    } else {
+      setIntroStep((s) => s + 1);
+    }
+  };
+  const handleIntroSkip = () => {
+    markJamIntroSeen();
+    setIntroStep(0);
+    setView('menu');
+  };
+  const handleShowIntro = () => {
+    setIntroStep(0);
+    setView('intro');
+  };
 
   const handleCreate = async () => {
     setBusy(true);
@@ -169,6 +232,51 @@ export function JamModal({ onClose, initialCode = '' }) {
 
   return (
     <Modal onClose={onClose} title="Jam" size="md">
+      {view === 'intro' && (() => {
+        const cur = JAM_INTRO_STEPS[introStep];
+        const isLast = introStep === JAM_INTRO_STEPS.length - 1;
+        return (
+          <div className={styles.introWizard}>
+            <button
+              type="button"
+              className={styles.introSkip}
+              onClick={handleIntroSkip}
+            >
+              Saltar
+            </button>
+
+            <div className={styles.introIconWrap}>
+              <div className={styles.introIconCircle} data-accent={!!cur.accent}>
+                <Icon name={cur.icon} size={34} />
+              </div>
+            </div>
+
+            <h3 className={styles.introTitle}>{cur.title}</h3>
+            <p className={styles.introBody}>{cur.body}</p>
+
+            <div className={styles.introDots} aria-hidden="true">
+              {JAM_INTRO_STEPS.map((_, i) => (
+                <span
+                  key={i}
+                  className={styles.introDot}
+                  data-active={i === introStep}
+                />
+              ))}
+            </div>
+
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              onClick={handleIntroNext}
+              iconRight={isLast ? undefined : 'ChevronRight'}
+            >
+              {isLast ? 'Entendido' : 'Continuar'}
+            </Button>
+          </div>
+        );
+      })()}
+
       {view === 'menu' && (
         <div className={styles.menu}>
           <div className={styles.hero} aria-hidden="true">
@@ -202,6 +310,13 @@ export function JamModal({ onClose, initialCode = '' }) {
               Unirse a una jam
             </Button>
           </div>
+          <button
+            type="button"
+            className={styles.introLink}
+            onClick={handleShowIntro}
+          >
+            ¿Cómo funciona una jam?
+          </button>
           {error && <p className={styles.error}>{error}</p>}
         </div>
       )}
