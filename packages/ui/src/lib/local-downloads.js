@@ -55,11 +55,28 @@ const objectUrls = new Map();
 
 let persistRequested = false;
 
-async function requestPersistOnce() {
+/**
+ * Solicita al navegador que el almacenamiento sea PERSISTENTE (no elegible
+ * para eviction automático bajo presión de disco). Idempotente. Debe
+ * llamarse temprano (al arrancar la app tras login) además de al descargar,
+ * para reducir el riesgo de que el SO desaloje IndexedDB con las descargas.
+ *
+ * En iOS Safari la API es limitada (puede devolver false), pero pedirla
+ * temprano ayuda. No lanza si no está disponible.
+ */
+export async function requestPersistOnce() {
   if (persistRequested) return;
   persistRequested = true;
   try {
     if (typeof navigator !== 'undefined' && navigator.storage?.persist) {
+      // Si ya es persistente, no re-pedir.
+      const already = navigator.storage.persisted
+        ? await navigator.storage.persisted().catch(() => false)
+        : false;
+      if (already) {
+        console.info('[downloads] storage ya persistente');
+        return;
+      }
       const granted = await navigator.storage.persist();
       console.info('[downloads] storage.persist():', granted);
     }

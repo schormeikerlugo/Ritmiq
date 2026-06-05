@@ -132,6 +132,7 @@ import {
   startTunnelKeepalive,
 } from './lib/lan-client.js';
 import { api, isDesktop } from './lib/api.js';
+import { requestPersistOnce } from './lib/local-downloads.js';
 import { realtime } from './lib/realtime.js';
 import { onConnectivityChange, forceRecheck } from './lib/connectivity.js';
 import { flushQueue } from './lib/sync-queue.js';
@@ -342,6 +343,9 @@ export function App() {
   // Recargar biblioteca y playlists al cambiar el usuario
   useEffect(() => {
     if (user) {
+      // PWA: pedir almacenamiento persistente temprano (tras login) para
+      // que el SO no desaloje IndexedDB con las descargas. Idempotente.
+      if (!isDesktop) { requestPersistOnce().catch(() => {}); }
       loadLibrary();
       loadPlaylists();
       useHistoryStore.getState().load();

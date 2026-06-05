@@ -16,7 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLibraryStore } from '../stores/library.js';
 import { useAuthStore } from '../stores/auth.js';
 import { isDesktop, api } from './api.js';
-import { listLocalDownloads } from './local-downloads.js';
+import { listLocalDownloads, getCachedTracks } from './local-downloads.js';
 
 export function useDownloadsStats() {
   const tracks = useLibraryStore((s) => s.tracks);
@@ -44,7 +44,20 @@ export function useDownloadsStats() {
     const items = await listLocalDownloads();
     const sizeByTrack = {};
     for (const it of items) sizeByTrack[it.trackId] = it.size ?? 0;
-    const downloaded = tracks.filter((t) => sizeByTrack[t.id] != null);
+
+    // Lista de tracks a cruzar: el store en memoria, o —si está vacío por
+    // estar momentáneamente sin sesión/red— el cache de metadata de Dexie.
+    // Así las descargas se ven 100% offline aunque la librería no haya
+    // cargado todavía. Defensa adicional al fix del signOut espurio offline.
+    let baseTracks = tracks;
+    if (baseTracks.length === 0 && items.length > 0) {
+      try {
+        const cached = await getCachedTracks();
+        if (cached.length > 0) baseTracks = cached;
+      } catch { /* sin cache: seguimos con tracks (vacío) */ }
+    }
+
+    const downloaded = baseTracks.filter((t) => sizeByTrack[t.id] != null);
     const totalSize = downloaded.reduce((acc, t) => acc + (sizeByTrack[t.id] ?? 0), 0);
     setState({ count: downloaded.length, totalSize, sizeByTrack });
   }, [tracks, userId]);

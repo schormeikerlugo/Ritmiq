@@ -5,6 +5,31 @@ import { supabase } from '../lib/supabase.js';
  * @typedef {{ id: string, email: string|null }} SessionUser
  */
 
+/**
+ * ¿El error de `getUser()` indica que el usuario/token ya NO es válido
+ * (justifica cerrar sesión), o es un fallo transitorio de red (NO cerrar)?
+ *
+ * Tratamos como error de AUTH real solo los códigos/estados que el servidor
+ * de Supabase devuelve cuando el usuario no existe o el token expiró sin
+ * refresh posible. Cualquier error de red/fetch/timeout se considera
+ * transitorio → mantener la sesión cacheada (offline-first).
+ *
+ * @param {{ status?: number, name?: string, message?: string }} error
+ * @returns {boolean}
+ */
+function isAuthError(error) {
+  if (!error) return false;
+  const status = error.status ?? error.code;
+  // 401/403/422 → el servidor rechazó la sesión: auth real.
+  if (status === 401 || status === 403 || status === 422) return true;
+  const msg = String(error.message ?? '').toLowerCase();
+  if (msg.includes('user not found') || msg.includes('user_not_found')) return true;
+  if (msg.includes('invalid claim') || msg.includes('jwt')) return true;
+  // "Failed to fetch", "NetworkError", "Load failed" (iOS), AbortError, etc.
+  // → NO es auth real. Todo lo demás se considera transitorio.
+  return false;
+}
+
 export const useAuthStore = create((set, get) => ({
   /** @type {SessionUser|null} */
   user: null,
@@ -21,16 +46,57 @@ export const useAuthStore = create((set, get) => ({
       // Si hay sesión cacheada, la validamos contra el servidor.
       // getUser() hace una petición que falla si el usuario ya no existe
       // (por ejemplo tras un `supabase db reset` que limpia auth.users).
+      //
+      // OFFLINE-FIRST (fix pérdida de descargas): si NO hay red, getUser()
+      // falla por error de RED — NO por usuario borrado. En ese caso NO
+      // debemos hacer signOut (eso vaciaría la librería y "borraría" las
+      // descargas de la UI hasta volver online). Confiamos en la sesión
+      // cacheada y entramos directo en modo offline. Solo cerramos sesión
+      // cuando hay red Y el servidor responde que el usuario no es válido.
       if (cached) {
-        const { data, error } = await supabase.auth.getUser();
-        if (error || !data?.user) {
-          await supabase.auth.signOut();
-          set({ user: null, loading: false });
-        } else {
+        const online = typeof navigator === 'undefined' || navigator.onLine;
+        if (!online) {
+          // Sin red: confiar en la sesión cacheada, no validar.
           set({
-            user: { id: data.user.id, email: data.user.email ?? null },
+            user: { id: cached.id, email: cached.email ?? null },
             loading: false,
           });
+        } else {
+          let data, error;
+          try {
+            ({ data, error } = await supabase.auth.getUser());
+          } catch (netErr) {
+            // Error de red aunque navigator.onLine diga true (timeout, DNS,
+            // etc.): tratar como offline, mantener la sesión cacheada.
+            set({
+              user: { id: cached.id, email: cached.email ?? null },
+              loading: false,
+            });
+            error = null; data = { user: cached };
+          }
+          if (error) {
+            // Distinguir error de auth real (usuario borrado/token inválido)
+            // de un fallo de red. Solo el primero justifica signOut.
+            if (isAuthError(error)) {
+              await supabase.auth.signOut();
+              set({ user: null, loading: false });
+            } else {
+              // Error transitorio de red: conservar sesión cacheada.
+              set({
+                user: { id: cached.id, email: cached.email ?? null },
+                loading: false,
+              });
+            }
+          } else if (data?.user) {
+            set({
+              user: { id: data.user.id, email: data.user.email ?? null },
+              loading: false,
+            });
+          } else {
+            // Sin error pero sin user → sesión inválida real.
+            await supabase.auth.signOut();
+            set({ user: null, loading: false });
+          }
         }
       } else {
         set({ user: null, loading: false });

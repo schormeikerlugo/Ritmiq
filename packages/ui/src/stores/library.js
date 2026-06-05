@@ -25,6 +25,25 @@ export const useLibraryStore = create((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       const userId = session?.user?.id;
       if (!userId) {
+        // OFFLINE-FIRST: sin sesión accesible (p.ej. getSession devuelve null
+        // por un refresh fallido sin red), NO vaciamos la librería. En PWA
+        // hidratamos desde Dexie para que las descargas sigan visibles. Solo
+        // limpiamos si realmente no hay nada cacheado.
+        if (!isDesktop) {
+          try {
+            const cached = await getCachedTracks();
+            if (cached.length > 0) {
+              const localIds = await listLocalIds();
+              set({
+                tracks: cached.map((t) => ({ ...t, isDownloaded: localIds.has(t.id), filePath: null })),
+                loading: false,
+              });
+              return;
+            }
+          } catch (e) {
+            console.warn('[library] hidratación offline sin sesión falló:', e?.message ?? e);
+          }
+        }
         set({ tracks: [], loading: false });
         return;
       }
