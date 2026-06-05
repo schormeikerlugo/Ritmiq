@@ -78,7 +78,8 @@ export const useJamStore = create((set, get) => ({
    * automatico como participant + suscribe a CDC.
    */
   async createSession() {
-    const { data: { user } } = await supabase.auth.getSession().then((r) => r.data);
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    const user = authSession?.user;
     if (!user) throw new Error('no autenticado');
 
     // Genera codigo unico (retry hasta 5 veces si colisiona).
@@ -133,7 +134,8 @@ export const useJamStore = create((set, get) => ({
     const codeNorm = String(code ?? '').trim().toUpperCase();
     if (!/^[A-Z0-9]{6}$/.test(codeNorm)) throw new Error('codigo invalido');
 
-    const { data: { user } } = await supabase.auth.getSession().then((r) => r.data);
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    const user = authSession?.user;
     if (!user) throw new Error('no autenticado');
 
     const { data: ses, error } = await supabase
@@ -178,7 +180,8 @@ export const useJamStore = create((set, get) => ({
     const { session, mode, _channels, _heartbeatTimer } = get();
     if (!session) return;
 
-    const { data: { user } } = await supabase.auth.getSession().then((r) => r.data);
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    const user = authSession?.user;
 
     // Cleanup channels + heartbeat ANTES de las queries para que los
     // updates de los otros no causen un re-render con state stale.
@@ -289,7 +292,8 @@ export const useJamStore = create((set, get) => ({
         // Detectar transferencia de host: si host_id cambio, recalcular
         // el mode local de este cliente.
         if (session && row.host_id && row.host_id !== session.hostId) {
-          const { data: { user } } = await supabase.auth.getSession().then((r) => r.data);
+          const { data: { session: authSession } } = await supabase.auth.getSession();
+          const user = authSession?.user;
           const amNewHost = user?.id === row.host_id;
           set({
             mode: amNewHost ? 'hosting' : 'guest',
@@ -357,7 +361,8 @@ export const useJamStore = create((set, get) => ({
     const timer = setInterval(async () => {
       const { session } = get();
       if (!session) return;
-      const { data: { user } } = await supabase.auth.getSession().then((r) => r.data);
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const user = authSession?.user;
       if (!user) return;
       try {
         await supabase.from('jam_participants').update({

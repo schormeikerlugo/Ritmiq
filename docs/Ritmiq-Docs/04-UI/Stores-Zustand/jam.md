@@ -126,3 +126,11 @@ de `host_id` y recalcula el `mode` de **cada** cliente (el nuevo host pasa a `ho
 ## Notas / Changelog
 - 2026-05-29: nota creada (F12, doc retroactiva de Fase 8.1).
 - 2026-05-29: `transferHost` + `role` en participants + recálculo de mode en subscribe (Bloque 3.2).
+- 2026-05-31 (**fix crítico**): crear/unirse a un Jam lanzaba `Cannot read properties of
+  undefined (reading 'user')`. Las 5 lecturas de usuario usaban el patrón roto
+  `const { data: { user } } = await supabase.auth.getSession().then((r) => r.data)` —
+  `getSession()` devuelve `{ data: { session }, error }` (el `user` vive en `session.user`,
+  no en `data.user`), y el `.then(r => r.data)` además des-anidaba `data` una vez de más, así
+  que `data` quedaba `undefined`. Corregido al patrón canónico del resto del repo:
+  `const { data: { session: authSession } } = await supabase.auth.getSession(); const user = authSession?.user;`
+  en `createSession`, `joinSession`, `leaveSession`, `_subscribe` (transfer host) y `_startHeartbeat`.
