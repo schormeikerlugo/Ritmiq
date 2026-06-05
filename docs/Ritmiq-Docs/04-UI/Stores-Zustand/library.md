@@ -179,3 +179,8 @@ applyRemote({ eventType, new: row, old }) {
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-31 (fix offline): `load()` ya no hace `set({ tracks: [] })` cuando `getSession()`
+  no devuelve `userId` (p.ej. refresh fallido sin red). En PWA hidrata desde Dexie
+  (`getCachedTracks` + `listLocalIds`) para que las descargas sigan visibles. Solo vacía si
+  no hay nada cacheado. Parte del fix de pérdida de descargas offline (ver
+  [[Decisiones-Tecnicas-ADR|ADR-022]]).

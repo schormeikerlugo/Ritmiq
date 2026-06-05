@@ -180,3 +180,8 @@ export async function getLocalBlobUrl(trackId) {
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-31 (fix offline): `requestPersistOnce()` ahora es **export público** y se llama al
+  **login** (App.jsx, solo PWA), no solo al descargar — pide `navigator.storage.persist()`
+  temprano para reducir el riesgo de eviction del SO sobre IndexedDB. Chequea
+  `storage.persisted()` antes de re-pedir. Parte del fix de pérdida de descargas offline
+  (ver [[Decisiones-Tecnicas-ADR|ADR-022]]).

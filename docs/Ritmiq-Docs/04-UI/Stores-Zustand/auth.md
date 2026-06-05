@@ -99,3 +99,10 @@ async signUp(email, password, meta = {}) {
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-05-31 (**fix offline crítico**): `init()` ya no hace `signOut()` cuando `getUser()`
+  falla por **error de red**. Antes, reabrir la PWA sin internet → `getUser()` error →
+  signOut → librería vacía → las descargas "desaparecían" (volvían online). Ahora: si
+  `!navigator.onLine` o el error no es de auth (helper `isAuthError`: 401/403/422, "user not
+  found", "jwt" = real; "Failed to fetch", "Load failed" iOS, AbortError = transitorio) se
+  **mantiene la sesión cacheada** (`persistSession`). Solo se cierra sesión con red + error
+  de auth real. Ver [[Decisiones-Tecnicas-ADR|ADR-022]].
