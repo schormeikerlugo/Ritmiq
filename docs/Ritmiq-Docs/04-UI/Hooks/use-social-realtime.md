@@ -97,3 +97,8 @@ Crítico: si no se remueven los canales al cambiar `userId` (logout), el canal d
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-06-01 (**4º canal: jam_invites**, Bloque 3.6): `rt-social-jam-invites-<userId>`.
+  - INSERT `receiver_id=eq.<me>` → `loadJamInvites` + **toast accionable** "Unirse" (persistente,
+    `duration:0`) que hace `respondJamInvite(accept)` → `joinSession(code)` → abre el [[JamModal]].
+  - UPDATE `sender_id=eq.<me>` → si `status='rejected'`, toast "rechazó tu invitación".
+  Ver [[jam_invites]] y [[Decisiones-Tecnicas-ADR|ADR-025]].

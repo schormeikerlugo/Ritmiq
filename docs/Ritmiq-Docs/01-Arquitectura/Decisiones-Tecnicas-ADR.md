@@ -181,6 +181,17 @@ Cada decisión sigue el formato:
 - **Sync tolerante (anti-cortes)**: el guest sin la canción descargada va por detrás por buffering; el umbral de seek de 1.5s provocaba seeks duros en cadena (cortes). Recalibrado a "sync tolerante": seek duro solo con drift ≥ 4s y fuera de un periodo de gracia de 6s tras cambiar de track; el resto se corrige con `playbackRate` ±4%. Acepta 2-4s de desfase a cambio de reproducción fluida. Es lo realista sin streaming de audio real (cada cliente reproduce desde su propia red).
 - **Sugerir auto-encola**: "Sugerir a la jam" inserta en `jam_queue` con `played_at=null` (pendiente) — es una propuesta para que el host la apruebe/reproduzca, nunca reproducción automática. Disponible en [[PlaylistView]] y [[NowPlaying]] (canción actual). Otras vistas de track no tienen menú propio todavía.
 
+## ADR-025 — Invitaciones de Jam via Amigos (tabla `jam_invites` + edge functions + push)
+
+- **Contexto**: para hacer el Jam más social se quiso invitar a un amigo desde la sección Amigos, con notificación de unirse; si acepta se une, si rechaza el host es avisado. No había tabla de invitaciones ni functions de jam (el jam era 100% client-side).
+- **Decisión**:
+  1. **Modelo "al invitar"**: el host ya creó la jam (es host); la invitación lleva el `code`. Reutiliza `createSession`/`joinSession` sin lógica server-side de creación atómica. Si nadie acepta, la jam vacía se limpia con el cron de 24h.
+  2. **Tabla [[jam_invites]]** (calcada de `shared_items`): `sender/receiver/session_id/code/status`. RLS por-usuario (insert exige amistad `accepted`); Realtime.
+  3. **Edge functions** [[send-jam-invite]] (valida amistad + host + dedupe + push) y [[respond-jam-invite]] (accept devuelve `code`; **reject** push al host — antes ningún flujo notificaba el rechazo). Consistente con `send-share`/`respond-friend-request`.
+  4. **Recepción multi-canal**: toast accionable "Unirse" (app abierta, [[use-social-realtime]] 4º canal) + push (app cerrada) + tarjeta en la pestaña Solicitudes de [[FriendsView]]. El badge social suma las invitaciones pendientes.
+  5. **UI**: botón "Invitar" en cada fila de amigo solo si el usuario es host de una jam activa.
+- **Consecuencias**: flujo social completo reutilizando toda la infraestructura existente (friendships, push, realtime, badges). El SELECT de `jam_invites` está restringido a participantes (a diferencia de las otras tablas jam con SELECT abierto). El consumidor del `?openTab=`/`push-click` del SW sigue sin estar cableado en el cliente (deep-routing desde el click del push), pendiente como mejora. Verificado: builds verdes + Playwright (pestaña Solicitudes con invitaciones + botón Invitar en Amigos). Falta validación funcional con 2 cuentas reales (invitar → push/toast → aceptar/rechazar).
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

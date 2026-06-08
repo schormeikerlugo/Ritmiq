@@ -162,6 +162,11 @@ Cola colaborativa del Jam ([[jam_queue]]): los participantes sugieren canciones 
 con avatar+nombre; el host aprueba/reproduce. UI contextual en [[QueuePanel]]. El guest pierde
 los controles de transporte mientras la jam está activa.
 
+### ADR nuevo (025)
+
+Invitaciones de Jam via Amigos ([[jam_invites]] + [[send-jam-invite]]/[[respond-jam-invite]]):
+invitar a un amigo desde Amigos → toast/push/tarjeta → aceptar se une, rechazar avisa al host.
+
 ## Cómo usar este vault
 
 1. **Para entender una función concreta**: abrí su nota (ej. `04-UI/Stores-Zustand/library.md`). Cada nota tiene la firma, sus dependencias entrantes/salientes, snippets comentados, casos de borde, y matriz "qué puede romper este cambio".

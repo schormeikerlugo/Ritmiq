@@ -15,6 +15,8 @@ import { useSocialStore } from '../../stores/social.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { useViewStore } from '../../stores/view.js';
 import { usePlayerStore } from '../../stores/player.js';
+import { useJamStore } from '../../stores/jam.js';
+import { toast } from '../../stores/toast.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { EmptyState } from '../primitives/index.js';
 import { TrackRowSkeleton } from '../Skeleton/index.js';
@@ -28,22 +30,24 @@ export function FriendsView() {
 
   const incomingCount = useSocialStore((s) => s.incomingRequests.length);
   const unreadInbox   = useSocialStore((s) => s.inbox.filter((i) => !i.readAt).length);
+  const jamInviteCount = useSocialStore((s) => s.jamInvites.length);
 
   // Cargar datos al montar
   useEffect(() => {
     if (!user) return;
-    const { loadProfile, loadFriends, loadRequests, loadInbox, loadFriendsPresence } =
+    const { loadProfile, loadFriends, loadRequests, loadInbox, loadFriendsPresence, loadJamInvites } =
       useSocialStore.getState();
     loadProfile(user.id);
     loadFriends(user.id);
     loadRequests(user.id);
     loadInbox(user.id);
+    loadJamInvites(user.id);
     loadFriendsPresence();
   }, [user]);
 
   const tabs = [
     { id: 'friends',  label: 'Amigos',     icon: 'Users' },
-    { id: 'requests', label: 'Solicitudes', icon: 'UserPlus',  badge: incomingCount },
+    { id: 'requests', label: 'Solicitudes', icon: 'UserPlus',  badge: incomingCount + jamInviteCount },
     { id: 'search',   label: 'Buscar',      icon: 'Search' },
     { id: 'inbox',    label: 'Compartido',  icon: 'Inbox',     badge: unreadInbox },
   ];
@@ -90,6 +94,24 @@ function FriendsTab() {
   const friendsLoading = useSocialStore((s) => s.friendsLoading);
   const presence       = useSocialStore((s) => s.friendsPresence);
   const goProfile      = useViewStore((s) => s.goProfile);
+  // Invitar a jam: solo disponible si el usuario es HOST de una jam activa.
+  const jamMode    = useJamStore((s) => s.mode);
+  const jamSession = useJamStore((s) => s.session);
+  const canInvite  = jamMode === 'hosting' && !!jamSession;
+  const [inviting, setInviting] = useState(null);
+
+  const inviteToJam = async (friend) => {
+    if (!jamSession) return;
+    setInviting(friend.userId);
+    try {
+      await useSocialStore.getState().sendJamInvite(friend.userId, jamSession.id);
+      toast.success(`Invitación enviada a ${friend.displayName ?? '@' + friend.username}`);
+    } catch (e) {
+      toast.error(String(e?.message ?? e));
+    } finally {
+      setInviting(null);
+    }
+  };
 
   if (friendsLoading) return <TrackRowSkeleton count={5} />;
   if (friends.length === 0) {
@@ -125,7 +147,20 @@ function FriendsTab() {
                 </div>
               )}
             </div>
-            <Icon name="ChevronRight" size={16} className={styles.chevron} />
+            {canInvite ? (
+              <button
+                className={styles.inviteJamBtn}
+                disabled={inviting === f.userId}
+                onClick={(e) => { e.stopPropagation(); inviteToJam(f); }}
+                aria-label={`Invitar a ${f.displayName ?? f.username} a la jam`}
+                title="Invitar a la jam"
+              >
+                <Icon name="Radio" size={14} />
+                {inviting === f.userId ? '...' : 'Invitar'}
+              </button>
+            ) : (
+              <Icon name="ChevronRight" size={16} className={styles.chevron} />
+            )}
           </li>
         );
       })}
@@ -139,7 +174,9 @@ function RequestsTab() {
   const incoming        = useSocialStore((s) => s.incomingRequests);
   const outgoing        = useSocialStore((s) => s.outgoingRequests);
   const requestsLoading = useSocialStore((s) => s.requestsLoading);
+  const jamInvites      = useSocialStore((s) => s.jamInvites);
   const [responding, setResponding] = useState(null);
+  const [respondingJam, setRespondingJam] = useState(null);
 
   async function respond(friendshipId, action) {
     setResponding(friendshipId);
@@ -152,10 +189,64 @@ function RequestsTab() {
     }
   }
 
+  async function respondJam(inviteId, action) {
+    setRespondingJam(inviteId);
+    try {
+      const { code } = await useSocialStore.getState().respondJamInvite(inviteId, action);
+      if (action === 'accept' && code) {
+        await useJamStore.getState().joinSession(code);
+        useJamStore.getState().openJamModal();
+        toast.success('Te uniste a la jam');
+      }
+    } catch (e) {
+      toast.error(String(e?.message ?? e));
+    } finally {
+      setRespondingJam(null);
+    }
+  }
+
   if (requestsLoading) return <TrackRowSkeleton count={3} />;
+
+  const isEmpty = incoming.length === 0 && outgoing.length === 0 && jamInvites.length === 0;
 
   return (
     <div className={styles.requestsSection}>
+      {jamInvites.length > 0 && (
+        <section>
+          <h2 className={styles.sectionTitle}>
+            <Icon name="Radio" size={14} /> Invitaciones a jam ({jamInvites.length})
+          </h2>
+          <ul className={styles.list}>
+            {jamInvites.map((inv) => (
+              <li key={inv.id} className={styles.requestRow}>
+                <Avatar user={inv} />
+                <div className={styles.friendInfo}>
+                  <span className={styles.displayName}>{inv.displayName ?? inv.username}</span>
+                  <span className={styles.username}>te invitó a una jam</span>
+                </div>
+                <div className={styles.requestActions}>
+                  <button
+                    className={styles.btnAccept}
+                    disabled={respondingJam === inv.id}
+                    onClick={() => respondJam(inv.id, 'accept')}
+                  >
+                    {respondingJam === inv.id ? '...' : 'Unirse'}
+                  </button>
+                  <button
+                    className={styles.btnReject}
+                    disabled={respondingJam === inv.id}
+                    onClick={() => respondJam(inv.id, 'reject')}
+                    aria-label="Rechazar invitación"
+                  >
+                    <Icon name="X" size={14} />
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {incoming.length > 0 && (
         <section>
           <h2 className={styles.sectionTitle}>Recibidas ({incoming.length})</h2>
@@ -207,7 +298,7 @@ function RequestsTab() {
         </section>
       )}
 
-      {incoming.length === 0 && outgoing.length === 0 && (
+      {isEmpty && (
         <EmptyState icon="UserPlus" title="No hay solicitudes pendientes" />
       )}
     </div>

@@ -376,6 +376,9 @@ export function App() {
       // entraba a Amigos, profile quedaba null y el dialog de editar
       // perfil no funcionaba.
       useSocialStore.getState().loadProfile(user.id);
+      // Invitaciones de jam pendientes — para el badge y la pestana
+      // Solicitudes desde el arranque (el realtime las refresca al llegar).
+      useSocialStore.getState().loadJamInvites(user.id);
     } else {
       resetLibrary();
       resetPlaylists();

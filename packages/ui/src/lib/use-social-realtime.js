@@ -26,6 +26,8 @@
 import { useEffect } from 'react';
 import { supabase } from './supabase.js';
 import { useSocialStore } from '../stores/social.js';
+import { useJamStore } from '../stores/jam.js';
+import { toast } from '../stores/toast.js';
 
 // Cada cuanto barrer el Map de presencia para descartar entradas expiradas
 // (TTL 2min server-side, pero el server solo limpia su tabla cada 5min via
@@ -108,11 +110,55 @@ export function useSocialRealtime(userId) {
         })
       .subscribe();
 
+    // ── Canal 4: jam_invites ──────────────────────────────────────
+    // INSERT donde soy el receptor: nueva invitacion a una jam. Recargo
+    // la lista (para la pestana Solicitudes + badge) y muestro un toast
+    // accionable para unirse al instante si la app esta abierta.
+    // UPDATE donde soy el sender: la invitacion fue aceptada/rechazada
+    // (el push ya avisa con la app cerrada; el toast es para la app abierta).
+    const jamInvitesCh = supabase
+      .channel(`rt-social-jam-invites-${userId}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'jam_invites', filter: `receiver_id=eq.${userId}` },
+        async () => {
+          await useSocialStore.getState().loadJamInvites(userId);
+          // Tomar la invitacion mas reciente para el toast accionable.
+          const latest = useSocialStore.getState().jamInvites[0];
+          if (!latest) return;
+          const who = latest.displayName || (latest.username ? '@' + latest.username : 'Un amigo');
+          toast.info(`${who} te invitó a una jam`, {
+            duration: 0,
+            action: {
+              label: 'Unirse',
+              onClick: () => {
+                useSocialStore.getState()
+                  .respondJamInvite(latest.id, 'accept')
+                  .then(({ code }) => {
+                    if (code) return useJamStore.getState().joinSession(code);
+                  })
+                  .then(() => { useJamStore.getState().openJamModal(); })
+                  .catch((e) => toast.error(String(e?.message ?? e)));
+              },
+            },
+          });
+        })
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'jam_invites', filter: `sender_id=eq.${userId}` },
+        (payload) => {
+          const row = payload.new;
+          if (!row) return;
+          if (row.status === 'rejected') {
+            toast.info('Un amigo rechazó tu invitación a la jam');
+          }
+        })
+      .subscribe();
+
     return () => {
       clearInterval(sweepTimer);
       try { supabase.removeChannel(presenceCh); } catch {}
       try { supabase.removeChannel(friendshipsCh); } catch {}
       try { supabase.removeChannel(sharedCh); } catch {}
+      try { supabase.removeChannel(jamInvitesCh); } catch {}
     };
   }, [userId]);
 }

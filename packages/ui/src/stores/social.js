@@ -51,9 +51,17 @@ export const useSocialStore = create((set, get) => ({
   /** @type {Map<string, PresenceEntry>} presencia activa por userId */
   friendsPresence: new Map(),
 
-  /** Conteo de solicitudes + inbox no leidos para badge en UI */
+  /**
+   * Invitaciones de jam entrantes pendientes (Bloque 3.6).
+   * @type {Array<{ id:string, code:string, senderId:string, username:string, displayName:string|null, avatarUrl:string|null, createdAt:string }>}
+   */
+  jamInvites: [],
+
+  /** Conteo de solicitudes + inbox no leidos + invitaciones de jam para badge en UI */
   get pendingCount() {
-    return get().incomingRequests.length + get().inbox.filter((i) => !i.readAt).length;
+    return get().incomingRequests.length
+      + get().inbox.filter((i) => !i.readAt).length
+      + get().jamInvites.length;
   },
 
   // ── Perfil propio ──────────────────────────────────────────────────
@@ -369,6 +377,80 @@ export const useSocialStore = create((set, get) => ({
     return res.data;
   },
 
+  // ── Invitaciones de jam (Bloque 3.6) ───────────────────────────────
+
+  /**
+   * Carga las invitaciones de jam pendientes recibidas + resuelve el perfil
+   * del que invita (para mostrar avatar/nombre).
+   */
+  async loadJamInvites(userId) {
+    if (!userId) return;
+    const { data: rows } = await supabase
+      .from('jam_invites')
+      .select('id, code, sender_id, created_at')
+      .eq('receiver_id', userId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (!rows || rows.length === 0) {
+      set({ jamInvites: [] });
+      return;
+    }
+
+    const senderIds = [...new Set(rows.map((r) => r.sender_id))];
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, username, display_name, avatar_url')
+      .in('user_id', senderIds);
+    const pmap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
+
+    set({
+      jamInvites: rows.map((r) => {
+        const p = pmap.get(r.sender_id);
+        return {
+          id:          r.id,
+          code:        r.code,
+          senderId:    r.sender_id,
+          username:    p?.username ?? '',
+          displayName: p?.display_name ?? null,
+          avatarUrl:   p?.avatar_url ?? null,
+          createdAt:   r.created_at,
+        };
+      }),
+    });
+  },
+
+  /**
+   * Invita a un amigo a la jam actual (el caller debe ser host). Via Edge
+   * Function (valida amistad + host + push al receptor).
+   * @param {string} receiverId user_id del amigo
+   * @param {string} sessionId id de la jam_sessions
+   */
+  async sendJamInvite(receiverId, sessionId) {
+    const res = await supabase.functions.invoke('send-jam-invite', {
+      body: { receiverId, sessionId },
+    });
+    if (res.error) throw new Error(res.error.message);
+    return res.data;
+  },
+
+  /**
+   * Responde una invitacion de jam. En accept devuelve el code para que el
+   * caller haga joinSession. Actualiza el estado local optimisticamente.
+   * @param {string} inviteId
+   * @param {'accept'|'reject'} action
+   * @returns {Promise<{ code: string|null }>}
+   */
+  async respondJamInvite(inviteId, action) {
+    const invite = get().jamInvites.find((i) => i.id === inviteId);
+    const res = await supabase.functions.invoke('respond-jam-invite', {
+      body: { inviteId, action },
+    });
+    if (res.error) throw new Error(res.error.message);
+    set((s) => ({ jamInvites: s.jamInvites.filter((i) => i.id !== inviteId) }));
+    return { code: action === 'accept' ? (res.data?.invite?.code ?? invite?.code ?? null) : null };
+  },
+
   /** Elimina una amistad existente */
   async removeFriend(friendId) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -514,6 +596,7 @@ export const useSocialStore = create((set, get) => ({
       incomingRequests: [],
       outgoingRequests: [],
       inbox: [],
+      jamInvites: [],
       friendsPresence: new Map(),
       profileLoading: false,
       friendsLoading: false,

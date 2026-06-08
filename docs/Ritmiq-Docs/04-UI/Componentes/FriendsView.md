@@ -56,3 +56,12 @@ Cuando el usuario está en esta vista, [[use-badge]] recibe `autoClearOnViewing=
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-06-01 (**invitar a jam**, Bloque 3.6):
+  - **FriendsTab**: botón "Invitar" (pill accent, icono `Radio`) en cada fila, visible solo si el
+    usuario es **host** de una jam activa (`jamMode==='hosting'`). `e.stopPropagation()` para no
+    abrir el perfil. Llama `sendJamInvite(friend.userId, session.id)`.
+  - **RequestsTab**: nueva sección "Invitaciones a jam" (icono `Radio`) con tarjetas avatar +
+    "te invitó a una jam" + botones "Unirse"/X (`respondJamInvite`; en accept hace `joinSession`
+    + abre [[JamModal]]). El badge de la pestaña Solicitudes suma `incomingRequests + jamInvites`.
+  - Carga `loadJamInvites` al montar. Ver [[jam_invites]], [[social|store social]],
+    [[Decisiones-Tecnicas-ADR|ADR-025]].

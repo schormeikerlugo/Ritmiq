@@ -89,6 +89,9 @@ self.addEventListener('notificationclick', (event) => {
     url = '/?openTab=inbox';
   } else if (data.type === 'friend_request' || data.type === 'friend_accepted') {
     url = '/?openTab=requests';
+  } else if (data.type === 'jam_invite' || data.type === 'jam_invite_rejected') {
+    // La invitacion de jam se gestiona en la pestana Solicitudes de Amigos.
+    url = '/?openTab=requests';
   }
 
   // Limpiar badge al interactuar — el usuario va a leer.
@@ -137,6 +140,15 @@ function buildActions(type) {
   }
   if (type === 'friend_accepted') {
     return [{ action: 'open', title: 'Ver perfil' }];
+  }
+  if (type === 'jam_invite') {
+    return [
+      { action: 'open',    title: 'Ver' },
+      { action: 'dismiss', title: 'Ahora no' },
+    ];
+  }
+  if (type === 'jam_invite_rejected') {
+    return [{ action: 'open', title: 'Ver' }];
   }
   return [];
 }

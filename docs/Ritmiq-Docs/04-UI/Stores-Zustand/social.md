@@ -215,3 +215,9 @@ En total, un `load completo del sistema social` = ~7-10 queries Supabase. No hay
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-06-01 (**invitaciones de jam**, Bloque 3.6): estado nuevo `jamInvites[]`; `pendingCount`
+  ahora suma las invitaciones. Acciones: `loadJamInvites(userId)` (fetch pendientes + perfiles
+  de quien invita), `sendJamInvite(receiverId, sessionId)` (edge [[send-jam-invite]]),
+  `respondJamInvite(inviteId, action)` (edge [[respond-jam-invite]]; en accept devuelve `{code}`
+  para `joinSession`). `reset()` limpia `jamInvites`. Ver [[jam_invites]] y
+  [[Decisiones-Tecnicas-ADR|ADR-025]].

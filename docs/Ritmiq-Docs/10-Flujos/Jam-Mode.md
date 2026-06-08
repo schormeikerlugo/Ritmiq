@@ -115,6 +115,19 @@ y fuera de un periodo de gracia de 6s tras cambiar de track; el resto se corrige
 `playbackRate` (±4%, inaudible). Acepta 2-4s de desfase a cambio de reproducción fluida sin
 saltos. Ver [[use-jam-sync]].
 
+## Invitar amigos a la jam (Bloque 3.6)
+
+Desde **Amigos**, si eres host de una jam activa, cada amigo tiene un botón "Invitar". Modelo
+"al invitar": la jam ya existe (eres host); la invitación lleva su `code`. El amigo recibe:
+1. **Toast accionable** "Unirse" si tiene la app abierta ([[use-social-realtime]] 4º canal).
+2. **Push** si la tiene cerrada ([[send-jam-invite]], `type='jam_invite'`).
+3. Una **tarjeta** en su pestaña Solicitudes ([[FriendsView]]).
+
+Si **acepta** → [[respond-jam-invite]] devuelve el `code` → `joinSession(code)` → entra a la jam.
+Si **rechaza** → push al host (`type='jam_invite_rejected'`) + toast si está abierto. Tabla
+[[jam_invites]], edge functions [[send-jam-invite]]/[[respond-jam-invite]]. Ver
+[[Decisiones-Tecnicas-ADR|ADR-025]].
+
 ## Gotchas conocidos
 
 - **SELECT abierto**: la RLS de [[jam_sessions]] es `using (true)` → conociendo un código se
