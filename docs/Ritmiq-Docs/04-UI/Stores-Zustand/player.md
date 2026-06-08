@@ -168,3 +168,9 @@ El store es síncrono (Zustand). La única operación costosa es `queue.slice()`
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-05-31 (**fix sync Jam**): el store ahora se crea con el middleware
+  `subscribeWithSelector` (`create(subscribeWithSelector((set,get)=>({...})))`). Habilita la
+  firma `subscribe(selector, listener)` que usan [[use-jam-sync]] y [[use-presence]]. Sin él,
+  zustand 5 ignoraba el listener y el host del Jam nunca propagaba el track. Ver
+  [[Decisiones-Tecnicas-ADR|ADR-023]]. ⚠️ No quitar el middleware: rompe el broadcast del Jam
+  y la presencia.

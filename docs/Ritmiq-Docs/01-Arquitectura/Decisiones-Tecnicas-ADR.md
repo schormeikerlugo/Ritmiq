@@ -159,6 +159,12 @@ Cada decisión sigue el formato:
   4. `requestPersistOnce()` (storage.persist) ahora se exporta y se llama **al login** (no solo al descargar) para reducir el riesgo de eviction del SO sobre IndexedDB.
 - **Consecuencias**: reabrir la PWA offline mantiene la sesión y las descargas visibles/reproducibles. El caso legítimo de "usuario borrado" sigue cerrando sesión, pero **solo con red** y error de auth real. `isAuthError` es conservador (default = transitorio) para no volver a expulsar al usuario por un error ambiguo. Verificado con tabla de 8 casos (red vs auth). No se pudo automatizar el flujo completo offline+reabrir (requiere device); validación manual recomendada con DevTools en modo offline.
 
+## ADR-023 — `subscribeWithSelector` en el player store (fix sync del Jam)
+
+- **Contexto**: en un Jam, los guests no reproducían la misma canción que el host. Causa raíz: [[use-jam-sync]] (host) detecta cambios del player con `usePlayerStore.subscribe((s) => s.currentTrack?.id, (id) => hostBroadcast(...))` — la firma `subscribe(selector, listener)`. Esa firma **solo existe con el middleware `subscribeWithSelector`**; el store ([[player|store player]]) usaba `create()` puro. En **zustand 5**, el vanilla `subscribe` acepta únicamente `subscribe(listener)`: el primer argumento (el selector) se registró como listener (recibe `(state, prev)`) y el callback real de broadcast **nunca se ejecutó**. Resultado: el host nunca propagaba `current_track` ni `is_playing` → los guests no recibían nada. ([[use-presence]] tenía el mismo error latente.)
+- **Decisión**: envolver el store con `subscribeWithSelector` (`create(subscribeWithSelector((set,get)=>({...})))`) en vez de reescribir los subscribes a la firma vanilla. Es aditivo, no cambia la API para los componentes (que usan el hook con selector, soportado nativamente) y arregla de paso `use-presence`.
+- **Consecuencias**: `subscribe(selector, cb)` ahora dispara `cb` **solo** cuando el valor seleccionado cambia (verificado: cambio de posición no dispara, cambio de track sí, con el id correcto). El host del Jam propaga track/play/pausa y los guests sincronizan. Riesgo bajo: el middleware no afecta el resto del store. Verificación funcional con un test del store en Node (no e2e con 2 clientes Realtime).
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

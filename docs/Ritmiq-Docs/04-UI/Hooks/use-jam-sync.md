@@ -95,3 +95,8 @@ if (!sameTrack) {
 
 ## Notas / Changelog
 - 2026-05-29: nota creada (F12, doc retroactiva de Fase 8.3). Anotada mejora de drift (Bloque 3.1).
+- 2026-05-31 (**fix crítico**): el host no propagaba el track → los guests no reproducían la
+  misma canción. Los `usePlayerStore.subscribe((s)=>s.x, cb)` de este hook requieren el
+  middleware `subscribeWithSelector`, que faltaba en [[player|store player]]; en zustand 5 el
+  `cb` nunca corría. Se añadió el middleware al store (sin tocar este hook). Ver
+  [[Decisiones-Tecnicas-ADR|ADR-023]].

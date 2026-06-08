@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
 
 /**
  * @typedef {import('@ritmiq/core/types').Track} Track
@@ -19,7 +20,12 @@ import { create } from 'zustand';
  * - next() / prev()
  */
 
-export const usePlayerStore = create((set, get) => ({
+// `subscribeWithSelector` habilita la firma `subscribe(selector, listener)`
+// usada por use-jam-sync (broadcast del host) y use-presence. Sin este
+// middleware, zustand 5 trata el selector como listener y el callback real
+// nunca corre — bug que hacia que el host del Jam NUNCA propagara el track.
+// Ver ADR sync-jam.
+export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
   /** @type {Track|null} */
   currentTrack: null,
   /** @type {Track[]} */
@@ -227,4 +233,4 @@ export const usePlayerStore = create((set, get) => ({
     set((s) => ({
       repeat: s.repeat === 'off' ? 'all' : s.repeat === 'all' ? 'one' : 'off',
     })),
-}));
+})));
