@@ -100,3 +100,13 @@ if (!sameTrack) {
   middleware `subscribeWithSelector`, que faltaba en [[player|store player]]; en zustand 5 el
   `cb` nunca corría. Se añadió el middleware al store (sin tocar este hook). Ver
   [[Decisiones-Tecnicas-ADR|ADR-023]].
+- 2026-05-31 (**guest read-only + anti-cortes**, Bloque 3.5):
+  - **Enforcement central**: en `mode==='guest'` el hook suscribe al player store y **revierte**
+    al instante cualquier `isPlaying`/`currentTrack` que no coincida con el estado del host
+    (`jamStateRef`). Cubre todas las vías (MediaSession lockscreen/auriculares, atajos de
+    teclado, clic en otra canción), no solo los botones deshabilitados de la UI. Verificado
+    con test del store (pause y cambio de track se revierten).
+  - **Sync tolerante** (menos cortes cuando el guest no tiene la canción descargada y va por
+    detrás por buffering): umbral de seek duro subido `1.5s → 4s`; rate de catch-up `±2% → ±4%`;
+    **periodo de gracia** de 6s tras cambiar de track durante el cual NO se hace seek (solo
+    velocidad), dejando que el stream se estabilice. Ver [[Decisiones-Tecnicas-ADR|ADR-024]].

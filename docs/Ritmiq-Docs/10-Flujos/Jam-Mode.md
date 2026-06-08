@@ -101,8 +101,19 @@ sugerencia muestra **avatar + nombre** de quien la propuso. El **host** decide q
 el orden y puede quitar cualquiera; el **guest** ve la lista y solo quita sus sugerencias no
 reproducidas. La UI reutiliza el [[QueuePanel]]: con jam activa ese panel pasa a ser la "Cola
 del Jam"; sin jam vuelve a ser la cola normal. Se sugiere con "Sugerir a la jam" en el menú de
-track ([[PlaylistView]]). Mientras la jam está activa, el **guest no puede usar los controles
-de transporte** del [[Player]] (el host controla). Ver [[Decisiones-Tecnicas-ADR|ADR-024]].
+track ([[PlaylistView]] y [[NowPlaying]]) — encola automáticamente para aprobación del host.
+Mientras la jam está activa, el **guest no puede usar los controles de transporte** del
+[[Player]]/[[NowPlaying]] (el host controla); además [[use-jam-sync]] **revierte centralmente**
+cualquier pause/cambio que se cuele por MediaSession, teclado o clic. Ver
+[[Decisiones-Tecnicas-ADR|ADR-024]].
+
+### Anti-cortes en el guest (Bloque 3.5)
+
+Cuando el guest **no tiene la canción descargada**, resuelve el stream desde su red y va por
+detrás (buffering). El sync es **tolerante**: seek duro solo si el drift supera 4s (antes 1.5s)
+y fuera de un periodo de gracia de 6s tras cambiar de track; el resto se corrige con
+`playbackRate` (±4%, inaudible). Acepta 2-4s de desfase a cambio de reproducción fluida sin
+saltos. Ver [[use-jam-sync]].
 
 ## Gotchas conocidos
 

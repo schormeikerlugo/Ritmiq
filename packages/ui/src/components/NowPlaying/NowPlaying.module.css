@@ -302,6 +302,23 @@
   margin-top: var(--space-5);
   padding: 0 var(--space-2);
 }
+
+/* Jam guest: hint + controles de transporte deshabilitados. */
+.jamGuestHint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: var(--space-4) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.controls[data-jam-guest] button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 .ctrlBtn {
   width: 48px;
   height: 48px;

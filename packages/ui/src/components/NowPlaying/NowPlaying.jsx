@@ -9,6 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePlayerStore } from '../../stores/player.js';
+import { useJamStore } from '../../stores/jam.js';
 import { toast } from '../../stores/toast.js';
 import { useViewStore } from '../../stores/view.js';
 import { useLibraryStore } from '../../stores/library.js';
@@ -75,6 +76,12 @@ export function NowPlaying() {
 
   const radioMode = usePlayerStore((s) => s.radioMode);
   const startRadio = usePlayerStore((s) => s.startRadio);
+  // En una jam como GUEST el host controla la reproduccion: deshabilitamos
+  // los controles de transporte (el guard central de use-jam-sync ademas
+  // revierte cualquier cambio que se cuele por otra via).
+  const jamMode = useJamStore((s) => s.mode);
+  const suggestTrackToJam = useJamStore((s) => s.suggestTrack);
+  const isJamGuest = jamMode === 'guest';
 
   // Mantener la pantalla encendida solo cuando NowPlaying esta abierto
   // Y hay reproduccion activa. El cover gigante + el scrubber + los
@@ -342,6 +349,16 @@ export function NowPlaying() {
           onClick: () => startRadio(),
           disabled: !currentTrack?.artist,
         },
+    ...(jamMode !== 'idle' && currentTrack ? [{
+      id: 'jam-suggest',
+      label: 'Sugerir a la jam',
+      icon: <Icon name="Radio" size={16} />,
+      onClick: () => {
+        suggestTrackToJam(currentTrack)
+          .then(() => toast.success('Sugerida a la jam'))
+          .catch((e) => toast.error(String(e?.message ?? e)));
+      },
+    }] : []),
     {
       id: 'jam-mode',
       label: 'Jam con amigos',
@@ -449,7 +466,7 @@ export function NowPlaying() {
           onMouseUp={onScrubCommit}
           onTouchEnd={onScrubCommit}
           onKeyUp={onScrubCommit}
-          disabled={!dur}
+          disabled={!dur || isJamGuest}
           aria-label="Posición de la canción"
           className={styles.scrubInput}
           style={{ '--pct': `${dur ? (displayPos / dur) * 100 : 0}%` }}
@@ -460,32 +477,51 @@ export function NowPlaying() {
         </div>
       </div>
 
-      <div className={styles.controls}>
+      {isJamGuest && (
+        <p className={styles.jamGuestHint}>
+          <Icon name="Radio" size={14} /> El host controla la reproducción
+        </p>
+      )}
+
+      <div className={styles.controls} data-jam-guest={isJamGuest || undefined}>
         <button
           className={styles.ctrlBtn}
           data-active={shuffle}
           onClick={toggleShuffle}
+          disabled={isJamGuest}
           aria-label="Aleatorio"
         >
           <Icon name="Shuffle" size={22} />
         </button>
-        <button className={styles.ctrlBtn} onClick={prev} aria-label="Anterior">
+        <button
+          className={styles.ctrlBtn}
+          onClick={prev}
+          disabled={isJamGuest}
+          aria-label="Anterior"
+        >
           <Icon name="SkipBack" size={32} filled />
         </button>
         <button
           className={styles.playBtn}
           onClick={togglePlay}
+          disabled={isJamGuest}
           aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
         >
           <Icon name={isPlaying ? 'Pause' : 'Play'} size={28} filled />
         </button>
-        <button className={styles.ctrlBtn} onClick={next} aria-label="Siguiente">
+        <button
+          className={styles.ctrlBtn}
+          onClick={next}
+          disabled={isJamGuest}
+          aria-label="Siguiente"
+        >
           <Icon name="SkipForward" size={32} filled />
         </button>
         <button
           className={styles.ctrlBtn}
           data-active={repeat !== 'off'}
           onClick={cycleRepeat}
+          disabled={isJamGuest}
           aria-label="Repetir"
         >
           <Icon name={repeat === 'one' ? 'Repeat1' : 'Repeat'} size={22} />
