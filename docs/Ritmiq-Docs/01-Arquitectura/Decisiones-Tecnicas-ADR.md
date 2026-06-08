@@ -165,6 +165,16 @@ Cada decisión sigue el formato:
 - **Decisión**: envolver el store con `subscribeWithSelector` (`create(subscribeWithSelector((set,get)=>({...})))`) en vez de reescribir los subscribes a la firma vanilla. Es aditivo, no cambia la API para los componentes (que usan el hook con selector, soportado nativamente) y arregla de paso `use-presence`.
 - **Consecuencias**: `subscribe(selector, cb)` ahora dispara `cb` **solo** cuando el valor seleccionado cambia (verificado: cambio de posición no dispara, cambio de track sí, con el id correcto). El host del Jam propaga track/play/pausa y los guests sincronizan. Riesgo bajo: el middleware no afecta el resto del store. Verificación funcional con un test del store en Node (no e2e con 2 clientes Realtime).
 
+## ADR-024 — Cola colaborativa del Jam (tabla `jam_queue`, modelo "host aprueba")
+
+- **Contexto**: en un Jam no había forma de que los amigos propusieran qué sonar; tampoco se veía quién sugería qué. La RLS de [[jam_sessions]] UPDATE es solo-host, así que los guests no podían escribir la cola existente (`jam_sessions.queue`).
+- **Decisión**:
+  1. **Tabla nueva [[jam_queue]]** (no reusar `jam_sessions.queue`): `(id, session_id, suggested_by, track jsonb, position, played_at)`. RLS por-usuario (patrón [[jam_participants]]): participantes INSERT sus filas; host UPDATE (orden/played) y DELETE; el autor DELETE su sugerencia no reproducida. Evita la concurrencia frágil de pisar un array JSONB y permite identificar al sugeridor de forma robusta.
+  2. **Modelo "host aprueba"**: las sugerencias son **propuestas**, no reproducción automática FIFO. El host reproduce con `playSuggestion` (marca `played_at` + `playNow` local → se propaga por [[use-jam-sync]]). Mantiene el modelo "host controla" ya establecido (ADR-019).
+  3. **UI contextual en [[QueuePanel]]**: el mismo botón/panel de cola se transforma según `jam.mode` (cola local ↔ cola del Jam). Una sola entrada, sin panel nuevo. Cada fila lleva avatar + nombre del sugeridor (resuelto de `profiles`, cacheado en `profilesById`).
+  4. **Guest sin controles de transporte**: mientras la jam está activa, el guest no puede play/pausa/seek/next/prev en el [[Player]] (el host manda); conserva volumen/letra/panel.
+- **Consecuencias**: experiencia colaborativa sin romper el control del host ni el sync. El SELECT abierto de `jam_queue` (como las otras tablas jam) permite leer la cola conociendo el código — aceptable para uso familiar. Verificado: builds verdes + Playwright del panel jam (380px). Falta validación funcional con 2 cuentas reales (host+guest, Realtime). Punto de entrada "Sugerir a la jam" añadido por ahora solo en [[PlaylistView]]; extender a otras vistas de track queda pendiente.
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

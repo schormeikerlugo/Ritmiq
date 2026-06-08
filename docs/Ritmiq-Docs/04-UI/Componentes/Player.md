@@ -61,3 +61,8 @@ const [shareOpen, setShareOpen] = useState(false); // abre ShareToFriendModal
 - 2026-05-27 (Fase 3.4): modo compacto automático en viewports con `max-height: 720px` (laptops 13"). `--layout-player-h` baja de 88 a 60px; `.controls` cambia de flex column a row; timestamps ocultos; cover 56→40px. Commit `6c6ca11`.
 - 2026-05-27 (commit `270da70`): mini-player cover **revertido a `<img>` directo** (no usa [[CoverArt]] primitive) para mantener selector `.cover img` que rige el `vinyl-spin` animation cuando `data-spinning=true`.
 - 2026-05-29: en el bloque `.right` (visible solo en desktop) se añadieron dos botones de acceso rápido: **Letra** (icono `Music2`) → `onLyrics` (toggle in-situ si NowPlaying abierto, si no `openLyrics()` de [[view]]) y **Jam** (icono `Users`) → `openJamModal()` de [[jam|store jam]] (el [[JamModal]] se monta en [[App|App.jsx]]). En móvil `.right` está oculto; ahí Jam/Letra siguen en [[NowPlaying]].
+- 2026-05-31 (**jam guest lock**): si `useJamStore.mode === 'guest'`, los controles de transporte
+  (shuffle, anterior, play/pausa, siguiente, repeat y la barra de scrub) se **deshabilitan** —
+  en una jam el host controla la reproducción y el guest no debe pelear con el sync. Se muestra
+  un hint "El host controla la reproducción". El guest **sí** conserva volumen, letra y el panel
+  de cola del jam ([[QueuePanel]]). Ver flujo [[Jam-Mode]].

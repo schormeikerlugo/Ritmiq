@@ -37,6 +37,11 @@ export function Player() {
   const nowPlayingOpen = useViewStore((s) => s.nowPlayingOpen);
   const openJamModal = useJamStore((s) => s.openJamModal);
   const jamMode = useJamStore((s) => s.mode);
+  // En una jam como GUEST, el host controla la reproduccion: los controles
+  // de transporte locales (play/pausa/anterior/siguiente/scrub/shuffle/repeat)
+  // se deshabilitan para no pelear con el sync. El guest sigue pudiendo
+  // ajustar volumen, ver la letra y abrir el panel de la cola del jam.
+  const isJamGuest = jamMode === 'guest';
 
   const [saveOpen, setSaveOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -261,31 +266,49 @@ export function Player() {
         )}
       </div>
 
-      <div className={styles.controls}>
+      <div className={styles.controls} data-jam-guest={isJamGuest || undefined}>
+        {isJamGuest && (
+          <p className={styles.jamGuestHint}>
+            <Icon name="Radio" size={13} /> El host controla la reproducción
+          </p>
+        )}
         <div className={styles.buttons}>
           <button
             className={styles.iconBtn}
             data-active={shuffle}
             onClick={toggleShuffle}
+            disabled={isJamGuest}
             aria-label="Aleatorio"
           ><Icon name="Shuffle" size={18} /></button>
-          <button className={styles.iconBtn} onClick={prev} aria-label="Anterior">
+          <button
+            className={styles.iconBtn}
+            onClick={prev}
+            disabled={isJamGuest}
+            aria-label="Anterior"
+          >
             <Icon name="SkipBack" size={20} filled />
           </button>
           <button
             className={styles.playBtn}
             onClick={togglePlay}
+            disabled={isJamGuest}
             aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
           >
             <Icon name={isPlaying ? 'Pause' : 'Play'} size={18} filled />
           </button>
-          <button className={styles.iconBtn} onClick={next} aria-label="Siguiente">
+          <button
+            className={styles.iconBtn}
+            onClick={next}
+            disabled={isJamGuest}
+            aria-label="Siguiente"
+          >
             <Icon name="SkipForward" size={20} filled />
           </button>
           <button
             className={styles.iconBtn}
             data-active={repeat !== 'off'}
             onClick={cycleRepeat}
+            disabled={isJamGuest}
             aria-label="Repetir"
           ><Icon name={repeat === 'one' ? 'Repeat1' : 'Repeat'} size={18} /></button>
         </div>
@@ -301,13 +324,14 @@ export function Player() {
             aria-valuemax={durationSeconds || 0}
             aria-valuenow={Math.floor(effectivePos)}
             aria-valuetext={`${fmt(effectivePos)} de ${fmt(durationSeconds)}`}
-            aria-disabled={!currentTrack || !durationSeconds}
+            aria-disabled={!currentTrack || !durationSeconds || isJamGuest}
             data-scrubbing={scrubPos != null || undefined}
-            onPointerDown={onBarPointerDown}
-            onPointerMove={onBarPointerMove}
-            onPointerUp={onBarPointerEnd}
-            onPointerCancel={onBarPointerEnd}
-            onKeyDown={onBarKeyDown}
+            data-locked={isJamGuest || undefined}
+            onPointerDown={isJamGuest ? undefined : onBarPointerDown}
+            onPointerMove={isJamGuest ? undefined : onBarPointerMove}
+            onPointerUp={isJamGuest ? undefined : onBarPointerEnd}
+            onPointerCancel={isJamGuest ? undefined : onBarPointerEnd}
+            onKeyDown={isJamGuest ? undefined : onBarKeyDown}
           >
             <div className={styles.barFill} style={{ width: `${progress}%` }}>
               <span className={styles.barThumb} aria-hidden="true" />

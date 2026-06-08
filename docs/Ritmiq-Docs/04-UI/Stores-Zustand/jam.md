@@ -134,3 +134,11 @@ de `host_id` y recalcula el `mode` de **cada** cliente (el nuevo host pasa a `ho
   que `data` quedaba `undefined`. Corregido al patrón canónico del resto del repo:
   `const { data: { session: authSession } } = await supabase.auth.getSession(); const user = authSession?.user;`
   en `createSession`, `joinSession`, `leaveSession`, `_subscribe` (transfer host) y `_startHeartbeat`.
+- 2026-05-31 (**cola colaborativa**, Bloque 3.4): estado nuevo `suggestions[]` y `profilesById{}`.
+  Acciones `suggestTrack(track)` (INSERT en [[jam_queue]]), `removeSuggestion(id)`,
+  `reorderSuggestion(id,pos)` (host), `playSuggestion(id)` (host: marca `played_at` + aplica
+  el track al [[player|store player]] local, que se propaga por [[use-jam-sync]]). Internos:
+  `_resolveProfiles(ids)` (cachea avatar/nombre desde `profiles`), `_refreshSuggestions(sid)`
+  (re-fetch ordenado por `played_at nulls first, position`). Canal CDC nuevo
+  `jam-queue:<sessionId>` en `_subscribe`. `leaveSession`/`reset` limpian `suggestions` y
+  `profilesById`. Ver [[Decisiones-Tecnicas-ADR|ADR-024]].

@@ -14,6 +14,8 @@ import { usePlaylistsStore } from '../../stores/playlists.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
 import { useDownloadsStore } from '../../stores/downloads.js';
+import { useJamStore } from '../../stores/jam.js';
+import { toast } from '../../stores/toast.js';
 import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
 import { RenameDialog } from '../RenameDialog/RenameDialog.jsx';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
@@ -575,6 +577,8 @@ function PlaylistRow({
 }) {
   const playing = currentTrack?.id === track.id;
   const fav = actions.isFavorite(track.id);
+  // Si hay una jam activa, ofrecemos "Sugerir a la jam" en el menu.
+  const jamActive = useJamStore((s) => s.mode !== 'idle');
 
   const sortable = useSortable({ id: track.id, disabled: !draggable });
   const style = draggable ? {
@@ -586,6 +590,16 @@ function PlaylistRow({
   const trackMenu = [
     { id: 'next',  label: 'Reproducir a continuación', icon: <Icon name="CornerDownRight" size={16} />, onClick: () => actions.playNext(track) },
     { id: 'q',     label: 'Añadir a la cola',           icon: <Icon name="ListMusic" size={16} />, onClick: () => actions.enqueue(track) },
+    ...(jamActive ? [{
+      id: 'jam',
+      label: 'Sugerir a la jam',
+      icon: <Icon name="Radio" size={16} />,
+      onClick: () => {
+        useJamStore.getState().suggestTrack(track)
+          .then(() => toast.success('Sugerida a la jam'))
+          .catch((e) => toast.error(String(e?.message ?? e)));
+      },
+    }] : []),
     { separator: true },
     {
       id: 'fav',

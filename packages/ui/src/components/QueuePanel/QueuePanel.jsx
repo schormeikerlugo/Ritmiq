@@ -23,6 +23,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 import { usePlayerStore } from '../../stores/player.js';
+import { useJamStore } from '../../stores/jam.js';
+import { toast } from '../../stores/toast.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { EmptyState } from '../primitives/index.js';
 import styles from './QueuePanel.module.css';
@@ -36,6 +38,18 @@ function fmtDur(s) {
 
 /** @param {{ onClose: () => void }} props */
 export function QueuePanel({ onClose }) {
+  // Modo contextual: si hay una jam activa, este panel pasa a ser la cola
+  // colaborativa del Jam (sugerencias identificadas). Sin jam, es la cola
+  // de reproduccion normal.
+  const jamMode = useJamStore((s) => s.mode);
+  if (jamMode !== 'idle') {
+    return <JamQueueView onClose={onClose} />;
+  }
+  return <LocalQueueView onClose={onClose} />;
+}
+
+/** Cola de reproduccion local (comportamiento original, sin jam). */
+function LocalQueueView({ onClose }) {
   const queue = usePlayerStore((s) => s.queue);
   const index = usePlayerStore((s) => s.index);
   const moveQueueItem = usePlayerStore((s) => s.moveQueueItem);
@@ -282,6 +296,180 @@ function Row({ track, playing, muted, dragging, onClick, onRemove }) {
           className={styles.removeBtn}
           onClick={(e) => { e.stopPropagation(); onRemove(e); }}
           aria-label="Quitar de la cola"
+          title="Quitar"
+        ><Icon name="X" size={16} /></button>
+      )}
+    </div>
+  );
+}
+
+// ── Modo Jam: cola colaborativa de sugerencias ────────────────────────────
+
+/** Nombre visible de un perfil (display_name > @username > id corto). */
+function profileLabel(profile, userId) {
+  if (profile?.displayName) return profile.displayName;
+  if (profile?.username) return '@' + profile.username;
+  return userId ? userId.slice(0, 6) : 'Alguien';
+}
+
+/**
+ * Vista de la cola colaborativa del Jam. Reemplaza la cola local mientras
+ * hay una jam activa. Cualquier participante ve la lista con el avatar +
+ * nombre de quien sugirio cada cancion. Solo el host reproduce / quita /
+ * (los guests solo pueden quitar SUS sugerencias no reproducidas).
+ */
+function JamQueueView({ onClose }) {
+  const mode = useJamStore((s) => s.mode);
+  const session = useJamStore((s) => s.session);
+  const suggestions = useJamStore((s) => s.suggestions);
+  const profilesById = useJamStore((s) => s.profilesById);
+  const jamState = useJamStore((s) => s.state);
+  const playSuggestion = useJamStore((s) => s.playSuggestion);
+  const removeSuggestion = useJamStore((s) => s.removeSuggestion);
+
+  const isHost = mode === 'hosting';
+  const myId = session?.hostId && isHost ? session.hostId : null;
+
+  const pending = suggestions.filter((s) => !s.playedAt);
+  const played = suggestions.filter((s) => s.playedAt);
+  const nowPlaying = jamState?.currentTrack ?? null;
+
+  const handlePlay = (item) => {
+    if (!isHost) {
+      toast.info('El host controla la reproducción');
+      return;
+    }
+    playSuggestion(item.id).catch((e) => toast.error(String(e?.message ?? e)));
+  };
+
+  const handleRemove = (item) => {
+    removeSuggestion(item.id).catch((e) => toast.error(String(e?.message ?? e)));
+  };
+
+  // Un item es quitable por el viewer si es host, o si es el autor y no se
+  // reprodujo. (myId solo lo conocemos con certeza para el host; para el
+  // guest la RLS valida igualmente y el boton se muestra optimista.)
+  const canRemove = (item) => isHost || (!item.playedAt);
+
+  return (
+    <aside className={styles.panel}>
+      <header className={styles.header}>
+        <h2 className={styles.title}>
+          <Icon name="Radio" size={16} /> Cola del Jam
+        </h2>
+        <button
+          className={styles.closeBtn}
+          onClick={onClose}
+          aria-label="Cerrar panel"
+        ><Icon name="X" size={20} /></button>
+      </header>
+
+      {nowPlaying && (
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Sonando ahora</div>
+          <JamRow
+            track={nowPlaying}
+            profile={null}
+            userId={null}
+            playing
+          />
+        </section>
+      )}
+
+      <section className={styles.section}>
+        <span className={styles.sectionTitle}>
+          Sugerencias ({pending.length})
+        </span>
+        {pending.length === 0 ? (
+          <p className={styles.muted}>
+            Aún no hay sugerencias. Usa “Sugerir a la jam” desde cualquier canción.
+          </p>
+        ) : (
+          <ul className={styles.list}>
+            {pending.map((item) => (
+              <li key={item.id} className={styles.li}>
+                <JamRow
+                  track={item.track}
+                  profile={profilesById[item.suggestedBy]}
+                  userId={item.suggestedBy}
+                  canPlay={isHost}
+                  onPlay={() => handlePlay(item)}
+                  onRemove={canRemove(item) ? () => handleRemove(item) : undefined}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {played.length > 0 && (
+        <section className={styles.section}>
+          <span className={styles.sectionTitle}>
+            Reproducidas ({played.length})
+          </span>
+          <ul className={styles.list}>
+            {played.map((item) => (
+              <li key={item.id} className={styles.li}>
+                <JamRow
+                  track={item.track}
+                  profile={profilesById[item.suggestedBy]}
+                  userId={item.suggestedBy}
+                  muted
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </aside>
+  );
+}
+
+/**
+ * Fila de la cola del Jam: cover + título/artista + chip del sugeridor
+ * (avatar o inicial + nombre). El host ve play; quien puede, ve quitar.
+ */
+function JamRow({ track, profile, userId, playing, muted, canPlay, onPlay, onRemove }) {
+  const label = userId ? profileLabel(profile, userId) : null;
+  const avatar = profile?.avatarUrl;
+  return (
+    <div
+      className={styles.row}
+      data-playing={!!playing}
+      data-muted={!!muted}
+    >
+      <button
+        className={styles.cell}
+        onClick={canPlay ? onPlay : undefined}
+        disabled={!canPlay}
+        aria-label={canPlay ? `Reproducir ${track.title}` : track.title}
+      >
+        <div className={styles.thumb}>
+          {track.coverUrl
+            ? <img src={track.coverUrl} alt="" loading="lazy" />
+            : <Icon name="Music" size={18} />}
+        </div>
+        <div className={styles.meta}>
+          <span className={styles.rowTitle}>{track.title}</span>
+          <span className={styles.rowArtist}>{track.artist ?? '—'}</span>
+          {label && (
+            <span className={styles.suggestedBy}>
+              <span className={styles.suggesterAvatar} aria-hidden="true">
+                {avatar
+                  ? <img src={avatar} alt="" loading="lazy" />
+                  : <Icon name="User" size={10} />}
+              </span>
+              {label}
+            </span>
+          )}
+        </div>
+      </button>
+      <span className={styles.dur}>{fmtDur(track.durationSeconds)}</span>
+      {onRemove && (
+        <button
+          className={styles.removeBtn}
+          onClick={(e) => { e.stopPropagation(); onRemove(e); }}
+          aria-label="Quitar sugerencia"
           title="Quitar"
         ><Icon name="X" size={16} /></button>
       )}

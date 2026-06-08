@@ -93,6 +93,17 @@ desfase de 1-2s que se corrige solo). Gate `localStorage` `ritmiq.jam-intro-seen
 deep-link `/jam/<code>` salta la intro (el invitado va directo a unirse). Re-verible desde
 "¿Cómo funciona una jam?" en el menú. Detalles en [[JamModal]].
 
+## Cola colaborativa de sugerencias (Bloque 3.4)
+
+Tabla [[jam_queue]]: cualquier participante sugiere canciones a una cola compartida; cada
+sugerencia muestra **avatar + nombre** de quien la propuso. El **host** decide qué suena
+(tap → `playSuggestion`: marca `played_at` + aplica al player local → se propaga por el sync),
+el orden y puede quitar cualquiera; el **guest** ve la lista y solo quita sus sugerencias no
+reproducidas. La UI reutiliza el [[QueuePanel]]: con jam activa ese panel pasa a ser la "Cola
+del Jam"; sin jam vuelve a ser la cola normal. Se sugiere con "Sugerir a la jam" en el menú de
+track ([[PlaylistView]]). Mientras la jam está activa, el **guest no puede usar los controles
+de transporte** del [[Player]] (el host controla). Ver [[Decisiones-Tecnicas-ADR|ADR-024]].
+
 ## Gotchas conocidos
 
 - **SELECT abierto**: la RLS de [[jam_sessions]] es `using (true)` → conociendo un código se

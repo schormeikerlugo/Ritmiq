@@ -19,7 +19,11 @@
   margin: 0;
   font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
+.title :global(svg) { color: var(--color-accent); }
 
 .closeBtn {
   width: 28px;
@@ -262,6 +266,31 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Chip "sugerida por X" — avatar/inicial + nombre, debajo del artista. */
+.suggestedBy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: var(--fs-2xs, 10px);
+  color: var(--color-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.suggesterAvatar {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-accent) 18%, transparent);
+  color: var(--color-accent);
+}
+.suggesterAvatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .dur {
   color: var(--color-text-3);

@@ -48,6 +48,19 @@ export const useJamStore = create((set, get) => ({
     isPlaying: false,
     queue: [],
   },
+  /**
+   * Cola colaborativa de sugerencias (tabla jam_queue). Cada item:
+   * { id, track, suggestedBy, position, playedAt }. Ordenada por position.
+   * Pendientes (playedAt == null) primero, ya reproducidas al final.
+   * @type {Array<{ id:string, track:any, suggestedBy:string, position:number, playedAt:string|null }>}
+   */
+  suggestions: [],
+  /**
+   * Cache de perfiles (display_name/username/avatar_url) de los sugeridores,
+   * indexado por user_id. Se resuelve de la tabla profiles al recibir CDC.
+   * @type {Record<string, { userId:string, username:string, displayName:string|null, avatarUrl:string|null }>}
+   */
+  profilesById: {},
   /** Subscriptions Realtime activas (para cleanup). */
   _channels: [],
   _heartbeatTimer: null,
@@ -210,6 +223,8 @@ export const useJamStore = create((set, get) => ({
       mode: 'idle',
       session: null,
       participants: [],
+      suggestions: [],
+      profilesById: {},
       state: { currentTrack: null, positionSeconds: 0, isPlaying: false, queue: [] },
     });
   },
@@ -276,6 +291,141 @@ export const useJamStore = create((set, get) => ({
     });
   },
 
+  // ── Cola colaborativa (jam_queue) ──────────────────────────────────
+
+  /**
+   * Sugiere un track a la cola del jam. Cualquier participante puede.
+   * Se inserta al final (position = max+1). El CDC actualiza la lista en
+   * todos los clientes.
+   * @param {any} track objeto track con al menos { ytId, title, artist }
+   */
+  async suggestTrack(track) {
+    const { session } = get();
+    if (!session || !track) return;
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    const user = authSession?.user;
+    if (!user) throw new Error('no autenticado');
+
+    // position = ultimo + 1 para mantener orden de llegada.
+    const maxPos = get().suggestions.reduce((m, s) => Math.max(m, s.position), -1);
+    const slim = {
+      ytId: track.ytId ?? null,
+      id: track.id ?? null,
+      title: track.title ?? '',
+      artist: track.artist ?? null,
+      album: track.album ?? null,
+      coverUrl: track.coverUrl ?? null,
+      durationSeconds: typeof track.durationSeconds === 'number' ? track.durationSeconds : null,
+    };
+    const { error } = await supabase.from('jam_queue').insert({
+      session_id: session.id,
+      suggested_by: user.id,
+      track: slim,
+      position: maxPos + 1,
+    });
+    if (error) throw error;
+  },
+
+  /**
+   * Quita una sugerencia. RLS permite al host cualquiera, o al autor si
+   * aun no se reprodujo.
+   * @param {string} id id de la fila jam_queue
+   */
+  async removeSuggestion(id) {
+    if (!id) return;
+    const { error } = await supabase.from('jam_queue').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  /**
+   * Reordena una sugerencia (solo host). Asigna una nueva position.
+   * Implementacion simple: position = valor objetivo; el orden se recalcula
+   * al re-fetch. Para inserciones entre dos, usamos el promedio.
+   * @param {string} id
+   * @param {number} newPosition
+   */
+  async reorderSuggestion(id, newPosition) {
+    const { mode } = get();
+    if (mode !== 'hosting') return;
+    const { error } = await supabase
+      .from('jam_queue')
+      .update({ position: newPosition })
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  /**
+   * El host reproduce una sugerencia: marca played_at y aplica el track al
+   * player local (que se propaga a los guests por use-jam-sync). Solo host.
+   * @param {string} id
+   */
+  async playSuggestion(id) {
+    const { mode, suggestions } = get();
+    if (mode !== 'hosting') return;
+    const item = suggestions.find((s) => s.id === id);
+    if (!item) return;
+
+    // Marcar como reproducida (mueve al final de la lista de pendientes).
+    await supabase
+      .from('jam_queue')
+      .update({ played_at: new Date().toISOString() })
+      .eq('id', id);
+
+    // Aplicar al player local del host. El bridge use-jam-sync detecta el
+    // cambio de currentTrack y lo propaga via hostBroadcast a los guests.
+    try {
+      const { usePlayerStore } = await import('./player.js');
+      usePlayerStore.getState().playNow([item.track], 0);
+    } catch (e) {
+      console.warn('[jam] playSuggestion: no se pudo aplicar al player', e?.message);
+    }
+  },
+
+  /**
+   * Internal: resuelve perfiles (avatar/nombre) de los user_ids dados que
+   * aun no esten en cache. Merge en profilesById.
+   * @param {string[]} userIds
+   */
+  async _resolveProfiles(userIds) {
+    const have = get().profilesById;
+    const missing = [...new Set(userIds)].filter((id) => id && !have[id]);
+    if (missing.length === 0) return;
+    const { data } = await supabase
+      .from('profiles')
+      .select('user_id, username, display_name, avatar_url')
+      .in('user_id', missing);
+    if (!data || data.length === 0) return;
+    const next = { ...get().profilesById };
+    for (const p of data) {
+      next[p.user_id] = {
+        userId: p.user_id,
+        username: p.username,
+        displayName: p.display_name ?? null,
+        avatarUrl: p.avatar_url ?? null,
+      };
+    }
+    set({ profilesById: next });
+  },
+
+  /** Internal: re-fetch completo de la cola de sugerencias + perfiles. */
+  async _refreshSuggestions(sessionId) {
+    const { data } = await supabase
+      .from('jam_queue')
+      .select('id, track, suggested_by, position, played_at')
+      .eq('session_id', sessionId)
+      .order('played_at', { ascending: true, nullsFirst: true })
+      .order('position', { ascending: true });
+    const suggestions = (data ?? []).map((r) => ({
+      id: r.id,
+      track: r.track,
+      suggestedBy: r.suggested_by,
+      position: Number(r.position) || 0,
+      playedAt: r.played_at,
+    }));
+    set({ suggestions });
+    await get()._resolveProfiles(suggestions.map((s) => s.suggestedBy));
+  },
+
   /** Internal: suscripcion a Postgres CDC + presencia. */
   async _subscribe(sessionId) {
     const sesChannel = supabase
@@ -340,6 +490,22 @@ export const useJamStore = create((set, get) => ({
           .select('user_id, joined_at, last_seen_at, role')
           .eq('session_id', sessionId);
         set({ participants: data ?? [] });
+        get()._resolveProfiles((data ?? []).map((p) => p.user_id));
+      })
+      .subscribe();
+
+    // Canal CDC de la cola colaborativa (jam_queue). Cualquier cambio
+    // (sugerencia nueva, quitada, reproducida, reordenada) re-fetch la
+    // lista y resuelve perfiles de los sugeridores nuevos.
+    const queueChannel = supabase
+      .channel(`jam-queue:${sessionId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'jam_queue',
+        filter: `session_id=eq.${sessionId}`,
+      }, () => {
+        get()._refreshSuggestions(sessionId);
       })
       .subscribe();
 
@@ -349,9 +515,11 @@ export const useJamStore = create((set, get) => ({
       .select('user_id, joined_at, last_seen_at, role')
       .eq('session_id', sessionId);
     set({
-      _channels: [sesChannel, partChannel],
+      _channels: [sesChannel, partChannel, queueChannel],
       participants: initialParts ?? [],
     });
+    get()._resolveProfiles((initialParts ?? []).map((p) => p.user_id));
+    await get()._refreshSuggestions(sessionId);
   },
 
   /** Internal: heartbeat de last_seen_at cada 30s mientras esta en sesion. */
@@ -383,6 +551,8 @@ export const useJamStore = create((set, get) => ({
       mode: 'idle',
       session: null,
       participants: [],
+      suggestions: [],
+      profilesById: {},
       state: { currentTrack: null, positionSeconds: 0, isPlaying: false, queue: [] },
       _channels: [],
       _heartbeatTimer: null,

@@ -146,6 +146,26 @@
   gap: var(--space-3);
 }
 
+/* Jam guest: hint encima de los controles deshabilitados. */
+.jamGuestHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: var(--fs-2xs, 10px);
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.controls[data-jam-guest] .buttons button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.bar[data-locked] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .iconBtn {
   width: 32px;
   height: 32px;

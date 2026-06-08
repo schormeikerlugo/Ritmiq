@@ -151,6 +151,17 @@ Auth offline-first: no cerrar sesión por error de red. Fix del bug donde las de
 "desaparecían" al reabrir la PWA sin internet (signOut espurio). Afecta [[auth]], [[library]],
 [[local-downloads]].
 
+### ADR nuevo (023)
+
+`subscribeWithSelector` en el [[player|store player]]: fix del bug donde el host del Jam no
+propagaba la canción (la firma `subscribe(selector,cb)` requería el middleware ausente).
+
+### ADR nuevo (024)
+
+Cola colaborativa del Jam ([[jam_queue]]): los participantes sugieren canciones identificadas
+con avatar+nombre; el host aprueba/reproduce. UI contextual en [[QueuePanel]]. El guest pierde
+los controles de transporte mientras la jam está activa.
+
 ## Cómo usar este vault
 
 1. **Para entender una función concreta**: abrí su nota (ej. `04-UI/Stores-Zustand/library.md`). Cada nota tiene la firma, sus dependencias entrantes/salientes, snippets comentados, casos de borde, y matriz "qué puede romper este cambio".
