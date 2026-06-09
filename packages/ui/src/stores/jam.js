@@ -575,6 +575,19 @@ export const useJamStore = create((set, get) => ({
     }));
     set({ suggestions });
     await get()._resolveProfiles(suggestions.map((s) => s.suggestedBy));
+
+    // Pre-prepare (Bloque 3.7): calentar la cache de la SIGUIENTE sugerencia
+    // pendiente en todos los clientes para que su arranque coordinado sea
+    // casi instantaneo. Solo si hay sesion activa. Best-effort.
+    if (get().mode !== 'idle' && typeof window !== 'undefined') {
+      const pending = suggestions
+        .filter((s) => !s.playedAt)
+        .sort((a, b) => a.position - b.position);
+      const next = pending[0];
+      if (next?.track) {
+        window.dispatchEvent(new CustomEvent('ritmiq:jam-preprepare', { detail: { track: next.track } }));
+      }
+    }
   },
 
   /** Internal: suscripcion a Postgres CDC + presencia. */

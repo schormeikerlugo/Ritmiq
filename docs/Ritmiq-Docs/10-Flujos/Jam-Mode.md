@@ -131,6 +131,12 @@ track → la próxima reproducción es **local sin buffering**. No se borra al s
 la hora y ya está). Si pulsa "Descargar", el blob se **promueve** a descarga real sin re-bajar.
 Ver [[local-downloads]] y [[Decisiones-Tecnicas-ADR|ADR-027]].
 
+### Pre-prepare de la siguiente sugerencia (Bloque 3.7)
+
+Cuando cambia la cola, el store emite `ritmiq:jam-preprepare` con la siguiente sugerencia pendiente
+(FIFO) → todos resuelven+cachean ese track en background. Así, cuando el host avanza, el
+`prepare→ready` es casi inmediato (el audio ya está caliente). Ver [[jam|store jam]].
+
 ## Invitar amigos a la jam (Bloque 3.6)
 
 Desde **Amigos**, si eres host de una jam activa, cada amigo tiene un botón "Invitar". Modelo

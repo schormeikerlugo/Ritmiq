@@ -682,11 +682,27 @@ export function usePlayerEngine() {
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
       }, startInMs);
     };
+    // Pre-prepare: resolver + cachear (en PWA) la SIGUIENTE sugerencia en
+    // background, sin sonar, para que su prepare sea casi instantaneo. No
+    // toca el audio actual; solo calienta la cache (jamCache por ytId) y la
+    // precarga de URL del backend.
+    const onPreprepare = async (ev) => {
+      const track = ev?.detail?.track;
+      if (!track) return;
+      try {
+        const resolved = await resolveAudioSource(track, buildResolveDeps(track));
+        if (!isDesktop && track.ytId && resolved.origin !== 'local-blob' && resolved.url) {
+          cacheJamTrack(track.ytId, resolved.url).catch(() => {});
+        }
+      } catch { /* best-effort */ }
+    };
     window.addEventListener('ritmiq:jam-prepare', onPrepare);
     window.addEventListener('ritmiq:jam-start', onStart);
+    window.addEventListener('ritmiq:jam-preprepare', onPreprepare);
     return () => {
       window.removeEventListener('ritmiq:jam-prepare', onPrepare);
       window.removeEventListener('ritmiq:jam-start', onStart);
+      window.removeEventListener('ritmiq:jam-preprepare', onPreprepare);
       if (jamStartTimerRef.current) clearTimeout(jamStartTimerRef.current);
     };
   }, [backend, setState]);

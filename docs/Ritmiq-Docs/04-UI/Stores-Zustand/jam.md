@@ -149,3 +149,7 @@ de `host_id` y recalcula el `mode` de **cada** cliente (el nuevo host pasa a `ho
   vacía → pause), `forceStart()` (botón "Reproducir igualmente"), internos `_localPrepare`/
   `_markReady`/`_maybeStart`/`_broadcast`. `playSuggestion` ahora usa `coordinatedPlay`. Se
   retiró el broadcast de posición continuo. Ver [[Decisiones-Tecnicas-ADR|ADR-026]].
+- 2026-06-02 (**pre-prepare**, Bloque 3.7): `_refreshSuggestions` emite `ritmiq:jam-preprepare`
+  con la siguiente sugerencia pendiente (FIFO) → todos los clientes calientan su cache
+  ([[local-downloads|jamCache]]) en background para que el próximo arranque coordinado sea casi
+  instantáneo. Ver [[Decisiones-Tecnicas-ADR|ADR-027]].
