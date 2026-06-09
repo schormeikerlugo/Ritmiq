@@ -76,6 +76,9 @@ export function JamModal({ onClose, initialCode = '' }) {
   const readyByUser = useJamStore((s) => s.readyByUser);
   const waitingFor = useJamStore((s) => s.waitingFor);
   const forceStart = useJamStore((s) => s.forceStart);
+  const kind = useJamStore((s) => s.kind);
+  const jamPlayState = useJamStore((s) => s.state);
+  const requestControl = useJamStore((s) => s.requestControl);
 
   // Estado inicial: si hay sesion activa lo decide el effect de mode; si
   // estamos idle, la intro educativa tiene prioridad la primera vez
@@ -116,11 +119,11 @@ export function JamModal({ onClose, initialCode = '' }) {
     setView('intro');
   };
 
-  const handleCreate = async () => {
+  const handleCreate = async (jamKind = 'sync') => {
     setBusy(true);
     setError(null);
     try {
-      await createSession();
+      await createSession(jamKind);
       setView('create');
     } catch (e) {
       setError(String(e?.message ?? e));
@@ -308,9 +311,7 @@ export function JamModal({ onClose, initialCode = '' }) {
               size="lg"
               fullWidth
               iconLeft="Plus"
-              onClick={handleCreate}
-              loading={busy}
-              loadingText="Creando jam…"
+              onClick={() => setView('kind')}
             >
               Iniciar jam
             </Button>
@@ -331,6 +332,44 @@ export function JamModal({ onClose, initialCode = '' }) {
           >
             ¿Cómo funciona una jam?
           </button>
+          {error && <p className={styles.error}>{error}</p>}
+        </div>
+      )}
+
+      {view === 'kind' && (
+        <div className={styles.kindView}>
+          <p className={styles.intro}>¿Qué tipo de jam quieres armar?</p>
+          <div className={styles.kindCards}>
+            <button
+              type="button"
+              className={styles.kindCard}
+              onClick={() => handleCreate('sync')}
+              disabled={busy}
+            >
+              <span className={styles.kindIcon}><Icon name="Radio" size={24} /></span>
+              <span className={styles.kindTitle}>Sincronizado</span>
+              <span className={styles.kindDesc}>
+                Cada quien escucha en su propio dispositivo, a la vez.
+              </span>
+            </button>
+            <button
+              type="button"
+              className={styles.kindCard}
+              onClick={() => handleCreate('speaker')}
+              disabled={busy}
+            >
+              <span className={styles.kindIcon}><Icon name="Volume2" size={24} /></span>
+              <span className={styles.kindTitle}>Altavoz</span>
+              <span className={styles.kindDesc}>
+                Solo este dispositivo suena; los demás controlan y sugieren.
+              </span>
+            </button>
+          </div>
+          <div className={styles.actions}>
+            <Button variant="ghost" onClick={() => setView('menu')} disabled={busy}>
+              Volver
+            </Button>
+          </div>
           {error && <p className={styles.error}>{error}</p>}
         </div>
       )}
@@ -371,6 +410,10 @@ export function JamModal({ onClose, initialCode = '' }) {
 
       {view === 'create' && session && (
         <div className={styles.create}>
+          <span className={styles.kindBadge}>
+            <Icon name={kind === 'speaker' ? 'Volume2' : 'Radio'} size={12} />
+            {kind === 'speaker' ? 'Altavoz' : 'Sincronizado'}
+          </span>
           <p className={styles.intro}>
             Comparte este código con tus amigos para que se unan:
           </p>
@@ -428,8 +471,51 @@ export function JamModal({ onClose, initialCode = '' }) {
         <div className={styles.guest}>
           <p className={styles.intro}>
             Estás en una jam con código <strong>{session.code}</strong>.
-            El host controla la reproducción.
+            {kind === 'speaker'
+              ? ' Suena en el dispositivo del host; tú controlas a distancia.'
+              : ' El host controla la reproducción.'}
           </p>
+
+          {kind === 'speaker' && (
+            <div className={styles.remote}>
+              <span className={styles.remoteBadge}>
+                <Icon name="Volume2" size={13} /> Reproduciéndose en el altavoz
+              </span>
+              <div className={styles.remoteNow}>
+                <div className={styles.remoteCover}>
+                  {jamPlayState?.currentTrack?.coverUrl
+                    ? <img src={jamPlayState.currentTrack.coverUrl} alt="" loading="lazy" />
+                    : <Icon name="Music" size={22} />}
+                </div>
+                <div className={styles.remoteMeta}>
+                  <span className={styles.remoteTitle}>
+                    {jamPlayState?.currentTrack?.title ?? 'Nada sonando'}
+                  </span>
+                  <span className={styles.remoteArtist}>
+                    {jamPlayState?.currentTrack?.artist ?? '—'}
+                  </span>
+                </div>
+              </div>
+              <div className={styles.remoteControls}>
+                <button
+                  className={styles.remoteBtn}
+                  onClick={() => requestControl('prev')}
+                  aria-label="Anterior"
+                ><Icon name="SkipBack" size={22} filled /></button>
+                <button
+                  className={styles.remotePlay}
+                  onClick={() => requestControl(jamPlayState?.isPlaying ? 'pause' : 'play')}
+                  aria-label={jamPlayState?.isPlaying ? 'Pausar' : 'Reproducir'}
+                ><Icon name={jamPlayState?.isPlaying ? 'Pause' : 'Play'} size={22} filled /></button>
+                <button
+                  className={styles.remoteBtn}
+                  onClick={() => requestControl('next')}
+                  aria-label="Siguiente"
+                ><Icon name="SkipForward" size={22} filled /></button>
+              </div>
+            </div>
+          )}
+
           {renderParticipants(false)}
           <div className={styles.actions}>
             <Button variant="danger" iconLeft="LogOut" onClick={handleLeave} loading={busy}>

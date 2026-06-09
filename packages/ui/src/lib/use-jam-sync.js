@@ -27,13 +27,37 @@ import { toast } from '../stores/toast.js';
 
 export function useJamSync() {
   const mode = useJamStore((s) => s.mode);
+  const kind = useJamStore((s) => s.kind);
   const jamState = useJamStore((s) => s.state);
 
   const modeRef = useRef(mode);
   modeRef.current = mode;
+  const kindRef = useRef(kind);
+  kindRef.current = kind;
   const jamStateRef = useRef(jamState);
   jamStateRef.current = jamState;
   const lastBlockToastRef = useRef(0);
+
+  // ── HOST (SPEAKER): difundir estado a los remotos (solo visual) ────────
+  useEffect(() => {
+    if (mode !== 'hosting' || kind !== 'speaker') return undefined;
+    const emit = () => {
+      const p = usePlayerStore.getState();
+      useJamStore.getState()._broadcast('speaker-state', {
+        currentTrack: p.currentTrack,
+        positionSeconds: p.positionSeconds,
+        isPlaying: p.isPlaying,
+      });
+    };
+    // En cambios de track/play y cada 3s para la barra de progreso.
+    const unsubTrack = usePlayerStore.subscribe((s) => s.currentTrack?.id, emit);
+    const unsubPlay = usePlayerStore.subscribe((s) => s.isPlaying, emit);
+    const interval = setInterval(() => {
+      if (usePlayerStore.getState().isPlaying) emit();
+    }, 3000);
+    emit();
+    return () => { unsubTrack(); unsubPlay(); clearInterval(interval); };
+  }, [mode, kind]);
 
   // ── HOST: orquestar la reproduccion coordinada ────────────────────────
   useEffect(() => {
@@ -45,10 +69,14 @@ export function useJamSync() {
     // significa que el host eligio algo nuevo → iniciar arranque coordinado
     // para que TODOS lo reproduzcan. Sin esto, el host sonaba solo y el
     // guest no se enteraba.
+    // En SYNC: el cambio de track del host inicia el arranque coordinado.
+    // En SPEAKER: el host reproduce normal (no coordina); solo difunde estado
+    // (otro effect lo hace via speaker-state).
     const unsubTrack = usePlayerStore.subscribe(
       (s) => s.currentTrack?.ytId || s.currentTrack?.id || null,
       () => {
         if (modeRef.current !== 'hosting') return;
+        if (kindRef.current === 'speaker') return; // host reproduce normal
         const cur = usePlayerStore.getState().currentTrack;
         if (!cur) return;
         const jamTrack = useJamStore.getState().state?.currentTrack;
@@ -56,26 +84,27 @@ export function useJamSync() {
           && (jamTrack.ytId === cur.ytId)
           && (jamTrack.id === cur.id);
         if (same) return; // ya es el track coordinado actual
-        // Disparar arranque coordinado con el track elegido por el host.
         useJamStore.getState().coordinatedPlay(cur);
       },
     );
 
-    // Play/pause: el host pulsa el boton → control a los guests.
+    // SYNC: play/pause del host → control a los guests. (En speaker el
+    // control compartido va por speaker-state + requestControl.)
     const unsubPlay = usePlayerStore.subscribe(
       (s) => s.isPlaying,
       (isPlaying) => {
         if (modeRef.current !== 'hosting') return;
+        if (kindRef.current === 'speaker') return;
         useJamStore.getState()._broadcast('control', {
           action: isPlaying ? 'play' : 'pause',
         });
       },
     );
 
-    // Seek: el host mueve la barra → emite evento que tambien escuchamos
-    // aqui para reenviarlo como control 'seek' a los guests.
+    // SYNC: seek del host → control 'seek' a los guests.
     const onLocalSeek = (ev) => {
       if (modeRef.current !== 'hosting') return;
+      if (kindRef.current === 'speaker') return;
       const seconds = ev?.detail?.seconds;
       if (typeof seconds === 'number') {
         useJamStore.getState()._broadcast('control', { action: 'seek', seconds });
@@ -92,6 +121,8 @@ export function useJamSync() {
 
   // ── GUEST: enforcement read-only ──────────────────────────────────────
   // Revertir al instante cualquier control local que no venga del host.
+  // En SPEAKER el guest NO reproduce audio (solo controla el altavoz): su
+  // player se mantiene SIEMPRE en pausa.
   useEffect(() => {
     if (mode !== 'guest') return undefined;
 
@@ -99,7 +130,8 @@ export function useJamSync() {
       (s) => s.isPlaying,
       (isPlaying) => {
         if (modeRef.current !== 'guest') return;
-        const want = jamStateRef.current?.isPlaying;
+        // En speaker el guest nunca reproduce localmente.
+        const want = kindRef.current === 'speaker' ? false : jamStateRef.current?.isPlaying;
         if (want != null && isPlaying !== want) {
           usePlayerStore.setState({ isPlaying: want });
         }

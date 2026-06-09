@@ -177,6 +177,11 @@ el sync de drift (sin más cortes ni ralentización). Ver [[Jam-Mode]], [[use-ja
 Auto-descarga efímera del audio en el guest del Jam (`jamCache`, TTL 1h + LRU 10): reproducción
 local sin buffering; promovible a descarga real sin re-bajar. Ver [[local-downloads]].
 
+### ADR nuevo (028)
+
+Dos modos de Jam: Sincronizado (todos reproducen) y Altavoz (solo el host reproduce; los demás
+controlan a distancia). Columna `jam_sessions.kind`. Ver [[Jam-Mode]], [[JamModal]].
+
 ## Cómo usar este vault
 
 1. **Para entender una función concreta**: abrí su nota (ej. `04-UI/Stores-Zustand/library.md`). Cada nota tiene la firma, sus dependencias entrantes/salientes, snippets comentados, casos de borde, y matriz "qué puede romper este cambio".

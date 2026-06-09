@@ -165,3 +165,9 @@ de `host_id` y recalcula el `mode` de **cada** cliente (el nuevo host pasa a `ho
      `currentTrack` y, si difiere del jamState, llama `coordinatedPlay`.
   3. El handler `control` (play/pause/seek) ahora solo lo obedecen guests y actualiza `jamState`
      antes para que el guard read-only no lo revierta.
+- 2026-06-03 (**modo Altavoz**, Bloque 3.8): estado `kind` (`'sync'|'speaker'`). `createSession(kind)`,
+  `joinSession`/`_subscribe` leen `kind`. `requestControl(action,seconds)`: en speaker cualquier
+  participante controla el altavoz (broadcast `control{speaker:true}` que solo el host ejecuta).
+  Handler `control` ramifica sync/speaker. Handler `speaker-state` (remotos actualizan UI).
+  `coordinatedPlay` en speaker reproduce directo en el host (sin handshake). Ver
+  [[Decisiones-Tecnicas-ADR|ADR-028]].

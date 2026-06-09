@@ -37,6 +37,12 @@ function makeCode() {
 export const useJamStore = create((set, get) => ({
   // 'idle' | 'hosting' | 'guest'
   mode: 'idle',
+  /**
+   * Tipo de jam (Bloque 3.8): 'sync' (todos reproducen en sync) o 'speaker'
+   * (solo el host reproduce; los demas son control remoto compartido).
+   * @type {'sync'|'speaker'}
+   */
+  kind: 'sync',
   /** @type {null | { id: string, code: string, hostId: string }} */
   session: null,
   /** @type {Array<{ user_id: string, joined_at: string, role: 'host'|'guest' }>} */
@@ -107,10 +113,11 @@ export const useJamStore = create((set, get) => ({
    * Crea una sesion nueva como host. Inserta en jam_sessions + join
    * automatico como participant + suscribe a CDC.
    */
-  async createSession() {
+  async createSession(kind = 'sync') {
     const { data: { session: authSession } } = await supabase.auth.getSession();
     const user = authSession?.user;
     if (!user) throw new Error('no autenticado');
+    const jamKind = kind === 'speaker' ? 'speaker' : 'sync';
 
     // Genera codigo unico (retry hasta 5 veces si colisiona).
     let code = '';
@@ -119,7 +126,7 @@ export const useJamStore = create((set, get) => ({
       code = makeCode();
       const { data, error } = await supabase
         .from('jam_sessions')
-        .insert({ host_id: user.id, code, current_track: null, position_seconds: 0, is_playing: false, queue: [] })
+        .insert({ host_id: user.id, code, kind: jamKind, current_track: null, position_seconds: 0, is_playing: false, queue: [] })
         .select()
         .single();
       if (!error) {
@@ -133,6 +140,7 @@ export const useJamStore = create((set, get) => ({
 
     set({
       mode: 'hosting',
+      kind: inserted.kind === 'speaker' ? 'speaker' : 'sync',
       session: { id: inserted.id, code: inserted.code, hostId: user.id },
       state: {
         currentTrack: inserted.current_track,
@@ -180,6 +188,7 @@ export const useJamStore = create((set, get) => ({
 
     set({
       mode: isHost ? 'hosting' : 'guest',
+      kind: ses.kind === 'speaker' ? 'speaker' : 'sync',
       session: { id: ses.id, code: ses.code, hostId: ses.host_id },
       state: {
         currentTrack: ses.current_track,
@@ -238,6 +247,7 @@ export const useJamStore = create((set, get) => ({
 
     set({
       mode: 'idle',
+      kind: 'sync',
       session: null,
       participants: [],
       suggestions: [],
@@ -432,8 +442,24 @@ export const useJamStore = create((set, get) => ({
    * @param {any} track
    */
   async coordinatedPlay(track) {
-    const { mode, participants } = get();
+    const { mode, participants, kind } = get();
     if (mode !== 'hosting' || !track) return;
+
+    // SPEAKER: solo el host (altavoz) reproduce. Sin handshake — reproducir
+    // directo en su player local; los remotos reciben el estado por
+    // 'speaker-state'. Persistir snapshot.
+    if (kind === 'speaker') {
+      set({ state: { ...get().state, currentTrack: track, positionSeconds: 0, isPlaying: true } });
+      try {
+        const { usePlayerStore } = await import('./player.js');
+        usePlayerStore.getState().playNow([track], 0);
+      } catch {}
+      supabase.from('jam_sessions').update({
+        current_track: track, position_seconds: 0, is_playing: true,
+        updated_at: new Date().toISOString(),
+      }).eq('id', get().session?.id).then(() => {}, () => {});
+      return;
+    }
 
     const playId = get()._playId + 1;
     // Estado inicial: todos los participantes en 'loading'.
@@ -518,6 +544,22 @@ export const useJamStore = create((set, get) => ({
     supabase.from('jam_sessions').update({
       is_playing: true, updated_at: new Date().toISOString(),
     }).eq('id', get().session?.id).then(() => {}, () => {});
+  },
+
+  // ── Control remoto compartido (modo speaker, Bloque 3.8) ───────────
+
+  /**
+   * En modo 'speaker', cualquier participante (host o guest) puede controlar
+   * la reproduccion del ALTAVOZ (host). Emite un broadcast 'control' que el
+   * host obedece aplicandolo a su player. En modo 'sync' no aplica (cada
+   * quien controla lo suyo / solo el host).
+   *
+   * @param {'play'|'pause'|'next'|'prev'|'seek'} action
+   * @param {number} [seconds] para action='seek'
+   */
+  requestControl(action, seconds) {
+    if (get().kind !== 'speaker') return;
+    get()._broadcast('control', { action, seconds, speaker: true });
   },
 
   /** Internal: envia un mensaje broadcast por el canal del jam. */
@@ -662,14 +704,51 @@ export const useJamStore = create((set, get) => ({
         }
         set((s) => ({ _started: true, waitingFor: [], state: { ...s.state, isPlaying: true } }));
       })
+      // En SPEAKER, el host difunde su estado (track/posicion/play) para que
+      // los remotos muestren la UI (portada, barra de progreso) aunque no
+      // reproduzcan audio. Solo visual.
+      .on('broadcast', { event: 'speaker-state' }, ({ payload }) => {
+        if (get().mode === 'hosting') return; // el host es la fuente
+        const { currentTrack, positionSeconds, isPlaying } = payload ?? {};
+        set((s) => ({
+          state: {
+            ...s.state,
+            ...(currentTrack !== undefined && { currentTrack }),
+            ...(positionSeconds !== undefined && { positionSeconds: Number(positionSeconds) || 0 }),
+            ...(isPlaying !== undefined && { isPlaying }),
+          },
+        }));
+      })
       .on('broadcast', { event: 'control' }, ({ payload }) => {
-        const { action, seconds } = payload ?? {};
+        const { action, seconds, speaker } = payload ?? {};
         if (typeof window === 'undefined') return;
-        // Solo los guests obedecen control remoto (el host es el emisor).
-        if (get().mode !== 'guest') return;
+        const { mode, kind } = get();
+
+        // ── Modo SPEAKER: control compartido. Solo el ALTAVOZ (host) ejecuta
+        //    de verdad sobre su player; los remotos no tocan audio (su UI se
+        //    actualiza con la posicion/estado que el host difunde).
+        if (speaker || kind === 'speaker') {
+          if (mode !== 'hosting') return; // los remotos no ejecutan audio
+          import('./player.js').then(({ usePlayerStore }) => {
+            const p = usePlayerStore.getState();
+            if (action === 'play') { p.patch({ isPlaying: true }); }
+            else if (action === 'pause') { p.patch({ isPlaying: false }); }
+            else if (action === 'next') {
+              // En speaker, "next" avanza la cola del jam (FIFO).
+              get().jamAdvance();
+            }
+            else if (action === 'prev') { p.prev?.(); }
+            else if (action === 'seek' && typeof seconds === 'number') {
+              window.dispatchEvent(new CustomEvent('ritmiq:seek', { detail: { seconds } }));
+            }
+          });
+          return;
+        }
+
+        // ── Modo SYNC: solo los guests obedecen (el host es el emisor).
+        if (mode !== 'guest') return;
         if (action === 'pause' || action === 'play') {
           const isPlaying = action === 'play';
-          // Actualizar jamState ANTES para que el guard read-only no revierta.
           set((s) => ({ state: { ...s.state, isPlaying } }));
           import('./player.js').then(({ usePlayerStore }) => usePlayerStore.setState({ isPlaying }));
         } else if (action === 'seek' && typeof seconds === 'number') {
@@ -763,6 +842,7 @@ export const useJamStore = create((set, get) => ({
     if (_heartbeatTimer) clearInterval(_heartbeatTimer);
     set({
       mode: 'idle',
+      kind: 'sync',
       session: null,
       participants: [],
       suggestions: [],

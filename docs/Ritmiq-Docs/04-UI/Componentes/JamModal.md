@@ -100,3 +100,8 @@ desktop / sin soporte. `AbortError` (usuario cancela) se ignora silenciosamente.
   "Reproducir igualmente" (`forceStart`) cuando hay `waitingFor`. Estilos `.partLoading`/
   `.partReady`/`.waitBar`/`.waitText`/`.waitForce` (spin solo transform, respeta
   prefers-reduced-motion). Ver [[Decisiones-Tecnicas-ADR|ADR-026]].
+- 2026-06-03 (**modo Altavoz**, Bloque 3.8): vista `kind` (selector "Sincronizado"/"Altavoz" con
+  tarjetas) tras "Iniciar jam" → `createSession(kind)`. Badge de tipo en la vista `create`. En la
+  vista `guest`, si `kind==='speaker'`, se muestra un **control remoto** (portada+título de lo que
+  suena en el altavoz + play/pausa/anterior/siguiente → `requestControl`). Iconos `Volume2`.
+  Estilos `.kindView/.kindCard/.kindBadge/.remote*`. Ver [[Decisiones-Tecnicas-ADR|ADR-028]].

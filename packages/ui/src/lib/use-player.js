@@ -712,13 +712,14 @@ export function usePlayerEngine() {
     if (!currentTrack) return;
     const fp = currentTrack.ytId || currentTrack.id;
 
-    // JAM: la carga/reproduccion la controla el handshake coordinado
-    // (eventos jam-prepare/jam-start), NO este effect. Si estamos en una jam,
-    // no auto-cargamos aqui — evita que el guest reproduzca al seleccionar y
-    // que el host arranque sin coordinar. El guard de use-jam-sync revierte
-    // selecciones del guest; coordinatedPlay maneja las del host.
-    if (useJamStore.getState().mode !== 'idle') {
-      // Pausar cualquier audio que se intentara colar.
+    // JAM: la carga/reproduccion en modo SYNC la controla el handshake
+    // coordinado (eventos jam-prepare/jam-start), NO este effect. EXCEPCION:
+    // el HOST en modo SPEAKER reproduce normal (es el altavoz) → dejamos que
+    // este effect cargue/reproduzca como siempre.
+    const jam = useJamStore.getState();
+    const hostSpeaker = jam.mode === 'hosting' && jam.kind === 'speaker';
+    if (jam.mode !== 'idle' && !hostSpeaker) {
+      // Guest (cualquier modo) o host en sync: no auto-cargar aqui.
       if (loadedTrackIdRef.current !== currentTrack.id) {
         backend.pause();
       }

@@ -54,6 +54,16 @@ sequenceDiagram
   GS->>JS: leaveSession() (auto)
 ```
 
+## Dos tipos de jam (Bloque 3.8)
+
+Al crear se elige el **tipo** ([[jam_sessions]] `kind`):
+- **Sincronizado** (`sync`): cada dispositivo reproduce el mismo audio en sync (arranque
+  coordinado, ADR-026). Suena en todos.
+- **Altavoz** (`speaker`): solo el **host** reproduce (la bocina); los demás son **control remoto
+  compartido** — ven qué suena (`speaker-state`) y cualquiera puede play/pausa/saltar
+  (`requestControl`). No suena nada en el dispositivo del invitado. Ver
+  [[Decisiones-Tecnicas-ADR|ADR-028]].
+
 ## Modelo
 
 - **Host → participants** (no peer-to-peer, sin WebRTC, sin transmisión de audio).

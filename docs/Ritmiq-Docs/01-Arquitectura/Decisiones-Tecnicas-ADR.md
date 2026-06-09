@@ -213,6 +213,15 @@ Cada decisión sigue el formato:
   - **Activado siempre** (blob ~3-5MB); no aparece en la vista Descargas ni en stats.
 - **Consecuencias**: cambio de canción casi instantáneo tras la primera reproducción; el handshake "esperar a todos" es más rápido. Coste: uso de IndexedDB acotado por TTL+LRU. El blob baja por la misma fuente que ya usaba para reproducir (sin tráfico extra significativo). Verificado: builds verdes + test de la lógica TTL/LRU. Falta validación funcional en device.
 
+## ADR-028 — Dos modos de Jam: Sincronizado y Altavoz
+
+- **Contexto**: el Jam solo permitía que todos reprodujeran en sync (cada dispositivo suena). Se pidió un segundo modo "altavoz" donde **un solo dispositivo** reproduce (una bocina) y los demás son control remoto — caso de reunión con una sola bocina.
+- **Decisión**: columna `jam_sessions.kind` (`'sync'` | `'speaker'`, default `'sync'`), elegida al crear (selector en [[JamModal]]).
+  - **sync** (actual, ADR-026): arranque coordinado, todos reproducen.
+  - **speaker**: el **host es el altavoz** (único que reproduce audio). Los invitados NO preparan ni reproducen (su player se mantiene en pausa). Ven qué suena vía broadcast `speaker-state` (track + posición + play, solo visual) y controlan con un **control remoto compartido**: `requestControl(action)` emite un broadcast `control{speaker:true}` que **solo el host (altavoz) ejecuta** sobre su player (cualquier participante puede play/pausa/next/prev). `coordinatedPlay` ramifica: en speaker reproduce directo en el host sin handshake de "ready".
+  - El effect de carga del player permite reproducir al `host && kind==='speaker'`; bloquea a guests y a host en sync (lo controla el handshake).
+- **Consecuencias**: una jam tipo bocina con control remoto colaborativo, reutilizando el canal broadcast existente. Las jams previas siguen en sync (default). El control compartido no escribe la tabla (va por broadcast), así que no se tocó RLS. El guest en speaker no oye nada en su dispositivo (esperado). Verificado: builds verdes + test de routing de control (host ejecuta, guest no reproduce) + Playwright (selector + control remoto). Falta validación con 2 cuentas reales.
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

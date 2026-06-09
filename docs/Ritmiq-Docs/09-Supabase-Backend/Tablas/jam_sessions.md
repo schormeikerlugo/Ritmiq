@@ -67,3 +67,7 @@ Los guests escuchan UPDATE/DELETE en el canal `jam:<sessionId>`.
 
 ## Notas / Changelog
 - 2026-05-29: nota creada (F12, doc retroactiva de Fase 8).
+- 2026-06-03 (**columna `kind`**, Bloque 3.8): `kind text not null default 'sync' check in
+  ('sync','speaker')`. Tipo de jam: `sync` (todos reproducen en sync) o `speaker` (solo el host
+  reproduce; los demás controlan a distancia). Migración `20260603000000_jam_kind.sql`. Ver
+  [[Decisiones-Tecnicas-ADR|ADR-028]].
