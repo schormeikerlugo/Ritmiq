@@ -204,6 +204,15 @@ Cada decisión sigue el formato:
   6. **Indicador por participante**: `readyByUser` (loading/ready) → spinner/check junto a cada avatar; el host ve por quién espera.
 - **Consecuencias**: reproducción fluida sin saltos ni cambio de tono; la fiesta fluye sola (FIFO). Coste: un breve momento de "preparando" al cambiar de canción mientras todos cargan (mitigado por la auto-descarga del guest, ADR-027, y el pre-prepare). Si un guest tiene mala red, el host puede forzar el arranque. Verificado: builds verdes + tests (espera-a-todos, force, FIFO, cola vacía) + Playwright (barra de espera + indicadores). Falta validación funcional con 2 cuentas reales (Realtime).
 
+## ADR-027 — Auto-descarga efímera del audio en el guest del Jam (`jamCache`)
+
+- **Contexto**: en una jam, el guest que no tiene la canción descargada la stremea desde su red → buffering → arranque lento. Aun con arranque coordinado (ADR-026), el `prepare` tarda más para ese guest.
+- **Decisión**: el guest **cachea el audio localmente** en una tabla Dexie nueva **`jamCache`** (v4, indexada por `ytId`), separada de `audioBlobs` (descargas reales). Al preparar un track, si no vino ya de un blob local, se descarga en background por la URL ya resuelta (cache global/cloud) y se guarda. La próxima reproducción (re-entrar, saltar atrás) es **local sin buffering** — el cascade de resolución prefiere `getJamBlobUrl(ytId)`.
+  - **TTL 1 hora** + **LRU ~10 pistas** (lo que se cumpla primero); barrido al arrancar la app. **No** se borra al salir de la jam: si el usuario vuelve dentro de la hora, ya está local.
+  - **Promoción**: si el usuario pulsa "Descargar" una canción que está en `jamCache`, se **mueve el blob a `audioBlobs`** sin re-descargar (`promoteJamCacheToDownload`, instantáneo).
+  - **Activado siempre** (blob ~3-5MB); no aparece en la vista Descargas ni en stats.
+- **Consecuencias**: cambio de canción casi instantáneo tras la primera reproducción; el handshake "esperar a todos" es más rápido. Coste: uso de IndexedDB acotado por TTL+LRU. El blob baja por la misma fuente que ya usaba para reproducir (sin tráfico extra significativo). Verificado: builds verdes + test de la lógica TTL/LRU. Falta validación funcional en device.
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

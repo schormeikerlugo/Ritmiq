@@ -132,7 +132,7 @@ import {
   startTunnelKeepalive,
 } from './lib/lan-client.js';
 import { api, isDesktop } from './lib/api.js';
-import { requestPersistOnce } from './lib/local-downloads.js';
+import { requestPersistOnce, sweepJamCache } from './lib/local-downloads.js';
 import { realtime } from './lib/realtime.js';
 import { onConnectivityChange, forceRecheck } from './lib/connectivity.js';
 import { flushQueue } from './lib/sync-queue.js';
@@ -345,7 +345,11 @@ export function App() {
     if (user) {
       // PWA: pedir almacenamiento persistente temprano (tras login) para
       // que el SO no desaloje IndexedDB con las descargas. Idempotente.
-      if (!isDesktop) { requestPersistOnce().catch(() => {}); }
+      if (!isDesktop) {
+        requestPersistOnce().catch(() => {});
+        // Barrer la cache efímera del jam (TTL 1h + LRU) al arrancar.
+        sweepJamCache().catch(() => {});
+      }
       loadLibrary();
       loadPlaylists();
       useHistoryStore.getState().load();

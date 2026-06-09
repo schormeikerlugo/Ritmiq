@@ -45,8 +45,27 @@ class RitmiqLocalDB extends Dexie {
       meta: 'key',
       pendingPlays: '++id, queuedAt',
     });
+    // v4 — cache EFÍMERA de audio para Jam (Bloque 3.7). Indexada por ytId
+    //   (el guest no tiene el trackId del host). TTL 1h + LRU ~10 pistas.
+    //   Separada de audioBlobs (descargas reales del usuario): NO aparece en
+    //   la vista Descargas ni cuenta en stats. Se promueve a audioBlobs si el
+    //   usuario decide descargar la canción (sin re-bajar de red).
+    this.version(4).stores({
+      audioBlobs: 'trackId, downloadedAt',
+      tracks: 'id, userId, ytId, createdAt',
+      playlists: 'id, userId, updatedAt',
+      playlistTracks: '[playlistId+trackId], playlistId, trackId, position',
+      meta: 'key',
+      pendingPlays: '++id, queuedAt',
+      jamCache: 'ytId, cachedAt',
+    });
   }
 }
+
+/** TTL de la cache efímera del jam: 1 hora. */
+const JAM_CACHE_TTL_MS = 60 * 60 * 1000;
+/** Máximo de pistas en la cache efímera (LRU por cachedAt). */
+const JAM_CACHE_MAX = 10;
 
 export const db = new RitmiqLocalDB();
 
@@ -338,6 +357,119 @@ export async function getCachedPlaylistContents() {
     (out[r.playlistId] ??= []).push(r.trackId);
   }
   return out;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Cache efímera de audio para Jam (Bloque 3.7). Indexada por ytId.
+ * TTL 1h + LRU ~10 pistas. Reproducción local sin buffering en el guest.
+ * Promovible a descarga real (audioBlobs) sin re-descargar.
+ * ───────────────────────────────────────────────────────────────────── */
+
+const jamObjectUrls = new Map();
+
+/** ¿Hay un blob de jam cacheado para este ytId (no expirado)? */
+export async function hasJamCache(ytId) {
+  if (!ytId) return false;
+  const row = await db.table('jamCache').get(ytId);
+  if (!row) return false;
+  const age = Date.now() - new Date(row.cachedAt).getTime();
+  return age < JAM_CACHE_TTL_MS;
+}
+
+/** Devuelve un blob: URL para un track de la cache de jam, o null. */
+export async function getJamBlobUrl(ytId) {
+  if (!ytId) return null;
+  const cached = jamObjectUrls.get(ytId);
+  if (cached) return cached;
+  const row = await db.table('jamCache').get(ytId);
+  if (!row?.blob) return null;
+  const age = Date.now() - new Date(row.cachedAt).getTime();
+  if (age >= JAM_CACHE_TTL_MS) { await db.table('jamCache').delete(ytId); return null; }
+  const url = URL.createObjectURL(row.blob);
+  jamObjectUrls.set(ytId, url);
+  return url;
+}
+
+/**
+ * Descarga un track por su URL ya resuelta y lo guarda en la cache efímera
+ * del jam bajo su ytId. Idempotente (si ya existe y no expiró, no re-baja).
+ * Tras guardar, aplica el barrido TTL/LRU.
+ *
+ * @param {string} ytId
+ * @param {string} url URL de stream ya resuelta (cache global / cloud)
+ * @returns {Promise<{size:number}|null>}
+ */
+export async function cacheJamTrack(ytId, url) {
+  if (!ytId || !url) return null;
+  if (await hasJamCache(ytId)) return null; // ya cacheado
+  try {
+    const res = await fetch(url);
+    if (!res.ok || !res.body) return null;
+    const mime = res.headers.get('content-type') ?? 'audio/mp4';
+    const buf = await res.arrayBuffer();
+    const blob = new Blob([buf], { type: mime });
+    await db.table('jamCache').put({
+      ytId, blob, mime, size: blob.size, cachedAt: new Date().toISOString(),
+    });
+    await sweepJamCache();
+    return { size: blob.size };
+  } catch {
+    return null;
+  }
+}
+
+/** Barrido de la cache efímera: elimina expirados (TTL) y aplica LRU (max). */
+export async function sweepJamCache() {
+  const rows = await db.table('jamCache').toArray();
+  const now = Date.now();
+  const expired = rows.filter((r) => now - new Date(r.cachedAt).getTime() >= JAM_CACHE_TTL_MS);
+  for (const r of expired) await removeJamCache(r.ytId);
+
+  const live = rows
+    .filter((r) => now - new Date(r.cachedAt).getTime() < JAM_CACHE_TTL_MS)
+    .sort((a, b) => (b.cachedAt ?? '').localeCompare(a.cachedAt ?? '')); // recientes primero
+  for (const r of live.slice(JAM_CACHE_MAX)) await removeJamCache(r.ytId);
+}
+
+/** Elimina una entrada de la cache efímera + revoca su object URL. */
+export async function removeJamCache(ytId) {
+  const url = jamObjectUrls.get(ytId);
+  if (url) { try { URL.revokeObjectURL(url); } catch {} jamObjectUrls.delete(ytId); }
+  await db.table('jamCache').delete(ytId);
+}
+
+/**
+ * Promueve un track cacheado en jamCache a descarga REAL (audioBlobs) sin
+ * re-descargar. Devuelve true si se reutilizó el blob; false si no había
+ * cache (el caller debe descargar normal).
+ *
+ * @param {string} ytId
+ * @param {string} trackId id del track en la biblioteca del usuario
+ * @returns {Promise<boolean>}
+ */
+export async function promoteJamCacheToDownload(ytId, trackId) {
+  if (!ytId || !trackId) return false;
+  const row = await db.table('jamCache').get(ytId);
+  if (!row?.blob) return false;
+  const age = Date.now() - new Date(row.cachedAt).getTime();
+  if (age >= JAM_CACHE_TTL_MS) { await removeJamCache(ytId); return false; }
+  await db.table('audioBlobs').put({
+    trackId, blob: row.blob, mime: row.mime,
+    size: row.size, downloadedAt: new Date().toISOString(),
+  });
+  // El blob ya vive en audioBlobs; lo quitamos de la cache efímera.
+  await removeJamCache(ytId);
+  const old = objectUrls.get(trackId);
+  if (old) { try { URL.revokeObjectURL(old); } catch {} objectUrls.delete(trackId); }
+  requestPersistOnce();
+  return true;
+}
+
+/** Borra toda la cache efímera del jam. */
+export async function clearJamCache() {
+  for (const url of jamObjectUrls.values()) { try { URL.revokeObjectURL(url); } catch {} }
+  jamObjectUrls.clear();
+  await db.table('jamCache').clear();
 }
 
 /** Borra todas las descargas locales (útil para vista de Downloads "limpiar"). */

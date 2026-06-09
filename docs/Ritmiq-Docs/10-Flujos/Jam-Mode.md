@@ -124,6 +124,13 @@ cualquier pause/cambio que se cuele por MediaSession, teclado o clic. Ver
 
 Ver [[Decisiones-Tecnicas-ADR|ADR-026]], [[use-jam-sync]], [[jam|store jam]], [[html-audio-backend]].
 
+### Auto-descarga efímera en el guest (Bloque 3.7)
+
+El guest cachea el audio en IndexedDB (`jamCache` por `ytId`, **TTL 1h + LRU 10**) al preparar un
+track → la próxima reproducción es **local sin buffering**. No se borra al salir (vuelve dentro de
+la hora y ya está). Si pulsa "Descargar", el blob se **promueve** a descarga real sin re-bajar.
+Ver [[local-downloads]] y [[Decisiones-Tecnicas-ADR|ADR-027]].
+
 ## Invitar amigos a la jam (Bloque 3.6)
 
 Desde **Amigos**, si eres host de una jam activa, cada amigo tiene un botón "Invitar". Modelo

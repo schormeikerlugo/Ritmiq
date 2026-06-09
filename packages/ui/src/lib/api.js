@@ -11,7 +11,7 @@ import { randomId } from './id.js';
 import { rewriteHost } from './url-rewrite.js';
 import { cleanYoutubeTitle, cleanUploader } from '@ritmiq/core';
 import {
-  downloadTrackToLocal, removeLocal, getLocalSize,
+  downloadTrackToLocal, removeLocal, getLocalSize, promoteJamCacheToDownload,
 } from './local-downloads.js';
 
 const isElectron = typeof window !== 'undefined' && Boolean(window.ritmiq);
@@ -171,6 +171,12 @@ const webApi = {
   libraryDownload: async (trackId) => {
     const { useLibraryStore } = await import('../stores/library.js');
     const t = useLibraryStore.getState().tracks.find((x) => x.id === trackId);
+    // Reutilizar el blob de la cache efímera del jam si esta canción se
+    // escuchó en una jam (sin re-descargar de red). Instantáneo.
+    if (t?.ytId) {
+      const promoted = await promoteJamCacheToDownload(t.ytId, trackId).catch(() => false);
+      if (promoted) { pwaEmitProgress(trackId, 100); return true; }
+    }
     await downloadTrackToLocal(trackId, (pct) => pwaEmitProgress(trackId, pct), {
       ytId: t?.ytId,
     });

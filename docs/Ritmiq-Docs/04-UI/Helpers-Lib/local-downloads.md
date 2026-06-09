@@ -185,3 +185,9 @@ export async function getLocalBlobUrl(trackId) {
   temprano para reducir el riesgo de eviction del SO sobre IndexedDB. Chequea
   `storage.persisted()` antes de re-pedir. Parte del fix de pérdida de descargas offline
   (ver [[Decisiones-Tecnicas-ADR|ADR-022]]).
+- 2026-06-02 (**jamCache**, Bloque 3.7): Dexie v4 — tabla `jamCache: 'ytId, cachedAt'`, cache
+  efímera de audio para el Jam (separada de `audioBlobs`). Funciones `cacheJamTrack(ytId,url)`,
+  `getJamBlobUrl(ytId)`, `hasJamCache`, `sweepJamCache` (TTL 1h + LRU 10), `removeJamCache`,
+  `clearJamCache`, `promoteJamCacheToDownload(ytId,trackId)` (reutiliza el blob como descarga
+  real sin re-bajar). El cascade de [[use-player]] prefiere `getJamBlobUrl` tras la descarga
+  real. Ver [[Decisiones-Tecnicas-ADR|ADR-027]].

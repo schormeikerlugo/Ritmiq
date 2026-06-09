@@ -26,7 +26,7 @@ import {
   getLanBaseUrlSync, pingLan, getTunnelUrlSync, withTokenInUrl,
   getSignedStreamUrl,
 } from './lan-client.js';
-import { getLocalBlobUrl } from './local-downloads.js';
+import { getLocalBlobUrl, getJamBlobUrl, cacheJamTrack } from './local-downloads.js';
 
 /**
  * Telemetria de orígenes de stream — singleton in-memory. Cuenta cuantas
@@ -223,8 +223,15 @@ function buildResolveDeps(track) {
   return {
     getLocalUrl: async () => {
       if (!isDesktop && !ephemeral) {
+        // 1) Descarga REAL del usuario (audioBlobs).
         const blobUrl = await getLocalBlobUrl(track.id);
         if (blobUrl) return blobUrl;
+        // 2) Cache EFÍMERA del jam (jamCache, por ytId): reproducción local
+        //    sin buffering aunque el track no esté descargado de verdad.
+        if (track.ytId) {
+          const jamUrl = await getJamBlobUrl(track.ytId);
+          if (jamUrl) return jamUrl;
+        }
       }
       return null;
     },
@@ -641,6 +648,13 @@ export function usePlayerEngine() {
         const resolved = await resolveAudioSource(track, buildResolveDeps(track));
         await backend.prepareForSync(resolved.url);
         recordStreamOrigin(resolved.origin);
+        // Auto-descarga efímera (PWA): si el audio no vino ya de un blob
+        // local, guardarlo en jamCache por ytId en background para que la
+        // PRÓXIMA reproducción de este track (re-entrar, saltar atrás) sea
+        // local y sin buffering. No bloquea el arranque. TTL 1h + LRU.
+        if (!isDesktop && track.ytId && resolved.origin !== 'local-blob' && resolved.url) {
+          cacheJamTrack(track.ytId, resolved.url).catch(() => {});
+        }
         loadedTrackIdRef.current = track.id;
         loadedFingerprintRef.current = track.ytId || track.id;
         // Reflejar en el store (UI) sin reproducir todavia.
