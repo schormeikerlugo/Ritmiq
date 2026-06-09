@@ -18,6 +18,7 @@ import { resolveAudioSource } from '@ritmiq/core';
 import { createHtmlAudioBackend } from './html-audio-backend.js';
 import { usePlayerStore } from '../stores/player.js';
 import { useHistoryStore } from '../stores/history.js';
+import { useJamStore } from '../stores/jam.js';
 import { api, isDesktop } from './api.js';
 import { isEphemeralTrack } from './track-helpers.js';
 import { supabase } from './supabase.js';
@@ -512,6 +513,19 @@ export function usePlayerEngine() {
       // Evitar disparar el swap dos veces para el mismo track.
       if (swapDoneRef.current === cur.id) return;
 
+      // JAM: el avance lo controla el HOST tomando la siguiente sugerencia
+      // pendiente de jam_queue (FIFO), reproducida via arranque coordinado.
+      // Los guests no avanzan por su cuenta (lo reciben sincronizado). Si no
+      // hay sugerencias pendientes, se detiene limpiamente.
+      const jam = useJamStore.getState();
+      if (jam.mode !== 'idle') {
+        swapDoneRef.current = cur.id;
+        if (jam.mode === 'hosting') {
+          jam.jamAdvance();
+        }
+        return;
+      }
+
       const nextIdx = store.shuffle ? pickShuffleIdx(store) : store.index + 1;
       if (nextIdx < 0 || nextIdx >= store.queue.length) {
         // Fin de cola: dejar que termine naturalmente.
@@ -607,6 +621,61 @@ export function usePlayerEngine() {
     window.addEventListener('ritmiq:set-rate', onSetRate);
     return () => window.removeEventListener('ritmiq:set-rate', onSetRate);
   }, [backend]);
+
+  /* ── Jam: arranque coordinado (prepare → ready → start) ──────────────── */
+  // El bridge de Jam (use-jam-sync) emite estos eventos. El player es quien
+  // tiene acceso al backend de audio y al resolve de URL, asi que aqui:
+  //   - 'ritmiq:jam-prepare': resolver+cargar el track SIN sonar, fijar el
+  //     currentTrack en el store (para UI) y avisar "listo" via callback.
+  //   - 'ritmiq:jam-start': arrancar la reproduccion tras startInMs.
+  // Reutiliza buildResolveDeps (mismo cascade: local-blob/LAN/cache/cloud).
+  const jamStartTimerRef = useRef(null);
+  useEffect(() => {
+    const onPrepare = async (ev) => {
+      const { track, onReady } = ev?.detail ?? {};
+      if (!track) return;
+      try {
+        // Marcar como "cargado por jam" para que el effect de currentTrack
+        // no vuelva a hacer load() y rompa el arranque coordinado.
+        setState({ error: null });
+        const resolved = await resolveAudioSource(track, buildResolveDeps(track));
+        await backend.prepareForSync(resolved.url);
+        recordStreamOrigin(resolved.origin);
+        loadedTrackIdRef.current = track.id;
+        loadedFingerprintRef.current = track.ytId || track.id;
+        // Reflejar en el store (UI) sin reproducir todavia.
+        usePlayerStore.setState({
+          currentTrack: track,
+          queue: [track],
+          index: 0,
+          isPlaying: false,
+          positionSeconds: 0,
+        });
+        applyMediaSessionMetadata(track);
+        if (typeof onReady === 'function') onReady(null);
+      } catch (err) {
+        console.warn('[jam] prepare failed', err?.message);
+        if (typeof onReady === 'function') onReady(err);
+      }
+    };
+    const onStart = (ev) => {
+      const startInMs = Number(ev?.detail?.startInMs) || 0;
+      if (jamStartTimerRef.current) clearTimeout(jamStartTimerRef.current);
+      jamStartTimerRef.current = backend.playAfter(startInMs);
+      // Sincronizar el store al estado "sonando" cuando arranque.
+      setTimeout(() => {
+        usePlayerStore.setState({ isPlaying: true });
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+      }, startInMs);
+    };
+    window.addEventListener('ritmiq:jam-prepare', onPrepare);
+    window.addEventListener('ritmiq:jam-start', onStart);
+    return () => {
+      window.removeEventListener('ritmiq:jam-prepare', onPrepare);
+      window.removeEventListener('ritmiq:jam-start', onStart);
+      if (jamStartTimerRef.current) clearTimeout(jamStartTimerRef.current);
+    };
+  }, [backend, setState]);
 
   /* ── Track actual: cargar y reproducir ──────────────────────────────── */
   useEffect(() => {

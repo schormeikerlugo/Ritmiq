@@ -73,6 +73,9 @@ export function JamModal({ onClose, initialCode = '' }) {
   const joinSession = useJamStore((s) => s.joinSession);
   const leaveSession = useJamStore((s) => s.leaveSession);
   const transferHost = useJamStore((s) => s.transferHost);
+  const readyByUser = useJamStore((s) => s.readyByUser);
+  const waitingFor = useJamStore((s) => s.waitingFor);
+  const forceStart = useJamStore((s) => s.forceStart);
 
   // Estado inicial: si hay sesion activa lo decide el effect de mode; si
   // estamos idle, la intro educativa tiene prioridad la primera vez
@@ -204,6 +207,7 @@ export function JamModal({ onClose, initialCode = '' }) {
       <ul className={styles.partList}>
         {participants.map((p) => {
           const isHost = p.role === 'host' || p.user_id === session?.hostId;
+          const ready = readyByUser?.[p.user_id];
           return (
             <li key={p.user_id} className={styles.partItem}>
               <span className={styles.partAvatar} aria-hidden="true">
@@ -212,6 +216,16 @@ export function JamModal({ onClose, initialCode = '' }) {
               <span className={styles.partId}>
                 {p.user_id.slice(0, 8)}
               </span>
+              {ready === 'loading' && (
+                <span className={styles.partLoading} title="Cargando…" aria-label="Cargando">
+                  <Icon name="Loader" size={13} />
+                </span>
+              )}
+              {ready === 'ready' && (
+                <span className={styles.partReady} title="Listo" aria-label="Listo">
+                  <Icon name="Check" size={13} />
+                </span>
+              )}
               {isHost && <span className={styles.partBadge}>Host</span>}
               {canTransfer && !isHost && (
                 <button
@@ -382,6 +396,22 @@ export function JamModal({ onClose, initialCode = '' }) {
           >
             Compartir invitación
           </Button>
+
+          {waitingFor.length > 0 && (
+            <div className={styles.waitBar}>
+              <span className={styles.waitText}>
+                <Icon name="Loader" size={14} />
+                Esperando a {waitingFor.length} {waitingFor.length === 1 ? 'persona' : 'personas'}…
+              </span>
+              <button
+                type="button"
+                className={styles.waitForce}
+                onClick={() => forceStart()}
+              >
+                Reproducir igualmente
+              </button>
+            </div>
+          )}
 
           {renderParticipants(true)}
 

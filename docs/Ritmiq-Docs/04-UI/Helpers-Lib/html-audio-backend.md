@@ -207,3 +207,7 @@ audio.crossOrigin = 'anonymous';
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno. Nota más crítica de F5 junto con api.md y lan-client.md.
+- 2026-06-02 (arranque coordinado Jam): `prepareForSync(url)` carga un track y espera `canplay`
+  con posición 0 SIN reproducir (resuelve cuando el audio está listo). `playAfter(delayMs)`
+  arranca diferido (timer cancelable) — usados por el handshake del Jam para que todos arranquen
+  a la vez sin buffering. Ver [[Decisiones-Tecnicas-ADR|ADR-026]].

@@ -192,6 +192,18 @@ Cada decisión sigue el formato:
   5. **UI**: botón "Invitar" en cada fila de amigo solo si el usuario es host de una jam activa.
 - **Consecuencias**: flujo social completo reutilizando toda la infraestructura existente (friendships, push, realtime, badges). El SELECT de `jam_invites` está restringido a participantes (a diferencia de las otras tablas jam con SELECT abierto). El consumidor del `?openTab=`/`push-click` del SW sigue sin estar cableado en el cliente (deep-routing desde el click del push), pendiente como mejora. Verificado: builds verdes + Playwright (pestaña Solicitudes con invitaciones + botón Invitar en Amigos). Falta validación funcional con 2 cuentas reales (invitar → push/toast → aceptar/rechazar).
 
+## ADR-026 — Jam: arranque coordinado por broadcast + avance FIFO automático
+
+- **Contexto**: el sync del Jam (ADR-019/024) hacía que el guest **persiguiera** la posición del host con `seek` + `playbackRate`. Resultados malos reportados: (a) cortes constantes cuando el guest no tenía la canción descargada (buffering → drift → seeks en cadena); (b) la canción se **ralentizaba audiblemente** (rate ±4% baja el tono); (c) la cola del jam **no avanzaba sola** (el host tenía que tocar cada canción manualmente — `store.queue` del player no contenía las sugerencias de `jam_queue`).
+- **Decisión**:
+  1. **Transporte por Realtime Broadcast** (no CDC de `jam_sessions`): mensajes efímeros de baja latencia en el canal `jam:<id>` — `prepare`/`ready`/`start`/`control`. La tabla `jam_sessions` queda solo como snapshot persistente para quien entra a mitad.
+  2. **Arranque coordinado**: el host pide `prepare {track}`; cada cliente carga sin sonar (`backend.prepareForSync`, espera `canplay`, posición 0) y responde `ready`; el host **espera a TODOS** (UI "Esperando a N…" + botón "Reproducir igualmente"; deja de esperar a quien sale de presencia) y emite `start {startInMs}` relativo (~300ms, robusto ante relojes desfasados). Todos arrancan desde 0 a la vez con `backend.playAfter`.
+  3. **Sin corrección audible**: se **elimina `playbackRate`**. Como todos parten de 0 coordinados, la deriva es de décimas; no se hace seek salvo emergencia. Esto elimina la ralentización.
+  4. **Avance automático FIFO**: al terminar la canción en modo jam, el **host** (solo él) toma la 1ª sugerencia pendiente de `jam_queue` (`played_at=null`, orden `position`) y la reproduce coordinada (`jamAdvance` → `coordinatedPlay`), **sin aprobación**. El tap manual (`playSuggestion`) queda como "saltar a esta". Si no hay pendientes, se detiene limpiamente.
+  5. **Guest read-only**: se conserva el guard central (revertir pause/cambios locales por cualquier vía).
+  6. **Indicador por participante**: `readyByUser` (loading/ready) → spinner/check junto a cada avatar; el host ve por quién espera.
+- **Consecuencias**: reproducción fluida sin saltos ni cambio de tono; la fiesta fluye sola (FIFO). Coste: un breve momento de "preparando" al cambiar de canción mientras todos cargan (mitigado por la auto-descarga del guest, ADR-027, y el pre-prepare). Si un guest tiene mala red, el host puede forzar el arranque. Verificado: builds verdes + tests (espera-a-todos, force, FIFO, cola vacía) + Playwright (barra de espera + indicadores). Falta validación funcional con 2 cuentas reales (Realtime).
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

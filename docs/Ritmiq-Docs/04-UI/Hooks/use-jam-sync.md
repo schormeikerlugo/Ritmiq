@@ -100,6 +100,12 @@ if (!sameTrack) {
   middleware `subscribeWithSelector`, que faltaba en [[player|store player]]; en zustand 5 el
   `cb` nunca corría. Se añadió el middleware al store (sin tocar este hook). Ver
   [[Decisiones-Tecnicas-ADR|ADR-023]].
+- 2026-06-02 (**reescritura — arranque coordinado**, Bloque 3.7): se eliminó toda la lógica de
+  drift (`seek`/`playbackRate`) que ralentizaba y cortaba. El transporte ahora es por broadcast
+  (handshake `prepare/ready/start` orquestado por [[jam|store jam]]); este hook solo: (a) HOST
+  propaga play/pausa/seek local como `control` a los guests; (b) GUEST mantiene el guard
+  read-only (revertir cambios locales). El cambio de canción lo maneja el store + el player
+  (eventos `ritmiq:jam-prepare`/`ritmiq:jam-start`). Ver [[Decisiones-Tecnicas-ADR|ADR-026]].
 - 2026-05-31 (**guest read-only + anti-cortes**, Bloque 3.5):
   - **Enforcement central**: en `mode==='guest'` el hook suscribe al player store y **revierte**
     al instante cualquier `isPlaying`/`currentTrack` que no coincida con el estado del host

@@ -107,13 +107,22 @@ Mientras la jam está activa, el **guest no puede usar los controles de transpor
 cualquier pause/cambio que se cuele por MediaSession, teclado o clic. Ver
 [[Decisiones-Tecnicas-ADR|ADR-024]].
 
-### Anti-cortes en el guest (Bloque 3.5)
+### Arranque coordinado + avance FIFO (Bloque 3.7) — reemplaza el modelo de drift
 
-Cuando el guest **no tiene la canción descargada**, resuelve el stream desde su red y va por
-detrás (buffering). El sync es **tolerante**: seek duro solo si el drift supera 4s (antes 1.5s)
-y fuera de un periodo de gracia de 6s tras cambiar de track; el resto se corrige con
-`playbackRate` (±4%, inaudible). Acepta 2-4s de desfase a cambio de reproducción fluida sin
-saltos. Ver [[use-jam-sync]].
+> El enfoque de "perseguir la posición del host con seek/playbackRate" (Bloques 3.1/3.5) se
+> **descartó**: cortaba la canción y la ralentizaba audiblemente. Modelo actual:
+
+1. **Transporte por broadcast** (canal `jam:<id>`, baja latencia), no por CDC de `jam_sessions`.
+2. **Arranque coordinado**: host envía `prepare {track}` → cada cliente carga sin sonar
+   (`prepareForSync`, posición 0) y responde `ready` → host **espera a TODOS** (UI "Esperando a
+   N…" + botón "Reproducir igualmente"; deja de esperar a quien sale de presencia) → `start
+   {startInMs}` → todos arrancan desde 0 a la vez. **Sin `playbackRate`** (fin de la
+   ralentización); seek solo emergencia.
+3. **Avance automático FIFO**: al terminar la canción, el host toma sola la siguiente sugerencia
+   pendiente de [[jam_queue]] (`jamAdvance`); sin aprobar. Cola vacía → se detiene.
+4. **Indicador** spinner/check por participante ([[JamModal]] `readyByUser`).
+
+Ver [[Decisiones-Tecnicas-ADR|ADR-026]], [[use-jam-sync]], [[jam|store jam]], [[html-audio-backend]].
 
 ## Invitar amigos a la jam (Bloque 3.6)
 

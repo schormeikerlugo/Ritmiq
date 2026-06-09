@@ -95,3 +95,8 @@ desktop / sin soporte. `AbortError` (usuario cancela) se ignora silenciosamente.
   (opacity+scale, [[Decisiones-Tecnicas-ADR|ADR-020]]) y `isolation:isolate` en el círculo
   para que el halo quede sobre el card. Iconos `Radio`/`Crown`/`Wifi` (ya en [[Icon]]).
   Verificado con Playwright en 1300px y 390px.
+- 2026-06-02 (**arranque coordinado**, Bloque 3.7): indicador por participante (spinner `Loader`
+  / check `Check`) según `readyByUser`. Barra de espera del host "Esperando a N…" + botón
+  "Reproducir igualmente" (`forceStart`) cuando hay `waitingFor`. Estilos `.partLoading`/
+  `.partReady`/`.waitBar`/`.waitText`/`.waitForce` (spin solo transform, respeta
+  prefers-reduced-motion). Ver [[Decisiones-Tecnicas-ADR|ADR-026]].

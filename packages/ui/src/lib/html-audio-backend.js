@@ -335,6 +335,63 @@ export function createHtmlAudioBackend() {
       });
     },
 
+    /**
+     * Prepara un track para arranque coordinado (Jam): carga la URL,
+     * espera a tener audio listo (canplay), deja la posicion en 0 y NO
+     * reproduce. Resuelve cuando el audio puede empezar a sonar — asi el
+     * arranque posterior (playAfter) es inmediato y sin buffering.
+     *
+     * @param {string} url
+     * @returns {Promise<void>}
+     */
+    prepareForSync(url) {
+      const el = ensureAudio();
+      try { el.pause(); el.removeAttribute('src'); el.load(); } catch {}
+      return new Promise((resolve, reject) => {
+        const onReady = () => {
+          cleanup();
+          try { el.currentTime = 0; } catch {}
+          resolve();
+        };
+        const onError = () => {
+          cleanup();
+          const code = el.error?.code ?? 0;
+          reject(new Error(`audio prepare failed (code ${code})`));
+        };
+        const cleanup = () => {
+          el.removeEventListener('canplay', onReady);
+          el.removeEventListener('loadeddata', onReady);
+          el.removeEventListener('error', onError);
+        };
+        el.addEventListener('canplay', onReady, { once: true });
+        el.addEventListener('loadeddata', onReady, { once: true });
+        el.addEventListener('error', onError, { once: true });
+        el.src = url;
+        revokeAllExcept(url);
+        currentSrc = url;
+      });
+    },
+
+    /**
+     * Arranque diferido coordinado: reproduce desde la posicion actual
+     * (0 si se llamo prepareForSync) tras `delayMs`. Devuelve un timer id
+     * cancelable. Usado por el Jam para que todos arranquen a la vez.
+     *
+     * @param {number} delayMs
+     * @returns {ReturnType<typeof setTimeout>}
+     */
+    playAfter(delayMs) {
+      const el = ensureAudio();
+      const ms = Math.max(0, Number(delayMs) || 0);
+      if (ctx && ctx.state === 'suspended') {
+        try { ctx.resume().catch(() => {}); } catch {}
+      }
+      return setTimeout(() => {
+        const p = el.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      }, ms);
+    },
+
     async play() {
       const el = ensureAudio();
       // FIX bug audio mute en background:

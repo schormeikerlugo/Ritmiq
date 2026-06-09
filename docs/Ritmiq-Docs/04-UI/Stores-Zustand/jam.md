@@ -142,3 +142,10 @@ de `host_id` y recalcula el `mode` de **cada** cliente (el nuevo host pasa a `ho
   (re-fetch ordenado por `played_at nulls first, position`). Canal CDC nuevo
   `jam-queue:<sessionId>` en `_subscribe`. `leaveSession`/`reset` limpian `suggestions` y
   `profilesById`. Ver [[Decisiones-Tecnicas-ADR|ADR-024]].
+- 2026-06-02 (**arranque coordinado + avance FIFO**, Bloque 3.7): transporte por broadcast en el
+  canal `jam:<id>` (`_bcastChannel`, eventos `prepare/ready/start/control`). Estado nuevo
+  `readyByUser`/`waitingFor`/`_playId`. Métodos: `coordinatedPlay(track)` (prepare → espera
+  ready de todos → start), `jamAdvance()` (host: siguiente sugerencia FIFO al terminar; cola
+  vacía → pause), `forceStart()` (botón "Reproducir igualmente"), internos `_localPrepare`/
+  `_markReady`/`_maybeStart`/`_broadcast`. `playSuggestion` ahora usa `coordinatedPlay`. Se
+  retiró el broadcast de posición continuo. Ver [[Decisiones-Tecnicas-ADR|ADR-026]].

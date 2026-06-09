@@ -61,6 +61,21 @@ export const useJamStore = create((set, get) => ({
    * @type {Record<string, { userId:string, username:string, displayName:string|null, avatarUrl:string|null }>}
    */
   profilesById: {},
+
+  /**
+   * Arranque coordinado (Bloque 3.7). Mapa userId → 'loading' | 'ready'
+   * para el playId actual. El host lo usa para saber por quien espera y la
+   * UI muestra spinner/check por participante.
+   * @type {Record<string, 'loading'|'ready'>}
+   */
+  readyByUser: {},
+  /** Lista de userIds que el host aun espera para arrancar (derivado). @type {string[]} */
+  waitingFor: [],
+  /** playId del arranque coordinado en curso (incrementa por cada track). */
+  _playId: 0,
+  /** El canal broadcast Realtime (subset de _channels) para enviar mensajes. */
+  _bcastChannel: null,
+
   /** Subscriptions Realtime activas (para cleanup). */
   _channels: [],
   _heartbeatTimer: null,
@@ -225,6 +240,9 @@ export const useJamStore = create((set, get) => ({
       participants: [],
       suggestions: [],
       profilesById: {},
+      readyByUser: {},
+      waitingFor: [],
+      _bcastChannel: null,
       state: { currentTrack: null, positionSeconds: 0, isPlaying: false, queue: [] },
     });
   },
@@ -371,14 +389,147 @@ export const useJamStore = create((set, get) => ({
       .update({ played_at: new Date().toISOString() })
       .eq('id', id);
 
-    // Aplicar al player local del host. El bridge use-jam-sync detecta el
-    // cambio de currentTrack y lo propaga via hostBroadcast a los guests.
-    try {
-      const { usePlayerStore } = await import('./player.js');
-      usePlayerStore.getState().playNow([item.track], 0);
-    } catch (e) {
-      console.warn('[jam] playSuggestion: no se pudo aplicar al player', e?.message);
+    // Reproducir con arranque coordinado (todos preparan y arrancan a la vez).
+    get().coordinatedPlay(item.track);
+  },
+
+  // ── Arranque coordinado (Bloque 3.7) ───────────────────────────────
+
+  /**
+   * El host avanza la cola automaticamente: toma la 1ª sugerencia pendiente
+   * (played_at == null, orden position) y la reproduce coordinadamente. Si
+   * no hay pendientes, se detiene. Llamado al terminar una cancion (FIFO).
+   */
+  async jamAdvance() {
+    const { mode, suggestions } = get();
+    if (mode !== 'hosting') return;
+    const pending = suggestions
+      .filter((s) => !s.playedAt)
+      .sort((a, b) => a.position - b.position);
+    const next = pending[0];
+    if (!next) {
+      // Cola vacia: detener limpiamente y avisar a los guests.
+      try {
+        const { usePlayerStore } = await import('./player.js');
+        usePlayerStore.setState({ isPlaying: false });
+      } catch {}
+      get()._broadcast('control', { action: 'pause' });
+      return;
     }
+    await supabase
+      .from('jam_queue')
+      .update({ played_at: new Date().toISOString() })
+      .eq('id', next.id);
+    get().coordinatedPlay(next.track);
+  },
+
+  /**
+   * Reproduce un track con arranque coordinado: prepara en todos los
+   * clientes, espera a que todos confirmen "ready" y entonces ordena
+   * arrancar a la vez. Solo host. El host tambien se prepara localmente.
+   * @param {any} track
+   */
+  async coordinatedPlay(track) {
+    const { mode, participants } = get();
+    if (mode !== 'hosting' || !track) return;
+
+    const playId = get()._playId + 1;
+    // Estado inicial: todos los participantes en 'loading'.
+    const ids = participants.map((p) => p.user_id);
+    const readyByUser = {};
+    for (const id of ids) readyByUser[id] = 'loading';
+    set({
+      _playId: playId,
+      readyByUser,
+      waitingFor: ids.slice(),
+      state: { ...get().state, currentTrack: track, positionSeconds: 0, isPlaying: false },
+    });
+
+    // Persistir en jam_sessions para quien entre a mitad de sesion.
+    try {
+      await supabase.from('jam_sessions').update({
+        current_track: track, position_seconds: 0, is_playing: false,
+        updated_at: new Date().toISOString(),
+      }).eq('id', get().session?.id);
+    } catch {}
+
+    // Pedir a todos que preparen (incluido el host, localmente).
+    get()._broadcast('prepare', { playId, track });
+    get()._localPrepare(playId, track);
+  },
+
+  /** El host fuerza el arranque sin esperar a los rezagados (boton UI). */
+  forceStart() {
+    if (get().mode !== 'hosting') return;
+    get()._maybeStart(true);
+  },
+
+  /**
+   * Internal: prepara el track localmente (host o guest) y, cuando el audio
+   * esta listo, marca este cliente como 'ready' y lo difunde.
+   */
+  async _localPrepare(playId, track) {
+    const myId = await get()._myUserId();
+    if (!myId) return;
+    // Disparar la preparacion en el player (resuelve URL + carga sin sonar).
+    const onReady = (err) => {
+      if (get()._playId !== playId) return; // playId viejo, ignorar
+      if (err) { console.warn('[jam] localPrepare error', err?.message); }
+      get()._markReady(myId, playId);
+      get()._broadcast('ready', { playId, userId: myId });
+    };
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ritmiq:jam-prepare', { detail: { track, onReady } }));
+    }
+  },
+
+  /** Internal: marca un user como ready para el playId actual. */
+  _markReady(userId, playId) {
+    if (get()._playId !== playId) return;
+    set((s) => ({
+      readyByUser: { ...s.readyByUser, [userId]: 'ready' },
+      waitingFor: s.waitingFor.filter((id) => id !== userId),
+    }));
+    // El host decide si ya puede arrancar.
+    if (get().mode === 'hosting') get()._maybeStart(false);
+  },
+
+  /**
+   * Internal (host): arranca si todos estan ready (o force=true). Emite el
+   * mensaje 'start' con un pequeno delay relativo para que todos arranquen
+   * casi simultaneamente.
+   */
+  _maybeStart(force) {
+    if (get().mode !== 'hosting') return;
+    const waiting = get().waitingFor;
+    if (!force && waiting.length > 0) return; // aun faltan
+    const playId = get()._playId;
+    const startInMs = 300;
+    get()._broadcast('start', { playId, startInMs });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ritmiq:jam-start', { detail: { startInMs } }));
+    }
+    set((s) => ({
+      waitingFor: [],
+      state: { ...s.state, isPlaying: true },
+    }));
+    // Persistir is_playing.
+    supabase.from('jam_sessions').update({
+      is_playing: true, updated_at: new Date().toISOString(),
+    }).eq('id', get().session?.id).then(() => {}, () => {});
+  },
+
+  /** Internal: envia un mensaje broadcast por el canal del jam. */
+  _broadcast(event, payload) {
+    const ch = get()._bcastChannel;
+    if (!ch) return;
+    try { ch.send({ type: 'broadcast', event, payload }); } catch {}
+  },
+
+  /** Internal: user_id actual. */
+  async _myUserId() {
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    return authSession?.user?.id ?? null;
   },
 
   /**
@@ -451,7 +602,11 @@ export const useJamStore = create((set, get) => ({
           });
         }
 
-        // Aplicar el state solo para guests; el host ya aplico optimistically.
+        // El transporte en vivo (track/play/seek) ahora viaja por BROADCAST
+        // (arranque coordinado, baja latencia). El CDC de jam_sessions solo
+        // se usa como snapshot persistente para quien entra a mitad de
+        // sesion. Guardamos el state como referencia, sin tocar el player
+        // (eso lo hace el handshake prepare/start).
         if (get().mode === 'guest') {
           set({
             state: {
@@ -461,6 +616,36 @@ export const useJamStore = create((set, get) => ({
               queue: row.queue ?? [],
             },
           });
+        }
+      })
+      // ── Arranque coordinado (broadcast) ──────────────────────────────
+      .on('broadcast', { event: 'prepare' }, ({ payload }) => {
+        const { playId, track } = payload ?? {};
+        if (!track) return;
+        set({ _playId: playId, state: { ...get().state, currentTrack: track, isPlaying: false } });
+        get()._localPrepare(playId, track);
+      })
+      .on('broadcast', { event: 'ready' }, ({ payload }) => {
+        const { playId, userId } = payload ?? {};
+        if (userId) get()._markReady(userId, playId);
+      })
+      .on('broadcast', { event: 'start' }, ({ payload }) => {
+        const { playId, startInMs } = payload ?? {};
+        if (get()._playId !== playId) return;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('ritmiq:jam-start', { detail: { startInMs } }));
+        }
+        set((s) => ({ waitingFor: [], state: { ...s.state, isPlaying: true } }));
+      })
+      .on('broadcast', { event: 'control' }, ({ payload }) => {
+        const { action, seconds } = payload ?? {};
+        if (typeof window === 'undefined') return;
+        if (action === 'pause') {
+          import('./player.js').then(({ usePlayerStore }) => usePlayerStore.setState({ isPlaying: false }));
+        } else if (action === 'play') {
+          import('./player.js').then(({ usePlayerStore }) => usePlayerStore.setState({ isPlaying: true }));
+        } else if (action === 'seek' && typeof seconds === 'number') {
+          window.dispatchEvent(new CustomEvent('ritmiq:seek', { detail: { seconds } }));
         }
       })
       .on('postgres_changes', {
@@ -516,6 +701,7 @@ export const useJamStore = create((set, get) => ({
       .eq('session_id', sessionId);
     set({
       _channels: [sesChannel, partChannel, queueChannel],
+      _bcastChannel: sesChannel,
       participants: initialParts ?? [],
     });
     get()._resolveProfiles((initialParts ?? []).map((p) => p.user_id));
@@ -553,8 +739,11 @@ export const useJamStore = create((set, get) => ({
       participants: [],
       suggestions: [],
       profilesById: {},
+      readyByUser: {},
+      waitingFor: [],
       state: { currentTrack: null, positionSeconds: 0, isPlaying: false, queue: [] },
       _channels: [],
+      _bcastChannel: null,
       _heartbeatTimer: null,
       pendingJoinCode: null,
     });
