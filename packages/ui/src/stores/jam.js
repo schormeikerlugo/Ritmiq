@@ -73,6 +73,8 @@ export const useJamStore = create((set, get) => ({
   waitingFor: [],
   /** playId del arranque coordinado en curso (incrementa por cada track). */
   _playId: 0,
+  /** Flag: el playId actual ya emitio 'start' (evita arrancar dos veces). */
+  _started: false,
   /** El canal broadcast Realtime (subset de _channels) para enviar mensajes. */
   _bcastChannel: null,
 
@@ -440,6 +442,7 @@ export const useJamStore = create((set, get) => ({
     for (const id of ids) readyByUser[id] = 'loading';
     set({
       _playId: playId,
+      _started: false,
       readyByUser,
       waitingFor: ids.slice(),
       state: { ...get().state, currentTrack: track, positionSeconds: 0, isPlaying: false },
@@ -453,9 +456,10 @@ export const useJamStore = create((set, get) => ({
       }).eq('id', get().session?.id);
     } catch {}
 
-    // Pedir a todos que preparen (incluido el host, localmente).
+    // Pedir a todos que preparen. Con broadcast.self:true el propio host
+    // recibe este 'prepare' y corre _localPrepare por el handler — asi el
+    // host y los guests siguen el MISMO camino (sin doble preparacion).
     get()._broadcast('prepare', { playId, track });
-    get()._localPrepare(playId, track);
   },
 
   /** El host fuerza el arranque sin esperar a los rezagados (boton UI). */
@@ -501,18 +505,15 @@ export const useJamStore = create((set, get) => ({
    */
   _maybeStart(force) {
     if (get().mode !== 'hosting') return;
+    if (get()._started) return; // ya arranco este playId
     const waiting = get().waitingFor;
     if (!force && waiting.length > 0) return; // aun faltan
+    set({ _started: true });
     const playId = get()._playId;
     const startInMs = 300;
+    // Con broadcast.self:true el host tambien recibe este 'start' y aplica
+    // el arranque por el handler (mismo camino que los guests).
     get()._broadcast('start', { playId, startInMs });
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('ritmiq:jam-start', { detail: { startInMs } }));
-    }
-    set((s) => ({
-      waitingFor: [],
-      state: { ...s.state, isPlaying: true },
-    }));
     // Persistir is_playing.
     supabase.from('jam_sessions').update({
       is_playing: true, updated_at: new Date().toISOString(),
@@ -592,8 +593,15 @@ export const useJamStore = create((set, get) => ({
 
   /** Internal: suscripcion a Postgres CDC + presencia. */
   async _subscribe(sessionId) {
+    // El canal lleva postgres_changes (snapshot) + broadcast (transporte en
+    // vivo: prepare/ready/start/control). `broadcast.self:true` para que el
+    // emisor tambien reciba (util en debug y para flujos donde el host
+    // necesita confirmar su propio estado). `ack:true` da error si el envio
+    // falla. `private:false` (broadcast publico, no requiere RLS de canal).
     const sesChannel = supabase
-      .channel(`jam:${sessionId}`)
+      .channel(`jam:${sessionId}`, {
+        config: { broadcast: { self: true, ack: false } },
+      })
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
@@ -635,7 +643,11 @@ export const useJamStore = create((set, get) => ({
       .on('broadcast', { event: 'prepare' }, ({ payload }) => {
         const { playId, track } = payload ?? {};
         if (!track) return;
-        set({ _playId: playId, state: { ...get().state, currentTrack: track, isPlaying: false } });
+        set({
+          _playId: playId,
+          _started: false,
+          state: { ...get().state, currentTrack: track, isPlaying: false },
+        });
         get()._localPrepare(playId, track);
       })
       .on('broadcast', { event: 'ready' }, ({ payload }) => {
@@ -646,17 +658,20 @@ export const useJamStore = create((set, get) => ({
         const { playId, startInMs } = payload ?? {};
         if (get()._playId !== playId) return;
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('ritmiq:jam-start', { detail: { startInMs } }));
+          window.dispatchEvent(new CustomEvent('ritmiq:jam-start', { detail: { startInMs: startInMs ?? 300 } }));
         }
-        set((s) => ({ waitingFor: [], state: { ...s.state, isPlaying: true } }));
+        set((s) => ({ _started: true, waitingFor: [], state: { ...s.state, isPlaying: true } }));
       })
       .on('broadcast', { event: 'control' }, ({ payload }) => {
         const { action, seconds } = payload ?? {};
         if (typeof window === 'undefined') return;
-        if (action === 'pause') {
-          import('./player.js').then(({ usePlayerStore }) => usePlayerStore.setState({ isPlaying: false }));
-        } else if (action === 'play') {
-          import('./player.js').then(({ usePlayerStore }) => usePlayerStore.setState({ isPlaying: true }));
+        // Solo los guests obedecen control remoto (el host es el emisor).
+        if (get().mode !== 'guest') return;
+        if (action === 'pause' || action === 'play') {
+          const isPlaying = action === 'play';
+          // Actualizar jamState ANTES para que el guard read-only no revierta.
+          set((s) => ({ state: { ...s.state, isPlaying } }));
+          import('./player.js').then(({ usePlayerStore }) => usePlayerStore.setState({ isPlaying }));
         } else if (action === 'seek' && typeof seconds === 'number') {
           window.dispatchEvent(new CustomEvent('ritmiq:seek', { detail: { seconds } }));
         }

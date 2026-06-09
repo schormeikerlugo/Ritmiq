@@ -106,6 +106,12 @@ if (!sameTrack) {
   propaga play/pausa/seek local como `control` a los guests; (b) GUEST mantiene el guard
   read-only (revertir cambios locales). El cambio de canción lo maneja el store + el player
   (eventos `ritmiq:jam-prepare`/`ritmiq:jam-start`). Ver [[Decisiones-Tecnicas-ADR|ADR-026]].
+- 2026-06-03 (**fix flujo roto**): (a) HOST ahora observa el cambio de `currentTrack` del player
+  y llama `coordinatedPlay` aunque la canción venga de biblioteca/búsqueda (antes solo
+  `playSuggestion` coordinaba → el host sonaba solo). (b) GUEST: al intentar reproducir otra
+  canción se **detiene** el audio (no solo se revierte el store) + toast "El host controla…
+  Usa Sugerir a la jam" (throttle 2.5s). El effect de carga del player ([[player|use-player]])
+  ahora **no auto-reproduce** en modo jam (lo controla el handshake). Ver [[jam|store jam]].
 - 2026-05-31 (**guest read-only + anti-cortes**, Bloque 3.5):
   - **Enforcement central**: en `mode==='guest'` el hook suscribe al player store y **revierte**
     al instante cualquier `isPlaying`/`currentTrack` que no coincida con el estado del host

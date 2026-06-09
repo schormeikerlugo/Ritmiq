@@ -23,6 +23,7 @@
 import { useEffect, useRef } from 'react';
 import { useJamStore } from '../stores/jam.js';
 import { usePlayerStore } from '../stores/player.js';
+import { toast } from '../stores/toast.js';
 
 export function useJamSync() {
   const mode = useJamStore((s) => s.mode);
@@ -32,10 +33,33 @@ export function useJamSync() {
   modeRef.current = mode;
   const jamStateRef = useRef(jamState);
   jamStateRef.current = jamState;
+  const lastBlockToastRef = useRef(0);
 
-  // ── HOST: propagar play/pause/seek local a los guests (broadcast) ──────
+  // ── HOST: orquestar la reproduccion coordinada ────────────────────────
   useEffect(() => {
     if (mode !== 'hosting') return undefined;
+
+    // CAMBIO DE TRACK del host por CUALQUIER via (biblioteca, busqueda,
+    // playSuggestion ya marca el jamState antes, etc.). Si el track que
+    // suena localmente NO coincide con el del jam (jamState.currentTrack),
+    // significa que el host eligio algo nuevo → iniciar arranque coordinado
+    // para que TODOS lo reproduzcan. Sin esto, el host sonaba solo y el
+    // guest no se enteraba.
+    const unsubTrack = usePlayerStore.subscribe(
+      (s) => s.currentTrack?.ytId || s.currentTrack?.id || null,
+      () => {
+        if (modeRef.current !== 'hosting') return;
+        const cur = usePlayerStore.getState().currentTrack;
+        if (!cur) return;
+        const jamTrack = useJamStore.getState().state?.currentTrack;
+        const same = jamTrack
+          && (jamTrack.ytId === cur.ytId)
+          && (jamTrack.id === cur.id);
+        if (same) return; // ya es el track coordinado actual
+        // Disparar arranque coordinado con el track elegido por el host.
+        useJamStore.getState().coordinatedPlay(cur);
+      },
+    );
 
     // Play/pause: el host pulsa el boton → control a los guests.
     const unsubPlay = usePlayerStore.subscribe(
@@ -60,6 +84,7 @@ export function useJamSync() {
     window.addEventListener('ritmiq:seek', onLocalSeek);
 
     return () => {
+      unsubTrack();
       unsubPlay();
       window.removeEventListener('ritmiq:seek', onLocalSeek);
     };
@@ -86,13 +111,23 @@ export function useJamSync() {
       () => {
         if (modeRef.current !== 'guest') return;
         const hostTrack = jamStateRef.current?.currentTrack;
-        if (!hostTrack) return;
         const cur = usePlayerStore.getState().currentTrack;
-        const same = cur?.ytId === hostTrack.ytId && cur?.id === hostTrack.id;
-        if (!same) {
-          // Reaplicar la cancion del host (sin reproducir; el handshake manda).
-          usePlayerStore.setState({ currentTrack: hostTrack });
+        const same = hostTrack
+          && cur?.ytId === hostTrack.ytId && cur?.id === hostTrack.id;
+        if (same) return;
+        // El guest intento reproducir otra cosa (clic en lista, etc.). En una
+        // jam NO puede controlar la reproduccion: revertimos al track del host
+        // y DETENEMOS el audio que acaba de arrancar. Avisamos por toast
+        // (throttled para no spamear si hay varios cambios seguidos).
+        const now = Date.now();
+        if (now - lastBlockToastRef.current > 2500) {
+          lastBlockToastRef.current = now;
+          toast.info('El host controla la reproducción. Usa “Sugerir a la jam”.');
         }
+        usePlayerStore.setState({
+          currentTrack: hostTrack ?? null,
+          isPlaying: false,
+        });
       },
     );
 

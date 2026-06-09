@@ -712,6 +712,19 @@ export function usePlayerEngine() {
     if (!currentTrack) return;
     const fp = currentTrack.ytId || currentTrack.id;
 
+    // JAM: la carga/reproduccion la controla el handshake coordinado
+    // (eventos jam-prepare/jam-start), NO este effect. Si estamos en una jam,
+    // no auto-cargamos aqui — evita que el guest reproduzca al seleccionar y
+    // que el host arranque sin coordinar. El guard de use-jam-sync revierte
+    // selecciones del guest; coordinatedPlay maneja las del host.
+    if (useJamStore.getState().mode !== 'idle') {
+      // Pausar cualquier audio que se intentara colar.
+      if (loadedTrackIdRef.current !== currentTrack.id) {
+        backend.pause();
+      }
+      return;
+    }
+
     // ATAJO 1: el track ya fue cargado por el pre-end swap (timeupdate).
     if (loadedTrackIdRef.current === currentTrack.id) {
       loadedFingerprintRef.current = fp;

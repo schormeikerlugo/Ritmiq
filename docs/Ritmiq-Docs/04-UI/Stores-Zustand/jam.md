@@ -153,3 +153,15 @@ de `host_id` y recalcula el `mode` de **cada** cliente (el nuevo host pasa a `ho
   con la siguiente sugerencia pendiente (FIFO) → todos los clientes calientan su cache
   ([[local-downloads|jamCache]]) en background para que el próximo arranque coordinado sea casi
   instantáneo. Ver [[Decisiones-Tecnicas-ADR|ADR-027]].
+- 2026-06-03 (**fix flujo coordinado roto**): reportado que el host sonaba solo, el guest no
+  cargaba nada y al seleccionar reproducía ignorando la jam. Causas y fixes:
+  1. El canal `jam:<id>` se creaba **sin** `config.broadcast` → los mensajes no fluían bien.
+     Ahora `{ config: { broadcast: { self: true } } }`: el host también recibe su propio
+     `prepare/start` y sigue el MISMO camino (handler) que los guests. Se quitó la llamada
+     directa a `_localPrepare` en `coordinatedPlay` (la hace el handler). Flag `_started` evita
+     doble arranque.
+  2. El host **no** iniciaba el flujo coordinado al reproducir desde biblioteca/búsqueda (solo
+     `playSuggestion` lo hacía). Ahora [[use-jam-sync]] (host) observa el cambio de
+     `currentTrack` y, si difiere del jamState, llama `coordinatedPlay`.
+  3. El handler `control` (play/pause/seek) ahora solo lo obedecen guests y actualiza `jamState`
+     antes para que el guard read-only no lo revierta.
