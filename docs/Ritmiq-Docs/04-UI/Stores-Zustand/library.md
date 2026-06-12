@@ -184,3 +184,8 @@ applyRemote({ eventType, new: row, old }) {
   (`getCachedTracks` + `listLocalIds`) para que las descargas sigan visibles. Solo vacía si
   no hay nada cacheado. Parte del fix de pérdida de descargas offline (ver
   [[Decisiones-Tecnicas-ADR|ADR-022]]).
+- 2026-06-04 (**fix "otra base de datos" iOS**): `load()` ahora (a) detecta **cambio de cuenta**
+  (`userId !== meta.lastUserId`) → `clearMirrorForAccountSwitch` antes de hidratar; (b) hidrata
+  con `getCachedTracks(userId)` (filtrado por dueño; la ruta sin sesión filtra por
+  `lastUserId`); (c) persiste con `cacheTracks(remote, userId)` que **reconcilia** el espejo
+  (elimina lo borrado en remoto). Ver [[Decisiones-Tecnicas-ADR|ADR-029]].

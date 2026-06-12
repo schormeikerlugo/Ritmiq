@@ -16,7 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLibraryStore } from '../stores/library.js';
 import { useAuthStore } from '../stores/auth.js';
 import { isDesktop, api } from './api.js';
-import { listLocalDownloads, getCachedTracks } from './local-downloads.js';
+import { listLocalDownloads, getCachedTracks, getLastUserId } from './local-downloads.js';
 
 export function useDownloadsStats() {
   const tracks = useLibraryStore((s) => s.tracks);
@@ -52,7 +52,10 @@ export function useDownloadsStats() {
     let baseTracks = tracks;
     if (baseTracks.length === 0 && items.length > 0) {
       try {
-        const cached = await getCachedTracks();
+        // Filtrar por el usuario actual (o el último con sesión) para no
+        // cruzar contra el espejo de otra cuenta del mismo dispositivo.
+        const owner = userId ?? (await getLastUserId());
+        const cached = await getCachedTracks(owner ?? undefined);
         if (cached.length > 0) baseTracks = cached;
       } catch { /* sin cache: seguimos con tracks (vacío) */ }
     }

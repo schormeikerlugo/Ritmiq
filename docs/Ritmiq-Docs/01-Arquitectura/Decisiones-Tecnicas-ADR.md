@@ -222,6 +222,15 @@ Cada decisión sigue el formato:
   - El effect de carga del player permite reproducir al `host && kind==='speaker'`; bloquea a guests y a host en sync (lo controla el handshake).
 - **Consecuencias**: una jam tipo bocina con control remoto colaborativo, reutilizando el canal broadcast existente. Las jams previas siguen en sync (default). El control compartido no escribe la tabla (va por broadcast), así que no se tocó RLS. El guest en speaker no oye nada en su dispositivo (esperado). Verificado: builds verdes + test de routing de control (host ejecuta, guest no reproduce) + Playwright (selector + control remoto). Falta validación con 2 cuentas reales.
 
+## ADR-029 — Espejo offline reconciliado por usuario (fix "otra base de datos" en iOS PWA)
+
+- **Contexto**: tras el fix offline-first (ADR-022), la PWA hidrataba la UI desde un espejo de la biblioteca en Dexie. Reporte iOS: "me muestra otra base de datos". Causas: (1) `cacheTracks` hacía `bulkPut` **sin reconciliar** — los tracks borrados en remoto vivían en el espejo para siempre (y con lista vacía hacía early-return conservando lo viejo); (2) `getCachedTracks` devolvía **todo** el espejo sin filtrar por usuario (mezcla de cuentas en el mismo dispositivo); (3) el logout no limpiaba Dexie. iOS suspende la PWA y arranca con red inestable → se veía el espejo stale y el pull no llegaba a corregirlo (ni podía: nunca borraba).
+- **Decisión**:
+  1. **`cacheTracks(tracks, userId)` = REPLACE por usuario**: transacción que borra las filas stale de ese `userId` y upsertea las actuales. Biblioteca vacía ⇒ espejo vacío.
+  2. **`getCachedTracks(userId)`** filtra por el índice `userId`; la hidratación offline sin sesión usa **`meta.lastUserId`** (persistido en cada load con sesión).
+  3. **Cambio de cuenta** (`userId !== lastUserId`): `clearMirrorForAccountSwitch` limpia el espejo (tracks/playlists/playlistTracks) y **borra las descargas huérfanas** de la cuenta anterior (inaccesibles desde la nueva). [[use-downloads-stats]] también filtra por owner.
+- **Consecuencias**: el espejo converge con el remoto en cada pull — la "base vieja" desaparece sola al abrir con red una vez, sin que el usuario borre datos (borrar datos/cache manual habría eliminado también las descargas). Multi-cuenta en un dispositivo ya no mezcla bibliotecas; el costo es re-descargar si se alternan cuentas (decisión: huérfanas se borran). Verificado: 5 tests de lógica (reconcilia, vacía, aislamiento por user, filtro, switch) + builds verdes.
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

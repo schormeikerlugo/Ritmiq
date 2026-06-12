@@ -286,13 +286,26 @@ export async function downloadTrackToLocal(trackId, onProgress, opts = {}) {
  * Permite que la PWA abra y muestre contenido sin red.
  * ───────────────────────────────────────────────────────────────────── */
 
-/** @param {import('@ritmiq/core/types').Track[]} tracks */
-export async function cacheTracks(tracks) {
-  if (!Array.isArray(tracks) || tracks.length === 0) return;
+/**
+ * Persiste el espejo de la biblioteca del usuario con semántica REPLACE
+ * por-usuario: borra las filas de ese userId que ya NO estén en la lista
+ * nueva (canciones eliminadas en remoto) y upsertea las actuales. Sin esto,
+ * el espejo acumulaba para siempre tracks borrados / de otras cuentas y la
+ * hidratación offline mostraba "otra base de datos" (bug iOS PWA).
+ *
+ * Lista vacía = biblioteca vacía: se limpia el espejo de ese usuario (NO se
+ * conserva lo viejo).
+ *
+ * @param {import('@ritmiq/core/types').Track[]} tracks
+ * @param {string} userId dueño de la biblioteca (requerido para reconciliar)
+ */
+export async function cacheTracks(tracks, userId) {
+  if (!userId) return; // sin owner no podemos reconciliar con seguridad
+  const list = Array.isArray(tracks) ? tracks : [];
   // Persistimos solo metadata (sin blob). Los flags por-dispositivo se ignoran.
-  const rows = tracks.map((t) => ({
+  const rows = list.map((t) => ({
     id: t.id,
-    userId: t.userId,
+    userId: t.userId ?? userId,
     source: t.source,
     ytId: t.ytId ?? null,
     title: t.title,
@@ -302,14 +315,70 @@ export async function cacheTracks(tracks) {
     coverUrl: t.coverUrl ?? null,
     createdAt: t.createdAt ?? null,
   }));
-  await db.table('tracks').bulkPut(rows);
+  const keepIds = new Set(rows.map((r) => r.id));
+  await db.transaction('rw', db.table('tracks'), async () => {
+    // Borrar filas stale del usuario (eliminadas en remoto).
+    const mine = await db.table('tracks').where('userId').equals(userId).toArray();
+    const stale = mine.filter((r) => !keepIds.has(r.id)).map((r) => r.id);
+    if (stale.length) await db.table('tracks').bulkDelete(stale);
+    if (rows.length) await db.table('tracks').bulkPut(rows);
+  });
   await db.table('meta').put({ key: 'tracks.syncedAt', value: new Date().toISOString() });
 }
 
-/** @returns {Promise<import('@ritmiq/core/types').Track[]>} */
-export async function getCachedTracks() {
-  const rows = await db.table('tracks').toArray();
+/**
+ * Lee el espejo de tracks. Si se pasa userId, filtra por dueño (evita
+ * mezclar bibliotecas de cuentas distintas en el mismo dispositivo).
+ * @param {string} [userId]
+ * @returns {Promise<import('@ritmiq/core/types').Track[]>}
+ */
+export async function getCachedTracks(userId) {
+  const rows = userId
+    ? await db.table('tracks').where('userId').equals(userId).toArray()
+    : await db.table('tracks').toArray();
   return rows.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+}
+
+/**
+ * Último usuario que cargó biblioteca con sesión en este dispositivo.
+ * Usado para: (a) filtrar la hidratación offline sin sesión, (b) detectar
+ * cambio de cuenta y limpiar el espejo de la cuenta anterior.
+ */
+export async function getLastUserId() {
+  const row = await db.table('meta').get('lastUserId');
+  return row?.value ?? null;
+}
+export async function setLastUserId(userId) {
+  if (!userId) return;
+  await db.table('meta').put({ key: 'lastUserId', value: userId });
+}
+
+/**
+ * Limpieza al detectar CAMBIO DE CUENTA en el mismo dispositivo: borra el
+ * espejo de metadata (tracks/playlists/playlistTracks) y las DESCARGAS
+ * huérfanas de la cuenta anterior (sus trackIds no existen en la nueva
+ * biblioteca → inaccesibles, solo ocupan espacio).
+ *
+ * @param {string} newUserId el usuario que acaba de iniciar sesión
+ */
+export async function clearMirrorForAccountSwitch(newUserId) {
+  // Ids de tracks del usuario NUEVO que ya estén en el espejo (si los hay):
+  // sus blobs son válidos y se conservan.
+  const newOwnIds = newUserId
+    ? new Set((await db.table('tracks').where('userId').equals(newUserId).toArray()).map((t) => t.id))
+    : new Set();
+
+  await db.table('tracks').clear();
+  await db.table('playlists').clear();
+  await db.table('playlistTracks').clear();
+
+  // Descargas huérfanas: blobs cuyo trackId no pertenece al usuario nuevo.
+  const blobs = await db.table('audioBlobs').toArray();
+  for (const b of blobs) {
+    if (!newOwnIds.has(b.trackId)) {
+      await removeLocal(b.trackId);
+    }
+  }
 }
 
 /** @param {string} trackId */

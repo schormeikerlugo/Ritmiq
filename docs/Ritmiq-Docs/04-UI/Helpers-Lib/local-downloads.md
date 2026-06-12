@@ -191,3 +191,9 @@ export async function getLocalBlobUrl(trackId) {
   `clearJamCache`, `promoteJamCacheToDownload(ytId,trackId)` (reutiliza el blob como descarga
   real sin re-bajar). El cascade de [[use-player]] prefiere `getJamBlobUrl` tras la descarga
   real. Ver [[Decisiones-Tecnicas-ADR|ADR-027]].
+- 2026-06-04 (**espejo reconciliado por usuario**, fix iOS): `cacheTracks(tracks, userId)` ahora
+  es REPLACE por usuario (borra stale en transacción; lista vacía limpia el espejo);
+  `getCachedTracks(userId)` filtra por dueño; nuevos `getLastUserId`/`setLastUserId`
+  (`meta.lastUserId`) y `clearMirrorForAccountSwitch(newUserId)` (limpia espejo + descargas
+  huérfanas al cambiar de cuenta). ⚠️ `cacheTracks` SIN `userId` es no-op. Ver
+  [[Decisiones-Tecnicas-ADR|ADR-029]].

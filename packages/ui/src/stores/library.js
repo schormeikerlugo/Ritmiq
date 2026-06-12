@@ -4,7 +4,10 @@ import { supabase } from '../lib/supabase.js';
 import { pullTracks, pushTrack, deleteTrackRemote } from '../lib/sync.js';
 import { tryOrQueue } from '../lib/sync-queue.js';
 import { isEphemeralTrack } from '../lib/track-helpers.js';
-import { listLocalIds, cacheTracks, getCachedTracks } from '../lib/local-downloads.js';
+import {
+  listLocalIds, cacheTracks, getCachedTracks,
+  getLastUserId, setLastUserId, clearMirrorForAccountSwitch,
+} from '../lib/local-downloads.js';
 import { publishMyMetaEdit } from '../lib/publish-meta-edit.js';
 import { usePlayerStore } from './player.js';
 import { toast } from './toast.js';
@@ -29,9 +32,13 @@ export const useLibraryStore = create((set, get) => ({
         // por un refresh fallido sin red), NO vaciamos la librería. En PWA
         // hidratamos desde Dexie para que las descargas sigan visibles. Solo
         // limpiamos si realmente no hay nada cacheado.
+        // FILTRADO POR USUARIO: hidratamos SOLO el espejo del último usuario
+        // con sesión (meta.lastUserId) — sin esto se mezclaban bibliotecas de
+        // cuentas distintas ("otra base de datos" en iOS).
         if (!isDesktop) {
           try {
-            const cached = await getCachedTracks();
+            const lastUserId = await getLastUserId();
+            const cached = await getCachedTracks(lastUserId ?? undefined);
             if (cached.length > 0) {
               const localIds = await listLocalIds();
               set({
@@ -51,7 +58,18 @@ export const useLibraryStore = create((set, get) => ({
       // PWA: hidratar primero desde Dexie para que la UI tenga contenido al instante (offline-first).
       if (!isDesktop) {
         try {
-          const cached = await getCachedTracks();
+          // CAMBIO DE CUENTA: si el usuario difiere del último que cargó en
+          // este dispositivo, limpiar el espejo (y descargas huérfanas) de
+          // la cuenta anterior ANTES de hidratar — evita mostrar/mezclar
+          // "otra base de datos".
+          const lastUserId = await getLastUserId();
+          if (lastUserId && lastUserId !== userId) {
+            console.info('[library] cambio de cuenta detectado — limpiando espejo anterior');
+            await clearMirrorForAccountSwitch(userId);
+          }
+          await setLastUserId(userId);
+
+          const cached = await getCachedTracks(userId);
           if (cached.length > 0) {
             const localIds = await listLocalIds();
             set({
@@ -104,9 +122,11 @@ export const useLibraryStore = create((set, get) => ({
 
       set({ tracks: merged, loading: false });
 
-      // PWA: persistir cache para próximo arranque offline.
+      // PWA: persistir el espejo para el próximo arranque offline.
+      // cacheTracks RECONCILIA (replace por usuario): elimina del espejo lo
+      // que ya no exista en remoto — el fix del bug "otra base de datos".
       if (!isDesktop) {
-        cacheTracks(remote).catch(() => {});
+        cacheTracks(remote, userId).catch(() => {});
       }
     } catch (err) {
       set({ error: String(err?.message ?? err), loading: false });
