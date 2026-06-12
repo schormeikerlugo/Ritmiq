@@ -58,6 +58,9 @@ export function FriendsView() {
         <h1 className={styles.title}>Amigos</h1>
       </header>
 
+      {/* Acceso destacado al Jam (descubrible en movil y desktop) */}
+      <JamBanner />
+
       {/* Tab bar */}
       <div className={styles.tabBar} role="tablist">
         {tabs.map((t) => (
@@ -83,6 +86,41 @@ export function FriendsView() {
         {tab === 'search'   && <SearchTab />}
         {tab === 'inbox'    && <InboxTab />}
       </div>
+    </div>
+  );
+}
+
+// ── Banner de acceso al Jam ───────────────────────────────────────────
+
+function JamBanner() {
+  const jamMode = useJamStore((s) => s.mode);
+  const jamKind = useJamStore((s) => s.kind);
+  const openJamModal = useJamStore((s) => s.openJamModal);
+  const active = jamMode !== 'idle';
+  const kindLabel = jamKind === 'speaker' ? 'Altavoz' : 'Sincronizado';
+
+  return (
+    <div className={styles.jamBanner} data-active={active || undefined}>
+      <span className={styles.jamBannerIcon} aria-hidden="true">
+        <Icon name="Radio" size={20} />
+      </span>
+      <div className={styles.jamBannerText}>
+        <span className={styles.jamBannerTitle}>
+          {active ? 'Jam en curso' : 'Escuchen juntos'}
+        </span>
+        <span className={styles.jamBannerDesc}>
+          {active
+            ? `Modo ${kindLabel} · toca para abrir`
+            : 'Sincronizado o Altavoz, con tus amigos'}
+        </span>
+      </div>
+      <button
+        type="button"
+        className={styles.jamBannerBtn}
+        onClick={() => openJamModal()}
+      >
+        {active ? 'Abrir' : 'Iniciar Jam'}
+      </button>
     </div>
   );
 }

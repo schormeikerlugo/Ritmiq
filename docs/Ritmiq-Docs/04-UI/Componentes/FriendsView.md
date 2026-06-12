@@ -65,3 +65,8 @@ Cuando el usuario está en esta vista, [[use-badge]] recibe `autoClearOnViewing=
     + abre [[JamModal]]). El badge de la pestaña Solicitudes suma `incomingRequests + jamInvites`.
   - Carga `loadJamInvites` al montar. Ver [[jam_invites]], [[social|store social]],
     [[Decisiones-Tecnicas-ADR|ADR-025]].
+- 2026-06-03 (**acceso descubrible al Jam**): banner `JamBanner` encima de los tabs (visible en
+  móvil y desktop). Sin jam: "Escuchen juntos · Sincronizado o Altavoz" + botón "Iniciar Jam"
+  (`openJamModal` → selector de tipo del [[JamModal]]). Con jam activa: "Jam en curso · Modo
+  {kind}" + "Abrir". Resuelve que el Jam solo se abría desde un icono sin etiqueta en el
+  [[Player]] o el menú ⋯ de [[NowPlaying]]. Ver [[Decisiones-Tecnicas-ADR|ADR-028]].
