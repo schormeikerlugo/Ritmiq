@@ -105,3 +105,8 @@ desktop / sin soporte. `AbortError` (usuario cancela) se ignora silenciosamente.
   vista `guest`, si `kind==='speaker'`, se muestra un **control remoto** (portada+título de lo que
   suena en el altavoz + play/pausa/anterior/siguiente → `requestControl`). Iconos `Volume2`.
   Estilos `.kindView/.kindCard/.kindBadge/.remote*`. Ver [[Decisiones-Tecnicas-ADR|ADR-028]].
+- 2026-06-03 (**intro v2**): la intro pasó de 3 a 4 pasos para cubrir todas las funciones:
+  (1) escuchar juntos / código / invitar, (2) **dos modos** Sincronizado/Altavoz, (3) cola
+  colaborativa "Sugerir a la jam", (4) invitar desde Amigos + control del host. Iconos
+  `Radio`/`Volume2`/`ListMusic`/`UserPlus`. Gate bumpeado a `ritmiq.jam-intro-seen.v2` (limpia
+  el v1) para que quienes ya la vieron conozcan el modo Altavoz. Verificado con Playwright.

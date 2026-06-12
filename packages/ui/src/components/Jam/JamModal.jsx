@@ -35,32 +35,44 @@ function buildJamLink(code) {
  * funciona" del menu. No interrumpe sesiones activas ni joins por
  * deep-link (el invitado con prisa va directo a 'join').
  */
-const LS_JAM_INTRO = 'ritmiq.jam-intro-seen';
+// v2: la intro pasó de 3 a 4 pasos (añade modos sync/altavoz, cola, invitar).
+// Bumpear el key hace que quienes ya vieron la v1 vean la nueva una vez.
+const LS_JAM_INTRO = 'ritmiq.jam-intro-seen.v2';
+const LS_JAM_INTRO_V1 = 'ritmiq.jam-intro-seen';
 
 function hasSeenJamIntro() {
   if (typeof localStorage === 'undefined') return true;
   try { return localStorage.getItem(LS_JAM_INTRO) === '1'; } catch { return true; }
 }
 function markJamIntroSeen() {
-  try { localStorage.setItem(LS_JAM_INTRO, '1'); } catch {}
+  try {
+    localStorage.setItem(LS_JAM_INTRO, '1');
+    localStorage.removeItem(LS_JAM_INTRO_V1); // limpieza del flag viejo
+  } catch {}
 }
 
 const JAM_INTRO_STEPS = [
   {
     icon: 'Radio',
     title: 'Escuchen juntos, en tiempo real',
-    body: 'Crea una sala y comparte el código de 6 caracteres. Tú y tus amigos escuchan la misma canción a la vez, sincronizados.',
+    body: 'Crea una sala y comparte el código de 6 caracteres (o invita a un amigo directo). Todos siguen lo que suena, sincronizados al instante.',
   },
   {
-    icon: 'Crown',
-    title: 'Tú llevas el control',
-    body: 'Como host, lo que reproduces, pausas o adelantas se sincroniza con todos. Puedes pasarle el control a otra persona cuando quieras.',
+    icon: 'Volume2',
+    title: 'Dos modos: Sincronizado o Altavoz',
+    body: 'Sincronizado: cada quien escucha en su propio dispositivo, a la vez. Altavoz: solo un dispositivo suena (la bocina) y los demás lo controlan a distancia.',
     accent: true,
   },
   {
-    icon: 'Wifi',
-    title: 'Cada quien con su conexión',
-    body: 'No se transmite audio: cada persona reproduce desde su propia red, así suena en buena calidad. Puede haber un desfase de 1-2 segundos que se corrige solo.',
+    icon: 'ListMusic',
+    title: 'Una cola para todos',
+    body: 'Cualquiera sugiere canciones a la cola compartida con “Sugerir a la jam”. Cada propuesta muestra quién la pidió y suenan en orden, una tras otra.',
+    accent: true,
+  },
+  {
+    icon: 'UserPlus',
+    title: 'Invita y controla',
+    body: 'Invita amigos desde la sección Amigos: les llega una notificación para unirse. El host lleva la reproducción y puede pasarle el control a quien quiera.',
     accent: true,
   },
 ];
@@ -302,8 +314,8 @@ export function JamModal({ onClose, initialCode = '' }) {
             </span>
           </div>
           <p className={styles.intro}>
-            Escucha música con tus amigos en tiempo real. El host controla
-            la reproducción; los demás siguen sincronizados.
+            Escucha música con tus amigos en tiempo real. Elige el modo,
+            comparte una cola y controlen juntos.
           </p>
           <div className={styles.menuActions}>
             <Button
