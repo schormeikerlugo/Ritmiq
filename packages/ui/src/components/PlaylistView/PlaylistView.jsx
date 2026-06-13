@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   DndContext, closestCenter, KeyboardSensor, MouseSensor, TouchSensor,
   useSensor, useSensors,
@@ -748,7 +748,7 @@ export function PlaylistView({ playlistId }) {
   );
 }
 
-const PlaylistRow = memo(function PlaylistRow({
+function PlaylistRow({
   track, displayIndex, playlist, isFavs, currentTrack, onPlay, actions, draggable,
   selectMode = false, selected = false, onToggleSelect,
 }) {
@@ -809,6 +809,10 @@ const PlaylistRow = memo(function PlaylistRow({
     },
   ];
 
+  // En modo selección, TODA la fila es el área de toque (mejor UX móvil
+  // y evita que el click caiga en zonas muertas entre el thumb y el menú).
+  const onRowClick = selectMode ? () => onToggleSelect?.(track.id) : undefined;
+
   return (
     <li
       ref={draggable ? sortable.setNodeRef : undefined}
@@ -816,8 +820,10 @@ const PlaylistRow = memo(function PlaylistRow({
       className={styles.row}
       data-playing={playing}
       data-selected={(selectMode && selected) || undefined}
+      data-selecting={selectMode || undefined}
       data-dragging={draggable ? sortable.isDragging : false}
       data-draggable={draggable || undefined}
+      onClick={onRowClick}
       // Listeners y attributes en TODA la fila: en touch el TouchSensor
       // (delay 220ms) discrimina long-press vs scroll; en mouse el
       // MouseSensor exige 4px de drag asi que un click normal nunca
@@ -844,34 +850,46 @@ const PlaylistRow = memo(function PlaylistRow({
           {playing ? <Icon name="Disc3" size={14} /> : (draggable ? <Icon name="MoreVertical" size={14} /> : displayIndex + 1)}
         </span>
       )}
-      <button
-        className={styles.cell}
-        onClick={selectMode ? () => onToggleSelect?.(track.id) : onPlay}
-        aria-label={selectMode
-          ? `${selected ? 'Deseleccionar' : 'Seleccionar'} ${track.title}`
-          : `Reproducir ${track.title}`}
-        aria-pressed={selectMode ? selected : undefined}
-      >
-        <div className={styles.thumb}>
-          {track.coverUrl
-            ? <img src={track.coverUrl} alt="" loading="lazy" />
-            : <Icon name="Music" size={18} />}
-        </div>
-        <div className={styles.meta}>
-          <span className={styles.rowTitle} data-marquee={playing || undefined}>
-            {playing ? (
-              <span className={styles.marqueeTrack}>
-                <span className={styles.marqueeText}>{track.title}</span>
-                <span className={styles.marqueeText} aria-hidden="true">{track.title}</span>
-              </span>
-            ) : track.title}
-          </span>
-          <span className={styles.rowArtist}>{track.artist ?? '—'}</span>
-        </div>
-      </button>
       {selectMode ? (
-        <span className={styles.dlIndicator} aria-hidden="true">
-          {track.isDownloaded && <Icon name="ArrowDownToLine" size={14} />}
+        <div className={styles.cell}>
+          <div className={styles.thumb}>
+            {track.coverUrl
+              ? <img src={track.coverUrl} alt="" loading="lazy" />
+              : <Icon name="Music" size={18} />}
+          </div>
+          <div className={styles.meta}>
+            <span className={styles.rowTitle}>{track.title}</span>
+            <span className={styles.rowArtist}>{track.artist ?? '—'}</span>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={styles.cell}
+          onClick={onPlay}
+          aria-label={`Reproducir ${track.title}`}
+        >
+          <div className={styles.thumb}>
+            {track.coverUrl
+              ? <img src={track.coverUrl} alt="" loading="lazy" />
+              : <Icon name="Music" size={18} />}
+          </div>
+          <div className={styles.meta}>
+            <span className={styles.rowTitle} data-marquee={playing || undefined}>
+              {playing ? (
+                <span className={styles.marqueeTrack}>
+                  <span className={styles.marqueeText}>{track.title}</span>
+                  <span className={styles.marqueeText} aria-hidden="true">{track.title}</span>
+                </span>
+              ) : track.title}
+            </span>
+            <span className={styles.rowArtist}>{track.artist ?? '—'}</span>
+          </div>
+        </button>
+      )}
+      {selectMode ? (
+        <span className={styles.dlIndicator} data-downloaded={track.isDownloaded || undefined} title={track.isDownloaded ? 'Descargada y disponible offline' : undefined} aria-hidden="true">
+          {track.isDownloaded && <Icon name="CheckCircle2" size={14} filled />}
         </span>
       ) : (
         <DownloadIndicator trackId={track.id} isDownloaded={track.isDownloaded} className={styles.dlIndicator} />
@@ -881,4 +899,4 @@ const PlaylistRow = memo(function PlaylistRow({
       )}
     </li>
   );
-});
+}

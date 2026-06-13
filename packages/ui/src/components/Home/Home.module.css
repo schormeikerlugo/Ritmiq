@@ -10,6 +10,12 @@
   position: relative;
 }
 
+/* Desktop: el .main ya no aplica padding-top (para que los headers sticky
+   se peguen al borde fisico). Reponemos el espaciado superior aqui. */
+@media (min-width: 769px) {
+  .wrap { padding-top: var(--space-5); }
+}
+
 .header {
   display: flex;
   flex-direction: column;

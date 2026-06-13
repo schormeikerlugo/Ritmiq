@@ -121,16 +121,26 @@
   overflow-y: auto;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
-  padding: var(--space-5);
+  /* SIN padding-top: el borde superior del scroll-port coincide con el
+     borde fisico, asi `position: sticky; top: 0` de los headers internos
+     (Library) se pega arriba del todo y nada asoma por encima. Cada vista
+     repone su propio espaciado superior (var(--space-5)) en desktop. */
+  padding: 0 var(--space-5) var(--space-5);
 }
 
 /* Transicion de entrada al cambiar de vista (Home \u2192 Library \u2192 Playlist...).
  * Manejada por useViewTransition (GSAP) en ViewSlot \u2014 ver App.jsx. La
  * animacion CSS se removio porque GSAP da control mas fino y respeta
- * prefers-reduced-motion via gsap.matchMedia. will-change se queda para
- * que el compositor reserve la capa antes del primer tween. */
+ * prefers-reduced-motion via gsap.matchMedia.
+ *
+ * NO usar `will-change: transform` permanente aqui: crea un containing
+ * block que ROMPE el `position: sticky` de los headers descendientes
+ * (Library, Search...) \u2014 el sticky se ancla al .viewSlot (que no
+ * scrollea) en vez de al .main (scroll container), dejando que el
+ * contenido asome por encima del header. GSAP ya gestiona la capa del
+ * compositor durante el tween; el hint estatico es innecesario y daninо. */
 .viewSlot {
-  will-change: transform, opacity;
+  /* sin will-change: ver nota arriba */
 }
 
 .player {

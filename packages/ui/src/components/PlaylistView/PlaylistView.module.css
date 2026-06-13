@@ -364,10 +364,19 @@
 
 /* ─────────────── Selección múltiple ─────────────── */
 /* En modo selección el grid pasa a 3 columnas (checkbox | celda | indicador),
-   sin la columna del menú "⋯". */
-.list[data-selecting] .row {
+   sin la columna del menú "⋯". Toda la fila es clickable. */
+.list[data-selecting] .row,
+.row[data-selecting] {
   grid-template-columns: 28px 1fr 24px;
   cursor: pointer;
+}
+/* El contenido interno no debe robar el click — que burbujee al <li>. */
+.row[data-selecting] .cell,
+.row[data-selecting] .thumb,
+.row[data-selecting] .meta,
+.row[data-selecting] .selectBox,
+.row[data-selecting] .dlIndicator {
+  pointer-events: none;
 }
 
 .row[data-selected] {
@@ -375,6 +384,12 @@
 }
 .row[data-selected]:hover {
   background: color-mix(in srgb, var(--color-accent-soft) 80%, var(--color-bg-2));
+}
+
+/* Indicador de descarga en modo selección: verde (no gris) para que el
+   usuario distinga claramente qué canciones ya están descargadas. */
+.dlIndicator[data-downloaded] {
+  color: var(--color-success, #38c172);
 }
 
 /* Checkbox de fila — reutiliza el look del SaveDialog. */
@@ -637,9 +652,11 @@
     gap: var(--space-5);
     text-align: left;
     padding: var(--space-6) var(--space-5) var(--space-5);
-    /* Margen negativo lateral para que el gradient ocupe todo el ancho
-       del panel main (el .main tiene padding interno). */
-    margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) 0;
+    /* Margen negativo SOLO lateral para que el gradient ocupe todo el
+       ancho del panel main (el .main mantiene padding lateral var(--space-5)).
+       Top en 0: el .main ya no tiene padding-top, asi que el hero arranca
+       en el borde fisico del scroll-port sin necesidad de compensar. */
+    margin: 0 calc(var(--space-5) * -1) 0;
   }
   .heroCover {
     width: 232px;

@@ -6,6 +6,11 @@
   padding-bottom: var(--space-6);
 }
 
+/* Desktop: el .main ya no aplica padding-top; reponemos el espaciado. */
+@media (min-width: 769px) {
+  .wrap { padding-top: var(--space-5); }
+}
+
 .header {
   display: flex;
   flex-direction: column;

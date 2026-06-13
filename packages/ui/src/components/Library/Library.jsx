@@ -365,7 +365,6 @@ export function Library() {
             >{f.label}</button>
           ))}
         </nav>
-      </div>
 
       <div className={styles.sortRow}>
         <DropdownMenu
@@ -393,6 +392,7 @@ export function Library() {
             <span>{selectMode ? 'Cancelar' : 'Seleccionar'}</span>
           </button>
         )}
+      </div>
       </div>
 
       {selectMode && canSelect && (
