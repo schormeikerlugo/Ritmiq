@@ -274,6 +274,128 @@ export const usePlaylistsStore = create((set, get) => ({
   },
 
   /**
+   * Añade varios tracks a una playlist en una sola operación.
+   * Optimistic + persistencia remota/SQLite por track, pero un único
+   * `set` de estado y un único toast agregado.
+   * @param {string} playlistId
+   * @param {string[]} trackIds
+   */
+  async addTracks(playlistId, trackIds) {
+    const existing = new Set(get().contents[playlistId] ?? []);
+    // Dedup contra lo ya presente y contra duplicados en la entrada.
+    const fresh = [];
+    const seen = new Set();
+    for (const id of trackIds) {
+      if (!id || existing.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      fresh.push(id);
+    }
+    if (fresh.length === 0) return;
+
+    const basePos = existing.size;
+    // Persistencia remota/SQLite por track. Absorbe 409 (duplicado/FK race).
+    await Promise.all(fresh.map(async (trackId, i) => {
+      const position = basePos + i;
+      try {
+        await tryOrQueue(
+          () => pushPlaylistTrack(playlistId, trackId, position),
+          { kind: 'playlist_track.add', payload: { playlistId, trackId, position } }
+        );
+      } catch (err) {
+        const msg = String(err?.message ?? err ?? '');
+        if (!msg.match(/duplicate|conflict|409/i)) throw err;
+      }
+      if (isDesktop) {
+        try { await api.playlistsAddTrack({ playlistId, trackId }); } catch {}
+      }
+    }));
+
+    set((s) => ({
+      contents: {
+        ...s.contents,
+        [playlistId]: [...(s.contents[playlistId] ?? []), ...fresh],
+      },
+    }));
+
+    const pl = get().playlists.find((p) => p.id === playlistId);
+    const isFavs = playlistId === get().favoritesId;
+    const n = fresh.length;
+    toast.success(
+      isFavs
+        ? `${n} ${n === 1 ? 'canción añadida' : 'canciones añadidas'} a Favoritas`
+        : `${n} ${n === 1 ? 'canción añadida' : 'canciones añadidas'} a "${pl?.name ?? 'la playlist'}"`,
+      { icon: isFavs ? 'Heart' : 'Check' },
+    );
+
+    // Auto-download en lote si la playlist es offline.
+    if (pl?.isOffline) {
+      try {
+        const libTracks = useLibraryStore.getState().tracks;
+        const toDl = fresh
+          .map((id) => libTracks.find((t) => t.id === id))
+          .filter((t) => t && !t.isDownloaded);
+        if (toDl.length) useDownloadsStore.getState().enqueue(toDl);
+      } catch {}
+    }
+  },
+
+  /**
+   * Quita varios tracks de una playlist en una sola operación.
+   * @param {string} playlistId
+   * @param {string[]} trackIds
+   */
+  async removeTracks(playlistId, trackIds) {
+    const present = new Set(get().contents[playlistId] ?? []);
+    const targets = [...new Set(trackIds)].filter((id) => present.has(id));
+    if (targets.length === 0) return;
+
+    await Promise.all(targets.map(async (trackId) => {
+      await tryOrQueue(
+        () => removePlaylistTrackRemote(playlistId, trackId),
+        { kind: 'playlist_track.remove', payload: { playlistId, trackId } }
+      );
+      if (isDesktop) {
+        try { await api.playlistsRemoveTrack({ playlistId, trackId }); } catch {}
+      }
+    }));
+
+    const drop = new Set(targets);
+    set((s) => ({
+      contents: {
+        ...s.contents,
+        [playlistId]: (s.contents[playlistId] ?? []).filter((id) => !drop.has(id)),
+      },
+    }));
+
+    const pl = get().playlists.find((p) => p.id === playlistId);
+    const isFavs = playlistId === get().favoritesId;
+    const n = targets.length;
+    toast.show({
+      message: isFavs
+        ? `${n} ${n === 1 ? 'canción quitada' : 'canciones quitadas'} de Favoritas`
+        : `${n} ${n === 1 ? 'canción quitada' : 'canciones quitadas'} de "${pl?.name ?? 'la playlist'}"`,
+      icon: isFavs ? 'Heart' : 'Check',
+    });
+  },
+
+  /**
+   * Añade o quita varios tracks de Favoritas en lote (un solo toast).
+   * @param {string[]} trackIds
+   * @param {boolean} add  true = añadir a favoritos, false = quitar
+   */
+  async toggleFavoriteMany(trackIds, add) {
+    const { favoritesId, contents } = get();
+    if (!favoritesId) return;
+    const inFavs = new Set(contents[favoritesId] ?? []);
+    const targets = add
+      ? trackIds.filter((id) => !inFavs.has(id))
+      : trackIds.filter((id) => inFavs.has(id));
+    if (targets.length === 0) return;
+    if (add) await get().addTracks(favoritesId, targets);
+    else await get().removeTracks(favoritesId, targets);
+  },
+
+  /**
    * Reordena las pistas de una playlist (drag & drop).
    * Aplica optimistic update y persiste local + remoto.
    * @param {string} playlistId

@@ -227,6 +227,114 @@
   contain-intrinsic-size: auto 56px;
 }
 
+.row[data-selected] > .rowBtn {
+  background: var(--color-accent-soft);
+}
+
+/* ─────────────── Selección múltiple ─────────────── */
+.selectToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-2);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-standard);
+}
+.selectToggle:hover { background: var(--color-bg-1); color: var(--color-text-1); }
+.selectToggle[data-active] {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.selectBox {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--color-border);
+  display: grid;
+  place-items: center;
+  color: transparent;
+  transition: all var(--dur-fast) var(--ease-standard);
+}
+.selectBox[data-checked] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+.selectionBar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(8px);
+}
+.selBarCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-1);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px;
+}
+.selCheckbox {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--color-border);
+  display: grid;
+  place-items: center;
+  color: transparent;
+}
+.selCheckbox[data-checked],
+.selCheckbox[data-partial] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+.selCount { white-space: nowrap; }
+.selActions { display: flex; align-items: center; gap: var(--space-1); }
+.selAction {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: none;
+  color: var(--color-text-2);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard);
+}
+.selAction:hover:not(:disabled) { background: var(--color-bg-3); color: var(--color-text-1); }
+.selAction[data-danger]:hover:not(:disabled) { color: var(--color-danger, #e5484d); }
+.selAction:disabled { opacity: 0.4; cursor: default; }
+@media (max-width: 640px) {
+  .selActions { gap: 0; }
+  .selAction { width: 34px; height: 34px; }
+  .selCount { font-size: var(--fs-xs, 12px); }
+}
+
 .rowBtn {
   display: flex;
   align-items: center;

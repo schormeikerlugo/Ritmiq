@@ -20,14 +20,21 @@ import styles from './SaveDialog.module.css';
  * @param {import('@ritmiq/core/types').Track} props.track
  * @param {() => void} props.onClose
  */
-function SaveBody({ track, onClose }) {
+function SaveBody({ track, tracks: tracksProp, onClose }) {
   const persistEphemeral = useLibraryStore((s) => s.persistEphemeral);
-  const tracks = useLibraryStore((s) => s.tracks);
+  const libraryTracks = useLibraryStore((s) => s.tracks);
   const playlists = usePlaylistsStore((s) => s.playlists);
   const contents = usePlaylistsStore((s) => s.contents);
   const create = usePlaylistsStore((s) => s.create);
   const addTrack = usePlaylistsStore((s) => s.addTrack);
   const removeTrack = usePlaylistsStore((s) => s.removeTrack);
+  const addTracks = usePlaylistsStore((s) => s.addTracks);
+  const removeTracks = usePlaylistsStore((s) => s.removeTracks);
+
+  // Modo multi: si llega `tracks` (array) operamos sobre todos; si no,
+  // back-compat con el `track` único.
+  const multi = Array.isArray(tracksProp) && tracksProp.length > 0;
+  const items = multi ? tracksProp : (track ? [track] : []);
 
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -38,44 +45,60 @@ function SaveBody({ track, onClose }) {
     if (creating) newNameRef.current?.focus();
   }, [creating]);
 
-  const isInLibrary = !isEphemeralTrack(track) && tracks.some((t) => t.id === track.id);
+  const inLibrary = (t) => !isEphemeralTrack(t) && libraryTracks.some((x) => x.id === t.id);
+  const allInLibrary = items.every(inLibrary);
 
-  /** Asegura que el track existe en la biblioteca (persiste si era efímero). */
-  const ensurePersisted = async () => {
-    if (isEphemeralTrack(track)) {
-      const p = await persistEphemeral(track);
+  /** Asegura que un track existe en la biblioteca (persiste si era efímero). */
+  const ensurePersistedOne = async (t) => {
+    if (isEphemeralTrack(t) || !inLibrary(t)) {
+      const p = await persistEphemeral(t);
       return p.id;
     }
-    if (!isInLibrary) {
-      const p = await persistEphemeral(track);
-      return p.id;
-    }
-    return track.id;
+    return t.id;
+  };
+
+  /** Persiste todos los items y devuelve sus ids reales. */
+  const ensurePersistedAll = async () => {
+    const ids = [];
+    for (const t of items) ids.push(await ensurePersistedOne(t));
+    return ids;
   };
 
   const onSaveLibrary = async () => {
     setBusy(true);
     try {
-      await ensurePersisted();
-      // Toast 'Añadida a tu biblioteca' lo emite el componente porque
-      // persistEphemeral() es helper interno sin feedback propio.
-      toast.success('Añadida a tu biblioteca', { icon: 'Library' });
+      await ensurePersistedAll();
+      toast.success(
+        multi ? `${items.length} añadidas a tu biblioteca` : 'Añadida a tu biblioteca',
+        { icon: 'Library' },
+      );
       onClose();
     } finally { setBusy(false); }
+  };
+
+  // Estado del checkbox por playlist: 'all' | 'some' | 'none'.
+  const playlistState = (pl) => {
+    const ids = items.map((t) => t.id);
+    const list = contents[pl.id] ?? [];
+    const inPl = ids.filter((id) => list.includes(id));
+    if (inPl.length === 0) return 'none';
+    if (inPl.length === ids.length) return 'all';
+    return 'some';
   };
 
   const onTogglePlaylist = async (pl) => {
     setBusy(true);
     try {
-      const id = await ensurePersisted();
-      const present = (contents[pl.id] ?? []).includes(id);
-      // Los toasts 'Añadida a / Quitada de' los emite el store playlists
-      // (addTrack/removeTrack) — funciona desde CUALQUIER call site, no
-      // solo desde aqui.
-      if (present) {
-        await removeTrack(pl.id, id);
+      const ids = await ensurePersistedAll();
+      const list = usePlaylistsStore.getState().contents[pl.id] ?? [];
+      const allPresent = ids.every((id) => list.includes(id));
+      if (multi) {
+        // Si están todos, quitar todos; si no, añadir los que falten.
+        if (allPresent) await removeTracks(pl.id, ids);
+        else await addTracks(pl.id, ids);
       } else {
-        await addTrack(pl.id, id);
+        if (allPresent) await removeTrack(pl.id, ids[0]);
+        else await addTrack(pl.id, ids[0]);
       }
     } finally { setBusy(false); }
   };
@@ -86,31 +109,44 @@ function SaveBody({ track, onClose }) {
     if (!name) return;
     setBusy(true);
     try {
-      const id = await ensurePersisted();
+      const ids = await ensurePersistedAll();
       const pl = await create(name);          // store emite toast 'Playlist X creada'
-      await addTrack(pl.id, id);              // store emite toast 'Añadida a X'
+      if (multi) await addTracks(pl.id, ids);  // toast agregado
+      else await addTrack(pl.id, ids[0]);      // toast 'Añadida a X'
       setCreating(false);
       setNewName('');
       onClose();
     } finally { setBusy(false); }
   };
 
+  const headerLabel = multi
+    ? `${items.length} canciones seleccionadas`
+    : (items[0]?.title ?? '');
+
   return (
     <>
       <p className={styles.song}>
-        <strong>{track.title}</strong>
-        {track.artist ? ` · ${track.artist}` : ''}
+        {multi ? (
+          <strong>{headerLabel}</strong>
+        ) : (
+          <>
+            <strong>{items[0]?.title}</strong>
+            {items[0]?.artist ? ` · ${items[0].artist}` : ''}
+          </>
+        )}
       </p>
 
       <div className={styles.section}>
         <button
           className={styles.action}
           onClick={onSaveLibrary}
-          disabled={busy || isInLibrary}
+          disabled={busy || allInLibrary}
         >
           <span className={styles.actionIcon}><Icon name="Library" size={16} /></span>
           <span className={styles.actionLabel}>
-            {isInLibrary ? 'Ya está en tu biblioteca' : 'Solo añadir a biblioteca'}
+            {allInLibrary
+              ? (multi ? 'Ya están en tu biblioteca' : 'Ya está en tu biblioteca')
+              : 'Solo añadir a biblioteca'}
           </span>
         </button>
       </div>
@@ -118,8 +154,9 @@ function SaveBody({ track, onClose }) {
       <div className={styles.sectionTitle}>Playlists</div>
       <ul className={styles.list}>
         {playlists.map((pl) => {
-          const checked = isInLibrary &&
-            (contents[pl.id] ?? []).includes(track.id);
+          const state = playlistState(pl);
+          const checked = state === 'all';
+          const partial = state === 'some';
           return (
             <li key={pl.id}>
               <button
@@ -130,8 +167,11 @@ function SaveBody({ track, onClose }) {
                 <span
                   className={styles.checkbox}
                   data-checked={checked}
+                  data-partial={partial || undefined}
                   aria-hidden="true"
-                >{checked && <Icon name="Check" size={14} />}</span>
+                >{checked
+                  ? <Icon name="Check" size={14} />
+                  : partial ? <Icon name="Minus" size={14} /> : null}</span>
                 <span className={styles.rowName}>{pl.name}</span>
               </button>
             </li>
@@ -191,9 +231,12 @@ function SaveBody({ track, onClose }) {
  * @param {import('@ritmiq/core/types').Track} props.track
  * @param {() => void} props.onClose
  */
-export function SaveDialog({ track, onClose }) {
+export function SaveDialog({ track, tracks, onClose }) {
   const isMobile = useMobileViewport();
   const useSheet = isMobile && !isDesktop;
+
+  const multi = Array.isArray(tracks) && tracks.length > 0;
+  const title = multi ? `Guardar ${tracks.length} canciones` : 'Guardar canción';
 
   /* PWA mobile: empuja el SaveBody al store global; el render lo hace
      BottomSheetHost. */
@@ -204,8 +247,8 @@ export function SaveDialog({ track, onClose }) {
   useEffect(() => {
     if (!useSheet) return;
     const id = openSheet({
-      title: 'Guardar canción',
-      content: <div className={styles.sheetBody}><SaveBody track={track} onClose={onClose} /></div>,
+      title,
+      content: <div className={styles.sheetBody}><SaveBody track={track} tracks={tracks} onClose={onClose} /></div>,
       onClose,
     });
     sheetIdRef.current = id;
@@ -222,8 +265,8 @@ export function SaveDialog({ track, onClose }) {
 
   /* Desktop: Modal primitive (anim consistente + lock body + esc) */
   return (
-    <Modal onClose={onClose} title="Guardar canción" size="sm">
-      <SaveBody track={track} onClose={onClose} />
+    <Modal onClose={onClose} title={title} size="sm">
+      <SaveBody track={track} tracks={tracks} onClose={onClose} />
     </Modal>
   );
 }

@@ -97,6 +97,11 @@
   color: #fff;
 }
 
+.checkbox[data-partial] {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
 .rowName {
   flex: 1;
 }

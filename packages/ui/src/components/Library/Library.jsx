@@ -18,13 +18,16 @@ import { useLibraryStore } from '../../stores/library.js';
 import { usePlaylistsStore } from '../../stores/playlists.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
+import { useDownloadsStore } from '../../stores/downloads.js';
 import { useHistoryStore, selectTopArtists } from '../../stores/history.js';
+import { toast } from '../../stores/toast.js';
 import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
 import { SpotifyImportDialog } from '../SpotifyImportDialog/SpotifyImportDialog.jsx';
+import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import { SpotifyIcon } from '../Icon/SpotifyIcon.jsx';
 import { TrackRowSkeleton } from '../Skeleton/index.js';
-import { EmptyState } from '../primitives/index.js';
+import { ConfirmDialog, EmptyState } from '../primitives/index.js';
 import { playPlaylist, playArtistFromLibrary } from '../../lib/play-helpers.js';
 import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
 import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
@@ -65,12 +68,21 @@ export function Library() {
   const goArtist = useViewStore((s) => s.goArtist);
   const goAccount = useViewStore((s) => s.goAccount);
   const user = useAuthStore((s) => s.user);
+  const enqueueTrack = usePlayerStore((s) => s.enqueue);
+  const enqueueDownloads = useDownloadsStore((s) => s.enqueue);
+  const undownloadMany = useLibraryStore((s) => s.undownloadMany);
+  const removeMany = useLibraryStore((s) => s.removeMany);
 
   const [filter, setFilter] = useState('playlists');
   const [sort, setSort] = useState('recent');
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // Selección múltiple — solo aplica al filtro "Descargados".
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState(() => new Set());
+  const [saveDialogTracks, setSaveDialogTracks] = useState(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   // Estadísticas de descargas (nº + peso) para mostrar el resumen cuando el
   // filtro activo es "Descargados". Mismo hook que la vista Downloads.
@@ -177,7 +189,76 @@ export function Library() {
     return arr;
   }, [filtered, sort]);
 
+  // ───────────────────── Selección múltiple (solo Descargados) ─────────────────────
+  const canSelect = filter === 'downloaded';
+  const selectableItems = useMemo(
+    () => sorted.filter((it) => it.kind === 'track'),
+    [sorted],
+  );
+
+  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); };
+
+  // Salir de selección si cambiamos de filtro o desaparecen los items.
+  useEffect(() => {
+    if (selectMode && (!canSelect || selectableItems.length === 0)) exitSelect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, selectableItems.length, selectMode, canSelect]);
+
+  const toggleSelect = (trackId) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(trackId)) next.delete(trackId);
+      else next.add(trackId);
+      return next;
+    });
+  };
+
+  const allSelected = selectableItems.length > 0 &&
+    selectableItems.every((it) => selected.has(it.rawId));
+
+  const toggleSelectAll = () => {
+    setSelected((prev) => {
+      if (selectableItems.length > 0 && selectableItems.every((it) => prev.has(it.rawId))) {
+        return new Set();
+      }
+      return new Set(selectableItems.map((it) => it.rawId));
+    });
+  };
+
+  const selectedTracks = useMemo(
+    () => selectableItems.filter((it) => selected.has(it.rawId)).map((it) => it.track),
+    [selectableItems, selected],
+  );
+  const selectedCount = selectedTracks.length;
+
+  const bulkPlay = () => {
+    if (selectedCount === 0) return;
+    playNow(selectedTracks, 0);
+    exitSelect();
+  };
+  const bulkEnqueue = () => {
+    if (selectedCount === 0) return;
+    for (const t of selectedTracks) enqueueTrack(t);
+    toast.success(`${selectedCount} ${selectedCount === 1 ? 'añadida' : 'añadidas'} a la cola`, { icon: 'ListMusic' });
+    exitSelect();
+  };
+  const bulkAddToPlaylist = () => {
+    if (selectedCount === 0) return;
+    setSaveDialogTracks(selectedTracks);
+  };
+  const bulkUndownload = async () => {
+    if (selectedCount === 0) return;
+    await undownloadMany(selectedTracks.map((t) => t.id));
+    exitSelect();
+  };
+  const bulkRemove = async () => {
+    if (selectedCount === 0) return;
+    await removeMany(selectedTracks.map((t) => t.id));
+    exitSelect();
+  };
+
   const onItemClick = (item) => {
+    if (selectMode && item.kind === 'track') { toggleSelect(item.rawId); return; }
     if (item.kind === 'playlist') goPlaylist(item.rawId);
     else if (item.kind === 'artist') goArtist(item.rawId);
     else if (item.kind === 'track') playNow(tracks.filter((t) => t.isDownloaded), tracks.filter((t) => t.isDownloaded).findIndex((t) => t.id === item.rawId));
@@ -301,7 +382,62 @@ export function Library() {
           align="left"
           label="Ordenar por"
         />
+        {canSelect && selectableItems.length > 0 && (
+          <button
+            type="button"
+            className={styles.selectToggle}
+            data-active={selectMode || undefined}
+            onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+          >
+            <Icon name="ListChecks" size={16} />
+            <span>{selectMode ? 'Cancelar' : 'Seleccionar'}</span>
+          </button>
+        )}
       </div>
+
+      {selectMode && canSelect && (
+        <div className={styles.selectionBar} role="toolbar" aria-label="Acciones de selección">
+          <button
+            className={styles.selBarCheck}
+            onClick={toggleSelectAll}
+            aria-label={allSelected ? 'Deseleccionar todo' : 'Seleccionar todo'}
+          >
+            <span
+              className={styles.selCheckbox}
+              data-checked={allSelected || undefined}
+              data-partial={(!allSelected && selectedCount > 0) || undefined}
+              aria-hidden="true"
+            >
+              {allSelected
+                ? <Icon name="Check" size={14} />
+                : selectedCount > 0 ? <Icon name="Minus" size={14} /> : null}
+            </span>
+            <span className={styles.selCount}>
+              {selectedCount > 0 ? `${selectedCount} seleccionadas` : 'Seleccionar todo'}
+            </span>
+          </button>
+          <div className={styles.selActions}>
+            <button className={styles.selAction} onClick={bulkPlay} disabled={selectedCount === 0} title="Reproducir" aria-label="Reproducir selección">
+              <Icon name="PlayCircle" size={20} />
+            </button>
+            <button className={styles.selAction} onClick={bulkEnqueue} disabled={selectedCount === 0} title="Añadir a la cola" aria-label="Añadir a la cola">
+              <Icon name="ListPlus" size={20} />
+            </button>
+            <button className={styles.selAction} onClick={bulkAddToPlaylist} disabled={selectedCount === 0} title="Añadir a playlist" aria-label="Añadir a playlist">
+              <Icon name="Plus" size={20} />
+            </button>
+            <button className={styles.selAction} onClick={bulkUndownload} disabled={selectedCount === 0} title="Quitar descarga" aria-label="Quitar descarga">
+              <Icon name="ArrowDownToLine" size={20} />
+            </button>
+            <button className={styles.selAction} data-danger onClick={() => setConfirmRemove(true)} disabled={selectedCount === 0} title="Eliminar de la biblioteca" aria-label="Eliminar de la biblioteca">
+              <Icon name="Trash2" size={20} />
+            </button>
+            <button className={styles.selAction} onClick={exitSelect} title="Cancelar" aria-label="Cancelar selección">
+              <Icon name="X" size={20} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Resumen de descargas (nº de canciones + peso) cuando el filtro
           activo es "Descargados". Visible en PWA y desktop. */}
@@ -370,17 +506,28 @@ export function Library() {
               } catch {}
             },
           } : null;
+          const selecting = selectMode && item.kind === 'track';
+          const isSel = selecting && selected.has(item.rawId);
           return (
             <li
               key={item.id}
               className={styles.row}
-              {...(draggableProps ?? {})}
+              data-selected={isSel || undefined}
+              {...(selecting ? {} : (draggableProps ?? {}))}
             >
             <button
               type="button"
               className={styles.rowBtn}
               onClick={() => onItemClick(item)}
+              aria-pressed={selecting ? isSel : undefined}
             >
+              {selecting && (
+                <span
+                  className={styles.selectBox}
+                  data-checked={isSel || undefined}
+                  aria-hidden="true"
+                >{isSel && <Icon name="Check" size={14} />}</span>
+              )}
               <div
                 className={styles.cover}
                 data-shape={item.kind === 'artist' ? 'circle' : 'square'}
@@ -401,22 +548,24 @@ export function Library() {
                         actual): morado solido.
                       - data-playing='true' (ademas esta sonando): pulso
                         animado tipo equalizer. */}
-                <span
-                  className={styles.quickPlay}
-                  data-active={active || undefined}
-                  data-playing={playing || undefined}
-                  role="button"
-                  tabIndex={-1}
-                  aria-label={`Reproducir ${item.title}`}
-                  onClick={(e) => onQuickPlay(e, item)}
-                >
-                  {playing
-                    ? <span className={styles.pulseBars} aria-hidden="true">
-                        <span /><span /><span />
-                      </span>
-                    : <Icon name="Play" size={14} filled />
-                  }
-                </span>
+                {!selecting && (
+                  <span
+                    className={styles.quickPlay}
+                    data-active={active || undefined}
+                    data-playing={playing || undefined}
+                    role="button"
+                    tabIndex={-1}
+                    aria-label={`Reproducir ${item.title}`}
+                    onClick={(e) => onQuickPlay(e, item)}
+                  >
+                    {playing
+                      ? <span className={styles.pulseBars} aria-hidden="true">
+                          <span /><span /><span />
+                        </span>
+                      : <Icon name="Play" size={14} filled />
+                    }
+                  </span>
+                )}
               </div>
               <div className={styles.meta}>
                 <span className={styles.rowTitle}>{item.title}</span>
@@ -430,6 +579,25 @@ export function Library() {
 
       {importOpen && (
         <SpotifyImportDialog onClose={() => setImportOpen(false)} />
+      )}
+
+      {saveDialogTracks && (
+        <SaveDialog
+          tracks={saveDialogTracks}
+          onClose={() => { setSaveDialogTracks(null); exitSelect(); }}
+        />
+      )}
+
+      {confirmRemove && (
+        <ConfirmDialog
+          title="Eliminar de la biblioteca"
+          body={`¿Eliminar ${selectedCount} ${selectedCount === 1 ? 'canción' : 'canciones'} de tu biblioteca? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          variant="danger"
+          icon="Trash2"
+          onConfirm={bulkRemove}
+          onClose={() => setConfirmRemove(false)}
+        />
       )}
     </section>
   );

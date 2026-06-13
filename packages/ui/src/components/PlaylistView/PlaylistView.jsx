@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import {
   DndContext, closestCenter, KeyboardSensor, MouseSensor, TouchSensor,
   useSensor, useSensors,
@@ -59,6 +59,8 @@ export function PlaylistView({ playlistId }) {
   const playlistsLoading = usePlaylistsStore((s) => s.loading);
   const contents = usePlaylistsStore((s) => s.contents);
   const removeTrack = usePlaylistsStore((s) => s.removeTrack);
+  const removeTracks = usePlaylistsStore((s) => s.removeTracks);
+  const toggleFavoriteMany = usePlaylistsStore((s) => s.toggleFavoriteMany);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
   const remove = usePlaylistsStore((s) => s.remove);
   const rename = usePlaylistsStore((s) => s.rename);
@@ -70,6 +72,7 @@ export function PlaylistView({ playlistId }) {
   const allTracks = useLibraryStore((s) => s.tracks);
   const downloadOne = useLibraryStore((s) => s.download);
   const undownloadOne = useLibraryStore((s) => s.undownload);
+  const undownloadMany = useLibraryStore((s) => s.undownloadMany);
 
   const playNow = usePlayerStore((s) => s.playNow);
   const playNext = usePlayerStore((s) => s.playNext);
@@ -97,6 +100,11 @@ export function PlaylistView({ playlistId }) {
   const [sharePlaylistOpen, setSharePlaylistOpen] = useState(false);
   const [confirmUndownloadAll, setConfirmUndownloadAll] = useState(false);
   const [confirmRemovePlaylist, setConfirmRemovePlaylist] = useState(false);
+  // Selección múltiple: Set de trackIds. selectMode activa/desactiva la UI.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState(() => new Set());
+  const [saveDialogTracks, setSaveDialogTracks] = useState(null);
+  const [confirmRemoveSelected, setConfirmRemoveSelected] = useState(false);
   const friends = useSocialStore((s) => s.friends);
 
   // Extraer color dominante del cover para el gradiente hero (estilo Spotify).
@@ -160,6 +168,87 @@ export function PlaylistView({ playlistId }) {
   const downloadedCount = tracks.filter((t) => t.isDownloaded).length;
   const allDownloaded = tracks.length > 0 && downloadedCount === tracks.length;
   const someDownloaded = downloadedCount > 0;
+
+  // ───────────────────────── SELECCIÓN MÚLTIPLE ─────────────────────────
+  // Al salir del modo selección, limpiamos el Set para no arrastrar estado.
+  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); };
+
+  // Si la lista filtrada cambia y queda vacía, salimos del modo selección.
+  useEffect(() => {
+    if (selectMode && tracks.length === 0) exitSelect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracks.length, selectMode]);
+
+  const toggleSelect = (trackId) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(trackId)) next.delete(trackId);
+      else next.add(trackId);
+      return next;
+    });
+  };
+
+  const allFilteredSelected = filteredTracks.length > 0 &&
+    filteredTracks.every((t) => selected.has(t.id));
+
+  const toggleSelectAll = () => {
+    setSelected((prev) => {
+      if (filteredTracks.length > 0 && filteredTracks.every((t) => prev.has(t.id))) {
+        return new Set();
+      }
+      return new Set(filteredTracks.map((t) => t.id));
+    });
+  };
+
+  // Tracks seleccionados resueltos (en el orden de la lista filtrada).
+  const selectedTracks = useMemo(
+    () => filteredTracks.filter((t) => selected.has(t.id)),
+    [filteredTracks, selected],
+  );
+  const selectedCount = selectedTracks.length;
+  const selectedAllDownloaded = selectedCount > 0 &&
+    selectedTracks.every((t) => t.isDownloaded);
+  const selectedAllFav = selectedCount > 0 &&
+    selectedTracks.every((t) => isFavorite(t.id));
+
+  // ── Acciones de lote ──
+  const bulkPlay = () => {
+    if (selectedCount === 0) return;
+    playNow(selectedTracks, 0);
+    exitSelect();
+  };
+  const bulkEnqueue = () => {
+    if (selectedCount === 0) return;
+    for (const t of selectedTracks) enqueue(t);
+    toast.success(`${selectedCount} ${selectedCount === 1 ? 'añadida' : 'añadidas'} a la cola`, { icon: 'ListMusic' });
+    exitSelect();
+  };
+  const bulkDownload = () => {
+    if (selectedCount === 0) return;
+    enqueueDownloads(selectedTracks);
+    exitSelect();
+  };
+  const bulkUndownload = async () => {
+    const ids = selectedTracks.filter((t) => t.isDownloaded).map((t) => t.id);
+    if (ids.length === 0) return;
+    await undownloadMany(ids);
+    exitSelect();
+  };
+  const bulkToggleFav = async () => {
+    if (selectedCount === 0) return;
+    // Si todos ya son favoritos, los quitamos; si no, añadimos los que falten.
+    await toggleFavoriteMany(selectedTracks.map((t) => t.id), !selectedAllFav);
+    exitSelect();
+  };
+  const bulkAddToPlaylist = () => {
+    if (selectedCount === 0) return;
+    setSaveDialogTracks(selectedTracks);
+  };
+  const bulkRemoveFromPlaylist = async () => {
+    if (selectedCount === 0) return;
+    await removeTracks(playlist.id, selectedTracks.map((t) => t.id));
+    exitSelect();
+  };
 
   if (!playlist) {
     // Mientras se hidrata desde Supabase, mostrar skeleton — evita el
@@ -405,6 +494,14 @@ export function PlaylistView({ playlistId }) {
             title="Reproducir aleatorio"
             data-active={playerShuffle}
           ><Icon name="Shuffle" size={22} /></button>
+          <button
+            className={styles.iconAction}
+            onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+            disabled={tracks.length === 0}
+            aria-label={selectMode ? 'Salir de selección' : 'Seleccionar canciones'}
+            title={selectMode ? 'Salir de selección' : 'Seleccionar'}
+            data-active={selectMode || undefined}
+          ><Icon name="ListChecks" size={22} /></button>
           <DropdownMenu
             trigger={<Icon name="MoreHorizontal" size={22} />}
             items={headerMenuItems}
@@ -423,6 +520,62 @@ export function PlaylistView({ playlistId }) {
         </div>
       </div>
 
+      {selectMode && tracks.length > 0 && (
+        <div className={styles.selectionBar} role="toolbar" aria-label="Acciones de selección">
+          <button
+            className={styles.selBarCheck}
+            onClick={toggleSelectAll}
+            aria-label={allFilteredSelected ? 'Deseleccionar todo' : 'Seleccionar todo'}
+          >
+            <span
+              className={styles.selCheckbox}
+              data-checked={allFilteredSelected || undefined}
+              data-partial={(!allFilteredSelected && selectedCount > 0) || undefined}
+              aria-hidden="true"
+            >
+              {allFilteredSelected
+                ? <Icon name="Check" size={14} />
+                : selectedCount > 0 ? <Icon name="Minus" size={14} /> : null}
+            </span>
+            <span className={styles.selCount}>
+              {selectedCount > 0 ? `${selectedCount} seleccionadas` : 'Seleccionar todo'}
+            </span>
+          </button>
+
+          <div className={styles.selActions}>
+            <button className={styles.selAction} onClick={bulkPlay} disabled={selectedCount === 0} title="Reproducir" aria-label="Reproducir selección">
+              <Icon name="PlayCircle" size={20} />
+            </button>
+            <button className={styles.selAction} onClick={bulkEnqueue} disabled={selectedCount === 0} title="Añadir a la cola" aria-label="Añadir a la cola">
+              <Icon name="ListPlus" size={20} />
+            </button>
+            <button className={styles.selAction} onClick={bulkToggleFav} disabled={selectedCount === 0} title={selectedAllFav ? 'Quitar de favoritos' : 'Añadir a favoritos'} aria-label="Favoritos" data-active={selectedAllFav || undefined}>
+              <Icon name="Heart" size={20} filled={selectedAllFav} />
+            </button>
+            <button className={styles.selAction} onClick={bulkAddToPlaylist} disabled={selectedCount === 0} title="Añadir a otra playlist" aria-label="Añadir a otra playlist">
+              <Icon name="Plus" size={20} />
+            </button>
+            {selectedAllDownloaded ? (
+              <button className={styles.selAction} onClick={bulkUndownload} disabled={selectedCount === 0 || !isDesktop} title="Quitar descarga" aria-label="Quitar descarga">
+                <Icon name="X" size={20} />
+              </button>
+            ) : (
+              <button className={styles.selAction} onClick={bulkDownload} disabled={selectedCount === 0} title="Descargar" aria-label="Descargar selección">
+                <Icon name="ArrowDownToLine" size={20} />
+              </button>
+            )}
+            {!isFavs && (
+              <button className={styles.selAction} data-danger onClick={() => setConfirmRemoveSelected(true)} disabled={selectedCount === 0} title="Quitar de esta playlist" aria-label="Quitar de esta playlist">
+                <Icon name="Trash2" size={20} />
+              </button>
+            )}
+            <button className={styles.selAction} onClick={exitSelect} title="Cancelar" aria-label="Cancelar selección">
+              <Icon name="X" size={20} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {tracks.length === 0 ? (
         <div className={styles.empty}>
           <p>Esta playlist está vacía. Busca una canción y guárdala aquí.</p>
@@ -431,9 +584,10 @@ export function PlaylistView({ playlistId }) {
         <div className={styles.empty}>
           <p>Sin coincidencias para «{filter}».</p>
         </div>
-      ) : filtering ? (
-        // Lista plana sin DnD durante el filtrado (el orden mostrado no es el real).
-        <ul className={styles.list}>
+      ) : (filtering || selectMode) ? (
+        // Lista plana sin DnD durante filtrado o selección múltiple
+        // (el DnD entra en conflicto con la gesticulación de selección).
+        <ul className={styles.list} data-selecting={selectMode || undefined}>
           {filteredTracks.map((t, i) => (
             <PlaylistRow
               key={t.id}
@@ -445,6 +599,9 @@ export function PlaylistView({ playlistId }) {
               currentTrack={currentTrack}
               tracks={filteredTracks}
               onPlay={() => playNow(filteredTracks, i)}
+              selectMode={selectMode}
+              selected={selected.has(t.id)}
+              onToggleSelect={toggleSelect}
               actions={{
                 playNext, enqueue, toggleFavorite, isFavorite,
                 downloadOne, undownloadOne, removeTrack, setSaveDialogTrack,
@@ -505,6 +662,13 @@ export function PlaylistView({ playlistId }) {
         />
       )}
 
+      {saveDialogTracks && (
+        <SaveDialog
+          tracks={saveDialogTracks}
+          onClose={() => { setSaveDialogTracks(null); exitSelect(); }}
+        />
+      )}
+
       {infoTrack && (
         <TrackInfoDialog
           track={infoTrack}
@@ -557,6 +721,18 @@ export function PlaylistView({ playlistId }) {
         />
       )}
 
+      {confirmRemoveSelected && (
+        <ConfirmDialog
+          title="Quitar de la playlist"
+          body={`¿Quitar ${selectedCount} ${selectedCount === 1 ? 'canción' : 'canciones'} de "${playlist.name}"? Seguirán en tu biblioteca.`}
+          confirmLabel="Quitar"
+          variant="danger"
+          icon="Trash2"
+          onConfirm={bulkRemoveFromPlaylist}
+          onClose={() => setConfirmRemoveSelected(false)}
+        />
+      )}
+
       {confirmRemovePlaylist && (
         <ConfirmDialog
           title="Eliminar playlist"
@@ -572,8 +748,9 @@ export function PlaylistView({ playlistId }) {
   );
 }
 
-function PlaylistRow({
+const PlaylistRow = memo(function PlaylistRow({
   track, displayIndex, playlist, isFavs, currentTrack, onPlay, actions, draggable,
+  selectMode = false, selected = false, onToggleSelect,
 }) {
   const playing = currentTrack?.id === track.id;
   const fav = actions.isFavorite(track.id);
@@ -638,6 +815,7 @@ function PlaylistRow({
       style={style}
       className={styles.row}
       data-playing={playing}
+      data-selected={(selectMode && selected) || undefined}
       data-dragging={draggable ? sortable.isDragging : false}
       data-draggable={draggable || undefined}
       // Listeners y attributes en TODA la fila: en touch el TouchSensor
@@ -651,17 +829,28 @@ function PlaylistRow({
       {...(draggable ? sortable.attributes : {})}
       {...(draggable ? sortable.listeners : {})}
     >
-      <span
-        className={styles.handle}
-        title={draggable ? 'Mantener para reordenar' : ''}
-        aria-hidden={draggable ? 'true' : undefined}
-      >
-        {playing ? <Icon name="Disc3" size={14} /> : (draggable ? <Icon name="MoreVertical" size={14} /> : displayIndex + 1)}
-      </span>
+      {selectMode ? (
+        <span
+          className={styles.selectBox}
+          data-checked={selected || undefined}
+          aria-hidden="true"
+        >{selected && <Icon name="Check" size={14} />}</span>
+      ) : (
+        <span
+          className={styles.handle}
+          title={draggable ? 'Mantener para reordenar' : ''}
+          aria-hidden={draggable ? 'true' : undefined}
+        >
+          {playing ? <Icon name="Disc3" size={14} /> : (draggable ? <Icon name="MoreVertical" size={14} /> : displayIndex + 1)}
+        </span>
+      )}
       <button
         className={styles.cell}
-        onClick={onPlay}
-        aria-label={`Reproducir ${track.title}`}
+        onClick={selectMode ? () => onToggleSelect?.(track.id) : onPlay}
+        aria-label={selectMode
+          ? `${selected ? 'Deseleccionar' : 'Seleccionar'} ${track.title}`
+          : `Reproducir ${track.title}`}
+        aria-pressed={selectMode ? selected : undefined}
       >
         <div className={styles.thumb}>
           {track.coverUrl
@@ -680,8 +869,16 @@ function PlaylistRow({
           <span className={styles.rowArtist}>{track.artist ?? '—'}</span>
         </div>
       </button>
-      <DownloadIndicator trackId={track.id} isDownloaded={track.isDownloaded} className={styles.dlIndicator} />
-      <DropdownMenu trigger={<Icon name="MoreHorizontal" size={18} />} items={trackMenu} align="right" label="Opciones de la canción" />
+      {selectMode ? (
+        <span className={styles.dlIndicator} aria-hidden="true">
+          {track.isDownloaded && <Icon name="ArrowDownToLine" size={14} />}
+        </span>
+      ) : (
+        <DownloadIndicator trackId={track.id} isDownloaded={track.isDownloaded} className={styles.dlIndicator} />
+      )}
+      {!selectMode && (
+        <DropdownMenu trigger={<Icon name="MoreHorizontal" size={18} />} items={trackMenu} align="right" label="Opciones de la canción" />
+      )}
     </li>
   );
-}
+});

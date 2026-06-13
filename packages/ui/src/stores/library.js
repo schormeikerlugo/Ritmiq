@@ -237,6 +237,26 @@ export const useLibraryStore = create((set, get) => ({
   },
 
   /**
+   * Borra varios tracks de la biblioteca en lote (un único toast agregado).
+   * @param {string[]} trackIds
+   */
+  async removeMany(trackIds) {
+    const ids = [...new Set(trackIds)].filter(Boolean);
+    if (ids.length === 0) return;
+    await Promise.all(ids.map((id) => tryOrQueue(
+      () => deleteTrackRemote(id),
+      { kind: 'track.delete', payload: { id } }
+    )));
+    const drop = new Set(ids);
+    set((s) => ({ tracks: s.tracks.filter((t) => !drop.has(t.id)) }));
+    const n = ids.length;
+    toast.show({
+      message: `${n} ${n === 1 ? 'canción eliminada' : 'canciones eliminadas'} de tu biblioteca`,
+      icon: 'Trash2',
+    });
+  },
+
+  /**
    * Encola la descarga a través de `useDownloadsStore`. Esto unifica el
    * comportamiento desktop/PWA y SIEMPRE muestra la barra de progreso
    * (DownloadProgress) y el spinner por fila — clave en PWA donde la
@@ -257,6 +277,25 @@ export const useLibraryStore = create((set, get) => ({
     await get().load();
     toast.show({
       message: cur ? `Descarga de "${cur.title}" eliminada` : 'Descarga eliminada',
+      icon: 'Trash2',
+    });
+  },
+
+  /**
+   * Quita varias descargas en lote. Hace un único `load()` al final
+   * (en vez de uno por track) y emite un único toast agregado.
+   * @param {string[]} trackIds
+   */
+  async undownloadMany(trackIds) {
+    const ids = [...new Set(trackIds)].filter(Boolean);
+    if (ids.length === 0) return;
+    for (const id of ids) {
+      try { await api.libraryUndownload(id); } catch {}
+    }
+    await get().load();
+    const n = ids.length;
+    toast.show({
+      message: `${n} ${n === 1 ? 'descarga eliminada' : 'descargas eliminadas'}`,
       icon: 'Trash2',
     });
   },
