@@ -3,7 +3,7 @@ tipo: store
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-06-13
 archivo: packages/ui/src/stores/playlists.js
 tags: [store, playlists, favoritas, offline, sync, realtime]
 ---
@@ -42,9 +42,12 @@ La playlist `FAVS_NAME = 'Favoritas'` siempre existe. `load()` la crea automáti
 | `setCover(id, url)` | `tryOrQueue` | Actualiza coverUrl. |
 | `remove(id)` | `tryOrQueue` | No permite borrar Favoritas. |
 | `addTrack(playlistId, trackId)` | `tryOrQueue` | Idempotente. Si playlist es offline → encola descarga. |
+| `addTracks(playlistId, trackIds[])` | `tryOrQueue` | **Lote**. Dedup contra `contents` + entrada; posiciones secuenciales; persiste en paralelo (absorbe 409); **un solo `set` + un toast agregado** (`N añadidas a X`); auto-download batch si offline. |
 | `removeTrack(playlistId, trackId)` | `tryOrQueue` | |
+| `removeTracks(playlistId, trackIds[])` | `tryOrQueue` | **Lote**. Filtra `contents` una vez; remoto en paralelo; un `set` + un toast agregado. |
 | `reorder(playlistId, orderedIds)` | Optimistic | Drag & drop. Rollback en error. |
 | `toggleFavorite(trackId)` | — | Add/remove de Favoritas. |
+| `toggleFavoriteMany(trackIds[], add)` | — | **Lote**. Delega en `addTracks`/`removeTracks` sobre Favoritas (un toast). |
 | `isFavorite(trackId)` | — | Pure selector. |
 | `applyRemotePlaylist(ev)` | — | Realtime: playlists. |
 | `applyRemotePlaylistTrack(ev)` | — | Realtime: playlist_tracks. |
@@ -173,3 +176,4 @@ set((s) => {
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-06-13 (selección múltiple): añadidas acciones plurales `addTracks`, `removeTracks`, `toggleFavoriteMany` para operar sobre N tracks con **un solo `set` de estado y un único toast agregado** (en vez de N toasts y N renders al iterar las variantes singulares). Consumidas por [[PlaylistView]], [[Library]] (filtro Descargados) y [[SaveDialog]] (modo multi-track). Ver [[Decisiones-Tecnicas-ADR|ADR-030]].

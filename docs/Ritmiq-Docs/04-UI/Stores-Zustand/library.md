@@ -3,7 +3,7 @@ tipo: store
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-06-13
 archivo: packages/ui/src/stores/library.js
 tags: [store, biblioteca, sync, offline-first, realtime]
 ---
@@ -34,8 +34,10 @@ tags: [store, biblioteca, sync, offline-first, realtime]
 | `addFromMeta(meta)` | IPC + pushTrack | api + pushTrack | ✓ upsert |
 | `persistEphemeral(track)` | IPC + pushTrack | api + pushTrack | ✓ upsert |
 | `remove(trackId)` | tryOrQueue + IPC | tryOrQueue | ✓ delete |
+| `removeMany(trackIds[])` | tryOrQueue (paralelo) | tryOrQueue (paralelo) | ✓ delete | **Lote**: borra N en paralelo, un solo `set` + un toast agregado. |
 | `download(trackId)` | → downloads store | → downloads store | — |
 | `undownload(trackId)` | IPC + reload | IPC/api + reload | — |
+| `undownloadMany(trackIds[])` | IPC (loop) + 1 reload | IPC/api (loop) + 1 reload | — | **Lote**: quita N descargas, **un solo `load()`** al final (no uno por track) + un toast agregado. |
 | `applyRemote(event)` | ✓ + IPC sync | ✓ | Realtime push |
 | `reset()` | — | — | — |
 
@@ -189,3 +191,7 @@ applyRemote({ eventType, new: row, old }) {
   con `getCachedTracks(userId)` (filtrado por dueño; la ruta sin sesión filtra por
   `lastUserId`); (c) persiste con `cacheTracks(remote, userId)` que **reconcilia** el espejo
   (elimina lo borrado en remoto). Ver [[Decisiones-Tecnicas-ADR|ADR-029]].
+- 2026-06-13 (selección múltiple): añadidas `removeMany(trackIds[])` y `undownloadMany(trackIds[])`
+  para acciones de lote desde [[Library]] (filtro Descargados) con **un único toast agregado**.
+  `undownloadMany` hace **un solo `load()`** al final en vez de uno por track (evita N recargas
+  de la biblioteca). Ver [[Decisiones-Tecnicas-ADR|ADR-030]].

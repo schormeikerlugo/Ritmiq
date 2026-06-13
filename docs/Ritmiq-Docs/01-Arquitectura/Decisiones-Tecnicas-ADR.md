@@ -231,6 +231,29 @@ Cada decisión sigue el formato:
   3. **Cambio de cuenta** (`userId !== lastUserId`): `clearMirrorForAccountSwitch` limpia el espejo (tracks/playlists/playlistTracks) y **borra las descargas huérfanas** de la cuenta anterior (inaccesibles desde la nueva). [[use-downloads-stats]] también filtra por owner.
 - **Consecuencias**: el espejo converge con el remoto en cada pull — la "base vieja" desaparece sola al abrir con red una vez, sin que el usuario borre datos (borrar datos/cache manual habría eliminado también las descargas). Multi-cuenta en un dispositivo ya no mezcla bibliotecas; el costo es re-descargar si se alternan cuentas (decisión: huérfanas se borran). Verificado: 5 tests de lógica (reconcilia, vacía, aislamiento por user, filtro, switch) + builds verdes.
 
+## ADR-030 — Selección múltiple de canciones + fix del scroll bajo headers sticky
+
+### Parte A — Acciones de lote con un solo `set` + un toast agregado
+
+- **Contexto**: se añadió selección múltiple de canciones en [[PlaylistView]] y en el filtro "Descargados" de [[Library]] (seleccionar varias o todas y operar en lote: reproducir, cola, favoritos, añadir a playlist, descargar/quitar descarga, quitar de playlist, eliminar de biblioteca). Las acciones del store eran **single-track**; iterar `addTrack`/`removeTrack`/`undownload` en un loop produciría **N toasts y N renders** (y, en `undownload`, **N recargas** de la biblioteca).
+- **Decisión**:
+  1. **Acciones plurales en los stores**: [[playlists]] gana `addTracks`/`removeTracks`/`toggleFavoriteMany`; [[library]] gana `removeMany`/`undownloadMany`. Cada una persiste en paralelo (absorbiendo 409 en add) pero hace **un único `set` de estado y emite un único toast agregado** (`N añadidas a X`). `undownloadMany` hace **un solo `load()`** al final.
+  2. **Estado de selección con `Set` de IDs** + toggle inmutable (`new Set(prev)`), patrón ya usado en [[ShareToFriendModal]]. "Seleccionar todo" alterna `new Set(filtered)` ↔ `new Set()`.
+  3. **dnd-kit desactivado en modo selección**: en [[PlaylistView]] se omiten `DndContext`/`SortableContext` (render plano) para no chocar con la gesticulación de tap; **toda la fila `<li>` es el área de toque** (hijos con `pointer-events: none`) — robusto en desktop y PWA móvil. Se quitó un `React.memo` inútil (las `actions` se recrean cada render).
+  4. **[[SaveDialog]] multi-track**: acepta `tracks[]` (back-compat con `track`); checkbox **tri-estado** por playlist (todas/algunas/ninguna → `Check`/`Minus`/vacío).
+- **Consecuencias**: feedback limpio (un toast por operación), menos renders y una sola recarga al quitar descargas; sin conflicto con el reordenamiento por drag. El indicador de descarga se pinta en **verde** durante la selección (mismo ícono `CheckCircle2`) para distinguir lo descargado. Verificado: builds PWA + desktop verdes.
+
+### Parte B — Quitar `padding-top` del `.main` para que `position: sticky` funcione
+
+- **Contexto**: en **desktop** (Electron), al scrollear la biblioteca, las canciones **asomaban por encima y por debajo** del header sticky de [[Library]] (avatar + título + chips + sortRow). Bug solo desktop.
+- **Causa raíz** (tras descartar `will-change`): el contenedor de scroll `.main` (`App.module.css`) tenía `padding: var(--space-5)` (24px en los 4 lados). Con `position: sticky; top: 0`, el header se pega al **borde de padding** del scroll-port, no al físico → quedaban 24px arriba descubiertos por donde el contenido asomaba. Las "soluciones" previas (`margin-top` negativo, `::after`) no funcionaban porque el sticky se pegaba al sitio equivocado. (Contribuyente secundario: el `transform` transitorio de GSAP en `.viewSlot` durante la animación de entrada crea un containing block que rompe el sticky ~320ms; no se abordó aún.)
+- **Decisión**: **eliminar el `padding-top` del `.main`** (`padding: 0 var(--space-5) var(--space-5)`). Así el borde del scroll-port coincide con el físico y `top: 0` pega el header arriba del todo, cubriendo con su fondo opaco. Compensaciones:
+  1. **8 vistas** que dependían de ese padding reponen `padding-top: var(--space-5)` **solo en desktop** (`@media min-width:769px`): [[Home]], [[Downloads]], [[StatsView]], [[YtPlaylistView]], [[SearchView]], [[ArtistView]], [[AlbumView]], [[HistoryView]].
+  2. **[[Library]]**: se eliminó la compensación negativa desktop, el `.stickyHeader` **duplicado** y el `::after`; el `sortRow` se movió **dentro** del `.stickyHeader` (también queda fijo). Conserva `padding-top: var(--safe-top)` para la safe-area en PWA.
+  3. **[[PlaylistView]]**: el hero desktop pasa de `margin-top: -24px` a `0` (ya no hay padding que escapar); conserva el margen lateral negativo para el full-bleed.
+  4. Sin cambios: [[SettingsView]] (ya tenía 12px propios), [[FriendsView]]/[[ProfileView]] (scroll interno con header propio). **Móvil intacto** (las ediciones van en media query desktop; el `.main` móvil mantiene su `padding-top` de safe-area).
+- **Consecuencias**: el header sticky se comporta correctamente sin parches; el patrón queda como regla de arquitectura: **el scroll-port (`.main`) no lleva `padding-top`; cada vista repone su espaciado superior**. Verificado: builds verdes + validación visual desktop (biblioteca sin bleed, playlist hero pegado, vistas conservan su espaciado) + PWA sin regresión.
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.
