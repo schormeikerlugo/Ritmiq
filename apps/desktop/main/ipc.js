@@ -670,6 +670,31 @@ export function registerIpc({ db, lan, accessToken }) {
     getDeviceActivity(db, deviceId, Number(limit) || 50)
   );
 
+  // Exporta las cookies de YouTube del navegador de ESTE desktop a texto
+  // Netscape y las devuelve en base64. La UI las sube al servidor remoto
+  // (POST /devices/:id/cookies) para "aportar mis cookies" a un device al
+  // aprobarlo. Reutiliza el login del navegador del owner, sin noVNC.
+  ipcMain.handle('owner:exportCookies', async () => {
+    const browser = detectCookiesBrowser();
+    if (!browser) {
+      return { ok: false, error: 'no_browser', message: 'No se detectó navegador con sesión de YouTube. Inicia sesión en Firefox/Chrome.' };
+    }
+    try {
+      const file = await exportCookiesToFile(getYtDlpPath(), browser, 0);
+      if (!file || !existsSync(file)) {
+        return { ok: false, error: 'export_failed', message: 'No se pudieron exportar las cookies del navegador.' };
+      }
+      const { readFileSync } = await import('node:fs');
+      const raw = readFileSync(file, 'utf8');
+      if (!raw || raw.length < 10) {
+        return { ok: false, error: 'empty', message: 'El archivo de cookies quedó vacío.' };
+      }
+      return { ok: true, cookies_b64: Buffer.from(raw, 'utf8').toString('base64'), browser };
+    } catch (err) {
+      return { ok: false, error: 'exception', message: err?.message ?? String(err) };
+    }
+  });
+
   // Notificacion en vivo cuando llega un pair_request: subscribe al
   // hook expuesto por lan-server y reenvia al renderer + notification.
   try {

@@ -38,7 +38,7 @@ export function ConnectionInfoView({ onBack }) {
         <>
           <SettingsGroup
             title="Dispositivos pareados"
-            hint="Telefonos que pueden reproducir musica desde este PC."
+            hint="Aprueba y gestiona los dispositivos que reproducen música desde tu PC o tu servidor 24/7."
           >
             <div className={styles.embed}><DevicesSection /></div>
           </SettingsGroup>

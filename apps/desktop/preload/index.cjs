@@ -67,6 +67,7 @@ contextBridge.exposeInMainWorld('ritmiq', {
     forget: (deviceId) => ipcRenderer.invoke('devices:forget', deviceId),
     rename: (deviceId, name) => ipcRenderer.invoke('devices:rename', { deviceId, name }),
     activity: (deviceId, limit) => ipcRenderer.invoke('devices:activity', { deviceId, limit }),
+    exportOwnerCookies: () => ipcRenderer.invoke('owner:exportCookies'),
     onPairRequest: (cb) => {
       const handler = (_e, payload) => cb(payload);
       ipcRenderer.on('devices:pair-request', handler);

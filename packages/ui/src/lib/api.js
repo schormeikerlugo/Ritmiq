@@ -76,6 +76,7 @@ const electronApi = isElectron
       devicesForget:           (id) => window.ritmiq.devices.forget(id),
       devicesRename:           (id, name) => window.ritmiq.devices.rename(id, name),
       devicesActivity:         (id, limit) => window.ritmiq.devices.activity(id, limit),
+      devicesExportOwnerCookies: optionalCall(window.ritmiq.devices.exportOwnerCookies),
       devicesOnPairRequest:    (cb) => window.ritmiq.devices.onPairRequest(cb),
 
       playlistsList:           (uid) => window.ritmiq.playlists.list(uid),

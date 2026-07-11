@@ -302,6 +302,58 @@ export function listPairRequests(db) {
 }
 
 /**
+ * Lista devices de UNA cuenta (mismo supabase_user_id). Base del modelo
+ * de administración por cuenta: un sub-admin solo ve/gestiona lo suyo.
+ * @param {import('better-sqlite3').Database} db
+ * @param {string} supabaseUserId
+ */
+export function listDevicesForUser(db, supabaseUserId) {
+  if (!supabaseUserId) return [];
+  return db.prepare(/* sql */ `
+    SELECT device_id, display_name, supabase_user_id, status,
+           cookies_updated_at, approved_at, last_seen_at, revoked_at
+    FROM devices
+    WHERE supabase_user_id = ?
+    ORDER BY
+      CASE status WHEN 'approved' THEN 0 ELSE 1 END,
+      last_seen_at DESC NULLS LAST,
+      approved_at DESC
+  `).all(supabaseUserId);
+}
+
+/** Lista solicitudes pendientes de UNA cuenta. */
+export function listPairRequestsForUser(db, supabaseUserId) {
+  if (!supabaseUserId) return [];
+  const now = new Date().toISOString();
+  db.prepare('DELETE FROM pair_requests WHERE expires_at < ?').run(now);
+  return db.prepare(/* sql */ `
+    SELECT device_id, display_name, supabase_user_id, pin,
+           requested_at, expires_at, client_ip,
+           CASE WHEN cookies_blob IS NULL THEN 0 ELSE 1 END AS has_cookies
+    FROM pair_requests
+    WHERE supabase_user_id = ?
+    ORDER BY requested_at DESC
+  `).all(supabaseUserId);
+}
+
+/**
+ * Devuelve el supabase_user_id asociado a un device_id, buscando primero en
+ * devices y luego en pair_requests. Sirve para verificar pertenencia antes
+ * de que un sub-admin apruebe/rechace/revoque.
+ * @returns {string|null}
+ */
+export function getDeviceOwnerUserId(db, deviceId) {
+  const dev = db.prepare(
+    'SELECT supabase_user_id FROM devices WHERE device_id = ?'
+  ).get(deviceId);
+  if (dev) return dev.supabase_user_id ?? null;
+  const pr = db.prepare(
+    'SELECT supabase_user_id FROM pair_requests WHERE device_id = ?'
+  ).get(deviceId);
+  return pr ? (pr.supabase_user_id ?? null) : null;
+}
+
+/**
  * Inserta un evento de actividad.
  * @param {import('better-sqlite3').Database} db
  * @param {Object} entry

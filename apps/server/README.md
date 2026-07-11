@@ -132,6 +132,11 @@ Dos vías (en *Ajustes → Acceso remoto → Usar mi cuenta de YouTube*):
 - **Opción B — Subida manual:** el usuario exporta su `cookies.txt` (extensión
   «Get cookies.txt LOCALLY») y lo sube.
 
+- **Opción C — Aportar cookies desde el desktop (Fase 4):** al aprobar un
+  dispositivo desde la app desktop, el aprobador puede subirle **sus propias
+  cookies de YouTube del navegador del desktop** (botón *Aprobar + mis
+  cookies*). Reutiliza el login del navegador, sin noVNC ni archivos.
+
 Las cookies se guardan **cifradas** (`devices.cookies_blob`). Para cifrado en
 reposo real en headless, define `RITMIQ_COOKIES_KEY` (si no, fallback 0600).
 
@@ -149,6 +154,37 @@ sin PIN** al parear. Fuera de la lista → aprobación manual.
   tienen su propia cuenta de YouTube vinculada.
 
 Alternativa por consola (SSH): `ritmiq-admin pending|approve|reject|devices|revoke|token`.
+
+## Identidad verificada y administración por cuenta (Fase 4)
+
+**Identidad Supabase (JWT).** El servidor verifica el token de sesión de Supabase
+para confiar en la identidad del cliente. El `supabase_user_id` sale del `sub`
+del JWT firmado — **nunca** del body — así que un cliente no puede suplantar a
+otra cuenta. Con `VITE_SUPABASE_URL` definido, la firma se verifica contra el
+**JWKS** del proyecto (ES256, sin secreto). Con proyectos HS256 legacy, define
+`RITMIQ_SUPABASE_JWT_SECRET`.
+
+- **Login requerido para parear:** por defecto, `/pair` exige un JWT válido
+  (`RITMIQ_REQUIRE_AUTH_FOR_PAIR`, ON cuando hay verificación). Sin sesión → 401.
+
+**Administración de dos niveles:**
+
+- **Dueño (owner):** con el access-token del servidor, gestiona **todos** los
+  dispositivos (panel web `/admin`, CLI `ritmiq-admin`, o desde la app desktop).
+  Controla qué **cuentas** acceden al servidor (allowlist / aprobación).
+- **Sub-admin por cuenta:** un usuario autenticado (JWT) gestiona **solo sus
+  propios dispositivos** (mismo `supabase_user_id`) desde la app desktop
+  (*Ajustes → Conexión → Dispositivos pareados*, con el servidor 24/7
+  configurado). No ve ni puede tocar los dispositivos de otras cuentas (403).
+
+Endpoints (auth por cuenta): `GET /devices/mine`, `POST /devices/{approve,
+reject,revoke,rename,cookies}`. El owner usa el access-token; el sub-admin, su
+JWT de Supabase.
+
+> **Nota de arquitectura:** exigir la app desktop para parear NO es un control
+> de seguridad (un atacante usaría `curl`). La seguridad real es **JWT
+> verificado + aprobación del dueño**. El desktop es la vía cómoda para aprobar
+> y aportar cookies.
 
 ## Nota de seguridad (noVNC)
 

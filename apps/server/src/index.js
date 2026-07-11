@@ -53,7 +53,8 @@ async function main() {
   console.log(`[ritmiq-server] listo en el puerto ${lan.port}`);
   console.log('[ritmiq-server] access-token (Bearer del dueño):');
   console.log(`    ${accessToken}`);
-  console.log('[ritmiq-server] los dispositivos se aprueban con: ritmiq-admin approve <device_id>');
+  console.log('[ritmiq-server] aprueba dispositivos con: ritmiq-admin approve <device_id>,');
+  console.log('    el panel web /admin, o desde la app desktop (cada cuenta gestiona los suyos).');
 
   // ── Cloudflare Tunnel + publicación del endpoint 'server' ──────────────
   // Se activa si hay token de túnel (Named) configurado, o si se fuerza el

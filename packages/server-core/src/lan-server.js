@@ -31,11 +31,13 @@ import {
   findDeviceByToken, listDevices, listPairRequests,
   logActivity, pruneOldActivity, updateDeviceCookies, clearDeviceCookies,
   getDeviceActivity,
+  listDevicesForUser, listPairRequestsForUser, getDeviceOwnerUserId,
 } from './devices.js';
 import { getCookieFileForDevice, invalidateDeviceCookies, encryptCookies } from './device-cookies.js';
 import {
   startLoginSession, getLoginStatus, stopLoginSession, isDockerAvailable,
 } from './youtube-login.js';
+import { createJwtVerifier } from './auth-jwt.js';
 
 /**
  * Cache global de URLs (Fase 1): publica a Supabase Edge cada resolucion
@@ -343,8 +345,19 @@ const ALLOWED_ORIGINS = [
  * @param {import('better-sqlite3').Database} opts.db
  * @param {string} [opts.accessToken]  Token Bearer requerido para todas las
  *   rutas excepto /health. Si no se pasa, el server queda abierto.
+ * @param {string} [opts.supabaseUrl]  Base URL del proyecto Supabase, para
+ *   verificar JWT de usuarios vía JWKS. Default: env VITE_SUPABASE_URL.
+ * @param {string} [opts.supabaseJwtSecret] Secreto HS256 legacy (opcional).
+ * @param {boolean} [opts.requireAuthForPair] Exigir JWT válido en /pair.
  */
-export async function startLanServer({ port, db, accessToken }) {
+export async function startLanServer({
+  port,
+  db,
+  accessToken,
+  supabaseUrl,
+  supabaseJwtSecret,
+  requireAuthForPair,
+}) {
   const ytBinary = getYtDlpPath();
   const cookiesFromBrowser = detectCookiesBrowser();
   const jsRuntime = detectJsRuntime();
@@ -370,6 +383,32 @@ export async function startLanServer({ port, db, accessToken }) {
   );
   if (ALLOWED_USERS.size > 0) {
     console.log(`[lan-server] allowlist activa (${ALLOWED_USERS.size} cuentas auto-aprobadas)`);
+  }
+  // ── Verificación de identidad Supabase (JWT) ───────────────────────
+  // Permite confiar en el supabase_user_id de un cliente (viene del `sub`
+  // de un token firmado por Supabase), en vez de aceptarlo autodeclarado.
+  // Es la base del modelo de administración por cuenta (sub-admin).
+  const supaUrl = supabaseUrl || process.env.VITE_SUPABASE_URL || '';
+  const jwtSecret = supabaseJwtSecret || process.env.RITMIQ_SUPABASE_JWT_SECRET || null;
+  const jwtVerifier = createJwtVerifier({
+    supabaseUrl: supaUrl || undefined,
+    hs256Secret: jwtSecret || undefined,
+  });
+  // Exigir login para parear. Por defecto ON cuando hay verificación
+  // configurada; se puede forzar OFF con RITMIQ_REQUIRE_AUTH_FOR_PAIR=false.
+  const REQUIRE_AUTH_FOR_PAIR =
+    requireAuthForPair ??
+    (String(process.env.RITMIQ_REQUIRE_AUTH_FOR_PAIR ?? '').toLowerCase() === 'false'
+      ? false
+      : jwtVerifier.isConfigured());
+  if (jwtVerifier.isConfigured()) {
+    console.log(
+      `[lan-server] verificación JWT Supabase activa${REQUIRE_AUTH_FOR_PAIR ? ' (login requerido para parear)' : ''}`
+    );
+  } else {
+    console.warn(
+      '[lan-server] SIN verificación JWT (configura VITE_SUPABASE_URL) — supabase_user_id NO es confiable'
+    );
   }
   // Cache persistente para yt-dlp (player.js, JS solvers, etc.). Sin esto
   // el AppImage monta en /tmp distinto cada arranque → yt-dlp re-descarga
@@ -477,6 +516,32 @@ export async function startLanServer({ port, db, accessToken }) {
     if (accessToken && token === accessToken) return { owner: true };
     const dev = findDeviceByToken(db, token);
     return dev ?? null;
+  }
+
+  /**
+   * Autorización para administración por cuenta. Resuelve la identidad del
+   * request en tres niveles y devuelve un principal admin:
+   *   - owner (access-token)        → { owner:true }                (gestiona todo)
+   *   - device_token válido         → { deviceId, userId }          (gestiona lo suyo)
+   *   - JWT Supabase válido         → { userId }                    (gestiona lo suyo)
+   * Devuelve null si no autoriza.
+   * @returns {Promise<{owner:true}|{userId:string,deviceId?:string}|null>}
+   */
+  async function authorizeAdmin(req, url) {
+    const token = extractBearer(req, url);
+    if (!token) return null;
+    if (accessToken && token === accessToken) return { owner: true };
+    // device_token: identidad del propio dispositivo pareado.
+    const dev = findDeviceByToken(db, token);
+    if (dev) {
+      return { userId: dev.supabase_user_id ?? null, deviceId: dev.device_id };
+    }
+    // JWT de Supabase: identidad de una cuenta (aún sin device concreto).
+    if (jwtVerifier.isConfigured()) {
+      const verified = await jwtVerifier.verify(token);
+      if (verified) return { userId: verified.userId };
+    }
+    return null;
   }
 
   /**
@@ -671,7 +736,7 @@ export async function startLanServer({ port, db, accessToken }) {
    * @param {string} ytId
    * @param {number} priority  10 = stream del usuario, 1 = prewarm background
    */
-  function resolveCached(ytId, priority = 1) {
+  function resolveCached(ytId, priority = 1, dlOpts = null) {
     const now = Date.now();
     const hit = streamCache.get(ytId);
     if (hit) {
@@ -728,7 +793,12 @@ export async function startLanServer({ port, db, accessToken }) {
         const t0 = Date.now();
         console.log(`[lan-server] resolve ${ytId} START (p=${job.priority})`);
         try {
-          const cp = getStreamUrl(ytId, ytOpts);
+          // Cache-miss: resolver con las cookies del solicitante si se pasaron
+          // (dlOpts, p.ej. las de un device con cuenta propia); si no, las del
+          // owner. El resultado se cachea por ytId (caché global compartido):
+          // el primero que resuelve fija la URL para todos, que es el
+          // comportamiento deseado del caché compartido en el servidor.
+          const cp = getStreamUrl(ytId, dlOpts || ytOpts);
           job.childPromise = cp;
           const url = await cp;
           const dt = Date.now() - t0;
@@ -909,6 +979,114 @@ export async function startLanServer({ port, db, accessToken }) {
         return;
       }
 
+      // ── Administración POR CUENTA (owner o sub-admin) ────────────────
+      // A diferencia de /admin/api/* (owner-only, panel web global), estos
+      // endpoints admiten JWT de Supabase o device_token: cada cuenta ve y
+      // gestiona SOLO sus propios dispositivos. El owner puede con todos.
+      if (url.pathname.startsWith('/devices/')) {
+        const principal = await authorizeAdmin(req, url);
+        if (!principal) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'unauthorized' }));
+          return;
+        }
+        const isAdminOwner = principal.owner === true;
+        const myUserId = isAdminOwner ? null : principal.userId;
+
+        // GET /devices/mine → devices + pending de la cuenta (o todos si owner).
+        if (url.pathname === '/devices/mine' && req.method === 'GET') {
+          const devices = isAdminOwner
+            ? listDevices(db)
+            : listDevicesForUser(db, myUserId);
+          const pending = isAdminOwner
+            ? listPairRequests(db)
+            : listPairRequestsForUser(db, myUserId);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            owner: isAdminOwner,
+            userId: myUserId ?? null,
+            devices: devices.map((d) => ({
+              device_id: d.device_id,
+              display_name: d.display_name,
+              supabase_user_id: d.supabase_user_id,
+              status: d.status,
+              has_cookies: !!d.cookies_updated_at,
+              last_seen_at: d.last_seen_at,
+              approved_at: d.approved_at,
+            })),
+            pending: pending.map((p) => ({
+              device_id: p.device_id,
+              display_name: p.display_name,
+              supabase_user_id: p.supabase_user_id,
+              pin: p.pin,
+              requested_at: p.requested_at,
+              has_cookies: !!p.has_cookies,
+            })),
+          }));
+          return;
+        }
+
+        // POST /devices/{approve,reject,revoke,rename}  { device_id, ... }
+        if (req.method === 'POST') {
+          const chunks = [];
+          req.on('data', (c) => chunks.push(c));
+          req.on('end', () => {
+            try {
+              const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+              const id = String(body.device_id || '');
+              if (!id) { res.writeHead(400).end('device_id required'); return; }
+              // Verificación de pertenencia para sub-admins.
+              if (!isAdminOwner) {
+                const ownerId = getDeviceOwnerUserId(db, id);
+                if (!myUserId || ownerId !== myUserId) {
+                  res.writeHead(403, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'forbidden: not your device' }));
+                  return;
+                }
+              }
+              if (url.pathname === '/devices/approve') {
+                const pend = listPairRequests(db).find((r) => r.device_id === id);
+                const token = approveDevice(db, {
+                  deviceId: id,
+                  displayName: pend?.display_name ?? id,
+                  supabaseUserId: pend?.supabase_user_id ?? (isAdminOwner ? null : myUserId),
+                });
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true, deviceToken: token }));
+              } else if (url.pathname === '/devices/reject') {
+                rejectPairRequest(db, id);
+                res.writeHead(200).end(JSON.stringify({ ok: true }));
+              } else if (url.pathname === '/devices/revoke') {
+                revokeDevice(db, id);
+                try { invalidateDeviceCookies(id); } catch {}
+                res.writeHead(200).end(JSON.stringify({ ok: true }));
+              } else if (url.pathname === '/devices/rename') {
+                renameDevice(db, id, String(body.name || ''));
+                res.writeHead(200).end(JSON.stringify({ ok: true }));
+              } else if (url.pathname === '/devices/cookies') {
+                // Aportar cookies a un device (Fase 4c). Body: { cookies_b64 }.
+                const cookiesB64 = body.cookies_b64;
+                if (!cookiesB64) { res.writeHead(400).end('cookies_b64 required'); return; }
+                const raw = Buffer.from(String(cookiesB64), 'base64').toString('utf8');
+                if (raw.length > 1024 * 1024) { res.writeHead(413).end('cookies too large'); return; }
+                const blob = encryptCookies(raw);
+                updateDeviceCookies(db, id, blob);
+                try { invalidateDeviceCookies(id); } catch {}
+                res.writeHead(200).end(JSON.stringify({ ok: true }));
+              } else {
+                res.writeHead(404).end('not found');
+              }
+            } catch (err) {
+              console.error('[lan-server] /devices error', err);
+              res.writeHead(500).end('internal error');
+            }
+          });
+          return;
+        }
+        res.writeHead(405).end('method not allowed');
+        return;
+      }
+
       // ── Pareo: endpoints publicos con rate-limit ─────────────────────
       // Permiten a una PWA solicitar pareo y consultar el estado sin
       // necesidad de token (no lo tienen todavia). Rate-limit por IP.
@@ -924,7 +1102,7 @@ export async function startLanServer({ port, db, accessToken }) {
         }
         const chunks = [];
         req.on('data', (c) => chunks.push(c));
-        req.on('end', () => {
+        req.on('end', async () => {
           try {
             const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
             const { device_id, display_name, supabase_user_id, pin, cookies_b64 } = body;
@@ -932,6 +1110,23 @@ export async function startLanServer({ port, db, accessToken }) {
               res.writeHead(400).end('device_id, display_name, pin required');
               return;
             }
+            // Identidad de la cuenta: SIEMPRE del JWT verificado si viene uno.
+            // El supabase_user_id del body es autodeclarado y no confiable; solo
+            // se usa como fallback si NO se exige login (modo abierto/legacy).
+            let trustedUserId = null;
+            const bearer = extractBearer(req, url);
+            if (bearer && bearer !== accessToken && jwtVerifier.isConfigured()) {
+              const verified = await jwtVerifier.verify(bearer);
+              if (verified) trustedUserId = verified.userId;
+            }
+            if (REQUIRE_AUTH_FOR_PAIR && !trustedUserId) {
+              res.writeHead(401, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'login required to pair' }));
+              return;
+            }
+            const effectiveUserId = trustedUserId
+              ? trustedUserId
+              : (REQUIRE_AUTH_FOR_PAIR ? null : (supabase_user_id ? String(supabase_user_id) : null));
             // Cifrar cookies (si vienen) antes de guardarlas en el pair_request.
             const cookiesBlob = cookies_b64
               ? encryptCookies(Buffer.from(String(cookies_b64), 'base64').toString('utf8'))
@@ -939,7 +1134,7 @@ export async function startLanServer({ port, db, accessToken }) {
             const out = createPairRequest(db, {
               deviceId: String(device_id),
               displayName: String(display_name),
-              supabaseUserId: supabase_user_id ? String(supabase_user_id) : null,
+              supabaseUserId: effectiveUserId,
               pin: String(pin),
               cookiesBlob,
               clientIp,

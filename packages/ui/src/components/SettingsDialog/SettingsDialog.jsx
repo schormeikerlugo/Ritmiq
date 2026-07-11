@@ -21,6 +21,10 @@ import {
   getAccessTokenSync, setAccessToken,
 } from '../../lib/lan-client.js';
 import { api, isDesktop } from '../../lib/api.js';
+import {
+  hasRemoteServer, remoteState, remoteApprove, remoteReject,
+  remoteRevoke, remoteRename, remoteSetCookies,
+} from '../../lib/remote-admin.js';
 import { publishTunnelUrl, clearTunnelUrl } from '../../lib/tunnel-registry.js';
 import { supabase } from '../../lib/supabase.js';
 import { forceRecheck } from '../../lib/connectivity.js';
@@ -132,9 +136,10 @@ export function SharedCacheSection() {
     <div className={styles.field} style={{ marginTop: '1.25rem' }}>
       <label className={styles.label}>Caché compartido entre cuentas</label>
       <p className={styles.hint}>
-        Archivos descargados que se reusan automáticamente cuando otra cuenta
-        en otro dispositivo reproduce la misma canción. Acelera la primera
-        reproducción y evita descargas duplicadas.
+        Todo lo que se descarga se guarda en el servidor y se comparte con las
+        cuentas aprobadas: si alguien ya obtuvo una canción, se sirve al instante
+        (y aparece como "en caché" en la búsqueda) sin volver a descargarla.
+        Acelera la primera reproducción y evita descargas duplicadas.
       </p>
       <p className={styles.hint}>
         Actualmente: <code>{stats.count}</code> canciones · <code>{formatBytes(stats.totalBytes)}</code>
@@ -500,19 +505,43 @@ export function PwaRemoteSection() {
  * Desktop: gestion de devices pareados. Listado de devices aprobados,
  * solicitudes pendientes con PIN para aprobar/rechazar, y activity log.
  */
+/** Traduce errores del cliente de administración remota a texto legible. */
+function mapErr(err) {
+  const m = String(err?.message ?? err);
+  if (m === 'unauthorized') return 'No autorizado. Inicia sesión o revisa el token del servidor.';
+  if (m === 'forbidden') return 'Ese dispositivo pertenece a otra cuenta.';
+  if (m === 'no_remote_server') return 'No hay servidor remoto configurado.';
+  if (m === 'no_auth') return 'Sin sesión activa. Inicia sesión para administrar.';
+  return m;
+}
+
 export function DevicesSection() {
   const [devices, setDevices] = useState([]);
   const [pending, setPending] = useState([]);
   const [activityFor, setActivityFor] = useState(null);
   const [activity, setActivity] = useState([]);
   const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
   const { confirm, dialogProps } = useConfirm();
+
+  // Modo remoto: si hay un servidor 24/7 configurado, administramos SUS
+  // dispositivos por HTTP (/devices/*) en vez de la DB local vía IPC. Cada
+  // cuenta gestiona solo los suyos; el owner (server-token) gestiona todos.
+  const remote = hasRemoteServer();
+  const [isOwnerAdmin, setIsOwnerAdmin] = useState(!remote);
 
   const refresh = async () => {
     try {
-      const [d, p] = await Promise.all([api.devicesList(), api.devicesPending()]);
-      setDevices(d ?? []);
-      setPending(p ?? []);
+      if (remote) {
+        const st = await remoteState();
+        setDevices(st.devices ?? []);
+        setPending(st.pending ?? []);
+        setIsOwnerAdmin(!!st.owner);
+      } else {
+        const [d, p] = await Promise.all([api.devicesList(), api.devicesPending()]);
+        setDevices(d ?? []);
+        setPending(p ?? []);
+      }
     } catch (err) {
       console.warn('[DevicesSection] refresh failed', err);
     }
@@ -523,26 +552,58 @@ export function DevicesSection() {
     // Polling 2s para reflejar rapido devices nuevos (incluyendo
     // auto-approve idempotente que no dispara pair-request event).
     const id = setInterval(refresh, 2000);
-    const unsub = api.devicesOnPairRequest?.(() => refresh());
+    const unsub = remote ? undefined : api.devicesOnPairRequest?.(() => refresh());
     return () => { clearInterval(id); try { unsub?.(); } catch {} };
   }, []);
 
   const onApprove = async (deviceId) => {
     try {
-      await api.devicesApprove(deviceId);
+      if (remote) await remoteApprove(deviceId);
+      else await api.devicesApprove(deviceId);
       setMsg({ ok: true, text: 'Dispositivo aprobado.' });
       refresh();
     } catch (err) {
-      setMsg({ ok: false, text: String(err?.message ?? err) });
+      setMsg({ ok: false, text: mapErr(err) });
+    }
+  };
+
+  // Aprobar y ADEMÁS aportar las cookies de YouTube de este desktop al
+  // dispositivo, para que descargue con la cuenta logueada aquí. Reutiliza
+  // el login del navegador del owner (sin noVNC ni cookies.txt manual).
+  const onApproveWithCookies = async (deviceId) => {
+    setBusy(true);
+    try {
+      if (remote) await remoteApprove(deviceId);
+      else await api.devicesApprove(deviceId);
+      const exp = await api.devicesExportOwnerCookies?.();
+      if (!exp?.ok) {
+        setMsg({ ok: false, text: `Aprobado, pero no se pudieron aportar cookies: ${exp?.message ?? 'error'}` });
+        refresh();
+        return;
+      }
+      if (remote) {
+        await remoteSetCookies(deviceId, exp.cookies_b64);
+      } else {
+        setMsg({ ok: false, text: 'Aprobado. Aportar cookies solo aplica a servidor remoto.' });
+        refresh();
+        return;
+      }
+      setMsg({ ok: true, text: `Aprobado y cookies de ${exp.browser} aportadas.` });
+      refresh();
+    } catch (err) {
+      setMsg({ ok: false, text: mapErr(err) });
+    } finally {
+      setBusy(false);
     }
   };
 
   const onReject = async (deviceId) => {
     try {
-      await api.devicesReject(deviceId);
+      if (remote) await remoteReject(deviceId);
+      else await api.devicesReject(deviceId);
       refresh();
     } catch (err) {
-      setMsg({ ok: false, text: String(err?.message ?? err) });
+      setMsg({ ok: false, text: mapErr(err) });
     }
   };
 
@@ -563,11 +624,12 @@ export function DevicesSection() {
         : d
     ));
     try {
-      await api.devicesRevoke(deviceId);
+      if (remote) await remoteRevoke(deviceId);
+      else await api.devicesRevoke(deviceId);
       setMsg({ ok: true, text: 'Dispositivo revocado.' });
       refresh();
     } catch (err) {
-      setMsg({ ok: false, text: String(err?.message ?? err) });
+      setMsg({ ok: false, text: mapErr(err) });
       refresh(); // re-sincronizar si fallo
     }
   };
@@ -583,10 +645,12 @@ export function DevicesSection() {
     if (!ok) return;
     setDevices((prev) => prev.filter((d) => d.device_id !== deviceId));
     try {
-      await api.devicesForget(deviceId);
+      // El servidor remoto no expone "forget"; revocar es lo equivalente.
+      if (remote) await remoteRevoke(deviceId);
+      else await api.devicesForget(deviceId);
       refresh();
     } catch (err) {
-      setMsg({ ok: false, text: String(err?.message ?? err) });
+      setMsg({ ok: false, text: mapErr(err) });
       refresh();
     }
   };
@@ -595,10 +659,11 @@ export function DevicesSection() {
     const next = prompt('Nuevo nombre:', currentName);
     if (!next || next === currentName) return;
     try {
-      await api.devicesRename(deviceId, next);
+      if (remote) await remoteRename(deviceId, next);
+      else await api.devicesRename(deviceId, next);
       refresh();
     } catch (err) {
-      setMsg({ ok: false, text: String(err?.message ?? err) });
+      setMsg({ ok: false, text: mapErr(err) });
     }
   };
 
@@ -616,6 +681,7 @@ export function DevicesSection() {
     }
     setActivityFor(deviceId);
     setActivity([]);  // limpiar mientras carga (UX: skeleton/empty inmediato)
+    if (remote) { setActivity([]); return; } // actividad no expuesta en remoto
     try {
       const log = await api.devicesActivity(deviceId, 50);
       setActivity(log ?? []);
@@ -633,8 +699,12 @@ export function DevicesSection() {
         </button>
       </div>
       <p className={styles.muted}>
-        Aprueba aqui los dispositivos que se conectan a este desktop. El
-        PIN aparece en la pantalla del dispositivo — compaaralo con el de
+        {remote
+          ? (isOwnerAdmin
+              ? 'Administras el servidor 24/7 como dueño: puedes aprobar dispositivos de cualquier cuenta.'
+              : 'Aprueba aquí tus propios dispositivos en el servidor 24/7. Solo ves los de tu cuenta.')
+          : 'Aprueba aquí los dispositivos que se conectan a este desktop.'}
+        {' '}El PIN aparece en la pantalla del dispositivo — compáralo con el de
         abajo antes de aprobar.
       </p>
 
@@ -651,9 +721,19 @@ export function DevicesSection() {
                   {new Date(p.requested_at).toLocaleString()}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className={styles.btnPrimary} onClick={() => onApprove(p.device_id)}>Aprobar</button>
-                <button className={styles.btnSecondary} onClick={() => onReject(p.device_id)}>Rechazar</button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button className={styles.btnPrimary} disabled={busy} onClick={() => onApprove(p.device_id)}>Aprobar</button>
+                {remote && (
+                  <button
+                    className={styles.btnSecondary}
+                    disabled={busy}
+                    title="Aprueba y sube las cookies de YouTube de este desktop al dispositivo para que descargue con tu cuenta"
+                    onClick={() => onApproveWithCookies(p.device_id)}
+                  >
+                    Aprobar + mis cookies
+                  </button>
+                )}
+                <button className={styles.btnSecondary} disabled={busy} onClick={() => onReject(p.device_id)}>Rechazar</button>
               </div>
             </div>
           ))}
@@ -683,13 +763,15 @@ export function DevicesSection() {
                         </div>
                       </div>
                       <div className={styles.deviceActions}>
-                        <button
-                          className={styles.btnSecondary}
-                          data-active={isOpen}
-                          onClick={() => onViewActivity(d.device_id)}
-                        >
-                          {isOpen ? 'Ocultar actividad' : 'Actividad'}
-                        </button>
+                        {!remote && (
+                          <button
+                            className={styles.btnSecondary}
+                            data-active={isOpen}
+                            onClick={() => onViewActivity(d.device_id)}
+                          >
+                            {isOpen ? 'Ocultar actividad' : 'Actividad'}
+                          </button>
+                        )}
                         <button className={styles.btnSecondary} onClick={() => onRename(d.device_id, d.display_name)}>Renombrar</button>
                         <button className={styles.btnSecondary} onClick={() => onRevoke(d.device_id)}>Revocar</button>
                       </div>
