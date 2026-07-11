@@ -1,21 +1,18 @@
 /**
  * Token de acceso (Bearer) para autenticar clientes externos contra el
- * LAN server. Se genera la primera vez y se persiste en userData.
+ * LAN server. Se genera la primera vez y se persiste en `<dataDir>`.
  *
- * El usuario lo copia y lo pega en la PWA → Settings → "Token de acceso".
+ * El usuario lo copia y lo pega en la PWA → Settings → "Token de acceso",
+ * o se publica automáticamente vía tunnel-registry.
  *
- * @module main/access-token
+ * @module @ritmiq/server-core/access-token
  */
-
-import { app } from 'electron';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { join } from 'node:path';
+import { dataPath } from './host.js';
 
 function tokenPath() {
-  const dir = app.getPath('userData');
-  mkdirSync(dir, { recursive: true });
-  return join(dir, 'access-token.txt');
+  return dataPath('access-token.txt');
 }
 
 /** @returns {string} */

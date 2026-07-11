@@ -19,12 +19,13 @@ import { createHtmlAudioBackend } from './html-audio-backend.js';
 import { usePlayerStore } from '../stores/player.js';
 import { useHistoryStore } from '../stores/history.js';
 import { useJamStore } from '../stores/jam.js';
+import { useSettingsStore } from '../stores/settings.js';
 import { api, isDesktop } from './api.js';
 import { isEphemeralTrack } from './track-helpers.js';
 import { supabase } from './supabase.js';
 import {
   getLanBaseUrlSync, pingLan, getTunnelUrlSync, withTokenInUrl,
-  getSignedStreamUrl,
+  getSignedStreamUrl, getServerUrlSync,
 } from './lan-client.js';
 import { getLocalBlobUrl, getJamBlobUrl, cacheJamTrack } from './local-downloads.js';
 
@@ -178,46 +179,156 @@ function effectiveDuration(audioDur, metaDur) {
   return m || a || 0;
 }
 
-/* ── Cache de reachability LAN/Tunnel para no martillar pings ─────────── */
+/* ── Cache de reachability LAN/Tunnel/Servidor para no martillar pings ── */
 /** @type {{value:string|null, until:number}} */
 let cachedReachable = { value: null, until: 0 };
 const REACHABLE_TTL = 30_000;
 
+/**
+ * Último endpoint resuelto, para que la UI muestre a qué está conectado.
+ * @type {{ url:string|null, kind:'lan'|'desktop'|'server'|null, at:number }}
+ */
+export const lastActiveEndpoint = { url: null, kind: null, at: 0 };
+
+/**
+ * Candidatos de endpoint disponibles hoy:
+ *   - lan     → base URL local descubierta (misma WiFi que el desktop)
+ *   - desktop → túnel Cloudflare del desktop
+ *   - server  → túnel del servidor casero 24/7
+ * @returns {Array<{ url:string, kind:'lan'|'desktop'|'server', timeout:number }>}
+ */
+function endpointCandidates() {
+  const out = [];
+  const lan = getLanBaseUrlSync();
+  const desktop = getTunnelUrlSync();
+  const server = getServerUrlSync();
+  if (lan) out.push({ url: lan, kind: 'lan', timeout: 1200 });
+  if (desktop) out.push({ url: desktop, kind: 'desktop', timeout: 2500 });
+  if (server) out.push({ url: server, kind: 'server', timeout: 2500 });
+  return out;
+}
+
+/** Ordena los candidatos según el modo de servidor elegido por el usuario. */
+function orderCandidates(cands, mode) {
+  const rank = (c) => {
+    if (mode === 'prefer-server') {
+      // servidor 24/7 primero, luego local/desktop
+      return c.kind === 'server' ? 0 : c.kind === 'lan' ? 1 : 2;
+    }
+    // 'auto' (y fallback): desktop local (LAN) primero, luego desktop túnel,
+    // y el servidor 24/7 como respaldo.
+    return c.kind === 'lan' ? 0 : c.kind === 'desktop' ? 1 : 2;
+  };
+  return cands.slice().sort((a, b) => rank(a) - rank(b));
+}
+
 async function getReachableCached() {
   const now = Date.now();
   if (cachedReachable.until > now) return cachedReachable.value;
-  const lan = getLanBaseUrlSync();
-  const tunnel = getTunnelUrlSync();
-  // Pings en paralelo; gana el primero que responda OK.
-  const pLan = lan ? pingLan(lan, 1200).then((ok) => ok ? lan : null) : Promise.resolve(null);
-  const pTun = tunnel ? pingLan(tunnel, 2500).then((ok) => ok ? tunnel : null) : Promise.resolve(null);
-  // Promise.any-like: el primero que devuelva truthy gana.
-  const result = await new Promise((resolve) => {
-    let remaining = 2;
-    let resolved = false;
-    const handle = (v) => {
-      if (resolved) return;
-      if (v) { resolved = true; resolve(v); return; }
-      remaining--;
-      if (remaining === 0) resolve(null);
-    };
-    pLan.then(handle).catch(() => handle(null));
-    pTun.then(handle).catch(() => handle(null));
-  });
-  cachedReachable = { value: result, until: now + REACHABLE_TTL };
-  return result;
+
+  let mode = 'auto';
+  try {
+    const { useSettingsStore } = await import('../stores/settings.js');
+    mode = useSettingsStore.getState().serverMode ?? 'auto';
+  } catch {}
+
+  const cands = endpointCandidates();
+  let winner = null;
+
+  if (cands.length === 0) {
+    winner = null;
+  } else if (mode === 'fastest') {
+    // Carrera: gana el primero que responda OK.
+    winner = await new Promise((resolve) => {
+      let remaining = cands.length;
+      let resolved = false;
+      for (const c of cands) {
+        pingLan(c.url, c.timeout).then((ok) => {
+          if (resolved) return;
+          if (ok) { resolved = true; lastActiveEndpoint.kind = c.kind; resolve(c.url); return; }
+          if (--remaining === 0) resolve(null);
+        }).catch(() => { if (!resolved && --remaining === 0) resolve(null); });
+      }
+    });
+  } else {
+    // 'auto' / 'prefer-server': probar por prioridad, secuencial (el primero
+    // sano gana). Secuencial evita conmutar de endpoint por jitter de red.
+    const ordered = orderCandidates(cands, mode);
+    for (const c of ordered) {
+      // eslint-disable-next-line no-await-in-loop
+      const ok = await pingLan(c.url, c.timeout);
+      if (ok) { winner = c.url; lastActiveEndpoint.kind = c.kind; break; }
+    }
+  }
+
+  if (winner) { lastActiveEndpoint.url = winner; lastActiveEndpoint.at = now; }
+  else { lastActiveEndpoint.url = null; lastActiveEndpoint.kind = null; }
+
+  cachedReachable = { value: winner, until: now + REACHABLE_TTL };
+  return winner;
 }
 
-/** Invalidar la cache cuando cambia conectividad. */
+/** Invalidar la cache cuando cambia conectividad o el modo de servidor. */
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => { cachedReachable.until = 0; });
   window.addEventListener('offline', () => { cachedReachable = { value: null, until: Date.now() + 5_000 }; });
+  window.addEventListener('ritmiq:server-mode-changed', () => { cachedReachable.until = 0; });
 }
 
 /* ── Resolver de URL compartido entre track actual y precarga ─────────── */
 /**
  * @param {any} track
  */
+/**
+ * Resuelve una URL LOCAL de arranque instantáneo para `track`, SOLO si está
+ * descargado. Es lo que permite el crossfade real (segundo audio que empieza
+ * sin buffering). Devuelve null si no está disponible localmente.
+ *
+ *  - PWA: blob URL de IndexedDB (`getLocalBlobUrl`, cacheado en memoria).
+ *  - Desktop: URL del servidor LAN local (http://127.0.0.1) que sirve el
+ *    archivo descargado — arranque rápido sin red externa.
+ *
+ * @param {any} track
+ * @returns {Promise<string|null>}
+ */
+async function resolveLocalUrl(track) {
+  if (!track || !track.isDownloaded) return null;
+  if (isEphemeralTrack(track)) return null;
+  try {
+    if (!isDesktop) {
+      // PWA: blob real de la descarga.
+      const blobUrl = await getLocalBlobUrl(track.id);
+      return blobUrl || null;
+    }
+    // Desktop: archivo local servido por el LAN server.
+    const info = await api.appInfo();
+    if (!info?.lanPort) return null;
+    const base = `http://127.0.0.1:${info.lanPort}`;
+    const ytQs = track.ytId ? `?yt=${encodeURIComponent(track.ytId)}` : '';
+    return withTokenInUrl(`${base}/stream/${encodeURIComponent(track.id)}${ytQs}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ¿Es seguro hacer crossfade real ahora?
+ *  - Foreground (la pestaña/ventana visible): en background/lockscreen iOS
+ *    el doble elemento es frágil → caemos al swap afinado actual.
+ *  - Sin WebAudio graph activo (EQ/visualizer): el graph enruta solo un
+ *    elemento; con él activo el crossfade real no aplica.
+ *  - Fuera de Jam (lo controla el handshake coordinado).
+ *
+ * @param {ReturnType<typeof createHtmlAudioBackend>} backend
+ * @returns {boolean}
+ */
+function canCrossfade(backend) {
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return false;
+  if (backend.isGraphReady && backend.isGraphReady()) return false;
+  if (useJamStore.getState().mode !== 'idle') return false;
+  return true;
+}
+
 function buildResolveDeps(track) {
   const ephemeral = isEphemeralTrack(track);
   return {
@@ -344,6 +455,13 @@ export function usePlayerEngine() {
   const nextUrlRef = useRef(null);
   /** Track al que corresponde nextUrlRef.current (para validar antes del swap). */
   const nextTrackRef = useRef(null);
+  /**
+   * URL LOCAL (blob: en PWA / http LAN en desktop) del siguiente track,
+   * SOLO si está descargado. Es la fuente de arranque instantáneo para el
+   * crossfade real (2 audios solapados). null si la siguiente no está
+   * descargada → en ese caso no hay crossfade real (swap normal).
+   */
+  const nextLocalUrlRef = useRef(null);
   /** Id del track actualmente cargado en el <audio>. Evita doble load tras swap. */
   const loadedTrackIdRef = useRef(null);
   /**
@@ -369,16 +487,22 @@ export function usePlayerEngine() {
       unlocked = true;
       try {
         backend.init();
-        const el = backend.element();
-        if (el) {
-          const wasMuted = el.muted;
-          el.muted = true;
-          const p = el.play();
-          if (p && typeof p.then === 'function') {
-            p.then(() => { el.pause(); el.muted = wasMuted; })
-             .catch(() => { el.muted = wasMuted; });
-          } else {
-            el.pause(); el.muted = wasMuted;
+        // Desbloquea AMBOS elementos (activo + el 2º de crossfade) dentro
+        // del gesto. Sin esto, crossfadeTo no puede reproducir el segundo
+        // elemento y el fundido no se oye (solo baja la saliente).
+        if (backend.unlockAll) backend.unlockAll();
+        else {
+          const el = backend.element();
+          if (el) {
+            const wasMuted = el.muted;
+            el.muted = true;
+            const p = el.play();
+            if (p && typeof p.then === 'function') {
+              p.then(() => { el.pause(); el.muted = wasMuted; })
+               .catch(() => { el.muted = wasMuted; });
+            } else {
+              el.pause(); el.muted = wasMuted;
+            }
           }
         }
       } catch {}
@@ -492,6 +616,7 @@ export function usePlayerEngine() {
   // background falla silenciosamente. Por eso disparamos el swap a
   // duration - 0.4s, cuando el `<audio>` AÚN está en estado `playing`.
   const swapDoneRef = useRef(null); // id del track ya consumido (anti-dup)
+  const xfadeDoneRef = useRef(null); // id del track cuyo crossfade ya inició
   useEffect(() => {
     return backend.onPosition((pos) => {
       const store = usePlayerStore.getState();
@@ -504,6 +629,58 @@ export function usePlayerEngine() {
       if (!dur || dur < 2) return;
 
       const remaining = dur - pos;
+
+      // ── CROSSFADE AUTOMÁTICO (real, 2 audios) ──────────────────────────
+      // Si el usuario activó crossfade, la siguiente está DESCARGADA y es
+      // seguro (foreground, sin EQ graph, sin jam, sin repeat-one, sin
+      // shuffle), iniciamos el solape cuando faltan `xfade` segundos.
+      const xfade = useSettingsStore.getState().crossfadeSeconds;
+      if (
+        xfade > 0 &&
+        store.repeat !== 'one' &&
+        !store.shuffle &&
+        xfadeDoneRef.current !== cur.id &&
+        swapDoneRef.current !== cur.id &&
+        remaining > 0.4 &&
+        remaining <= xfade &&
+        canCrossfade(backend)
+      ) {
+        const nIdx = store.index + 1;
+        const nTrack = store.queue[nIdx];
+        const local = nextLocalUrlRef.current;
+        if (typeof window !== 'undefined' && window.__ritmiqXfadeDebug) {
+          console.log('[xfade-auto] trigger', { remaining: remaining.toFixed(2), xfade, hasLocal: !!local, nextId: nTrack?.id, localId: local?.id });
+        }
+        if (nTrack && local && local.id === nTrack.id) {
+          xfadeDoneRef.current = cur.id;
+          swapDoneRef.current = cur.id; // evita que el swap a 0.4s también dispare
+          // Solapa: la entrante arranca y sube mientras la actual baja.
+          backend.crossfadeTo(local.url, { seconds: Math.min(xfade, remaining) })
+            .then(() => {
+              loadedTrackIdRef.current = nTrack.id;
+              loadedFingerprintRef.current = nTrack.ytId || nTrack.id;
+              applyMediaSessionMetadata(nTrack);
+              if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+              nextUrlRef.current = null;
+              nextTrackRef.current = null;
+              nextLocalUrlRef.current = null;
+              usePlayerStore.getState().patch({
+                index: nIdx,
+                currentTrack: nTrack,
+                isPlaying: true,
+                positionSeconds: 0,
+              });
+            })
+            .catch(() => {
+              // Si el crossfade falla, deshacemos el anti-dup para que el
+              // swap normal a 0.4s tome el relevo.
+              xfadeDoneRef.current = null;
+              swapDoneRef.current = null;
+            });
+          return;
+        }
+      }
+
       // Margen 0.4s — suficiente para que iOS lo trate como continuación.
       // Si audioDur estaba inflado pero metaDur es la verdad, este chequeo
       // dispara al final REAL de la canción y evita los minutos de silencio.
@@ -586,8 +763,8 @@ export function usePlayerEngine() {
     return n;
   }
 
-  // Reset del flag anti-dup cuando cambia el track.
-  useEffect(() => { swapDoneRef.current = null; }, [currentTrack]);
+  // Reset de los flags anti-dup cuando cambia el track.
+  useEffect(() => { swapDoneRef.current = null; xfadeDoneRef.current = null; }, [currentTrack]);
 
   /* ── Evento `ended` (fallback foreground / fin de cola) ─────────────── */
   useEffect(() => {
@@ -746,6 +923,47 @@ export function usePlayerEngine() {
     }
 
     let cancelled = false;
+
+    // ── CROSSFADE MANUAL (real, 2 audios) ───────────────────────────────
+    // Si el usuario activó crossfade, venía sonando algo, el NUEVO track
+    // está descargado y es seguro (foreground, sin EQ graph, sin jam),
+    // solapamos en vez de cortar+recargar el único elemento.
+    const xfade = useSettingsStore.getState().crossfadeSeconds;
+    const wasPlaying = !!loadedTrackIdRef.current && usePlayerStore.getState().isPlaying;
+    if (typeof window !== 'undefined' && window.__ritmiqXfadeDebug) {
+      console.log('[xfade-manual] eval', { xfade, wasPlaying, canXfade: canCrossfade(backend), visible: (typeof document !== 'undefined' ? document.visibilityState : '?'), graphReady: backend.isGraphReady?.(), curId: currentTrack.id });
+    }
+    if (xfade > 0 && wasPlaying && canCrossfade(backend)) {
+      loadedTrackIdRef.current = null;
+      loadedFingerprintRef.current = null;
+      applyMediaSessionMetadata(currentTrack);
+      (async () => {
+        try {
+          setState({ error: null });
+          const localUrl = await resolveLocalUrl(currentTrack);
+          if (cancelled) return;
+          if (!localUrl) {
+            // Nuevo track no descargado → camino normal (corte + load).
+            await loadAndPlayCurrent(currentTrack, fp, () => cancelled);
+            return;
+          }
+          recordStreamOrigin(isDesktop ? 'lan' : 'local-blob');
+          await backend.crossfadeTo(localUrl, { seconds: xfade });
+          if (cancelled) return;
+          loadedTrackIdRef.current = currentTrack.id;
+          loadedFingerprintRef.current = fp;
+          setState({ isPlaying: true, durationSeconds: backend.duration() });
+          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+          publishTrackMeta(currentTrack);
+        } catch (err) {
+          // Si el crossfade falla, caer al camino normal.
+          if (cancelled) return;
+          try { await loadAndPlayCurrent(currentTrack, fp, () => cancelled); } catch {}
+        }
+      })();
+      return () => { cancelled = true; };
+    }
+
     // Pausar inmediatamente el track anterior — evita la race condition con
     // el useEffect[isPlaying] que correría play() sobre el src viejo.
     backend.pause();
@@ -757,32 +975,39 @@ export function usePlayerEngine() {
     loadedFingerprintRef.current = null;
     applyMediaSessionMetadata(currentTrack);
 
-    (async () => {
+    loadAndPlayCurrent(currentTrack, fp, () => cancelled);
+
+    return () => { cancelled = true; };
+
+    /**
+     * Camino normal: resuelve la URL, carga y reproduce el track actual
+     * en el elemento activo. Compartido entre el flujo normal y el
+     * fallback del crossfade.
+     */
+    async function loadAndPlayCurrent(track, fingerprint, isCancelled) {
       try {
         setState({ error: null });
-        const resolved = await resolveAudioSource(currentTrack, buildResolveDeps(currentTrack));
+        const resolved = await resolveAudioSource(track, buildResolveDeps(track));
         const { url } = resolved;
-        if (cancelled) return;
+        if (isCancelled()) return;
         recordStreamOrigin(resolved.origin);
         await backend.load(url);
-        if (cancelled) return;
-        loadedTrackIdRef.current = currentTrack.id;
-        loadedFingerprintRef.current = fp;
+        if (isCancelled()) return;
+        loadedTrackIdRef.current = track.id;
+        loadedFingerprintRef.current = fingerprint;
         await backend.play();
         setState({ isPlaying: true, durationSeconds: backend.duration() });
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
         // Fire-and-forget: contribuir metadata al diccionario global
         // Ritmiq. Solo tras play() exitoso = reproduccion REAL. Dedupe
         // por sesion + ytId interno. NO bloquea ni afecta latencia.
-        publishTrackMeta(currentTrack);
+        publishTrackMeta(track);
       } catch (err) {
         console.error('[player] load failed', err);
         setState({ isPlaying: false, error: String(err?.message ?? err) });
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
       }
-    })();
-
-    return () => { cancelled = true; };
+    }
   }, [currentTrack, backend, setState]);
 
   /* ── PRECARGA del siguiente track (solo resolver URL) ───────────────── */
@@ -792,6 +1017,7 @@ export function usePlayerEngine() {
   useEffect(() => {
     nextUrlRef.current = null;
     nextTrackRef.current = null;
+    nextLocalUrlRef.current = null;
     if (!currentTrack) return;
     const store = usePlayerStore.getState();
     if (store.shuffle) return;
@@ -815,6 +1041,17 @@ export function usePlayerEngine() {
       } catch (e) {
         nextUrlRef.current = null;
         nextTrackRef.current = null;
+      }
+      // Además, si el siguiente está DESCARGADO, pre-resolver su URL local
+      // (blob/LAN) para el crossfade real — arranque instantáneo del 2º audio.
+      try {
+        const localUrl = await resolveLocalUrl(nextTrack);
+        if (cancelled) return;
+        nextLocalUrlRef.current = localUrl
+          ? { id: nextTrack.id, url: localUrl }
+          : null;
+      } catch {
+        nextLocalUrlRef.current = null;
       }
     }, 200);
     return () => { cancelled = true; clearTimeout(timer); };

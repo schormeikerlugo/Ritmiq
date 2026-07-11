@@ -5,11 +5,12 @@ import { loadEnv } from './env.js';
 // Cargar .env.production / .env.development ANTES que cualquier otro módulo
 // que dependa de process.env (supabase-server, etc.).
 loadEnv();
-import { startLanServer } from './lan-server.js';
-import { initDb } from './db.js';
+import { safeStorage } from 'electron';
+import {
+  setHost, startLanServer, initDb, getOrCreateAccessToken,
+} from '@ritmiq/server-core';
 import { registerIpc } from './ipc.js';
 import { cloudflared, getStoredToken } from './cloudflared.js';
-import { getOrCreateAccessToken } from './access-token.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -83,6 +84,16 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Configura el host de @ritmiq/server-core con las rutas y el cifrado
+  // propios de Electron (userData + safeStorage del keyring del OS). Debe
+  // ir ANTES de initDb()/startLanServer().
+  setHost({
+    dataDir: app.getPath('userData'),
+    safeStorage,
+    resourcesBinDir: app.isPackaged ? join(process.resourcesPath, 'bin') : null,
+    devBinDir: join(__dirname, '..', 'bin'),
+  });
+
   const db = initDb();
 
   // Token de acceso (Bearer) para que clientes externos (PWA via tunnel)

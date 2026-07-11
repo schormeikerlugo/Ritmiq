@@ -23,7 +23,7 @@ import {
   findDeviceByToken, listDevices, listPairRequests,
   logActivity, getDeviceActivity, pruneOldActivity,
   updateDeviceCookies, deriveDisplayNameFromUA, newDeviceId,
-} from './devices.js';
+} from '@ritmiq/server-core/devices';
 
 // better-sqlite3 esta compilado para Electron via electron-rebuild en
 // arranque del AppImage. Para tests en node plano necesita estar

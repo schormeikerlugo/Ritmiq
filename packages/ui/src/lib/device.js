@@ -106,3 +106,78 @@ export async function getPairStatusRemote(baseUrl) {
 export function isPaired() {
   return Boolean(getDeviceToken());
 }
+
+function authFetch(baseUrl, path, init = {}) {
+  const token = getDeviceToken();
+  if (!token) throw new Error('Este dispositivo no está pareado con el servidor.');
+  return fetch(`${baseUrl.replace(/\/$/, '')}${path}`, {
+    ...init,
+    headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` },
+  });
+}
+
+/**
+ * Inicia el login de YouTube por navegador (Fase 3b). El servidor levanta un
+ * contenedor noVNC y devuelve el puerto para abrir la pantalla remota.
+ * @param {string} baseUrl
+ * @returns {Promise<{ novncPort:number, status:string }>}
+ */
+export async function startYoutubeLink(baseUrl) {
+  const r = await authFetch(baseUrl, '/youtube/link/start', { method: 'POST' });
+  if (!r.ok) {
+    const msg = await r.text().catch(() => '');
+    throw new Error(`No se pudo iniciar el login (${r.status})${msg ? `: ${msg}` : ''}`);
+  }
+  return r.json();
+}
+
+/**
+ * Consulta el estado del login en curso.
+ * @param {string} baseUrl
+ * @returns {Promise<{ status:'idle'|'running'|'linked'|'expired'|'error', novncPort:number|null }>}
+ */
+export async function getYoutubeLinkStatus(baseUrl) {
+  const r = await authFetch(baseUrl, '/youtube/link/status', { method: 'GET' });
+  if (!r.ok) throw new Error(`status ${r.status}`);
+  return r.json();
+}
+
+/**
+ * Desvincula la cuenta de YouTube (borra cookies del device en el servidor).
+ * @param {string} baseUrl
+ */
+export async function unlinkYoutube(baseUrl) {
+  const r = await authFetch(baseUrl, '/youtube/unlink', { method: 'POST' });
+  if (!r.ok) throw new Error(`unlink ${r.status}`);
+  return r.json();
+}
+
+/**
+ * Sube un archivo de cookies de YouTube (formato Netscape / cookies.txt) al
+ * servidor, ligado a este device_token. El servidor las cifra y las usa
+ * para resolver/descargar con la cuenta de YouTube del usuario (fallback a
+ * las del dueño si no hay). Requiere estar pareado (device_token).
+ *
+ * @param {string} baseUrl  URL del servidor (LAN o túnel), sin slash final.
+ * @param {string} cookiesText  Contenido del cookies.txt (Netscape).
+ * @returns {Promise<{ ok: boolean }>}
+ */
+export async function uploadCookiesTxt(baseUrl, cookiesText) {
+  const token = getDeviceToken();
+  if (!token) throw new Error('Este dispositivo no está pareado con el servidor.');
+  if (!cookiesText || !cookiesText.trim()) throw new Error('El archivo de cookies está vacío.');
+  const cookies_b64 = btoa(unescape(encodeURIComponent(cookiesText)));
+  const r = await fetch(`${baseUrl.replace(/\/$/, '')}/cookies/upload`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ cookies_b64 }),
+  });
+  if (!r.ok) {
+    const msg = await r.text().catch(() => '');
+    throw new Error(`Subida falló (${r.status})${msg ? `: ${msg}` : ''}`);
+  }
+  return r.json();
+}

@@ -18,6 +18,7 @@
     "@ritmiq/api": "workspace:*",
     "@ritmiq/core": "workspace:*",
     "@ritmiq/db": "workspace:*",
+    "@ritmiq/server-core": "workspace:*",
     "@ritmiq/ui": "workspace:*",
     "@ritmiq/yt": "workspace:*",
     "better-sqlite3": "^11.5.0",

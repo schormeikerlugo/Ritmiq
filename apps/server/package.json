@@ -1,0 +1,19 @@
+{
+  "name": "@ritmiq/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "ritmiq-server": "./src/index.js",
+    "ritmiq-admin": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "admin": "node src/cli.js"
+  },
+  "dependencies": {
+    "@ritmiq/api": "workspace:*",
+    "@ritmiq/server-core": "workspace:*",
+    "better-sqlite3": "^11.5.0"
+  }
+}

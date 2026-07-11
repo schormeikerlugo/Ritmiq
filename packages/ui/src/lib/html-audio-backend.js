@@ -79,14 +79,45 @@ async function urlToBlobUrl(url) {
 
 /** Crea el `<audio>` singleton montado en el DOM y devuelve el backend. */
 export function createHtmlAudioBackend() {
-  /** @type {HTMLAudioElement|null} */
+  /** @type {HTMLAudioElement|null} Elemento ACTIVO (el que suena/manda). */
   let audio = null;
+  /** @type {HTMLAudioElement|null} Segundo elemento para crossfade real. */
+  let audioB = null;
   /** @type {Set<() => void>} */
   const endedCbs = new Set();
   /** @type {Set<(p:number) => void>} */
   const posCbs = new Set();
   /** URL actualmente cargada. */
   let currentSrc = null;
+
+  // ── Crossfade (dos fuentes solapadas) ───────────────────────────────
+  /** Interval de la rampa de crossfade en curso (o null). */
+  let xfadeInterval = null;
+  /** true mientras un crossfade está solapando dos elementos. */
+  let xfadeActive = false;
+  /** Elemento saliente pendiente de liberar al cerrar el crossfade. */
+  let pendingOutgoing = null;
+  /** Último volumen objetivo (lo que pide el store). Lo respeta el xfade. */
+  let targetVolume = 1;
+  /** @returns {number} volumen objetivo actual (0..1). */
+  function getTargetVol() { return targetVolume; }
+
+  /**
+   * Cierra el crossfade en curso: para el interval, deja el elemento
+   * activo (entrante) a `targetVolume` y libera el saliente. Seguro de
+   * llamar aunque no haya crossfade activo.
+   */
+  function finishCrossfade() {
+    if (xfadeInterval) { clearInterval(xfadeInterval); xfadeInterval = null; }
+    if (audio) { try { audio.volume = targetVolume; } catch {} }
+    const out = pendingOutgoing;
+    pendingOutgoing = null;
+    if (out && out !== audio) {
+      try { out.pause(); } catch {}
+      try { out.removeAttribute('src'); out.load(); } catch {}
+    }
+    xfadeActive = false;
+  }
 
   // ── WebAudio graph (lazy) ───────────────────────────────────────────
   /** @type {AudioContext|null} */
@@ -238,12 +269,18 @@ export function createHtmlAudioBackend() {
     analyser.connect(ctx.destination);
   }
 
-  function ensureAudio() {
-    if (audio) return audio;
-    audio = new Audio();
-    audio.preload = 'auto';
-    audio.setAttribute('playsinline', '');
-    audio.setAttribute('webkit-playsinline', '');
+  /**
+   * Crea un `<audio>` oculto con los atributos correctos. Los listeners
+   * timeupdate/ended solo emiten a posCbs/endedCbs cuando ESTE elemento
+   * es el activo (`el === audio`). Así, durante un crossfade, el elemento
+   * saliente (inactivo) no dispara avances ni progreso espurio.
+   * @returns {HTMLAudioElement}
+   */
+  function makeAudioEl() {
+    const el = new Audio();
+    el.preload = 'auto';
+    el.setAttribute('playsinline', '');
+    el.setAttribute('webkit-playsinline', '');
     // CRITICO WebAudio + iOS: para que MediaElementSource pueda leer las
     // muestras del audio (necesario para EQ, AnalyserNode/visualizers),
     // el <audio> debe ser cargado con CORS validado. Sin esto, WebKit
@@ -253,16 +290,24 @@ export function createHtmlAudioBackend() {
     // El server LAN ya devuelve Access-Control-Allow-Origin correcto, asi
     // que setear crossOrigin='anonymous' es seguro y no rompe la
     // reproduccion normal. DEBE setearse ANTES de cualquier src=...
-    audio.crossOrigin = 'anonymous';
-    audio.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;';
-    document.body.appendChild(audio);
+    el.crossOrigin = 'anonymous';
+    el.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;';
+    document.body.appendChild(el);
 
-    audio.addEventListener('timeupdate', () => {
-      for (const cb of posCbs) cb(audio.currentTime);
+    el.addEventListener('timeupdate', () => {
+      if (el !== audio) return; // solo el activo reporta posición
+      for (const cb of posCbs) cb(el.currentTime);
     });
-    audio.addEventListener('ended', () => {
+    el.addEventListener('ended', () => {
+      if (el !== audio) return; // solo el activo dispara avance
       for (const cb of endedCbs) cb();
     });
+    return el;
+  }
+
+  function ensureAudio() {
+    if (audio) return audio;
+    audio = makeAudioEl();
     try {
       if ('audioSession' in navigator) {
         // @ts-ignore – API experimental
@@ -272,9 +317,41 @@ export function createHtmlAudioBackend() {
     return audio;
   }
 
+  /** Crea (perezoso) el segundo elemento para crossfade. */
+  function ensureAudioB() {
+    if (audioB) return audioB;
+    audioB = makeAudioEl();
+    return audioB;
+  }
+
   return {
     init() { ensureAudio(); },
     element() { return audio; },
+
+    /**
+     * Desbloquea AMBOS elementos (activo + secundario de crossfade) dentro
+     * de un gesto del usuario. Necesario para que `crossfadeTo` pueda
+     * reproducir el segundo elemento sin que la autoplay policy lo rechace
+     * (síntoma: el crossfade no suena, solo baja el saliente).
+     * @returns {HTMLAudioElement[]} los elementos desbloqueados.
+     */
+    unlockAll() {
+      const els = [ensureAudio(), ensureAudioB()];
+      for (const el of els) {
+        try {
+          const wasMuted = el.muted;
+          el.muted = true;
+          const p = el.play();
+          if (p && typeof p.then === 'function') {
+            p.then(() => { el.pause(); el.muted = wasMuted; })
+             .catch(() => { el.muted = wasMuted; });
+          } else {
+            el.pause(); el.muted = wasMuted;
+          }
+        } catch {}
+      }
+      return els;
+    },
 
     /**
      * Pre-fetch opcional a blob URL. Útil para precarga del siguiente track
@@ -416,11 +493,29 @@ export function createHtmlAudioBackend() {
       await el.play();
     },
 
-    pause() { audio?.pause(); },
+    pause() {
+      // Si hay un crossfade en curso, ciérralo (promueve la entrante y
+      // para la saliente) antes de pausar — evita que el track saliente
+      // siga sonando tras un pause durante el solape.
+      if (xfadeActive) finishCrossfade();
+      audio?.pause();
+    },
 
-    seek(sec) { if (audio) audio.currentTime = sec; },
+    seek(sec) {
+      // Un seek manual durante el solape no tiene sentido sobre dos
+      // fuentes; cerramos el crossfade y operamos sobre la activa.
+      if (xfadeActive) finishCrossfade();
+      if (audio) audio.currentTime = sec;
+    },
 
-    setVolume(v) { if (audio) audio.volume = Math.max(0, Math.min(1, v)); },
+    setVolume(v) {
+      const vol = Math.max(0, Math.min(1, v));
+      targetVolume = vol;
+      // Durante un crossfade las rampas controlan los volúmenes; no
+      // pisamos. Al terminar, el elemento activo queda en `targetVolume`.
+      if (xfadeActive) return;
+      if (audio) audio.volume = vol;
+    },
 
     // Ritmo de reproduccion. Usado por el sync de Jam para compensar drift
     // pequeno sin seeks audibles (0.97-1.03). Clamp defensivo.
@@ -463,7 +558,145 @@ export function createHtmlAudioBackend() {
       if (p && typeof p.catch === 'function') p.catch(() => {});
     },
 
+    /** true mientras hay un crossfade (dos elementos) solapando. */
+    crossfadeActive() { return xfadeActive; },
+
+    /**
+     * CROSSFADE REAL: solapa la canción actual (elemento activo) con la
+     * siguiente (segundo elemento), rampando volúmenes en `seconds`. Al
+     * terminar, promueve el segundo elemento a activo y libera el viejo.
+     *
+     * Pensado SOLO para foreground + audio local (blob:/http LAN) que
+     * arranca al instante. El caller decide cuándo es seguro llamarlo
+     * (ver use-player.js: descargado + foreground + no-jam).
+     *
+     * Idempotente / cancelable: si ya hay un crossfade en curso, se
+     * resuelve de inmediato (promueve) antes de empezar el nuevo, para
+     * que pulsar "siguiente" repetidamente no acumule solapes.
+     *
+     * @param {string} url URL de la siguiente canción (local, arranque instantáneo).
+     * @param {{ seconds?: number }} [opts]
+     * @returns {Promise<void>} resuelve cuando el segundo elemento empezó a sonar.
+     */
+    async crossfadeTo(url, opts = {}) {
+      // El WebAudio graph (EQ/visualizer) enruta SOLO el elemento original
+      // (createMediaElementSource se ata a un elemento). El segundo
+      // elemento no pasaría por la cadena → sonaría sin EQ y por otra
+      // salida. Para no romper, NO hacemos crossfade real con el graph
+      // activo: el caller debe usar el swap normal. Defensa en profundidad.
+      if (ctx) {
+        if (typeof window !== 'undefined' && window.__ritmiqXfadeDebug) console.warn('[xfade] aborted: audio graph (ctx) active');
+        throw new Error('crossfade unavailable: audio graph active');
+      }
+
+      const seconds = Math.max(0.3, Number(opts.seconds) || 4);
+
+      // Volumen objetivo: el que estaba sonando audible. Tomamos el del
+      // elemento activo actual (lo que el usuario oía) y, si por lo que sea
+      // está a 0, caemos al targetVolume registrado (o 1). Así el entrante
+      // SIEMPRE sube hacia un nivel audible, nunca queda mudo.
+      const activeVol = audio ? audio.volume : 0;
+      const targetVol = Math.max(0.05, Math.min(1, activeVol > 0.01 ? activeVol : getTargetVol()));
+
+      // Si hay un crossfade en curso, finalízalo ya (promueve) para no
+      // encadenar solapes.
+      if (xfadeActive) finishCrossfade();
+
+      ensureAudio();
+      const incoming = ensureAudioB();
+
+      // Cargar la siguiente en el elemento entrante y esperar a que pueda
+      // sonar. Como `url` es local, esto es casi instantáneo.
+      try {
+        incoming.pause();
+        incoming.removeAttribute('src');
+        incoming.load();
+      } catch {}
+
+      await new Promise((resolve, reject) => {
+        const onReady = () => { cleanup(); resolve(); };
+        const onError = () => { cleanup(); reject(new Error('crossfade load failed')); };
+        const cleanup = () => {
+          incoming.removeEventListener('loadeddata', onReady);
+          incoming.removeEventListener('canplay', onReady);
+          incoming.removeEventListener('error', onError);
+        };
+        incoming.addEventListener('loadeddata', onReady, { once: true });
+        incoming.addEventListener('canplay', onReady, { once: true });
+        incoming.addEventListener('error', onError, { once: true });
+        incoming.src = url;
+        currentSrc = url;
+      });
+
+      // Arranca la entrante en silencio; rampa volúmenes.
+      try { incoming.currentTime = 0; } catch {}
+      incoming.volume = 0;
+      try {
+        await incoming.play();
+      } catch (e) {
+        if (typeof window !== 'undefined' && window.__ritmiqXfadeDebug) {
+          console.warn('[xfade] incoming.play() rejected', e?.message);
+        }
+        // Si la entrante no puede reproducir, abortamos el crossfade y
+        // dejamos que el caller caiga al camino normal.
+        throw new Error('crossfade incoming play rejected');
+      }
+      if (typeof window !== 'undefined' && window.__ritmiqXfadeDebug) {
+        console.log('[xfade] overlap start', { seconds, targetVol, incomingSrc: (url || '').slice(0, 40) });
+      }
+
+      // PROMOCIÓN: la entrante pasa a ser el elemento activo AHORA, para
+      // que `seek/duration/onPosition/onEnded/play/pause` apunten a ella
+      // desde ya. La saliente sigue sonando (inactiva) hasta fundirse.
+      const previousActive = audio;
+      audio = incoming;
+      // Defensa: el elemento entrante NO debe estar muteado (el unlock lo
+      // mutea/desmutea async). Sin esto, la rampa sube `volume` pero no se
+      // oye nada hasta el final.
+      try { incoming.muted = false; } catch {}
+
+      xfadeActive = true;
+      if (xfadeInterval) { clearInterval(xfadeInterval); xfadeInterval = null; }
+
+      const startTime = performance.now();
+      const durMs = Math.max(300, seconds * 1000);
+      const startOutVol = (previousActive && previousActive.volume > 0)
+        ? previousActive.volume : targetVol;
+
+      // Guarda referencia al saliente para liberarlo al cerrar el xfade.
+      pendingOutgoing = previousActive;
+
+      // Aplica el primer frame de inmediato (no esperar 33ms): la entrante
+      // arranca audible desde ~0 subiendo, la saliente desde su volumen.
+      const applyRamp = (t) => {
+        const inGain = 1 - Math.pow(1 - t, 2);  // ease-out (sube rápido)
+        const outGain = Math.pow(1 - t, 2);     // ease-in espejo
+        try { incoming.volume = Math.max(0, Math.min(1, targetVol * inGain)); } catch {}
+        try { if (previousActive) previousActive.volume = Math.max(0, Math.min(1, startOutVol * outGain)); } catch {}
+      };
+      applyRamp(0);
+
+      let tickCount = 0;
+      xfadeInterval = setInterval(() => {
+        const t = Math.min(1, (performance.now() - startTime) / durMs);
+        applyRamp(t);
+        if (typeof window !== 'undefined' && window.__ritmiqXfadeDebug && (tickCount++ % 10 === 0)) {
+          console.log('[xfade] tick', { t: t.toFixed(2), inVol: incoming.volume?.toFixed(2), outVol: previousActive?.volume?.toFixed(2), inPaused: incoming.paused, inMuted: incoming.muted });
+        }
+        if (t >= 1) finishCrossfade();
+      }, 33);
+    },
+
     dispose() {
+      if (xfadeInterval) { clearInterval(xfadeInterval); xfadeInterval = null; }
+      xfadeActive = false;
+      pendingOutgoing = null;
+      if (audioB) {
+        try { audioB.pause(); } catch {}
+        try { audioB.removeAttribute('src'); audioB.load(); } catch {}
+        try { audioB.remove(); } catch {}
+        audioB = null;
+      }
       if (audio) {
         try { audio.pause(); } catch {}
         try { audio.removeAttribute('src'); audio.load(); } catch {}

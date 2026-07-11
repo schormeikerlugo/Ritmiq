@@ -1,37 +1,40 @@
 /**
- * Tunnel registry — publicación/suscripción de la URL pública del tunnel
- * Cloudflare a través de Supabase (tabla `tunnel_endpoints`).
+ * Registry de endpoints — publicación/suscripción de las URLs públicas de
+ * los servidores del usuario a través de Supabase (tabla `tunnel_endpoints`).
  *
- * - Desktop publica su URL actual cada vez que cloudflared reporta una nueva.
- * - PWA observa la tabla (Realtime + pull inicial) y actualiza el localStorage
- *   `ritmiq:lan:tunnelUrl` automáticamente, para que cuando la red WiFi caiga
- *   o el usuario salga de casa, el cliente apunte sin intervención manual al
- *   tunnel actualizado.
+ * Multi-endpoint (Fase 2): un usuario puede tener DOS endpoints a la vez:
+ *   - kind='desktop' → la app desktop (rápida, intermitente).
+ *   - kind='server'  → el servidor casero headless 24/7 (siempre on).
  *
- * El Quick Tunnel genera una URL distinta en cada arranque, este registry
- * resuelve ese problema.
+ * - El desktop publica su fila (kind='desktop').
+ * - El servidor publica la suya (kind='server') desde apps/server.
+ * - La PWA observa AMBAS filas (Realtime + pull) y las guarda en localStorage
+ *   (`ritmiq:lan:tunnelUrl` para desktop, `ritmiq:lan:serverUrl` para server),
+ *   para que el selector de conexión elija según `serverMode`.
+ *
+ * @module @ritmiq/ui/lib/tunnel-registry
  */
 import { supabase } from './supabase.js';
 import {
   setTunnelUrl, getTunnelUrlSync,
+  setServerUrl, getServerUrlSync, setServerToken,
   setAccessToken, getAccessTokenSync,
 } from './lan-client.js';
 
 /**
- * Desktop: publica (upsert) la URL del tunnel + access token para el usuario
- * actual. Permite a la PWA del mismo usuario reconectarse sin pegar nada.
- * No falla si no hay sesión (silencia errores).
- *
+ * Publica (upsert) un endpoint del usuario.
  * @param {string} userId
  * @param {string} url
  * @param {'quick'|'named'|'custom'} [source]
  * @param {string|null} [accessToken]
+ * @param {'desktop'|'server'} [kind]
  */
-export async function publishTunnelUrl(userId, url, source = 'quick', accessToken = null) {
+export async function publishTunnelUrl(userId, url, source = 'quick', accessToken = null, kind = 'desktop') {
   if (!userId || !url) return;
   try {
     const payload = {
       user_id: userId,
+      kind,
       url,
       source,
       updated_at: new Date().toISOString(),
@@ -39,7 +42,7 @@ export async function publishTunnelUrl(userId, url, source = 'quick', accessToke
     if (accessToken) payload.access_token = accessToken;
     const { error } = await supabase
       .from('tunnel_endpoints')
-      .upsert(payload, { onConflict: 'user_id' });
+      .upsert(payload, { onConflict: 'user_id,kind' });
     if (error) console.warn('[tunnel-registry] publish:', error.message);
   } catch (e) {
     console.warn('[tunnel-registry] publish failed:', e?.message ?? e);
@@ -47,74 +50,85 @@ export async function publishTunnelUrl(userId, url, source = 'quick', accessToke
 }
 
 /**
- * Desktop: borra la entrada (cuando el tunnel se detiene manualmente).
+ * Borra un endpoint del usuario.
  * @param {string} userId
+ * @param {'desktop'|'server'} [kind]
  */
-export async function clearTunnelUrl(userId) {
+export async function clearTunnelUrl(userId, kind = 'desktop') {
   if (!userId) return;
   try {
-    await supabase.from('tunnel_endpoints').delete().eq('user_id', userId);
+    await supabase.from('tunnel_endpoints')
+      .delete()
+      .eq('user_id', userId)
+      .eq('kind', kind);
   } catch {}
 }
 
 /**
- * PWA: suscribe la URL + token del tunnel del usuario.
- * - Pull inicial + Realtime para actualizaciones.
- * - Escribe a localStorage (`setTunnelUrl` / `setAccessToken`) en cada cambio.
- *
- * Esto resuelve dos problemas:
- *  1. Quick Tunnels que cambian de URL en cada arranque del desktop.
- *  2. iOS Safari/PWA evictando localStorage tras ~7 días: el siguiente
- *     login rehidrata URL + token desde Supabase sin intervención del usuario.
+ * PWA: suscribe TODOS los endpoints del usuario (desktop + server).
+ *  - Pull inicial + Realtime para actualizaciones.
+ *  - Escribe a localStorage según el kind de cada fila.
  *
  * @param {string} userId
- * @param {(p:{url:string|null,token:string|null}) => void} [onChange]
+ * @param {(p:{ desktopUrl:string|null, serverUrl:string|null }) => void} [onChange]
  * @returns {() => void} unsubscribe
  */
 export function subscribeTunnelUrl(userId, onChange) {
   if (!userId) return () => {};
 
-  const apply = ({ url, token }) => {
-    const prevUrl = getTunnelUrlSync();
-    if (url && url !== prevUrl) {
-      setTunnelUrl(url);
-      console.info('[tunnel-registry] tunnel URL actualizada:', url);
+  /** Aplica una fila (o su borrado) al localStorage correspondiente. */
+  const applyRow = (kind, url, token) => {
+    if (kind === 'server') {
+      if (url && url !== getServerUrlSync()) {
+        setServerUrl(url);
+        console.info('[tunnel-registry] server URL actualizada:', url);
+      }
+      if (token) setServerToken(token);
+    } else {
+      // desktop
+      if (url && url !== getTunnelUrlSync()) {
+        setTunnelUrl(url);
+        console.info('[tunnel-registry] desktop tunnel URL actualizada:', url);
+      }
+      // El token del desktop se guarda como accessToken legacy (compat).
+      const prevTok = getAccessTokenSync();
+      if (token && token !== prevTok) {
+        setAccessToken(token);
+        console.info('[tunnel-registry] access token rehidratado desde Supabase');
+      }
     }
-    // NUNCA borramos el tunnelUrl local desde aqui aunque Supabase
-    // devuelva null. Razon: la tabla tunnel_endpoints solo la publica
-    // el OWNER del desktop. Cuentas pareadas (no owner) NO tienen fila
-    // propia, entonces siempre verian url=null y se les borraria su
-    // tunnelUrl persistido via pareo. La eliminacion local debe ser
-    // explicita (boton 'Desconectar' o 'Limpiar tunnel' en Ajustes).
-    const prevTok = getAccessTokenSync();
-    if (token && token !== prevTok) {
-      setAccessToken(token);
-      console.info('[tunnel-registry] access token rehidratado desde Supabase');
-    }
-    onChange?.({ url: url ?? null, token: token ?? null });
+    // NUNCA borramos URLs locales aunque Supabase devuelva null: cuentas
+    // pareadas (no owner) no tienen fila propia. La eliminación es explícita.
+    onChange?.({ desktopUrl: getTunnelUrlSync(), serverUrl: getServerUrlSync() });
   };
 
-  // Pull inicial — rehidrata inmediatamente URL + token al iniciar la PWA.
+  // Pull inicial — rehidrata ambos endpoints.
   supabase
     .from('tunnel_endpoints')
-    .select('url, access_token')
+    .select('kind, url, access_token')
     .eq('user_id', userId)
-    .maybeSingle()
-    .then(({ data }) => apply({ url: data?.url ?? null, token: data?.access_token ?? null }))
+    .then(({ data }) => {
+      for (const row of data ?? []) {
+        applyRow(row.kind ?? 'desktop', row.url ?? null, row.access_token ?? null);
+      }
+    })
     .catch(() => {});
 
-  // Realtime: si el desktop publica un nuevo URL o regenera el token, llega aquí.
+  // Realtime: nuevas URLs / tokens de cualquiera de los endpoints.
   const channel = supabase
     .channel(`tunnel:${userId}`)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'tunnel_endpoints', filter: `user_id=eq.${userId}` },
       (payload) => {
-        if (payload.eventType === 'DELETE') apply({ url: null, token: null });
-        else apply({
-          url: payload.new?.url ?? null,
-          token: payload.new?.access_token ?? null,
-        });
+        const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+        const kind = row?.kind ?? 'desktop';
+        if (payload.eventType === 'DELETE') {
+          // No borramos localStorage automáticamente (ver nota arriba).
+          onChange?.({ desktopUrl: getTunnelUrlSync(), serverUrl: getServerUrlSync() });
+          return;
+        }
+        applyRow(kind, row?.url ?? null, row?.access_token ?? null);
       }
     )
     .subscribe();

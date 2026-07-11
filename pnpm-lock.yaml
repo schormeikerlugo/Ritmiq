@@ -26,6 +26,9 @@ importers:
       '@ritmiq/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@ritmiq/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
       '@ritmiq/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -67,6 +70,12 @@ importers:
         specifier: ^8.0.1
         version: 8.0.5
 
+  apps/login-agent:
+    dependencies:
+      playwright-core:
+        specifier: ^1.48.0
+        version: 1.60.0
+
   apps/pwa:
     dependencies:
       '@ritmiq/api':
@@ -107,6 +116,18 @@ importers:
         specifier: ^0.21.0
         version: 0.21.2(vite@6.4.2(@types/node@25.6.0)(terser@5.46.2))(workbox-build@7.4.1(@types/babel__core@7.20.5))(workbox-window@7.4.1)
 
+  apps/server:
+    dependencies:
+      '@ritmiq/api':
+        specifier: workspace:*
+        version: link:../../packages/api
+      '@ritmiq/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
+      better-sqlite3:
+        specifier: ^11.5.0
+        version: 11.10.0
+
   packages/api:
     dependencies:
       '@supabase/supabase-js':
@@ -116,6 +137,21 @@ importers:
   packages/core: {}
 
   packages/db: {}
+
+  packages/server-core:
+    dependencies:
+      '@ritmiq/db':
+        specifier: workspace:*
+        version: link:../db
+      '@ritmiq/yt':
+        specifier: workspace:*
+        version: link:../yt
+      better-sqlite3:
+        specifier: ^11.5.0
+        version: 11.10.0
+      bonjour-service:
+        specifier: ^1.3.0
+        version: 1.3.0
 
   packages/ui:
     dependencies:

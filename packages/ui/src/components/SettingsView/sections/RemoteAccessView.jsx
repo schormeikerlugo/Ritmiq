@@ -14,6 +14,7 @@ import {
   DesktopAccessTokenSection,
 } from '../../SettingsDialog/SettingsDialog.jsx';
 import { SettingsGroup } from '../SettingsGroup.jsx';
+import { YoutubeAccountSection } from './YoutubeAccountSection.jsx';
 import { Icon } from '../../Icon/Icon.jsx';
 import styles from '../SettingsView.module.css';
 
@@ -47,12 +48,20 @@ export function RemoteAccessView({ onBack }) {
           </SettingsGroup>
         </>
       ) : (
-        <SettingsGroup
-          title="Tunel para reproducir desde fuera"
-          hint="Si tu PC tiene un Cloudflare Tunnel configurado, pega aqui la URL publica."
-        >
-          <div className={styles.embed}><PwaRemoteSection /></div>
-        </SettingsGroup>
+        <>
+          <SettingsGroup
+            title="Tunel para reproducir desde fuera"
+            hint="Si tu PC tiene un Cloudflare Tunnel configurado, pega aqui la URL publica."
+          >
+            <div className={styles.embed}><PwaRemoteSection /></div>
+          </SettingsGroup>
+          <SettingsGroup
+            title="Usar mi cuenta de YouTube"
+            hint="Reproduce con tu propia cuenta subiendo tu cookies.txt (opcional)."
+          >
+            <YoutubeAccountSection />
+          </SettingsGroup>
+        </>
       )}
     </section>
   );

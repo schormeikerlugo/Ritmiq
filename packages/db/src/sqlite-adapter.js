@@ -24,6 +24,13 @@ export function applySchema(db) {
   db.exec(SCHEMA_SQL);
   // Migraciones aditivas (idempotentes)
   addColumnIfMissing(db, 'playlists', 'cover_url', 'TEXT');
+  // Cookies por dispositivo (Fase 3): en DBs creadas antes de estas
+  // columnas, `CREATE TABLE IF NOT EXISTS` no las añade. Las forzamos aquí.
+  addColumnIfMissing(db, 'devices', 'cookies_blob', 'BLOB');
+  addColumnIfMissing(db, 'devices', 'cookies_updated_at', 'TEXT');
+  addColumnIfMissing(db, 'devices', 'supabase_user_id', 'TEXT');
+  addColumnIfMissing(db, 'pair_requests', 'cookies_blob', 'BLOB');
+  addColumnIfMissing(db, 'pair_requests', 'supabase_user_id', 'TEXT');
   // Backfill `shared_audio` desde tracks ya descargados. Idempotente:
   // INSERT OR IGNORE evita duplicar ytIds y `existsSync` evita rows
   // huérfanos si el archivo fue borrado externamente.

@@ -90,7 +90,6 @@ import { useGlobalShortcuts } from './lib/use-shortcuts.js';
 import { useShortcutsOnboarding } from './lib/use-shortcuts-onboarding.js';
 import { useDesktopNotifications } from './lib/use-desktop-notifications.js';
 import { useRadioAutoExtend } from './lib/use-radio.js';
-import { useCrossfade } from './lib/use-crossfade.js';
 import { useApplyAudioSettings } from './lib/use-apply-audio-settings.js';
 import { useJamSync } from './lib/use-jam-sync.js';
 import { useJamStore } from './stores/jam.js';
@@ -464,10 +463,10 @@ export function App() {
         const source = /\.trycloudflare\.com$/.test(url) ? 'quick'
                      : /\.cfargotunnel\.com$/.test(url) ? 'named'
                      : 'custom';
-        publishTunnelUrl(user.id, url, source, cachedToken);
+        publishTunnelUrl(user.id, url, source, cachedToken, 'desktop');
       } else if (st?.status === 'idle' && lastPublished) {
         lastPublished = null;
-        clearTunnelUrl(user.id);
+        clearTunnelUrl(user.id, 'desktop');
       }
     });
     return () => { try { unsub?.(); } catch {} };
@@ -507,9 +506,9 @@ export function App() {
   // Modo Radio — auto-extiende la cola con tracks de la lib cuando quedan
   // pocas por delante y radioMode esta activo. Idle si radioMode=false.
   useRadioAutoExtend();
-  // Crossfade en cambios manuales de track (Sprint γ — F2.8). Idle si
-  // settings.crossfadeSeconds === 0.
-  useCrossfade(backend);
+  // Crossfade real (2 audios solapados) en cambios auto y manual: la
+  // lógica vive en el motor (use-player.js + html-audio-backend.js),
+  // gated por settings.crossfadeSeconds, canción descargada y foreground.
   // Aplica settings de EQ al backend cuando cambian en el store. Lazy:
   // si el usuario nunca toca el EQ, no inicializa el WebAudio graph.
   useApplyAudioSettings(backend);

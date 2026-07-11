@@ -1,0 +1,41 @@
+# systemd unit para el servidor Ritmiq headless 24/7.
+#
+# Instalación:
+#   sudo cp apps/server/deploy/ritmiq-server.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ritmiq-server
+#
+# Ajusta User, WorkingDirectory y la ruta a node/al repo según tu servidor.
+
+[Unit]
+Description=Ritmiq Server (LAN/YouTube resolver headless)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ritmiq
+Group=ritmiq
+
+# Ruta al checkout del repo en el servidor.
+WorkingDirectory=/opt/ritmiq
+
+# Carga las variables desde un archivo (ver .env.example).
+EnvironmentFile=/etc/ritmiq/server.env
+
+# Ejecuta el bootstrap headless. Ajusta la ruta a node si usas nvm/volta.
+ExecStart=/usr/bin/node apps/server/src/index.js
+
+Restart=on-failure
+RestartSec=5
+# El LAN server crea sus propios temporales; permite escribir en DATA_DIR.
+ReadWritePaths=/var/lib/ritmiq
+
+# Endurecimiento básico.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

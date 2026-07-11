@@ -42,7 +42,14 @@ const DEFAULTS = {
   // Visualizer canvas en NowPlaying. Default OFF para no drenar bateria
   // en mobile; usuario lo activa explicitamente desde NowPlaying.
   visualizerEnabled: false,
+  // Selección de servidor de resolución/stream (Fase 2):
+  //   'auto'          → desktop local primero, servidor 24/7 de respaldo.
+  //   'prefer-server' → servidor 24/7 primero, desktop de respaldo.
+  //   'fastest'       → carrera de pings; gana el primero que responda.
+  serverMode: 'auto',
 };
+
+const SERVER_MODES = ['auto', 'prefer-server', 'fastest'];
 
 function readInitial() {
   if (typeof localStorage === 'undefined') return { ...DEFAULTS };
@@ -63,6 +70,9 @@ function readInitial() {
       visualizerEnabled: typeof parsed.visualizerEnabled === 'boolean'
         ? parsed.visualizerEnabled
         : DEFAULTS.visualizerEnabled,
+      serverMode: SERVER_MODES.includes(parsed.serverMode)
+        ? parsed.serverMode
+        : DEFAULTS.serverMode,
     };
   } catch {
     return { ...DEFAULTS };
@@ -82,6 +92,7 @@ function persist(state) {
       eqPreset: state.eqPreset,
       publishUrlCache: state.publishUrlCache,
       visualizerEnabled: state.visualizerEnabled,
+      serverMode: state.serverMode,
     }));
   } catch {}
 }
@@ -134,6 +145,22 @@ export const useSettingsStore = create((set, get) => ({
   setVisualizerEnabled(enabled) {
     set({ visualizerEnabled: !!enabled });
     persist(get());
+  },
+
+  /**
+   * @param {'auto'|'prefer-server'|'fastest'} mode — selección de servidor
+   * de resolución/stream. Emite un evento para invalidar la cache de
+   * reachability y que el cambio surta efecto de inmediato.
+   */
+  setServerMode(mode) {
+    if (!SERVER_MODES.includes(mode)) return;
+    set({ serverMode: mode });
+    persist(get());
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('ritmiq:server-mode-changed'));
+      }
+    } catch {}
   },
 
   /**

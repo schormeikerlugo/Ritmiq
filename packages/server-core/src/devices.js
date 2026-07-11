@@ -66,7 +66,7 @@ const DEVICE_TOKEN_BYTES = 32;
  */
 export function createPairRequest(db, {
   deviceId, displayName, supabaseUserId = null, pin,
-  cookiesBlob = null, clientIp = null,
+  cookiesBlob = null, clientIp = null, allowedUsers = null,
 }) {
   if (!deviceId || !displayName || !pin) {
     throw new Error('deviceId, displayName, pin required');
@@ -84,11 +84,17 @@ export function createPairRequest(db, {
     };
   }
 
-  // DECISION (Sun May 17 2026): auto-pair per cuenta Supabase DESACTIVADO.
-  // El owner debe aprobar cada device manualmente con PIN. Compromiso
-  // de cuenta Supabase != compromiso de devices. Si en el futuro se
-  // reactiva auto-pair, el bloque se restaura con un check de feature
-  // flag en el config del desktop.
+  // ALLOWLIST (Fase 3c): si la cuenta Supabase de quien parea está en la
+  // lista de confianza del servidor (RITMIQ_ALLOWED_USERS), se auto-aprueba
+  // sin PIN. Fuera de la lista → aprobación manual (panel / CLI).
+  // El resto de cuentas Supabase sigue requiriendo aprobación manual
+  // (compromiso de cuenta != compromiso de device — decisión 17/05/2026).
+  if (supabaseUserId && allowedUsers && allowedUsers.has(String(supabaseUserId).toLowerCase())) {
+    const deviceToken = approveDevice(db, {
+      deviceId, displayName, supabaseUserId, cookiesBlob,
+    });
+    return { status: 'approved', deviceToken, displayName, autoApproved: true };
+  }
 
   // Crear/actualizar pair_request con TTL.
   const now = Date.now();
@@ -334,6 +340,15 @@ export function updateDeviceCookies(db, deviceId, cookiesBlob) {
     WHERE device_id = ? AND status = 'approved'
   `).run(cookiesBlob, new Date().toISOString(), deviceId);
   if (r.changes === 0) throw new Error('device not found or not approved');
+}
+
+/** Borra las cookies de un device (al desvincular). Idempotente. */
+export function clearDeviceCookies(db, deviceId) {
+  if (!deviceId) return;
+  db.prepare(/* sql */ `
+    UPDATE devices SET cookies_blob = NULL, cookies_updated_at = NULL
+    WHERE device_id = ?
+  `).run(deviceId);
 }
 
 /** Actividad de un device (ultimos N eventos). */

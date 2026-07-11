@@ -13,8 +13,8 @@ import http from 'node:http';
 import { Readable } from 'node:stream';
 import { createReadStream, statSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { app } from 'electron';
 import { Bonjour } from 'bonjour-service';
+import { dataSubdir } from './host.js';
 import { getStreamUrl, getMetadata, search, downloadAudio } from '@ritmiq/yt/ytdlp';
 import { translateYtdlpError } from '@ritmiq/yt';
 import {
@@ -29,10 +29,13 @@ import {
   createPairRequest, approveDevice, rejectPairRequest,
   revokeDevice, renameDevice, getPairStatus,
   findDeviceByToken, listDevices, listPairRequests,
-  logActivity, pruneOldActivity, updateDeviceCookies,
+  logActivity, pruneOldActivity, updateDeviceCookies, clearDeviceCookies,
   getDeviceActivity,
 } from './devices.js';
-import { getCookieFileForDevice, invalidateDeviceCookies } from './device-cookies.js';
+import { getCookieFileForDevice, invalidateDeviceCookies, encryptCookies } from './device-cookies.js';
+import {
+  startLoginSession, getLoginStatus, stopLoginSession, isDockerAvailable,
+} from './youtube-login.js';
 
 /**
  * Cache global de URLs (Fase 1): publica a Supabase Edge cada resolucion
@@ -357,11 +360,21 @@ export async function startLanServer({ port, db, accessToken }) {
   if (ACCEPT_UNSIGNED) {
     console.warn('[lan-server] ACCEPT_UNSIGNED activo — se aceptan requests sin firma (modo compat)');
   }
+  // Allowlist de cuentas Supabase de confianza (Fase 3c). Auto-aprueba el
+  // pareo sin PIN. Formato: lista separada por comas de user_id (o email).
+  const ALLOWED_USERS = new Set(
+    String(process.env.RITMIQ_ALLOWED_USERS ?? '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+  );
+  if (ALLOWED_USERS.size > 0) {
+    console.log(`[lan-server] allowlist activa (${ALLOWED_USERS.size} cuentas auto-aprobadas)`);
+  }
   // Cache persistente para yt-dlp (player.js, JS solvers, etc.). Sin esto
   // el AppImage monta en /tmp distinto cada arranque → yt-dlp re-descarga
   // 3-5MB de player.js cada vez. Pinneamos en userData.
-  const cacheDir = join(app.getPath('userData'), 'yt-dlp-cache');
-  try { mkdirSync(cacheDir, { recursive: true }); } catch {}
+  const cacheDir = dataSubdir('yt-dlp-cache');
   console.log(
     cookiesFromBrowser
       ? `[lan-server] yt-dlp cookies: ${cookiesFromBrowser} (override RITMIQ_YTDLP_COOKIES_BROWSER)`
@@ -377,10 +390,17 @@ export async function startLanServer({ port, db, accessToken }) {
   // tanto las primeras llamadas usan `cookiesFromBrowser` (más lento pero
   // funcional). El refresh periódico mantiene el archivo fresco para que
   // YouTube no rote las cookies.
+  // Archivo de cookies Netscape explícito (headless/Docker, sin navegador).
+  // Tiene prioridad sobre --cookies-from-browser. Se monta como volumen.
+  const cookiesFileEnv = process.env.RITMIQ_YTDLP_COOKIES_FILE || undefined;
+  if (cookiesFileEnv) {
+    console.log(`[lan-server] yt-dlp cookies file (env): ${cookiesFileEnv}`);
+  }
+
   const ytOpts = {
     binary: ytBinary,
-    cookiesFromBrowser: cookiesFromBrowser ?? undefined,
-    cookiesFile: undefined,
+    cookiesFromBrowser: cookiesFileEnv ? undefined : (cookiesFromBrowser ?? undefined),
+    cookiesFile: cookiesFileEnv,
     jsRuntime: jsRuntime ?? undefined,
     cacheDir,
     // m4a/AAC obligatorio: el LAN server sirve también al PWA (iOS Safari)
@@ -390,7 +410,7 @@ export async function startLanServer({ port, db, accessToken }) {
     // m4a sin problema, así que lo dejamos global.
     preferM4a: true,
   };
-  if (cookiesFromBrowser) {
+  if (cookiesFromBrowser && !cookiesFileEnv) {
     // Background — no bloquear el arranque del LAN server. Cuando termine,
     // mutamos `ytOpts` para que los próximos plays vayan por la vía rápida.
     const t0 = Date.now();
@@ -514,7 +534,7 @@ export async function startLanServer({ port, db, accessToken }) {
   // estos archivos los puede consumir cualquier cuenta autorizada por
   // Supabase RLS vía firma HMAC. Persisten hasta que el user limpie con
   // el botón "Limpiar caché compartido" en Ajustes.
-  const sharedAudioDir = join(app.getPath('userData'), 'shared-audio');
+  const sharedAudioDir = dataSubdir('shared-audio');
   try { mkdirSync(sharedAudioDir, { recursive: true }); } catch {}
 
   /**
@@ -816,6 +836,79 @@ export async function startLanServer({ port, db, accessToken }) {
         return;
       }
 
+      // ── Panel de administración (owner-auth) ─────────────────────────
+      // Página web para gestionar dispositivos desde el móvil sin SSH.
+      // Autenticación por access-token del dueño (Bearer o ?token=).
+      if (url.pathname === '/admin' || url.pathname === '/admin/') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(ADMIN_HTML);
+        return;
+      }
+      if (url.pathname.startsWith('/admin/api/')) {
+        if (!isOwner(req, url)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'unauthorized' }));
+          return;
+        }
+        // GET /admin/api/state → dispositivos + solicitudes pendientes.
+        if (url.pathname === '/admin/api/state' && req.method === 'GET') {
+          const devices = listDevices(db).map((d) => ({
+            device_id: d.device_id,
+            display_name: d.display_name,
+            supabase_user_id: d.supabase_user_id,
+            status: d.status,
+            has_cookies: !!(d.cookies_updated_at),
+            last_seen_at: d.last_seen_at,
+            approved_at: d.approved_at,
+          }));
+          const pending = listPairRequests(db).map((p) => ({
+            device_id: p.device_id,
+            display_name: p.display_name,
+            supabase_user_id: p.supabase_user_id,
+            pin: p.pin,
+            requested_at: p.requested_at,
+          }));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ devices, pending }));
+          return;
+        }
+        // POST /admin/api/{approve,reject,revoke} { device_id }
+        if (req.method === 'POST') {
+          const chunks = [];
+          req.on('data', (c) => chunks.push(c));
+          req.on('end', () => {
+            try {
+              const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+              const id = String(body.device_id || '');
+              if (!id) { res.writeHead(400).end('device_id required'); return; }
+              if (url.pathname === '/admin/api/approve') {
+                const pend = listPairRequests(db).find((r) => r.device_id === id);
+                const token = approveDevice(db, {
+                  deviceId: id,
+                  displayName: pend?.display_name ?? id,
+                  supabaseUserId: pend?.supabase_user_id ?? null,
+                });
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true, deviceToken: token }));
+              } else if (url.pathname === '/admin/api/reject') {
+                rejectPairRequest(db, id);
+                res.writeHead(200).end(JSON.stringify({ ok: true }));
+              } else if (url.pathname === '/admin/api/revoke') {
+                revokeDevice(db, id);
+                res.writeHead(200).end(JSON.stringify({ ok: true }));
+              } else {
+                res.writeHead(404).end('not found');
+              }
+            } catch (err) {
+              res.writeHead(500).end('internal error');
+            }
+          });
+          return;
+        }
+        res.writeHead(405).end('method not allowed');
+        return;
+      }
+
       // ── Pareo: endpoints publicos con rate-limit ─────────────────────
       // Permiten a una PWA solicitar pareo y consultar el estado sin
       // necesidad de token (no lo tienen todavia). Rate-limit por IP.
@@ -839,8 +932,9 @@ export async function startLanServer({ port, db, accessToken }) {
               res.writeHead(400).end('device_id, display_name, pin required');
               return;
             }
+            // Cifrar cookies (si vienen) antes de guardarlas en el pair_request.
             const cookiesBlob = cookies_b64
-              ? Buffer.from(String(cookies_b64), 'base64')
+              ? encryptCookies(Buffer.from(String(cookies_b64), 'base64').toString('utf8'))
               : null;
             const out = createPairRequest(db, {
               deviceId: String(device_id),
@@ -849,6 +943,7 @@ export async function startLanServer({ port, db, accessToken }) {
               pin: String(pin),
               cookiesBlob,
               clientIp,
+              allowedUsers: ALLOWED_USERS,
             });
             if (out.status === 'pending') {
               notifyOwnerNewPairRequest({
@@ -908,6 +1003,8 @@ export async function startLanServer({ port, db, accessToken }) {
         url.pathname.startsWith('/stream/') ||
         url.pathname.startsWith('/download/') ||
         url.pathname === '/cookies/upload' ||
+        url.pathname.startsWith('/youtube/link') ||
+        url.pathname === '/youtube/unlink' ||
         url.pathname === '/shared-cache/check';
       const principal = isMusicEndpoint ? authorizeDeviceOrOwner(req, url) : null;
       const isDeviceAuth = isMusicEndpoint && principal != null;
@@ -967,12 +1064,13 @@ export async function startLanServer({ port, db, accessToken }) {
             const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
             const b64 = body.cookies_b64;
             if (!b64) { res.writeHead(400).end('cookies_b64 required'); return; }
-            const blob = Buffer.from(String(b64), 'base64');
-            const text = blob.toString('utf8');
+            const text = Buffer.from(String(b64), 'base64').toString('utf8');
             if (text.length > 1024 * 1024) {
               res.writeHead(413).end('cookies too large');
               return;
             }
+            // Cifrar antes de persistir (safeStorage / AES-GCM / plain:).
+            const blob = encryptCookies(text);
             updateDeviceCookies(db, principal.device_id, blob);
             invalidateDeviceCookies(principal.device_id);
             logActivity(db, {
@@ -986,6 +1084,79 @@ export async function startLanServer({ port, db, accessToken }) {
             res.writeHead(500).end('internal error');
           }
         });
+        return;
+      }
+
+      // ─── Login de YouTube por navegador (Fase 3b) ──────────────────────
+      // Requiere device_token. Orquesta un contenedor noVNC bajo demanda.
+
+      // POST /youtube/link/start → { novncPort, status } o 503 si no hay Docker.
+      if (url.pathname === '/youtube/link/start' && req.method === 'POST') {
+        if (!principal || principal.owner === true) {
+          res.writeHead(403).end(JSON.stringify({ error: 'device_token required' }));
+          return;
+        }
+        (async () => {
+          try {
+            if (!(await isDockerAvailable())) {
+              res.writeHead(503, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'docker no disponible en el servidor' }));
+              return;
+            }
+            const out = await startLoginSession({
+              deviceId: principal.device_id,
+              deviceToken: extractBearer(req, url),
+              serverPort: actualPort,
+            });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(out));
+          } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: String(e?.message ?? e) }));
+          }
+        })();
+        return;
+      }
+
+      // GET /youtube/link/status → { status, novncPort }
+      if (url.pathname === '/youtube/link/status' && req.method === 'GET') {
+        if (!principal || principal.owner === true) {
+          res.writeHead(403).end(JSON.stringify({ error: 'device_token required' }));
+          return;
+        }
+        (async () => {
+          const hasCookies = (deviceId) => {
+            try {
+              const row = db.prepare('SELECT cookies_blob FROM devices WHERE device_id = ?').get(deviceId);
+              return !!(row && row.cookies_blob && row.cookies_blob.length > 0);
+            } catch { return false; }
+          };
+          const out = await getLoginStatus(principal.device_id, hasCookies);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(out));
+        })();
+        return;
+      }
+
+      // POST /youtube/unlink → borra cookies del device + detiene sesión.
+      if (url.pathname === '/youtube/unlink' && req.method === 'POST') {
+        if (!principal || principal.owner === true) {
+          res.writeHead(403).end(JSON.stringify({ error: 'device_token required' }));
+          return;
+        }
+        (async () => {
+          try {
+            clearDeviceCookies(db, principal.device_id);
+            invalidateDeviceCookies(principal.device_id);
+            await stopLoginSession(principal.device_id);
+            logActivity(db, { deviceId: principal.device_id, action: 'youtube_unlink' });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true }));
+          } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: String(e?.message ?? e) }));
+          }
+        })();
         return;
       }
 
@@ -1555,3 +1726,116 @@ function serveLocalFile(req, res, filePath) {
     createReadStream(filePath).pipe(res);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Panel de administración (HTML autocontenido). Se sirve en GET /admin.
+// El dueño pega su access-token; las llamadas a /admin/api/* lo mandan
+// como Bearer. Sin dependencias externas.
+// ─────────────────────────────────────────────────────────────────────
+const ADMIN_HTML = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ritmiq — Administración</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, sans-serif; background:#0a0a0c; color:#e8e8ea; padding:16px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .muted { color:#9a9aa2; font-size:13px; }
+  .card { background:#151519; border:1px solid #26262c; border-radius:12px; padding:14px; margin:12px 0; }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid #202027; }
+  .row:last-child { border-bottom:0; }
+  .name { font-weight:600; }
+  .sub { color:#9a9aa2; font-size:12px; }
+  input { width:100%; padding:10px; border-radius:8px; border:1px solid #303038; background:#0f0f13; color:#e8e8ea; font-size:14px; }
+  button { border:0; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; cursor:pointer; }
+  .btn-approve { background:#3ddc97; color:#062a1c; }
+  .btn-reject { background:#2a2a31; color:#e8e8ea; }
+  .btn-revoke { background:#ff5d6c; color:#2a0a0d; }
+  .pin { font-family: monospace; font-size:18px; letter-spacing:2px; color:#c9a6ff; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:999px; background:#26262c; color:#9a9aa2; }
+  .badge.yt { background:#1e3a2a; color:#3ddc97; }
+  .empty { color:#6a6a72; font-size:13px; padding:10px 0; }
+</style>
+</head>
+<body>
+  <h1>Ritmiq — Administración</h1>
+  <p class="muted">Gestiona los dispositivos que pueden usar este servidor.</p>
+
+  <div class="card" id="auth-card">
+    <label class="muted">Access-token del dueño</label>
+    <input id="token" type="password" placeholder="pega tu access-token" autocomplete="off">
+    <div style="margin-top:10px"><button class="btn-approve" onclick="save()">Guardar y cargar</button></div>
+  </div>
+
+  <div id="content" style="display:none">
+    <div class="card">
+      <h3 style="margin:0 0 8px">Solicitudes pendientes</h3>
+      <div id="pending"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 8px">Dispositivos</h3>
+      <div id="devices"></div>
+    </div>
+  </div>
+
+<script>
+  const tokenKey = 'ritmiq:admin:token';
+  function getToken(){ return localStorage.getItem(tokenKey) || ''; }
+  function save(){
+    const t = document.getElementById('token').value.trim();
+    if(!t) return;
+    localStorage.setItem(tokenKey, t);
+    load();
+  }
+  async function api(path, method='GET', body){
+    const r = await fetch(path, {
+      method,
+      headers: { 'Authorization': 'Bearer ' + getToken(), 'Content-Type':'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if(!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+  async function act(kind, id){
+    try { await api('/admin/api/'+kind, 'POST', { device_id: id }); load(); }
+    catch(e){ alert('Error: ' + e.message); }
+  }
+  function esc(s){ return String(s??'').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+  async function load(){
+    try {
+      const st = await api('/admin/api/state');
+      document.getElementById('auth-card').style.display='none';
+      document.getElementById('content').style.display='block';
+      const pend = st.pending.map(p => \`
+        <div class="row">
+          <div><div class="name">\${esc(p.display_name)}</div>
+            <div class="sub">\${esc(p.supabase_user_id||'sin cuenta')}</div>
+            <div class="pin">PIN \${esc(p.pin)}</div></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-approve" onclick="act('approve','\${esc(p.device_id)}')">Aprobar</button>
+            <button class="btn-reject" onclick="act('reject','\${esc(p.device_id)}')">Rechazar</button>
+          </div>
+        </div>\`).join('') || '<div class="empty">No hay solicitudes.</div>';
+      document.getElementById('pending').innerHTML = pend;
+      const devs = st.devices.map(d => \`
+        <div class="row">
+          <div><div class="name">\${esc(d.display_name)}
+            \${d.has_cookies ? '<span class="badge yt">YouTube propio</span>' : ''}</div>
+            <div class="sub">\${esc(d.supabase_user_id||'sin cuenta')} · \${esc(d.status)}</div></div>
+          <div><button class="btn-revoke" onclick="act('revoke','\${esc(d.device_id)}')">Revocar</button></div>
+        </div>\`).join('') || '<div class="empty">Sin dispositivos.</div>';
+      document.getElementById('devices').innerHTML = devs;
+    } catch(e){
+      if(String(e.message)==='401'){ localStorage.removeItem(tokenKey); alert('Token inválido'); }
+      document.getElementById('auth-card').style.display='block';
+      document.getElementById('content').style.display='none';
+    }
+  }
+  if(getToken()) load();
+  setInterval(() => { if(getToken() && document.getElementById('content').style.display==='block') load(); }, 8000);
+</script>
+</body>
+</html>`;

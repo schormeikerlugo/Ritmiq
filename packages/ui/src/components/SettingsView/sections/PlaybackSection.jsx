@@ -102,7 +102,7 @@ export function PlaybackSection() {
         description={
           crossfade === 0
             ? 'Desactivado. Las canciones cambian sin fundido.'
-            : 'Fundido suave al cambiar de cancion manualmente.'
+            : 'Fundido suave entre canciones (automatico y manual). Funciona con canciones descargadas.'
         }
         control={
           <Slider

@@ -19,15 +19,15 @@ import {
 } from '@ritmiq/db/sqlite';
 import { copyFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { getYtDlpPath, getYtDlpUserDataPath } from './ytdlp-path.js';
 import { cloudflared, getStoredToken, setStoredToken, getCustomUrl, setCustomUrl } from './cloudflared.js';
-import { getOrCreateAccessToken, regenerateAccessToken } from './access-token.js';
-import { detectCookiesBrowser, detectJsRuntime, exportCookiesToFile } from './cookies-detect.js';
 import {
+  getYtDlpPath, getYtDlpUserDataPath,
+  getOrCreateAccessToken, regenerateAccessToken,
+  detectCookiesBrowser, detectJsRuntime, exportCookiesToFile,
   approveDevice, rejectPairRequest, revokeDevice, renameDevice,
   listDevices, listPairRequests, getDeviceActivity, forgetDevice,
-} from './devices.js';
-import { invalidateDeviceCookies } from './device-cookies.js';
+  invalidateDeviceCookies,
+} from '@ritmiq/server-core';
 
 const YT_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/;
 const ID_RE = /^[\w-]{11}$/;
@@ -169,7 +169,7 @@ export function registerIpc({ db, lan, accessToken }) {
   // Reproduccion. Surte efecto en la siguiente resolucion de yt-dlp sin
   // reiniciar la app.
   ipcMain.handle('settings:setPublishUrlCache', async (_e, enabled) => {
-    const mod = await import('./lan-server.js');
+    const mod = await import('@ritmiq/server-core');
     if (typeof mod.setPublishUrlCacheEnabled === 'function') {
       mod.setPublishUrlCacheEnabled(!!enabled);
     }
@@ -185,7 +185,7 @@ export function registerIpc({ db, lan, accessToken }) {
   // La info es 100% local (in-memory en el main process); no se reporta
   // a Supabase ni a ningun servicio externo.
   ipcMain.handle('settings:getPublishStats', async () => {
-    const mod = await import('./lan-server.js');
+    const mod = await import('@ritmiq/server-core');
     if (typeof mod.getPublishStats === 'function') {
       return mod.getPublishStats();
     }
@@ -197,7 +197,7 @@ export function registerIpc({ db, lan, accessToken }) {
   // Sin esto el publish-stream-url Edge devuelve 401 invalid token
   // porque exige user JWT real, no acepta ANON_KEY.
   ipcMain.handle('settings:setSupabaseToken', async (_e, token) => {
-    const mod = await import('./lan-server.js');
+    const mod = await import('@ritmiq/server-core');
     if (typeof mod.setSupabaseUserJwt === 'function') {
       mod.setSupabaseUserJwt(token);
     }
@@ -209,7 +209,7 @@ export function registerIpc({ db, lan, accessToken }) {
   // quiere ver el siguiente publish en vivo sin esperar 30min de TTL.
   // Devuelve cuantas entradas borro.
   ipcMain.handle('lan:clearStreamCache', async () => {
-    const mod = await import('./lan-server.js');
+    const mod = await import('@ritmiq/server-core');
     if (typeof mod.clearStreamCache === 'function') {
       return { ok: true, cleared: mod.clearStreamCache() };
     }
@@ -291,7 +291,7 @@ export function registerIpc({ db, lan, accessToken }) {
       const ytUrlMatch = ytId.match(/(?:v=|youtu\.be\/|\/embed\/)([\w-]{11})/);
       if (ytUrlMatch) ytId = ytUrlMatch[1];
       if (ytId && /^[\w-]{11}$/.test(ytId) && url) {
-        const mod = await import('./lan-server.js');
+        const mod = await import('@ritmiq/server-core');
         mod.publishResolvedUrl?.(ytId, url);
       }
     } catch {
@@ -490,7 +490,7 @@ export function registerIpc({ db, lan, accessToken }) {
     // Una descarga completa es senal MUY fuerte de "track real" — el user
     // invirtio disco en mantenerlo offline. Mejor incluso que un play.
     try {
-      const mod = await import('./lan-server.js');
+      const mod = await import('@ritmiq/server-core');
       mod.publishTrackMetaFromMain?.({
         ytId: row.yt_id,
         title: row.title,

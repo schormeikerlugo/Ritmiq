@@ -1,0 +1,37 @@
+# Ritmiq Server — despliegue con Docker Compose en el servidor casero 24/7.
+#
+# Uso (desde la RAÍZ del monorepo, en el servidor):
+#   cp apps/server/.env.example apps/server/.env   # y edítalo
+#   docker compose -f apps/server/docker-compose.yml up -d --build
+#   docker compose -f apps/server/docker-compose.yml logs -f
+#
+# El estado (SQLite, cookies, tokens, audio cacheado) persiste en el volumen
+# `ritmiq-data`, así que reconstruir la imagen no borra tus datos.
+
+services:
+  ritmiq-server:
+    build:
+      context: ../..            # raíz del monorepo (necesita los workspaces)
+      dockerfile: apps/server/Dockerfile
+    image: ritmiq-server:latest
+    container_name: ritmiq-server
+    restart: unless-stopped
+    # host network: el LAN server se anuncia por mDNS y se sirve a la LAN
+    # sin NAT; también deja que cloudflared alcance localhost:3939.
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      RITMIQ_DATA_DIR: /data
+      RITMIQ_PORT: "3939"
+    volumes:
+      - ritmiq-data:/data
+      # Socket de Docker: el servidor levanta el contenedor de login (noVNC)
+      # bajo demanda vía `docker run`. Requiere el binario docker en la imagen.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Monta cookies de YouTube del dueño (Netscape) para el fallback, opcional:
+      # - ./cookies.txt:/data/owner-cookies.txt:ro
+
+volumes:
+  ritmiq-data:
+

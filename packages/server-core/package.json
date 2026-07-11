@@ -1,0 +1,26 @@
+{
+  "name": "@ritmiq/server-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./host": "./src/host.js",
+    "./lan-server": "./src/lan-server.js",
+    "./cloudflared": "./src/cloudflared.js",
+    "./youtube-login": "./src/youtube-login.js",
+    "./devices": "./src/devices.js",
+    "./device-cookies": "./src/device-cookies.js",
+    "./cookies-detect": "./src/cookies-detect.js",
+    "./db": "./src/db.js",
+    "./access-token": "./src/access-token.js",
+    "./ytdlp-path": "./src/ytdlp-path.js"
+  },
+  "dependencies": {
+    "@ritmiq/db": "workspace:*",
+    "@ritmiq/yt": "workspace:*",
+    "better-sqlite3": "^11.5.0",
+    "bonjour-service": "^1.3.0"
+  }
+}

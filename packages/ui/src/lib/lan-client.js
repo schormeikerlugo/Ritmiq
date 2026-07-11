@@ -9,7 +9,9 @@
 import { supabase } from './supabase.js';
 
 const STORAGE_KEY = 'ritmiq:lan:baseUrl';
-const TUNNEL_KEY = 'ritmiq:lan:tunnelUrl';
+const TUNNEL_KEY = 'ritmiq:lan:tunnelUrl';       // endpoint desktop (túnel)
+const SERVER_URL_KEY = 'ritmiq:lan:serverUrl';   // endpoint servidor 24/7 (túnel)
+const SERVER_TOKEN_KEY = 'ritmiq:lan:serverToken'; // bearer del servidor 24/7
 const TOKEN_KEY  = 'ritmiq:lan:accessToken';
 const HEALTH = '/health';
 
@@ -117,6 +119,29 @@ export function setTunnelUrl(url) {
   try {
     if (url) localStorage.setItem(TUNNEL_KEY, url);
     else localStorage.removeItem(TUNNEL_KEY);
+  } catch {}
+}
+
+/** URL pública del SERVIDOR 24/7 (endpoint kind='server'). */
+export function getServerUrlSync() {
+  try { return localStorage.getItem(SERVER_URL_KEY); } catch { return null; }
+}
+/** @param {string|null} url */
+export function setServerUrl(url) {
+  try {
+    if (url) localStorage.setItem(SERVER_URL_KEY, url);
+    else localStorage.removeItem(SERVER_URL_KEY);
+  } catch {}
+}
+/** Bearer token del servidor 24/7 (puede diferir del desktop). */
+export function getServerTokenSync() {
+  try { return localStorage.getItem(SERVER_TOKEN_KEY); } catch { return null; }
+}
+/** @param {string|null} token */
+export function setServerToken(token) {
+  try {
+    if (token) localStorage.setItem(SERVER_TOKEN_KEY, token);
+    else localStorage.removeItem(SERVER_TOKEN_KEY);
   } catch {}
 }
 

@@ -1,0 +1,13 @@
+# Contexto de build Docker del servidor — excluye lo pesado/irrelevante.
+**/node_modules
+**/dist
+**/release
+**/.git
+**/.turbo
+apps/desktop/bin
+apps/desktop/release
+apps/desktop/build-resources
+docs
+*.AppImage
+*.log
+.env.local
