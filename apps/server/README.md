@@ -186,6 +186,32 @@ JWT de Supabase.
 > verificado + aprobación del dueño**. El desktop es la vía cómoda para aprobar
 > y aportar cookies.
 
+## Migrar el caché de archivos del desktop al servidor
+
+El caché de audio (`shared-audio/`) es **local a cada host**: lo que descarga el
+desktop no lo ve el servidor y viceversa. Para llevar tu caché acumulado del
+desktop al servidor 24/7 (y servirlo al instante, sin re-descargar):
+
+1. En el desktop, empaqueta solo los `.m4a` (servibles en iOS) del caché
+   compartido (`~/.config/@ritmiq/desktop/shared-audio/`) y transfiérelos al
+   servidor (tar sobre SSH).
+2. Extráelos en el `shared-audio/` del servidor (dentro del volumen de datos,
+   p.ej. `/data/shared-audio`).
+3. Re-indexa por nombre de archivo con el script incluido:
+
+   ```bash
+   # dentro del contenedor / entorno del servidor
+   node apps/server/src/import-shared-cache.js
+   ```
+
+   Registra cada `<ytId>.m4a` en la tabla `shared_audio`. Es **idempotente**
+   (re-ejecutarlo solo actualiza tamaños/rutas) y omite formatos no servibles
+   (`.opus`, etc.) para no romper reproducción en móviles.
+
+> Solo se migran `.m4a`/`.mp4`. Los `.opus` (descargas del owner en desktop) no
+> se migran porque iOS/Safari no los reproduce; se re-descargarán como m4a en el
+> servidor la primera vez que se pidan.
+
 ## Nota de seguridad (noVNC)
 
 La pantalla de login (noVNC) hoy no lleva contraseña y es **efímera** (se apaga
