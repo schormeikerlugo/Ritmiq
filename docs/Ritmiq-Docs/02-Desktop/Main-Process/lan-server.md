@@ -1,28 +1,34 @@
 ---
 tipo: modulo
-capa: desktop-main
-plataforma: desktop
+capa: servidor
+plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
-archivo: apps/desktop/main/lan-server.js
-tags: [desktop, lan, http, mdns, streaming]
+ultima-revision: 2026-07-17
+archivo: packages/server-core/src/lan-server.js
+tags: [servidor, lan, http, mdns, streaming, headless, jwt, cache]
 ---
 
-# `main/lan-server.js`
+# `lan-server.js`
 
-> Servidor HTTP local del Desktop. Sirve audio (file local o stream yt-dlp) a otros dispositivos en la misma WiFi o expuestos vía [[cloudflared]]. Anuncia el servicio por mDNS (`_ritmiq._tcp.local`). Implementa coalescing de descargas, cache LRU de stream URLs y cola con prioridades para yt-dlp.
+> Servidor HTTP que sirve audio (file local o stream yt-dlp) a otros dispositivos en la misma WiFi o expuestos vía [[cloudflared]]. Anuncia el servicio por mDNS (`_ritmiq._tcp.local`). Implementa coalescing de descargas, cache de stream URLs, cache de búsqueda, cola con prioridades para yt-dlp, verificación de JWT y administración de dispositivos.
+
+> [!info] Movido a `@ritmiq/server-core` (Fase 1)
+> Desde Fase 1 este módulo vive en `packages/server-core/src/lan-server.js` y lo
+> consumen **tanto el desktop** (Electron) **como el [[apps-server|servidor headless 24/7]]**.
+> La documentación de la nueva capa está en [[11-Servidor-Headless/README|Servidor Headless]].
 
 ## Ubicación
-`apps/desktop/main/lan-server.js:1` (1216 líneas)
+`packages/server-core/src/lan-server.js` (antes `apps/desktop/main/lan-server.js`)
 
 ## Firma del export principal
 
 ```js
-async function startLanServer({ port, db, accessToken }): Promise<{
-  port: number,
-  stop(): void,
-  onPairRequest(cb): void
-}>
+async function startLanServer({
+  port, db, accessToken,
+  supabaseUrl,          // para verificar JWT vía JWKS (default VITE_SUPABASE_URL)
+  supabaseJwtSecret,    // HS256 legacy opcional
+  requireAuthForPair,   // exigir JWT en /pair (default: hay verificación)
+}): Promise<{ port, stop(), onPairRequest(cb) }>
 ```
 
 Inicia HTTP server con fallback de puertos (3939 → 3940 … hasta 3943) y anuncia mDNS.
@@ -44,8 +50,12 @@ Tres mecanismos conviven:
 | Mecanismo | Habilita | Cómo se pasa |
 |---|---|---|
 | **Bearer owner** | Todos los endpoints | `Authorization: Bearer <accessToken>` o `?token=<accessToken>` |
-| **device_token** (Modelo Y) | `/yt/*`, `/stream/*`, `/download/*`, `/cookies/upload`, `/shared-cache/check` | Mismo header/query con el token del device |
+| **device_token** (Modelo Y) | `/yt/*`, `/stream/*`, `/download/*`, `/cookies/upload`, `/shared-cache/check`, `/youtube/link/*` | Mismo header/query con el token del device |
 | **Signed URL HMAC** | `/stream/*`, `/download/*` | `?sig=<HMAC>&exp=<ts>` validado contra `RITMIQ_STREAM_SIGNING_SECRET` |
+| **JWT Supabase** (Fase 4) | `/pair`, `/devices/*` | `Authorization: Bearer <jwt>` verificado vía JWKS/HS256 (ver [[Autenticacion-y-JWT]]) |
+
+`authorizeAdmin(req, url)` resuelve la administración por cuenta: owner (todo),
+device_token o JWT (solo su `supabase_user_id`). Ver [[Administracion-Dispositivos]].
 
 Flag de compat: `RITMIQ_ACCEPT_UNSIGNED_STREAMS=true` bypasea token en `/yt/*`, `/stream/*`, `/download/*`, `/shared-cache/check`. La autorización real se hace "más adentro" (firma o presencia en SQLite). Necesario porque la PWA en Vercel a veces no tiene token sincronizado en localStorage.
 
@@ -54,11 +64,15 @@ Flag de compat: `RITMIQ_ACCEPT_UNSIGNED_STREAMS=true` bypasea token en `/yt/*`, 
 | Endpoint | Método | Auth | Rate-limit |
 |---|---|---|---|
 | `/health` | GET | público | — |
-| `/pair` | POST | público | 5/min/IP |
+| `/admin`, `/admin/api/*` | GET/POST | **owner** (panel web) | — |
+| `/devices/mine` | GET | owner \| sub-admin (JWT/device) | — |
+| `/devices/{approve,reject,revoke,rename,cookies}` | POST | owner \| sub-admin | — |
+| `/pair` | POST | público + **JWT si configurado** | 5/min/IP |
 | `/pair/status` | GET | público | — |
-| `/yt/search` | GET | owner \| device | — |
-| `/yt/prewarm` | GET | owner \| device | — |
+| `/yt/search` | GET | owner \| device | — (cache por query) |
+| `/yt/prewarm` | GET | owner \| device | — (`&download=1` descarga m4a) |
 | `/yt/metadata` | GET | owner \| device | — |
+| `/youtube/link/start\|status`, `/youtube/unlink` | POST/GET | device | — (login noVNC) |
 | `/spotify/playlist` | GET | owner | — |
 | `/cookies/upload` | POST | **solo device** | — |
 | `/shared-cache/check` | GET | auth | — |
@@ -133,7 +147,11 @@ function evictLowPriorityQueued(threshold) {
 }
 ```
 
-**Por qué MAX_CONCURRENT = 3**: yt-dlp con `cookiesFile` cacheado consume CPU moderada. Pasando de 3 procesos simultáneos, una sola invocación pasa de 2.8s a 7+s por contención. 3 es el sweet spot empírico para máquinas modernas.
+**`MAX_CONCURRENT` (Fase C1)**: ahora **adaptativo** — escala con los cores
+(mitad, acotado 3-8), configurable con `RITMIQ_YTDLP_CONCURRENCY`. El servidor
+casero (16 cores) usa 8 para prewarmear varios resultados en paralelo sin
+penalizar el click (que tiene prioridad y salta la cola). En máquinas de pocos
+cores queda en 3 para evitar contención (una invocación pasa de 2.8s a 7+s).
 
 **Por qué dos tipos de cancelación**:
 - `killLowPriorityRunning` mata procesos ya **ejecutándose** (con yt-dlp activo) cuando llega un click p=10 y ya estamos saturados.
@@ -144,7 +162,11 @@ function evictLowPriorityQueued(threshold) {
 |---|---|
 | Click real del usuario (stream/download) | 10 |
 | Prewarm explícito (`/yt/prewarm`) | 5 |
-| Auto-prewarm de top-2 resultados de search | 1 |
+| Auto-prewarm de top-3 resultados de search | 1 |
+
+> Prewarm con `&download=1` (Fase D1): descarga el m4a completo a `shared-audio/`
+> en una cola dedicada de baja concurrencia (`schedulePrewarmDownload`). Ver
+> [[Cache-y-Rendimiento]].
 
 ### 3. Coalescing de descargas: una sola yt-dlp para N requests
 `apps/desktop/main/lan-server.js:251-283`
@@ -225,6 +247,11 @@ function ytOptsFor(principal) {
 **La separación de cookies por device**: si Ana parea su iPhone con su sesión de YouTube en él, y Bea parea su iPad con SU sesión, cada uno usa las cookies que subió. El owner del desktop ve un fallback a sus propias cookies (las del browser donde corre la app) si el device no tiene.
 
 **Por qué `cookiesFromBrowser: undefined`**: cuando usamos cookies del device, queremos NEGAR explícitamente las del browser. Si no lo hiciéramos, yt-dlp recibe ambos flags y mezcla — comportamiento indefinido.
+
+> **Fix Fase 4e**: `resolveCached(ytId, priority, dlOpts)` acepta un tercer
+> argumento con las opciones (cookies) del solicitante y las usa en el
+> cache-miss del **streaming** (antes siempre usaba las del owner). Ver
+> [[Cache-y-Rendimiento]].
 
 ### 6. Rate limit en /pair con ventana deslizante
 `apps/desktop/main/lan-server.js:194-207`
@@ -361,4 +388,5 @@ sequenceDiagram
 | Cambiar el regex de CORS para no incluir trycloudflare | PWA vía Quick Tunnel recibe error CORS al primer fetch. |
 
 ## Notas / Changelog
+- 2026-07-17 (Fases 1-4 + A-D): movido a `@ritmiq/server-core` (compartido desktop+servidor); `authorizeAdmin` + endpoints `/admin/*` y `/devices/*`; verificación JWT en `/pair`; cache de búsqueda por query; prewarm `&download=1`; `MAX_CONCURRENT` adaptativo (`RITMIQ_YTDLP_CONCURRENCY`); fix `resolveCached(dlOpts)`; login noVNC (`/youtube/link/*`). Ver [[11-Servidor-Headless/README]], [[Cache-y-Rendimiento]], [[Administracion-Dispositivos]], [[Autenticacion-y-JWT]].
 - 2026-05-22: nivel pleno (6 snippets, 10 filas qué-rompe, diagrama, perf, casos de borde).

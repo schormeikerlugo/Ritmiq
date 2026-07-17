@@ -3,14 +3,14 @@ tipo: edge-function
 capa: supabase
 plataforma: backend
 estado: estable
-ultima-revision: 2026-05-24
+ultima-revision: 2026-07-17
 archivo: supabase/functions/search-youtube/index.ts
-tags: [edge, youtube, innertube, busqueda, multi-tipo, p2p]
+tags: [edge, youtube, innertube, busqueda, multi-tipo, p2p, paginacion]
 ---
 
 # `search-youtube`
 
-> Búsqueda en YouTube vía la API interna Innertube. Soporta búsqueda por tipo (videos / channels / playlists) o multi-tipo (5 de cada). **Desde 2026-05-24** también consulta [[tracks_global]] en paralelo y devuelve `known[]` con tracks ya canonizados por la red Ritmiq.
+> Búsqueda en YouTube vía la API interna Innertube. Soporta búsqueda por tipo (videos / channels / playlists) o multi-tipo. **Desde 2026-05-24** también consulta [[tracks_global]] en paralelo y devuelve `known[]`. **Desde 2026-07-17**: `type=all` devuelve **12 de cada tipo** (antes 5) + **paginación real** vía continuation tokens de Innertube ("Ver más").
 
 ## Ubicación
 `supabase/functions/search-youtube/index.ts`
@@ -18,13 +18,18 @@ tags: [edge, youtube, innertube, busqueda, multi-tipo, p2p]
 ## Endpoints
 
 ```
-GET /search-youtube?q=<query>&max=12              → solo videos (compat)
-GET /search-youtube?q=<query>&type=videos&max=20  → solo videos + known
-GET /search-youtube?q=<query>&type=channels       → solo canales/artistas
-GET /search-youtube?q=<query>&type=playlists      → solo playlists
-GET /search-youtube?q=<query>&type=all            → 5 de cada tipo + known
-GET /search-youtube?q=<query>&known=0             → deshabilitar known lookup (debug)
+GET /search-youtube?q=<query>&max=12                       → solo videos (compat)
+GET /search-youtube?q=<query>&type=videos&max=30           → solo videos + known
+GET /search-youtube?q=<query>&type=channels                → solo canales/artistas
+GET /search-youtube?q=<query>&type=playlists               → solo playlists
+GET /search-youtube?q=<query>&type=all                     → 12 de cada tipo + known + videosContinuation
+GET /search-youtube?q=<query>&type=videos&continuation=<t> → siguiente página ("Ver más")
+GET /search-youtube?q=<query>&known=0                      → deshabilitar known lookup (debug)
 ```
+
+- `max` acotado a **40** (antes 30).
+- Paginación: si viene `continuation`, InnerTube ignora query/params y devuelve
+  la siguiente página. La respuesta incluye `continuation` (o `null` si no hay más).
 
 ## Códigos `params` de Innertube
 
@@ -40,8 +45,18 @@ Códigos URL-encoded del web client de YouTube. Estables hace varios años.
 
 ## Respuesta
 
-- Tipo único: `{ items: [...], known: [...] }`
-- `type=all`: `{ videos: [...], channels: [...], playlists: [...], known: [...] }`
+- Tipo único: `{ items: [...], continuation: string|null, known: [...] }`
+- `type=all`: `{ videos: [...], channels: [...], playlists: [...], known: [...], videosContinuation: string|null }`
+
+## Paginación (continuation tokens) — 2026-07-17
+
+`extractItems` maneja dos formatos de respuesta de InnerTube:
+- **Primera página**: `contents.twoColumnSearchResultsRenderer...sectionListRenderer.contents`.
+- **Continuación**: `onResponseReceivedCommands[0].appendContinuationItemsAction.continuationItems`.
+
+Extrae el token de `continuationItemRenderer.continuationEndpoint.continuationCommand.token`
+y lo devuelve. El cliente lo reenvía en `?continuation=` para "Ver más".
+Verificado: 3 páginas → ~57 videos únicos, 0 duplicados.
 
 ### Tipos de item
 
@@ -94,5 +109,6 @@ Tras `extractItems`, antes de devolver, cada video pasa por [[clean-track-meta]]
 | Quitar `User-Agent` realista | YouTube devuelve 400 o resultados raros. |
 
 ## Notas / Changelog
+- 2026-07-17: `type=all` 5→12 por tipo; paginación real vía continuation tokens (`continuation`/`videosContinuation`); `max` tope 40. Ver [[Cache-y-Rendimiento]] y [[SearchView]].
 - 2026-05-24: añadido paso 0 (lookup en [[tracks_global]] retornando `known[]`) + cleaning canónico via [[clean-track-meta]] aplicado a videoRenderer.
 - 2026-05-22: nivel medio.

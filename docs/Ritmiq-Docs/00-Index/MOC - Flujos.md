@@ -23,6 +23,7 @@ SORT file.name ASC
 ## Los flujos documentados
 
 - [[Reproduccion-Track-Online]] — del click play al audio sonando, cascada LAN→Tunnel→Cloud + pre-end swap iOS.
+- [[Reproduccion-Servidor-24-7]] — reproducción con el servidor casero como host primario (caché + prewarm). *(2026-07)*
 - [[Descarga-Offline]] — Desktop a disco / PWA a IndexedDB, con cache `shared_audio` entre cuentas.
 - [[Sincronizacion-LAN]] — pareo Modelo Y + reproducción posterior con `device_token`.
 - [[Tunnel-Cloudflared]] — Cloudflare Tunnel + auto-reconexión Quick Tunnel vía `tunnel_endpoints` Realtime.

@@ -254,6 +254,39 @@ Cada decisión sigue el formato:
   4. Sin cambios: [[SettingsView]] (ya tenía 12px propios), [[FriendsView]]/[[ProfileView]] (scroll interno con header propio). **Móvil intacto** (las ediciones van en media query desktop; el `.main` móvil mantiene su `padding-top` de safe-area).
 - **Consecuencias**: el header sticky se comporta correctamente sin parches; el patrón queda como regla de arquitectura: **el scroll-port (`.main`) no lleva `padding-top`; cada vista repone su espaciado superior**. Verificado: builds verdes + validación visual desktop (biblioteca sin bleed, playlist hero pegado, vistas conservan su espaciado) + PWA sin regresión.
 
+## ADR-031 — Servidor headless 24/7 + identidad JWT + caché primario
+
+- **Contexto**: el "algoritmo" de búsqueda/descarga vivía solo en el desktop (Electron levantaba el LAN server). Queríamos un servidor casero 24/7 que no dependa de tener la app abierta, con cuentas propias de YouTube por usuario y control de acceso.
+- **Decisión**:
+  1. **Extraer la lógica a `@ritmiq/server-core`** host-aware (`setHost`), consumida por desktop y por `apps/server` (Node puro, Docker/systemd). Ver [[server-core]], [[apps-server]].
+  2. **Identidad verificada con JWT de Supabase** (`auth-jwt.js`, ES256 vía JWKS sin secreto; HS256 legacy fallback). El `supabase_user_id` sale del `sub` del token, no del body → anti-suplantación. `/pair` exige login. Ver [[Autenticacion-y-JWT]].
+  3. **Administración de dos niveles**: dueño (access-token) gestiona todo; sub-admin (JWT) solo sus dispositivos. Panel web `/admin` + CLI + desktop remoto. Cookies aportables desde el desktop. Ver [[Administracion-Dispositivos]].
+  4. **Cookies propias por usuario**: cifradas (AES-256-GCM, `RITMIQ_COOKIES_KEY`); vía subida `cookies.txt`, login noVNC ([[Login-noVNC]]) o aporte del desktop.
+  5. **Servidor como host primario** (modo `auto`): el cliente prioriza el servidor 24/7 (donde vive el caché) sobre el desktop. Modo `prefer-desktop` para lo contrario. Ver [[Multi-Endpoint-y-Seleccion-Host]].
+- **Consecuencias**: uso 24/7 sin desktop; multi-cuenta seguro; caché centralizado en el servidor. Coste: nueva superficie de despliegue (Docker) y el túnel `ritmiq.org` movido al servidor. Verificado: tests JWT/devices + E2E Docker + smoke en prod.
+
+## ADR-032 — Sacar yt-dlp del camino crítico (caché + prewarm)
+
+- **Contexto**: buscar→sonar tardaba ~8s. Medido: search ~2.2s + resolve cold ~3.2s + túnel. El coste es **lanzar un proceso yt-dlp nuevo** por búsqueda/play (round-trips a YouTube). No es el runtime Deno ni el signature solving (medidos iguales). InnerTube directo por HTTP es 8x más rápido pero ya no da URLs usables (PO tokens).
+- **Decisión** (Fases A-D): como no se puede reemplazar yt-dlp, se le saca del camino crítico:
+  1. **Caché de búsqueda por query** en `/yt/search` (TTL 10min) → repetida ~0.001s.
+  2. **Prewarm** de los primeros resultados; el top-1 con `&download=1` (descarga el m4a completo, play instantáneo permanente).
+  3. **Concurrencia adaptativa** (`RITMIQ_YTDLP_CONCURRENCY`, cores/2 acotado 3-8) para prewarms en paralelo.
+  4. **Fix** `resolveCached(dlOpts)`: el streaming usa las cookies del solicitante en cache-miss.
+  5. **Warm-up del túnel** del servidor en `visibilitychange`.
+  6. **Migración** del caché de archivos del desktop al servidor (`import-shared-cache.js`).
+- **Consecuencias** (vía túnel): search cache HIT ~0.8s, play tras prewarm ~0.9s, archivo cacheado ~0.8s (dominado por el túnel, ya no por yt-dlp). Ver [[Cache-y-Rendimiento]].
+
+## ADR-033 — Búsqueda persistente + paginación real ("Ver más")
+
+- **Contexto**: al navegar fuera de la búsqueda y volver, se perdía el estado (tab/scroll); SearchView se remontaba (el `key` incluía la query). La sección "Canciones" mostraba solo 5 videos (límite Edge) y dedupe agresivo dejaba 2-3 visibles.
+- **Decisión**:
+  1. **`key` estable** `'search'` en `App.jsx` → no remonta entre queries ni al volver. Tab y scroll suben al store `search.js` (persisten). Botón X = limpiar búsqueda completa (única forma de borrarla). Ver [[SearchView]].
+  2. **Más variedad**: Edge `type=all` 5→12 por tipo; tab dedicado carga max=30.
+  3. **Paginación real** con continuation tokens de InnerTube (`search-youtube` extrae y reenvía el token); botón "Ver más" hace append con dedupe. Ver [[search-youtube]].
+  4. Tab "Canciones" **no oculta duplicados**: los marca con badge ("En biblioteca"/"Conocida en Ritmiq").
+- **Consecuencias**: buscar deja de ser estresante (persiste, más resultados, "Ver más"). Verificado: 3 páginas → 57 videos únicos, 0 duplicados; builds verdes.
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

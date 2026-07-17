@@ -3,18 +3,19 @@ tipo: arquitectura
 capa: meta
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-07-17
 archivo: README.md
-tags: [arquitectura, vision]
+tags: [arquitectura, vision, servidor]
 ---
 
 # Visión General
 
-Ritmiq es un reproductor de música personal multiplataforma con tres pilares:
+Ritmiq es un reproductor de música personal multiplataforma con cuatro pilares:
 
 1. **Cliente Desktop** (Electron) — fuente de verdad local, baja a YouTube con `yt-dlp` y sirve audio a la PWA por LAN.
 2. **Cliente PWA** (iOS / Android) — reutiliza la UI de `@ritmiq/ui` y consume audio del Desktop (LAN) o de Supabase Edge Functions.
 3. **Backend Supabase** — auth, sync de biblioteca, social, recomendaciones, Edge Functions para resolver streams.
+4. **Servidor Headless 24/7** — el LAN server corriendo sin Electron en un servidor casero (Docker), host **primario** por defecto. Comparte la lógica con el desktop vía `@ritmiq/server-core`. Ver [[11-Servidor-Headless/README|Servidor Headless]].
 
 ## Diagrama alto nivel
 

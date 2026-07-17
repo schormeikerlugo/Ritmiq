@@ -3,13 +3,13 @@ tipo: moc
 capa: meta
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-28
+ultima-revision: 2026-07-17
 tags: [moc, raiz]
 ---
 
 # MOC — Ritmiq
 
-> Mapa raíz de la documentación. **~215 notas** cubren todo el código del repo (actualizado tras Fases 0-5 y 7).
+> Mapa raíz de la documentación. **~225 notas** cubren todo el código del repo (actualizado tras Fases 0-7 + servidor headless 24/7 y optimización de búsqueda).
 
 ## Submapas
 
@@ -17,7 +17,8 @@ tags: [moc, raiz]
 - [[MOC - PWA]] — 7 notas: bootstrap, manifest, Service Worker, push, splash iOS, `/api/mark-installed`, Edge Middleware OG.
 - [[MOC - UI Compartida]] — 115 notas: 47 componentes + 2 primitives + 19 hooks + 28 helpers + 19 stores.
 - [[MOC - Backend Supabase]] — 35 notas: 19 Edge Functions + 16 tablas + índice migraciones.
-- [[MOC - Flujos]] — 12 flujos end-to-end con Mermaid.
+- [[MOC - Flujos]] — 13 flujos end-to-end con Mermaid.
+- [[11-Servidor-Headless/README|Servidor Headless 24/7]] — 8 notas: server-core, apps/server, JWT, admin de dispositivos, login noVNC, caché/rendimiento, multi-endpoint.
 
 ## Arquitectura
 
@@ -25,7 +26,7 @@ tags: [moc, raiz]
 - [[Monorepo-y-Workspaces]] — pnpm + Turbo.
 - [[Variables-de-Entorno]].
 - [[Build-y-Deploy]].
-- [[Decisiones-Tecnicas-ADR]] — **18 ADRs** (11 nuevos en Fases 0-7: motion engine, CoverArt, ListView virt, withRetry, crossfade simulado, EQ curve aproximada, HTML5 drag, lazy WebAudio, code-splitting React.lazy, container queries, Playwright E2E).
+- [[Decisiones-Tecnicas-ADR]] — **33 ADRs** (últimos: ADR-031 servidor headless + JWT, ADR-032 caché/prewarm fuera del camino crítico, ADR-033 búsqueda persistente + "Ver más").
 - [[Sistema-Motion]] — fundación visual (tokens + GSAP + reduced-motion).
 - [[Code-Splitting]] — estrategia de chunks lazy en la PWA.
 - [[Cron-Jobs]] — pg_cron diarios para mantenimiento de `artist_tags` y `recommendation_cache`.
@@ -48,7 +49,8 @@ tags: [moc, raiz]
 | UI Stores Zustand | `04-UI/Stores-Zustand/` | 19 |
 | Supabase Edge Functions | `09-Supabase-Backend/Edge-Functions/` | 19 |
 | Supabase Tablas | `09-Supabase-Backend/Tablas/` | 16 |
-| Flujos end-to-end | `10-Flujos/` | 12 |
+| Flujos end-to-end | `10-Flujos/` | 13 |
+| Servidor Headless 24/7 | `11-Servidor-Headless/` | 8 |
 | MOCs + meta | `00-Index/` + `01-Arquitectura/` + `99-Mantenimiento/` | 15 |
 
 ## Apoyo
