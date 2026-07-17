@@ -261,11 +261,40 @@ export async function autoDetectLanFromHost() {
 }
 
 /**
- * Resuelve el base URL preferido (LAN local sync) o nulo. Si necesitas el
- * que efectivamente responde con `pingLan`, usa `getReachableLanBaseUrl`.
+ * Lee el serverMode de forma síncrona desde localStorage (sin importar el
+ * store para evitar ciclos). Default 'auto' = servidor primero.
+ */
+function readServerModeSync() {
+  try {
+    const raw = localStorage.getItem('ritmiq.settings.v1');
+    if (raw) {
+      const mode = JSON.parse(raw).serverMode;
+      if (mode) return mode;
+    }
+  } catch {}
+  return 'auto';
+}
+
+/**
+ * Resuelve el base URL preferido para requests directos (search, prewarm,
+ * shared-cache-check) de forma SÍNCRONA. Alinea la prioridad con el modo de
+ * conexión: por defecto ('auto'/'prefer-server') el SERVIDOR 24/7 va primero,
+ * porque es el host principal donde vive el caché optimizado. En
+ * 'prefer-desktop' prioriza LAN/túnel del desktop.
+ *
+ * Si necesitas el que efectivamente responde con `pingLan`, usa
+ * `getReachableLanBaseUrl` (asíncrono, con health-check).
  */
 function preferredBase() {
-  return getLanBaseUrlSync() || getTunnelUrlSync();
+  const lan = getLanBaseUrlSync();
+  const desktop = getTunnelUrlSync();
+  const server = getServerUrlSync();
+  const mode = readServerModeSync();
+  if (mode === 'prefer-desktop') {
+    return lan || desktop || server || null;
+  }
+  // 'auto' (default), 'prefer-server', 'fastest': servidor primero.
+  return server || lan || desktop || null;
 }
 
 /**

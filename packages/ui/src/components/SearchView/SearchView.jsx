@@ -80,6 +80,13 @@ export function SearchView({ query }) {
     checkSharedCache(videos.map((v) => v.id))
       .then((set) => { if (!cancelled) setCachedSet(set); })
       .catch(() => {});
+    // Prewarm de los primeros resultados contra el host activo (servidor
+    // 24/7 por defecto). La vista de búsqueda completa va a la Edge y no
+    // prewarmaba; esto pre-resuelve el stream para que el play arranque al
+    // instante (cache HIT) en vez de esperar ~3s a yt-dlp.
+    for (const v of videos.slice(0, 5)) {
+      if (v?.id) prewarmStream(v.id);
+    }
     return () => { cancelled = true; };
   }, [videos]);
 

@@ -6,7 +6,7 @@
  */
 
 import { supabase } from './supabase.js';
-import { lanSearch, lanMetadata, getLanBaseUrlSync, getTunnelUrlSync } from './lan-client.js';
+import { lanSearch, lanMetadata, getLanBaseUrlSync, getTunnelUrlSync, getServerUrlSync } from './lan-client.js';
 import { randomId } from './id.js';
 import { rewriteHost } from './url-rewrite.js';
 import { cleanYoutubeTitle, cleanUploader } from '@ritmiq/core';
@@ -101,9 +101,9 @@ const webApi = {
     //    3 primeros resultados, así el play() empieza al instante. Si solo
     //    miramos LAN local, el móvil fuera de casa cae a Edge sin prewarm
     //    y la primera reproducción tarda 5-10s extra.
-    if (getLanBaseUrlSync() || getTunnelUrlSync()) {
+    if (getLanBaseUrlSync() || getTunnelUrlSync() || getServerUrlSync()) {
       try { return await lanSearch(q); } catch (err) {
-        console.warn('[api.ytSearch] LAN/Tunnel falló, intentando Edge Function', err);
+        console.warn('[api.ytSearch] LAN/Tunnel/Server falló, intentando Edge Function', err);
       }
     }
     // 2) Fallback a Edge Function search-youtube.
