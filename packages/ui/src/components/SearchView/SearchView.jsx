@@ -9,7 +9,7 @@
  * Click en artista → navega a `goArtist(name)`.
  * Click en playlist → navega a YtPlaylistView via `goYtPlaylist(id)`.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useSearchStore } from '../../stores/search.js';
 import { useLibraryStore } from '../../stores/library.js';
 import { useViewStore } from '../../stores/view.js';
@@ -47,7 +47,9 @@ export function SearchView({ query }) {
   const goYtPlaylist = useViewStore((s) => s.goYtPlaylist);
   const libraryTracks = useLibraryStore((s) => s.tracks);
 
-  const [tab, setTab] = useState('all');
+  // Tab activo en el STORE para que persista al navegar fuera y volver.
+  const tab = useSearchStore((s) => s.activeTab);
+  const setTab = useSearchStore((s) => s.setActiveTab);
   const [cachedSet, setCachedSet] = useState(/** @type {Set<string>} */ (new Set()));
   const [inputValue, setInputValue] = useState(query ?? '');
 
@@ -56,6 +58,49 @@ export function SearchView({ query }) {
   useEffect(() => {
     if (query) fetchAll(query);
   }, [query, fetchAll]);
+
+  // Al cambiar a una query DISTINTA (búsqueda nueva), reseteamos el scroll
+  // guardado para no aterrizar a mitad de la lista de la búsqueda anterior.
+  // No aplica al volver de otra sección con la misma query (ahí se restaura).
+  const prevQueryRef = useRef(query);
+  useEffect(() => {
+    if (prevQueryRef.current !== query) {
+      prevQueryRef.current = query;
+      useSearchStore.getState().setScrollTop(0);
+      const el = scrollElRef.current;
+      if (el) el.scrollTop = 0;
+    }
+  }, [query]);
+
+  // Persistencia de scroll: capturamos la posición del contenedor principal
+  // mientras el usuario navega la búsqueda y la restauramos al montar (tras
+  // volver de otra sección). El contenedor real es el <main> de MainView.
+  const scrollElRef = useRef(null);
+  useEffect(() => {
+    const el = document.querySelector('[data-main-scroll]') ||
+               document.querySelector('main');
+    if (!el) return;
+    scrollElRef.current = el;
+    // Restaurar la posición guardada (si volvemos a la búsqueda).
+    const saved = useSearchStore.getState().scrollTop;
+    if (saved > 0) {
+      // rAF para asegurar que el contenido ya está pintado antes de saltar.
+      requestAnimationFrame(() => { try { el.scrollTop = saved; } catch {} });
+    }
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        useSearchStore.getState().setScrollTop(el.scrollTop);
+      });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
 
   // Submit del input mobile: lanza goSearch (que pushea a history view stack
   // y dispara fetchAll en el useEffect siguiente).
@@ -208,7 +253,13 @@ export function SearchView({ query }) {
           <button
             type="button"
             className={styles.searchClear}
-            onClick={() => { setInputValue(''); if (query) useViewStore.getState().goSearchView(); }}
+            onClick={() => {
+              // Limpiar búsqueda por completo: input + resultados + tab + scroll.
+              // Es la ÚNICA forma de borrar la búsqueda (persiste al navegar).
+              setInputValue('');
+              useSearchStore.getState().reset();
+              useViewStore.getState().goSearchView();
+            }}
             aria-label="Limpiar"
           ><Icon name="X" size={16} /></button>
         )}

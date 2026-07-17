@@ -575,7 +575,7 @@ export function App() {
       <header className={styles.topbar}>
         <TopBar />
       </header>
-      <main className={styles.main} data-view={viewKind}>
+      <main className={styles.main} data-view={viewKind} data-main-scroll>
         <MainView />
       </main>
       <aside className={styles.queue}>
@@ -664,7 +664,11 @@ function MainView() {
   let key = view.kind;
   if (view.kind === 'playlist') key = `playlist:${view.playlistId}`;
   else if (view.kind === 'ytPlaylist') key = `ytPlaylist:${view.ytPlaylistId}`;
-  else if (view.kind === 'search') key = `search:${view.query}`;
+  // Search usa key ESTABLE (sin la query): así SearchView NO se remonta al
+  // cambiar de query ni al volver de otra sección. La búsqueda (query,
+  // resultados, tab, scroll) persiste hasta que el usuario la limpia. El
+  // refetch al cambiar query lo maneja el useEffect [query] interno.
+  else if (view.kind === 'search') key = 'search';
   else if (view.kind === 'artist') key = `artist:${view.name}`;
   else if (view.kind === 'album') key = `album:${view.artist}::${view.album}`;
 
@@ -679,6 +683,9 @@ function MainView() {
   // headers son sticky-like. Buscamos cualquier elemento con el atributo
   // data-scroll-reset='true' dentro del slot recien renderizado.
   useEffect(() => {
+    // La vista de búsqueda restaura su propia posición de scroll (persistencia
+    // hasta que el usuario limpia). No la forzamos a 0 aquí.
+    if (view.kind === 'search') return;
     const main = document.querySelector(`.${styles.main}`);
     if (main && main.scrollTop > 0) {
       // scrollTop = 0 directo (en vez de scrollTo({behavior:'instant'}))

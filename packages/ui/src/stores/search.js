@@ -28,6 +28,18 @@ export const useSearchStore = create((set, get) => ({
   loading: false,
   error: null,
 
+  // ── Estado de UI persistente (sobrevive a navegar fuera y volver) ────
+  // Antes vivían como useState local en SearchView y se perdían al
+  // remontar. Al subirlos al store, la búsqueda queda intacta hasta que
+  // el usuario la limpia con el botón (reset()).
+  /** @type {'all'|'videos'|'channels'|'playlists'} */
+  activeTab: 'all',
+  /** Posición de scroll del contenedor principal en la vista de búsqueda. */
+  scrollTop: 0,
+
+  setActiveTab(tab) { set({ activeTab: tab }); },
+  setScrollTop(y) { set({ scrollTop: y }); },
+
   /**
    * Carga resultados multi-tipo. Reusa cache de sesión si la query coincide.
    * @param {string} q
@@ -71,6 +83,9 @@ export const useSearchStore = create((set, get) => ({
   },
 
   reset() {
-    set({ query: '', videos: [], channels: [], playlists: [], known: [], loading: false, error: null });
+    set({
+      query: '', videos: [], channels: [], playlists: [], known: [],
+      loading: false, error: null, activeTab: 'all', scrollTop: 0,
+    });
   },
 }));
