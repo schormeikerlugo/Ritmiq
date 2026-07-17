@@ -186,6 +186,24 @@ JWT de Supabase.
 > verificado + aprobación del dueño**. El desktop es la vía cómoda para aprobar
 > y aportar cookies.
 
+## Rendimiento: caché y prewarm
+
+El servidor minimiza el tiempo de respuesta sacando yt-dlp del camino crítico:
+
+- **Caché de búsqueda** por query (TTL 10min): una búsqueda repetida responde
+  en ~1ms en vez de ~2s.
+- **Prewarm**: al mostrar resultados, el servidor pre-resuelve los primeros
+  streams. `/yt/prewarm?q=<ytId>` resuelve la URL; `&download=1` descarga el
+  m4a completo a `shared-audio/` (permanente, se sirve en ~1ms y no expira).
+- **Caché de URLs** en memoria (TTL 30min) + caché de **archivos** (`shared_audio`).
+- **Concurrencia adaptativa** (`RITMIQ_YTDLP_CONCURRENCY`): prewarms en paralelo.
+
+Los clientes usan el **servidor 24/7 como host primario** por defecto (modo de
+conexión "Servidor 24/7"); "Mi PC" prioriza el desktop en la misma red.
+
+Medido (vía túnel): search cache HIT ~0.8s, play tras prewarm ~0.9s, archivo
+cacheado ~0.8s (dominado por el round-trip del túnel, ya no por yt-dlp).
+
 ## Migrar el caché de archivos del desktop al servidor
 
 El caché de audio (`shared-audio/`) es **local a cada host**: lo que descarga el
