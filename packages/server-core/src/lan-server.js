@@ -653,6 +653,37 @@ export async function startLanServer({
     return promise;
   }
 
+  // ── Cola de descarga anticipada (prewarm con download=1, Fase D1) ───
+  // Descargar el m4a completo es más pesado que resolver una URL, así que
+  // usamos una cola dedicada de baja concurrencia. Convierte plays futuros en
+  // instantáneos y permanentes (el archivo no expira como la URL de 30min).
+  const PREWARM_DL_CONCURRENCY = (() => {
+    let cores = 4;
+    try { cores = cpus().length || 4; } catch {}
+    return Math.max(1, Math.min(3, Math.floor(cores / 6)));
+  })();
+  let prewarmDlRunning = 0;
+  const prewarmDlQueue = [];
+  const prewarmDlSeen = new Set(); // dedupe: no encolar el mismo ytId dos veces
+  function pumpPrewarmDl() {
+    while (prewarmDlRunning < PREWARM_DL_CONCURRENCY && prewarmDlQueue.length > 0) {
+      const { ytId, dlOpts } = prewarmDlQueue.shift();
+      prewarmDlRunning++;
+      downloadSharedAudio(ytId, dlOpts)
+        .catch((e) => console.warn(`[lan-server] prewarm-download ${ytId} falló: ${e?.message ?? e}`))
+        .finally(() => { prewarmDlRunning--; prewarmDlSeen.delete(ytId); pumpPrewarmDl(); });
+    }
+  }
+  function schedulePrewarmDownload(ytId, dlOpts) {
+    if (!ytId) return;
+    // Ya cacheado en disco → nada que hacer.
+    if (findSharedAudio(db, ytId)) return;
+    if (prewarmDlSeen.has(ytId)) return;
+    prewarmDlSeen.add(ytId);
+    prewarmDlQueue.push({ ytId, dlOpts });
+    pumpPrewarmDl();
+  }
+
   // Cache en memoria de URLs de stream resueltas por yt-dlp.
   // Las URLs de googlevideo expiran a las ~6h; cacheamos 30 minutos para
   // estar muy holgados. Resolver yt-dlp tarda 1-3s (con ios player_client),
@@ -1289,10 +1320,20 @@ export async function startLanServer({
       // Permite al cliente "calentar" el cache antes de pulsar play.
       // Prioridad MEDIA — el usuario ya mostró intención (touch/hover sobre
       // el resultado), pero todavía no es un stream comprometido.
+      //
+      // `&download=1` (Fase D1): además de resolver la URL, DESCARGA el m4a
+      // completo a shared-audio/ en background. Ventaja: el archivo no expira
+      // (la URL sí, a los 30min) y se sirve en ~4ms permanentemente. Se hace
+      // con baja concurrencia para no saturar disco/red.
       if (url.pathname === '/yt/prewarm') {
         const ytId = url.searchParams.get('q');
         if (!ytId) { res.writeHead(400).end('q required'); return; }
-        resolveCached(ytId, 5).catch(() => {});
+        const wantDownload = url.searchParams.get('download') === '1';
+        if (wantDownload) {
+          schedulePrewarmDownload(ytId, ytOptsFor(principal));
+        } else {
+          resolveCached(ytId, 5).catch(() => {});
+        }
         res.writeHead(204).end();
         return;
       }

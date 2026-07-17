@@ -345,14 +345,22 @@ export function lanStreamUrl(trackId) {
  */
 const prewarmedAt = new Map();
 const PREWARM_DEDUP_MS = 5 * 60 * 1000;
-export function prewarmStream(ytId) {
+/**
+ * @param {string} ytId
+ * @param {{ download?: boolean }} [opts]  download=true descarga el m4a
+ *   completo en el servidor (permanente, play instantáneo). Úsalo solo para
+ *   el resultado más probable (top-1) para no saturar disco/red.
+ */
+export function prewarmStream(ytId, opts = {}) {
   const base = preferredBase();
   if (!base || !ytId) return;
   const now = Date.now();
-  const last = prewarmedAt.get(ytId);
+  const dedupKey = opts.download ? `dl:${ytId}` : ytId;
+  const last = prewarmedAt.get(dedupKey);
   if (last && now - last < PREWARM_DEDUP_MS) return;
-  prewarmedAt.set(ytId, now);
-  fetch(`${base}/yt/prewarm?q=${encodeURIComponent(ytId)}`, {
+  prewarmedAt.set(dedupKey, now);
+  const dl = opts.download ? '&download=1' : '';
+  fetch(`${base}/yt/prewarm?q=${encodeURIComponent(ytId)}${dl}`, {
     headers: authHeaders(),
   }).catch(() => {});
 }
