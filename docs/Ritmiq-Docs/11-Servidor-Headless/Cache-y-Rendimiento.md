@@ -82,6 +82,21 @@ paralelo sin penalizar el click (que tiene prioridad y salta la cola).
 `startTunnelKeepalive` calienta el túnel del servidor 24/7 (host primario) en
 `visibilitychange`, evitando el cold-start (~1-3s) del primer play.
 
+## Cookies del owner en el servidor
+
+El servidor headless no tiene navegador, así que usa un **archivo de cookies
+Netscape** (`RITMIQ_YTDLP_COOKIES_FILE`) como cookies del owner (fallback para
+usuarios sin cookies propias). Mejora fiabilidad (evita bot-checks) y da acceso a
+contenido ligado a la cuenta.
+
+- Origen: el cookies file cacheado por el **desktop** (Firefox logueado en
+  YouTube), en `/tmp/ritmiq-yt-cookies.txt`. Se transfiere al volumen del
+  servidor como `/data/owner-cookies.txt` (chmod 600) y se apunta la variable.
+- **Nunca se commitea** (es un secreto). Regenerar cuando caduquen: exportar de
+  nuevo desde el navegador (`--cookies-from-browser firefox --cookies <file>`) y
+  re-copiar al volumen.
+- Log de arranque: `[lan-server] yt-dlp cookies file (env): /data/owner-cookies.txt`.
+
 ## Migración del caché desktop → servidor
 
 `apps/server/src/import-shared-cache.js`: escanea `shared-audio/` y registra cada
