@@ -437,16 +437,21 @@ export function startTunnelKeepalive() {
   let stopped = false;
   const tick = async () => {
     if (stopped) return;
+    // Calienta el host que se usará realmente. Con 'auto' (default) el host
+    // primario es el SERVIDOR 24/7 vía túnel; también calienta el túnel del
+    // desktop si está. LAN local no necesita keep-alive.
+    const server = getServerUrlSync();
     const tunnel = getTunnelUrlSync();
-    // Solo si tunnel existe Y no estamos en LAN local (LAN ya es rápida).
-    if (tunnel && !getLanBaseUrlSync()) {
-      try {
-        await fetch(`${tunnel.replace(/\/$/, '')}/health`, {
-          headers: authHeaders(),
-          cache: 'no-store',
-        });
-      } catch { /* ignorar — solo es keep-alive */ }
-    }
+    const onLan = !!getLanBaseUrlSync();
+    const targets = [];
+    if (server) targets.push(server);
+    if (tunnel && !onLan) targets.push(tunnel);
+    await Promise.all(targets.map((base) =>
+      fetch(`${base.replace(/\/$/, '')}/health`, {
+        headers: authHeaders(),
+        cache: 'no-store',
+      }).catch(() => {})
+    ));
   };
   // Primer ping inmediato para calentar el túnel al arrancar la PWA.
   tick();

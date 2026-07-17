@@ -10,6 +10,7 @@
  */
 
 import http from 'node:http';
+import { cpus } from 'node:os';
 import { Readable } from 'node:stream';
 import { createReadStream, statSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -683,13 +684,21 @@ export async function startLanServer({
   }
 
   /**
-   * Cola con concurrencia limitada para yt-dlp. CPU contention con muchos
-   * procesos simultáneos hace que un único yt-dlp pase de 2.8s a 7+s.
-   * Subimos a 3 (antes 2): con `cookiesFile` cacheado yt-dlp es más ligero
-   * y permite procesar prewarms en paralelo al click sin contención. Damos
-   * prioridad a streams reales sobre prewarms.
+   * Cola con concurrencia limitada para yt-dlp. En hardware con pocos cores,
+   * demasiados procesos simultáneos hacen que un único yt-dlp pase de 2.8s a
+   * 7+s por contención de CPU. Configurable vía RITMIQ_YTDLP_CONCURRENCY;
+   * default escala con los cores disponibles (mitad de cores, acotado 3-8).
+   * El servidor casero (16 cores) usa 8 → prewarms en paralelo sin penalizar
+   * el click real, que además tiene prioridad y salta la cola.
    */
-  const MAX_CONCURRENT = 3;
+  const MAX_CONCURRENT = (() => {
+    const env = Number(process.env.RITMIQ_YTDLP_CONCURRENCY);
+    if (Number.isFinite(env) && env >= 1) return Math.min(env, 16);
+    let cores = 4;
+    try { cores = cpus().length || 4; } catch {}
+    return Math.max(3, Math.min(8, Math.floor(cores / 2)));
+  })();
+  console.log(`[lan-server] yt-dlp concurrencia máxima: ${MAX_CONCURRENT}`);
   let running = 0;
   /** @type {Array<any>} jobs en cola esperando slot. */
   const waitQueue = [];
