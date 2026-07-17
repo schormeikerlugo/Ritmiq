@@ -663,6 +663,25 @@ export async function startLanServer({
   streamCacheRef = streamCache;
   const TTL_MS = 30 * 60 * 1000;
 
+  // ── Cache de resultados de BÚSQUEDA por query (Fase A2) ─────────────
+  // /yt/search lanza un yt-dlp completo (~2s). Cachear la lista de items por
+  // query normalizada elimina ese coste en búsquedas repetidas (tabs, volver
+  // atrás, misma búsqueda desde varios dispositivos). TTL corto: los
+  // resultados de YouTube son bastante estables a corto plazo.
+  /** @type {Map<string, { items: any[], expiresAt: number, inflight?: Promise<any[]> }>} */
+  const searchCache = new Map();
+  const SEARCH_TTL_MS = 10 * 60 * 1000;
+  const SEARCH_CACHE_MAX = 200;
+  const normalizeQuery = (q) => String(q).trim().toLowerCase().replace(/\s+/g, ' ');
+  function pruneSearchCache() {
+    if (searchCache.size <= SEARCH_CACHE_MAX) return;
+    // Elimina las entradas más antiguas por expiresAt.
+    const entries = [...searchCache.entries()].sort((a, b) => a[1].expiresAt - b[1].expiresAt);
+    for (let i = 0; i < entries.length - SEARCH_CACHE_MAX; i++) {
+      searchCache.delete(entries[i][0]);
+    }
+  }
+
   /**
    * Cola con concurrencia limitada para yt-dlp. CPU contention con muchos
    * procesos simultáneos hace que un único yt-dlp pase de 2.8s a 7+s.
@@ -1213,9 +1232,35 @@ export async function startLanServer({
         const q = url.searchParams.get('q');
         if (!q) { res.writeHead(400).end('q required'); return; }
         const opts = ytOptsFor(principal);
-        // max=15: el PWA aplica dedupe contra la biblioteca local y se
-        // queda con un minimo de 8 visibles aunque haya solapamiento.
-        const items = await search(q, { ...opts, max: 15 });
+        const cacheKey = normalizeQuery(q);
+        const now = Date.now();
+
+        // 1) Cache HIT: resultados vigentes → responder al instante (evita ~2s).
+        let items;
+        const hit = searchCache.get(cacheKey);
+        if (hit && hit.items && hit.expiresAt > now) {
+          items = hit.items;
+        } else if (hit && hit.inflight) {
+          // 2) Misma búsqueda ya en curso → compartir la promesa (dedupe).
+          try { items = await hit.inflight; } catch { items = null; }
+        }
+
+        if (!items) {
+          // 3) MISS: lanzar yt-dlp una sola vez y publicar la promesa inflight.
+          // max=15: el PWA aplica dedupe contra la biblioteca local y se
+          // queda con un minimo de 8 visibles aunque haya solapamiento.
+          const p = search(q, { ...opts, max: 15 });
+          searchCache.set(cacheKey, { items: null, expiresAt: 0, inflight: p });
+          try {
+            items = await p;
+            searchCache.set(cacheKey, { items, expiresAt: Date.now() + SEARCH_TTL_MS });
+            pruneSearchCache();
+          } catch (err) {
+            searchCache.delete(cacheKey);
+            throw err;
+          }
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ items }));
 
@@ -1223,11 +1268,10 @@ export async function startLanServer({
           try { logActivity(db, { deviceId: principal.device_id, action: 'search', meta: { q } }); } catch {}
         }
 
-        // Pre-resolver los stream URLs de los 2 primeros resultados en
-        // background con prioridad BAJA. Reducimos de 3→2 para no saturar
-        // la cola de yt-dlp cuando el usuario hace varias búsquedas seguidas.
-        // El click real será prioridad ALTA y saltará la cola.
-        for (const it of items.slice(0, 2)) {
+        // Pre-resolver los stream URLs de los primeros resultados en
+        // background con prioridad BAJA. El click real será prioridad ALTA
+        // y saltará la cola. (top-N se ajusta en Fase C.)
+        for (const it of items.slice(0, 3)) {
           if (it?.id) resolveCached(it.id, 1).catch(() => {});
         }
         return;

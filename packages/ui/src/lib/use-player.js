@@ -211,13 +211,15 @@ function endpointCandidates() {
 /** Ordena los candidatos según el modo de servidor elegido por el usuario. */
 function orderCandidates(cands, mode) {
   const rank = (c) => {
-    if (mode === 'prefer-server') {
-      // servidor 24/7 primero, luego local/desktop
-      return c.kind === 'server' ? 0 : c.kind === 'lan' ? 1 : 2;
+    if (mode === 'prefer-desktop') {
+      // El usuario elige explícitamente su desktop: LAN local primero, luego
+      // el túnel del desktop, y el servidor 24/7 como respaldo.
+      return c.kind === 'lan' ? 0 : c.kind === 'desktop' ? 1 : 2;
     }
-    // 'auto' (y fallback): desktop local (LAN) primero, luego desktop túnel,
-    // y el servidor 24/7 como respaldo.
-    return c.kind === 'lan' ? 0 : c.kind === 'desktop' ? 1 : 2;
+    // 'auto' (default) y 'prefer-server': el SERVIDOR 24/7 es el host
+    // principal (donde vive el caché optimizado). Va primero; LAN del desktop
+    // y túnel del desktop como respaldo si el servidor no responde.
+    return c.kind === 'server' ? 0 : c.kind === 'lan' ? 1 : 2;
   };
   return cands.slice().sort((a, b) => rank(a) - rank(b));
 }

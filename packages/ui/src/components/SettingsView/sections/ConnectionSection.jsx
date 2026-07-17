@@ -21,8 +21,8 @@ import { LinkButton } from '../controls/LinkButton.jsx';
 import { SegmentedControl } from '../controls/SegmentedControl.jsx';
 
 const MODE_OPTIONS = [
-  { id: 'auto', label: 'Automatico' },
-  { id: 'prefer-server', label: 'Servidor 24/7' },
+  { id: 'auto', label: 'Servidor 24/7' },
+  { id: 'prefer-desktop', label: 'Mi PC' },
   { id: 'fastest', label: 'Mas rapido' },
 ];
 
@@ -79,7 +79,7 @@ export function ConnectionSection() {
       <SettingsGroup title="Servidor de reproduccion">
         <SettingRow
           label="Modo de conexion"
-          description="Elige que servidor resuelve y transmite el audio. Automatico usa tu PC en la misma red y cae al servidor 24/7; 'Mas rapido' compite ambos."
+          description="Elige que host resuelve y transmite el audio. Por defecto usa el 'Servidor 24/7' (mas rapido y siempre disponible); 'Mi PC' prioriza tu desktop en la misma red; 'Mas rapido' compite ambos."
           control={
             <SegmentedControl
               value={serverMode}

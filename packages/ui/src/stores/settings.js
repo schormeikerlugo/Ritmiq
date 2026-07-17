@@ -42,14 +42,15 @@ const DEFAULTS = {
   // Visualizer canvas en NowPlaying. Default OFF para no drenar bateria
   // en mobile; usuario lo activa explicitamente desde NowPlaying.
   visualizerEnabled: false,
-  // Selección de servidor de resolución/stream (Fase 2):
-  //   'auto'          → desktop local primero, servidor 24/7 de respaldo.
-  //   'prefer-server' → servidor 24/7 primero, desktop de respaldo.
-  //   'fastest'       → carrera de pings; gana el primero que responda.
+  // Selección de servidor de resolución/stream (Fase 2 + optimización Fase A):
+  //   'auto'           → servidor 24/7 primero (host principal), desktop/LAN de respaldo.
+  //   'prefer-desktop' → tu desktop (LAN o túnel) primero, servidor 24/7 de respaldo.
+  //   'prefer-server'  → alias de 'auto' (servidor primero). Se mantiene por compat.
+  //   'fastest'        → carrera de pings; gana el primero que responda.
   serverMode: 'auto',
 };
 
-const SERVER_MODES = ['auto', 'prefer-server', 'fastest'];
+const SERVER_MODES = ['auto', 'prefer-desktop', 'prefer-server', 'fastest'];
 
 function readInitial() {
   if (typeof localStorage === 'undefined') return { ...DEFAULTS };
