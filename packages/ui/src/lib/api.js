@@ -39,7 +39,7 @@ const electronApi = isElectron
       // Multi-tipo y por-tipo: pegamos directo a la Edge Function ya que el
       // yt-dlp embebido del desktop solo retorna videos.
       ytSearchAll:             (q) => edgeSearchAll(q),
-      ytSearchByType:          (q, type, max = 20) => edgeSearchByType(q, type, max),
+      ytSearchByType:          (q, type, max = 20, continuation = null) => edgeSearchByType(q, type, max, continuation),
       ytdlpInfo:               () => window.ritmiq.ytdlp.info(),
       ytdlpUpdate:             () => window.ritmiq.ytdlp.update(),
       sharedCacheStats:        () => window.ritmiq.sharedCache.stats(),
@@ -111,7 +111,7 @@ const webApi = {
   },
 
   ytSearchAll: (q) => edgeSearchAll(q),
-  ytSearchByType: (q, type, max = 20) => edgeSearchByType(q, type, max),
+  ytSearchByType: (q, type, max = 20, continuation = null) => edgeSearchByType(q, type, max, continuation),
 
   ytMetadata: async (q) => {
     if (getLanBaseUrlSync() || getTunnelUrlSync()) {
@@ -277,15 +277,18 @@ async function edgeSearchAll(q) {
 }
 
 /**
- * Búsqueda paginada por tipo específico.
+ * Búsqueda por tipo específico, con paginación opcional vía continuation token.
  * @param {string} q
  * @param {'videos'|'channels'|'playlists'} type
  * @param {number} [max=20]
+ * @param {string|null} [continuation]  Token de la página anterior (Ver más).
+ * @returns {Promise<{ items: any[], continuation: string|null }>}
  */
-async function edgeSearchByType(q, type, max = 20) {
+async function edgeSearchByType(q, type, max = 20, continuation = null) {
   const base = import.meta.env.VITE_SUPABASE_URL;
   if (!base) throw new Error('Sin Supabase configurado');
-  const url = `${base}/functions/v1/search-youtube?q=${encodeURIComponent(q)}&type=${type}&max=${max}`;
+  let url = `${base}/functions/v1/search-youtube?q=${encodeURIComponent(q)}&type=${type}&max=${max}`;
+  if (continuation) url += `&continuation=${encodeURIComponent(continuation)}`;
   const r = await fetch(url, { headers: await edgeAuthHeaders() });
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));

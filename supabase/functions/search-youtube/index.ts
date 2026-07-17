@@ -105,14 +105,24 @@ function parseVideoCount(text: string | undefined | null): number | null {
   return parseInt(m[1].replace(/[,.]/g, ''), 10);
 }
 
-async function callInnertube(query: string, params: string | null): Promise<any> {
+async function callInnertube(
+  query: string,
+  params: string | null,
+  continuation: string | null = null,
+): Promise<any> {
   const body: any = {
     context: {
       client: { clientName: 'WEB', clientVersion: '2.20240115.05.00', hl: 'en', gl: 'US' },
     },
-    query,
   };
-  if (params) body.params = params;
+  // Paginación: si viene un continuation token, YouTube ignora query/params
+  // y devuelve la siguiente página de resultados.
+  if (continuation) {
+    body.continuation = continuation;
+  } else {
+    body.query = query;
+    if (params) body.params = params;
+  }
   const res = await fetch(`${INNERTUBE_URL}&key=${INNERTUBE_KEY}`, {
     method: 'POST',
     headers: {
@@ -127,17 +137,39 @@ async function callInnertube(query: string, params: string | null): Promise<any>
   return res.json();
 }
 
-/** Itera secciones de search.contents.* y extrae renderers de cada tipo. */
+/** Itera secciones de search.contents.* y extrae renderers de cada tipo.
+ *  Soporta tanto la primera página (twoColumnSearchResultsRenderer) como las
+ *  páginas de continuación (onResponseReceivedCommands). Devuelve además el
+ *  `continuation` token para pedir la siguiente página. */
 function extractItems(data: any) {
   const videos: VideoItem[] = [];
   const channels: ChannelItem[] = [];
   const playlists: PlaylistItem[] = [];
-  const sections =
+  let continuation: string | null = null;
+
+  // Primera página: sectionListRenderer.contents. Continuación:
+  // onResponseReceivedCommands[].appendContinuationItemsAction.continuationItems.
+  const firstPage =
     data?.contents?.twoColumnSearchResultsRenderer?.primaryContents
-      ?.sectionListRenderer?.contents ?? [];
+      ?.sectionListRenderer?.contents ?? null;
+  const contItems =
+    data?.onResponseReceivedCommands?.[0]?.appendContinuationItemsAction
+      ?.continuationItems ?? null;
+  const sections = firstPage ?? contItems ?? [];
 
   for (const section of sections) {
-    const contents = section?.itemSectionRenderer?.contents ?? [];
+    // En continuación, los items pueden venir directos (sin itemSectionRenderer)
+    // o dentro de itemSectionRenderer. También aparece un continuationItemRenderer.
+    if (section?.continuationItemRenderer) {
+      continuation =
+        section.continuationItemRenderer?.continuationEndpoint
+          ?.continuationCommand?.token ?? continuation;
+      continue;
+    }
+    const contents = section?.itemSectionRenderer?.contents ??
+      (section?.videoRenderer || section?.channelRenderer || section?.playlistRenderer
+        ? [section]
+        : []);
     for (const it of contents) {
       if (it?.videoRenderer) {
         const v = it.videoRenderer;
@@ -203,28 +235,38 @@ function extractItems(data: any) {
       // radioRenderer y showRenderer ignorados por ahora.
     }
   }
-  return { videos, channels, playlists };
+  return { videos, channels, playlists, continuation };
 }
 
-async function searchOneType(query: string, type: keyof typeof TYPE_PARAMS, max: number) {
-  const data = await callInnertube(query, TYPE_PARAMS[type]);
-  const { videos, channels, playlists } = extractItems(data);
-  if (type === 'videos') return { items: videos.slice(0, max) };
-  if (type === 'channels') return { items: channels.slice(0, max) };
-  return { items: playlists.slice(0, max) };
+async function searchOneType(
+  query: string,
+  type: keyof typeof TYPE_PARAMS,
+  max: number,
+  continuation: string | null = null,
+) {
+  const data = await callInnertube(query, TYPE_PARAMS[type], continuation);
+  const extracted = extractItems(data);
+  const items =
+    type === 'videos' ? extracted.videos
+    : type === 'channels' ? extracted.channels
+    : extracted.playlists;
+  return { items: items.slice(0, max), continuation: extracted.continuation };
 }
 
 async function searchAll(query: string, perType: number) {
-  // 3 búsquedas paralelas, una por tipo.
+  // 3 búsquedas paralelas, una por tipo. Guardamos el continuation de videos
+  // para permitir "Ver más" en el tab de canciones sin re-buscar.
   const [videosRes, channelsRes, playlistsRes] = await Promise.allSettled([
-    callInnertube(query, TYPE_PARAMS.videos).then((d) => extractItems(d).videos.slice(0, perType)),
+    callInnertube(query, TYPE_PARAMS.videos).then((d) => extractItems(d)),
     callInnertube(query, TYPE_PARAMS.channels).then((d) => extractItems(d).channels.slice(0, perType)),
     callInnertube(query, TYPE_PARAMS.playlists).then((d) => extractItems(d).playlists.slice(0, perType)),
   ]);
+  const videosData = videosRes.status === 'fulfilled' ? videosRes.value : { videos: [], continuation: null };
   return {
-    videos:   videosRes.status === 'fulfilled' ? videosRes.value : [],
+    videos:   videosData.videos.slice(0, perType),
     channels: channelsRes.status === 'fulfilled' ? channelsRes.value : [],
     playlists: playlistsRes.status === 'fulfilled' ? playlistsRes.value : [],
+    videosContinuation: videosData.continuation ?? null,
   };
 }
 
@@ -278,9 +320,26 @@ serve(async (req) => {
   const url = new URL(req.url);
   const query = url.searchParams.get('q') ?? '';
   const type = (url.searchParams.get('type') ?? 'videos').toLowerCase();
-  const max = Math.min(30, Math.max(1, parseInt(url.searchParams.get('max') ?? '12', 10)));
+  const max = Math.min(40, Math.max(1, parseInt(url.searchParams.get('max') ?? '12', 10)));
+  // Paginación: token de continuación de InnerTube para "Ver más".
+  const continuation = url.searchParams.get('continuation');
   // Flag opcional para deshabilitar known lookup (debugging / A/B testing).
   const includeKnown = url.searchParams.get('known') !== '0';
+
+  // Petición de paginación: solo tiene sentido para un tipo concreto.
+  if (continuation && type in TYPE_PARAMS) {
+    try {
+      const oneRes = await searchOneType(query, type as keyof typeof TYPE_PARAMS, max, continuation);
+      return new Response(JSON.stringify({ ...oneRes, known: [] }), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      });
+    } catch (err) {
+      console.error('[search-youtube] continuation', err);
+      return new Response(JSON.stringify({ items: [], continuation: null }), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      });
+    }
+  }
 
   if (!query.trim()) {
     return new Response(JSON.stringify({ error: 'q required' }), {
@@ -298,7 +357,9 @@ serve(async (req) => {
 
     let payload: any;
     if (type === 'all') {
-      const [allRes, known] = await Promise.all([searchAll(query, 5), knownP]);
+      // 12 por tipo (antes 5): InnerTube ya los devuelve, sin coste extra.
+      // La UI muestra 5 en el resumen "Todo" y el resto en el tab dedicado.
+      const [allRes, known] = await Promise.all([searchAll(query, 12), knownP]);
       payload = { ...allRes, known };
     } else if (type in TYPE_PARAMS) {
       const [oneRes, known] = await Promise.all([

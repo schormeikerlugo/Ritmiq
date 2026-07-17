@@ -27,6 +27,12 @@ export const useSearchStore = create((set, get) => ({
   known: [],
   loading: false,
   error: null,
+  /** Token de continuación para "Ver más" videos (null = no hay más). */
+  videosContinuation: null,
+  /** True mientras se cargan más videos (botón Ver más). */
+  loadingMore: false,
+  /** Marca si el tab dedicado ya cargó su versión ampliada (max=30). */
+  expandedTabs: /** @type {Set<string>} */ (new Set()),
 
   // ── Estado de UI persistente (sobrevive a navegar fuera y volver) ────
   // Antes vivían como useState local en SearchView y se perdían al
@@ -48,7 +54,8 @@ export const useSearchStore = create((set, get) => ({
     const query = String(q ?? '').trim();
     if (!query) return;
     if (get().query === query && get().videos.length > 0) return;
-    set({ query, loading: true, error: null });
+    // Nueva búsqueda: resetea el estado de paginación.
+    set({ query, loading: true, error: null, videosContinuation: null, expandedTabs: new Set() });
     try {
       const payload = await api.ytSearchAll(query);
       set({
@@ -56,6 +63,7 @@ export const useSearchStore = create((set, get) => ({
         channels: payload?.channels ?? [],
         playlists: payload?.playlists ?? [],
         known: payload?.known ?? [],
+        videosContinuation: payload?.videosContinuation ?? null,
         loading: false,
       });
     } catch (err) {
@@ -64,21 +72,52 @@ export const useSearchStore = create((set, get) => ({
     }
   },
 
-  /** Carga más resultados de un tipo específico (paginación simple). */
+  /**
+   * Al abrir un tab dedicado, carga una versión AMPLIADA (max=30) de ese tipo
+   * (reemplaza los ~12 del fetchAll). Idempotente por tab: solo la primera vez.
+   * @param {'videos'|'channels'|'playlists'} type
+   */
   async fetchMore(type) {
-    const { query } = get();
-    if (!query) return;
-    set({ loading: true });
+    const { query, expandedTabs } = get();
+    if (!query || expandedTabs.has(type)) return;
+    set({ loadingMore: true });
     try {
-      const r = await api.ytSearchByType(query, type, 20);
+      const r = await api.ytSearchByType(query, type, 30);
       const items = r?.items ?? [];
-      if (type === 'videos') set({ videos: items });
-      else if (type === 'channels') set({ channels: items });
-      else if (type === 'playlists') set({ playlists: items });
-      set({ loading: false });
+      const next = new Set(expandedTabs); next.add(type);
+      if (type === 'videos') {
+        set({ videos: items, videosContinuation: r?.continuation ?? null, expandedTabs: next });
+      } else if (type === 'channels') {
+        set({ channels: items, expandedTabs: next });
+      } else if (type === 'playlists') {
+        set({ playlists: items, expandedTabs: next });
+      }
+      set({ loadingMore: false });
     } catch (err) {
       console.warn('[search] fetchMore', type, err?.message);
-      set({ loading: false });
+      set({ loadingMore: false });
+    }
+  },
+
+  /** Botón "Ver más": añade la siguiente página de videos (append). */
+  async loadMoreVideos() {
+    const { query, videosContinuation, videos, loadingMore } = get();
+    if (!query || !videosContinuation || loadingMore) return;
+    set({ loadingMore: true });
+    try {
+      const r = await api.ytSearchByType(query, 'videos', 30, videosContinuation);
+      const more = r?.items ?? [];
+      // Dedupe por id para no repetir videos entre páginas.
+      const seen = new Set(videos.map((v) => v.id));
+      const fresh = more.filter((v) => v?.id && !seen.has(v.id));
+      set({
+        videos: [...videos, ...fresh],
+        videosContinuation: r?.continuation ?? null,
+        loadingMore: false,
+      });
+    } catch (err) {
+      console.warn('[search] loadMoreVideos', err?.message);
+      set({ loadingMore: false });
     }
   },
 
@@ -86,6 +125,7 @@ export const useSearchStore = create((set, get) => ({
     set({
       query: '', videos: [], channels: [], playlists: [], known: [],
       loading: false, error: null, activeTab: 'all', scrollTop: 0,
+      videosContinuation: null, loadingMore: false, expandedTabs: new Set(),
     });
   },
 }));

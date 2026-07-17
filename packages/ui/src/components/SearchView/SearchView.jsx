@@ -50,8 +50,21 @@ export function SearchView({ query }) {
   // Tab activo en el STORE para que persista al navegar fuera y volver.
   const tab = useSearchStore((s) => s.activeTab);
   const setTab = useSearchStore((s) => s.setActiveTab);
+  const fetchMore = useSearchStore((s) => s.fetchMore);
+  const loadMoreVideos = useSearchStore((s) => s.loadMoreVideos);
+  const videosContinuation = useSearchStore((s) => s.videosContinuation);
+  const loadingMore = useSearchStore((s) => s.loadingMore);
   const [cachedSet, setCachedSet] = useState(/** @type {Set<string>} */ (new Set()));
   const [inputValue, setInputValue] = useState(query ?? '');
+
+  // Al abrir un tab dedicado (Canciones/Artistas/Playlists), cargar la
+  // versión ampliada (max=30) una sola vez. En "Todo" no aplica.
+  useEffect(() => {
+    if (!query) return;
+    if (tab === 'videos') fetchMore('videos');
+    else if (tab === 'channels') fetchMore('channels');
+    else if (tab === 'playlists') fetchMore('playlists');
+  }, [tab, query, fetchMore]);
 
   useEffect(() => { setInputValue(query ?? ''); }, [query]);
 
@@ -210,10 +223,30 @@ export function SearchView({ query }) {
     return [...cached, ...others];
   }, [videos, localMatches, knownYtIds, cachedSet]);
 
+  /** Versión COMPLETA para el tab dedicado "Canciones": NO oculta los que ya
+   *  están en biblioteca o son conocidos — los muestra con badge. Así la lista
+   *  refleja toda la variedad de YouTube (máxima cobertura de resultados). */
+  const videosAsTracksFull = useMemo(() => {
+    return videos.map((v) => metaToCandidate({
+      id: v.id,
+      title: v.title,
+      uploader: v.uploader ?? null,
+      duration: v.duration ?? null,
+      thumbnail: v.thumbnail ?? null,
+    }));
+  }, [videos]);
+
   const playSongList = (startIdx = 0) => {
     if (videosAsTracks.length === 0) return;
     const clamped = Math.min(startIdx, videosAsTracks.length - 1);
     playNow(videosAsTracks, clamped);
+  };
+
+  // En el tab dedicado la lista es la completa (con duplicados marcados).
+  const playSongListFull = (startIdx = 0) => {
+    if (videosAsTracksFull.length === 0) return;
+    const clamped = Math.min(startIdx, videosAsTracksFull.length - 1);
+    playNow(videosAsTracksFull, clamped);
   };
 
   const playLocal = (idx) => {
@@ -288,6 +321,13 @@ export function SearchView({ query }) {
           playSongList={playSongList}
           playKnown={playKnown}
           goArtist={goArtist}
+          videosAsTracksFull={videosAsTracksFull}
+          playSongListFull={playSongListFull}
+          localYtIds={localYtIds}
+          knownYtIds={knownYtIds}
+          loadMoreVideos={loadMoreVideos}
+          videosContinuation={videosContinuation}
+          loadingMore={loadingMore}
         />
       )}
     </section>
@@ -299,6 +339,8 @@ function SearchResults({
   videos, channels, playlists, loading, error, onRetry,
   localMatches, videosAsTracks, knownAsTracks, knownCountByYtId,
   cachedSet, noResults, playLocal, playSongList, playKnown, goArtist,
+  videosAsTracksFull, playSongListFull, localYtIds, knownYtIds,
+  loadMoreVideos, videosContinuation, loadingMore,
 }) {
   return (
     <>
@@ -456,27 +498,32 @@ function SearchResults({
       )}
 
       {/* ── Tab: Canciones ───────────────────────────────────────────── */}
+      {/* Lista COMPLETA de YouTube (máxima variedad). Los que ya tienes en
+          biblioteca o son conocidos en Ritmiq NO se ocultan: se muestran con
+          badge. Botón "Ver más" al final para paginar. */}
       {tab === 'videos' && (
         <div className={styles.songList}>
           {loading && videos.length === 0 && <RowSkeleton title="" count={6} />}
-          {/* Conocidas primero (P2P trust) → luego YouTube fresco. */}
-          {knownAsTracks.map((t, i) => (
-            <SongRow
-              key={`known-${t.id}`}
-              track={t}
-              onClick={() => playKnown(i)}
-              cached={t.ytId ? cachedSet.has(t.ytId) : false}
-              knownCount={knownCountByYtId.get(t.ytId) ?? 0}
-            />
-          ))}
-          {videosAsTracks.map((t, i) => (
+          {videosAsTracksFull.map((t, i) => (
             <SongRow
               key={t.id}
               track={t}
-              onClick={() => playSongList(i)}
+              onClick={() => playSongListFull(i)}
               cached={t.ytId ? cachedSet.has(t.ytId) : false}
+              knownCount={t.ytId ? (knownCountByYtId.get(t.ytId) ?? 0) : 0}
+              inLibrary={t.ytId ? localYtIds.has(t.ytId) : false}
             />
           ))}
+          {!loading && videosAsTracksFull.length > 0 && videosContinuation && (
+            <button
+              type="button"
+              className={styles.loadMore}
+              onClick={loadMoreVideos}
+              disabled={loadingMore}
+            >
+              {loadingMore ? 'Cargando…' : 'Ver más'}
+            </button>
+          )}
         </div>
       )}
 
@@ -531,7 +578,7 @@ function SearchResults({
 
 /** Fila tipo Spotify para canciones individuales en el tab "Todo" / "Canciones".
  *  @param {{ track:any, onClick:()=>void, badge?:string, cached?:boolean, knownCount?:number }} props */
-function SongRow({ track, onClick, badge, cached, knownCount }) {
+function SongRow({ track, onClick, badge, cached, knownCount, inLibrary }) {
   const knownLabel = knownCount > 1
     ? `✨ ${knownCount} en Ritmiq`
     : knownCount === 1
@@ -562,6 +609,12 @@ function SongRow({ track, onClick, badge, cached, knownCount }) {
               className={styles.songCacheBadge}
               title="En cache del PC — reproduccion instantanea"
             >⚡ Caché</span>
+          )}
+          {inLibrary && (
+            <span
+              className={styles.songLibBadge}
+              title="Ya está en tu biblioteca"
+            >♪ En biblioteca</span>
           )}
         </span>
         <span className={styles.songSub}>
