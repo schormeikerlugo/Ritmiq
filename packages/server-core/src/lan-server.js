@@ -1661,7 +1661,12 @@ export async function startLanServer({
             `[lan-server] stream yt:${ytId} resolve=${tResolved - tStart}ms ` +
             `clientRange=${req.headers.range ?? '-'}`
           );
-          return proxyAudio(req, res, streamUrl);
+          // Si googlevideo rechaza la URL (403/410 — caducada/inválida),
+          // invalidamos la entrada del cache y re-resolvemos una vez.
+          return proxyAudio(req, res, streamUrl, async () => {
+            streamCache.delete(ytId);
+            return resolveCached(ytId, 10);
+          });
         }
 
         // ── Autorización: firma HMAC emitida por Edge `sign-stream` ───────
@@ -1706,7 +1711,10 @@ export async function startLanServer({
               return serveLocalFile(req, res, shared.filePath);
             }
             const streamUrl = await resolveCached(ytId, 10);
-            return proxyAudio(req, res, streamUrl);
+            return proxyAudio(req, res, streamUrl, async () => {
+              streamCache.delete(ytId);
+              return resolveCached(ytId, 10);
+            });
           }
           res.writeHead(404).end('source unavailable');
           return;
@@ -1732,7 +1740,10 @@ export async function startLanServer({
           }
           const streamUrl = await resolveCached(ytId, 10, ytOptsFor(principal));
           try { logActivity(db, { deviceId: principal.device_id, action: 'stream', trackId, ytId }); } catch {}
-          return proxyAudio(req, res, streamUrl);
+          return proxyAudio(req, res, streamUrl, async () => {
+            streamCache.delete(ytId);
+            return resolveCached(ytId, 10, ytOptsFor(principal));
+          });
         }
 
         // Path C: compat ACCEPT_UNSIGNED (legacy PWA sin firma ni device).
@@ -1743,8 +1754,12 @@ export async function startLanServer({
           if (localRow.source === 'youtube' && localRow.yt_id) {
             const shared = findSharedAudio(db, localRow.yt_id);
             if (shared) return serveLocalFile(req, res, shared.filePath);
-            const streamUrl = await resolveCached(localRow.yt_id, 10);
-            return proxyAudio(req, res, streamUrl);
+            const ytId = localRow.yt_id;
+            const streamUrl = await resolveCached(ytId, 10);
+            return proxyAudio(req, res, streamUrl, async () => {
+              streamCache.delete(ytId);
+              return resolveCached(ytId, 10);
+            });
           }
         }
         // ACCEPT_UNSIGNED + ytId por query (sin localRow): util cuando un
@@ -1753,7 +1768,10 @@ export async function startLanServer({
           const shared = findSharedAudio(db, ytFromQs);
           if (shared) return serveLocalFile(req, res, shared.filePath);
           const streamUrl = await resolveCached(ytFromQs, 10);
-          return proxyAudio(req, res, streamUrl);
+          return proxyAudio(req, res, streamUrl, async () => {
+            streamCache.delete(ytFromQs);
+            return resolveCached(ytFromQs, 10);
+          });
         }
 
         // Rechazo: firma inválida y no hay fallback.
@@ -1842,7 +1860,16 @@ function listenWithFallback(server, startPort, tries = 5) {
  * @param {http.ServerResponse} res
  * @param {string} upstreamUrl
  */
-async function proxyAudio(req, res, upstreamUrl) {
+/**
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ * @param {string} upstreamUrl
+ * @param {(() => Promise<string|null>)} [onUpstreamDead]  Callback opcional que
+ *   devuelve una URL fresca cuando googlevideo responde 403/410 (URL caducada
+ *   o inválida). Permite re-resolver una vez ANTES de propagar el error al
+ *   cliente — evita el "code 4" y que quede una URL muerta cacheada.
+ */
+async function proxyAudio(req, res, upstreamUrl, onUpstreamDead) {
   /** @type {Record<string,string>} */
   const headers = {
     // Algunos servidores de googlevideo requieren UA reciente.
@@ -1851,7 +1878,24 @@ async function proxyAudio(req, res, upstreamUrl) {
   };
   if (req.headers.range) headers['Range'] = String(req.headers.range);
 
-  const upstream = await fetch(upstreamUrl, { headers });
+  let upstream = await fetch(upstreamUrl, { headers });
+
+  // URL de googlevideo muerta (403/410/401): re-resolver una vez con yt-dlp
+  // y reintentar. Sin esto, el cliente recibía el 403 → "audio load failed
+  // (code 4)" y la URL mala quedaba cacheada 30min (síntoma: hay que esperar
+  // o saltar de canción y volver para que funcione).
+  if ((upstream.status === 403 || upstream.status === 410 || upstream.status === 401)
+      && typeof onUpstreamDead === 'function') {
+    console.warn(`[lan-server] proxy upstream ${upstream.status} — re-resolviendo URL`);
+    try {
+      const fresh = await onUpstreamDead();
+      if (fresh && fresh !== upstreamUrl) {
+        upstream = await fetch(fresh, { headers });
+      }
+    } catch (e) {
+      console.warn('[lan-server] re-resolve falló:', e?.message ?? e);
+    }
+  }
 
   // Pasamos los headers relevantes
   const passthrough = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
