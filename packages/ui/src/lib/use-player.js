@@ -349,8 +349,13 @@ function buildResolveDeps(track) {
       return null;
     },
     getLanBaseUrl: async () => {
-      if (isDesktop && ephemeral) return null;
       if (isDesktop) {
+        // Tanto tracks persistidos como EFÍMEROS (resultados de búsqueda) se
+        // sirven por el lan-server local. Antes las efímeras se excluían y
+        // caían al cloud (Edge resolve-stream), cuyas URLs de googlevideo
+        // están IP-locked → 403 → "audio load failed (code 4)". El lan-server
+        // resuelve por ?yt=<ytId> (buildLanStreamUrl) y aprovecha el caché
+        // de archivos + prewarm.
         const info = await api.appInfo();
         return info?.lanPort ? `http://127.0.0.1:${info.lanPort}` : null;
       }
