@@ -313,7 +313,7 @@ sequenceDiagram
 - **Puerto 3939 ocupado**: `listenWithFallback` prueba 3940..3943. Si todos ocupados, [[index]] capta el throw y la app sigue sin LAN.
 - **mDNS deshabilitado en el sistema**: la PWA no descubre el desktop por mDNS; el usuario debe ingresar la IP manualmente. El servidor HTTP sigue accesible.
 - **Tunnel sin LAN local**: `cloudflared --url http://localhost:3939` apunta a un servidor que no respondió. La PWA externa recibe 502. Mitigación: confirmar LAN antes de start del tunnel (no implementado).
-- **Stream URL caducada después de cache TTL**: las URLs de googlevideo caducan a las ~6h; cacheamos 30 min (`TTL_MS`). Si una PWA usa una URL caducada (caso raro: tabs en background), recibe 403 y debe re-resolver.
+- **Stream URL caducada / inválida (403/410)**: `proxyAudio` acepta un callback `onUpstreamDead`; si googlevideo responde 403/410/401, **invalida la entrada de `streamCache` y re-resuelve una vez** con yt-dlp antes de responder. Evita el "audio load failed (code 4)" y que una URL muerta quede cacheada 30min. Aplicado a los 5 paths de `/stream` (yt:, HMAC, device, ACCEPT_UNSIGNED). *(fix 2026-07-17)*
 - **Kill de prio baja durante uso legítimo**: si un prewarm está casi terminado (95% del trabajo hecho) y llega un click p=10, lo matamos. Trabajo perdido. Tolerable porque el click vale más.
 - **`/cookies/upload` con device revocado**: la auth de device falla antes → 401. El cliente reaproveca con el PIN.
 - **`/health` no requiere auth pero tampoco rate-limit**: si alguien lo spamea, no rompe nada (respuesta JSON constante) pero satura I/O del Node loop. En escala doméstica irrelevante.
