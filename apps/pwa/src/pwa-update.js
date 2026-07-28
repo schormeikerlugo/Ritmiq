@@ -8,11 +8,12 @@
  *
  * Comportamiento:
  *   - Registra el SW (registerType 'prompt' en vite.config.js).
- *   - Cuando hay una versión nueva en espera (onNeedRefresh), avisa con un
- *     toast no intrusivo "Actualizar" — NO recarga solo para no cortar la
- *     reproducción. El usuario decide.
- *   - Comprueba actualizaciones cada 24h y cada vez que la app vuelve a
- *     primer plano (visibilitychange), con un throttle de 24h.
+ *   - Comprueba actualizaciones en CADA arranque y cada vez que la app vuelve
+ *     a primer plano (visibilitychange), sin throttle — así los usuarios
+ *     reciben cambios casi al instante tras un deploy.
+ *   - Cuando hay una versión nueva (onNeedRefresh), la AUTO-APLICA con recarga
+ *     suave, SALVO que se esté reproduciendo audio (en ese caso avisa con un
+ *     toast "Actualizar" para no cortar la música).
  *   - Enlaza todo al store `pwa-update` de @ritmiq/ui para que la UI
  *     (AboutInfoView) muestre la versión y ofrezca "Buscar actualizaciones".
  *
@@ -22,27 +23,19 @@
  */
 import { registerSW } from 'virtual:pwa-register';
 import { usePwaUpdateStore } from '@ritmiq/ui/stores/pwa-update.js';
+import { usePlayerStore } from '@ritmiq/ui/stores/player.js';
 import { toast } from '@ritmiq/ui/stores/toast.js';
 
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 horas
-const LAST_CHECK_KEY = 'ritmiq.pwa-last-update-check';
+// Comprobación periódica cada 30 min (además del check en cada foco).
+const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 // Versión/fecha inyectadas por Vite `define` (ver vite.config.js).
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : '';
 
-function elapsedSinceLastCheck() {
-  try {
-    const raw = localStorage.getItem(LAST_CHECK_KEY);
-    if (!raw) return Infinity;
-    const last = Number(raw);
-    return Number.isFinite(last) ? Date.now() - last : Infinity;
-  } catch {
-    return Infinity;
-  }
-}
-function markChecked() {
-  try { localStorage.setItem(LAST_CHECK_KEY, String(Date.now())); } catch { /* noop */ }
+/** ¿Se está reproduciendo audio ahora? (para no cortar con una recarga). */
+function isPlayingNow() {
+  try { return !!usePlayerStore.getState().isPlaying; } catch { return false; }
 }
 
 export function setupPwaUpdates() {
@@ -56,8 +49,19 @@ export function setupPwaUpdates() {
   updateSW = registerSW({
     immediate: true,
     onNeedRefresh() {
-      // Hay una versión nueva lista. Avisamos sin recargar.
-      usePwaUpdateStore.getState().setNeedRefresh(true);
+      const store = usePwaUpdateStore.getState();
+      store.setNeedRefresh(true);
+      // Si NO se está reproduciendo, auto-aplicar el SW nuevo (recarga suave).
+      // Así los usuarios reciben cambios sin tener que pulsar nada tras un
+      // deploy. Si está sonando algo, no cortamos: avisamos con un toast.
+      if (!isPlayingNow()) {
+        toast.info('Actualizando a la última versión…', { icon: 'ArrowDownToLine', duration: 2500 });
+        // Pequeño respiro para que el toast se pinte antes de recargar.
+        // Usamos updateSW(true) directo (referencia local fiable, no depende
+        // de que bindUpdater ya haya corrido).
+        setTimeout(() => { try { updateSW(true); } catch { location.reload(); } }, 800);
+        return;
+      }
       toast.info('Nueva versión disponible', {
         icon: 'ArrowDownToLine',
         duration: 0, // persistente hasta que el usuario actúe
@@ -71,27 +75,19 @@ export function setupPwaUpdates() {
       swRegistration = registration ?? null;
       if (!registration) return;
 
-      // Auto-check periódico cada 24h.
-      setInterval(() => {
-        registration.update().catch(() => {});
-        markChecked();
-      }, CHECK_INTERVAL_MS);
+      // Auto-check periódico cada 30 min.
+      setInterval(() => { registration.update().catch(() => {}); }, CHECK_INTERVAL_MS);
 
-      // Check al volver a primer plano, con throttle de 24h para no
-      // martillar el servidor cada vez que el usuario cambia de app.
+      // Check cada vez que la app vuelve a primer plano (sin throttle): es
+      // barato (un HEAD al sw.js) y garantiza que el usuario recibe el deploy
+      // reciente al reabrir la app.
       const onVisible = () => {
-        if (document.visibilityState !== 'visible') return;
-        if (elapsedSinceLastCheck() < CHECK_INTERVAL_MS) return;
-        registration.update().catch(() => {});
-        markChecked();
+        if (document.visibilityState === 'visible') registration.update().catch(() => {});
       };
       document.addEventListener('visibilitychange', onVisible);
 
-      // Primer check al arrancar (respeta el throttle de 24h).
-      if (elapsedSinceLastCheck() >= CHECK_INTERVAL_MS) {
-        registration.update().catch(() => {});
-        markChecked();
-      }
+      // Check inmediato al arrancar.
+      registration.update().catch(() => {});
     },
   });
 
