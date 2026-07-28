@@ -74,10 +74,15 @@ export function generatePin() {
  * @param {string} baseUrl  Tunnel URL del desktop, sin slash final.
  * @param {{ pin: string, supabaseUserId?: string|null, cookiesB64?: string|null }} input
  */
-export async function postPair(baseUrl, { pin, supabaseUserId = null, cookiesB64 = null }) {
+export async function postPair(baseUrl, { pin, supabaseUserId = null, cookiesB64 = null, jwt = null }) {
+  const headers = { 'Content-Type': 'application/json' };
+  // El JWT de la sesión Supabase permite al servidor verificar la identidad
+  // (el supabase_user_id del body es solo hint; el servidor usa el `sub` del
+  // token). Necesario para el auto-pareo por allowlist.
+  if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
   const r = await fetch(`${baseUrl.replace(/\/$/, '')}/pair`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       device_id: getDeviceId(),
       display_name: getDisplayName(),
@@ -180,4 +185,64 @@ export async function uploadCookiesTxt(baseUrl, cookiesText) {
     throw new Error(`Subida falló (${r.status})${msg ? `: ${msg}` : ''}`);
   }
   return r.json();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Auto-pareo silencioso contra el servidor 24/7.
+// ─────────────────────────────────────────────────────────────────────
+
+/** Estado en memoria para no reintentar el auto-pareo en bucle. */
+let _autoPairInFlight = null;
+let _autoPairResult = null; // 'approved' | 'pending' | 'error' | null
+
+/**
+ * Asegura que este dispositivo esté pareado con el SERVIDOR 24/7 para poder
+ * reproducir. Si ya hay device_token, no hace nada. Si no, hace un pareo
+ * silencioso usando el JWT de la sesión Supabase:
+ *   - Cuenta en allowlist → el servidor auto-aprueba → guardamos device_token.
+ *   - Cuenta no aprobada → 'pending' (el owner debe aprobar desde /admin).
+ *
+ * @param {string} serverBaseUrl  URL del servidor (sin slash final).
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @returns {Promise<'approved'|'pending'|'error'|'no-session'>}
+ */
+export async function ensureServerPairing(serverBaseUrl, supabase) {
+  if (!serverBaseUrl) return 'error';
+  if (getDeviceToken()) return 'approved'; // ya pareado
+  if (_autoPairInFlight) return _autoPairInFlight;
+
+  _autoPairInFlight = (async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const jwt = session?.access_token ?? null;
+      const uid = session?.user?.id ?? null;
+      if (!jwt || !uid) { _autoPairResult = 'no-session'; return 'no-session'; }
+
+      const out = await postPair(serverBaseUrl, {
+        pin: generatePin(),
+        supabaseUserId: uid,
+        jwt,
+      });
+      if (out?.status === 'approved' && out.deviceToken) {
+        setDeviceToken(out.deviceToken);
+        _autoPairResult = 'approved';
+        return 'approved';
+      }
+      _autoPairResult = 'pending';
+      return 'pending';
+    } catch (e) {
+      console.warn('[device] auto-pareo falló:', e?.message ?? e);
+      _autoPairResult = 'error';
+      return 'error';
+    } finally {
+      _autoPairInFlight = null;
+    }
+  })();
+  return _autoPairInFlight;
+}
+
+/** Último resultado conocido del auto-pareo (para UX). */
+export function getAutoPairResult() {
+  if (getDeviceToken()) return 'approved';
+  return _autoPairResult;
 }

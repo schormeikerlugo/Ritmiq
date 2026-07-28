@@ -22,6 +22,8 @@ import {
   findSharedAudio, registerSharedAudio,
   sharedAudioStats, clearSharedAudio,
   findSharedAudioBulk,
+  isAccountAllowed, listAllowedAccounts, addAllowedAccount, removeAllowedAccount,
+  listAccessRequests, recordAccessRequest,
 } from '@ritmiq/db/sqlite';
 import { getYtDlpPath } from './ytdlp-path.js';
 import { detectCookiesBrowser, detectJsRuntime, exportCookiesToFile } from './cookies-detect.js';
@@ -1017,17 +1019,46 @@ export async function startLanServer({
             pin: p.pin,
             requested_at: p.requested_at,
           }));
+          // Cuentas: aprobadas (allowlist) + solicitudes de acceso pendientes.
+          let accounts = [];
+          let accessRequests = [];
+          try { accounts = listAllowedAccounts(db); } catch {}
+          try { accessRequests = listAccessRequests(db); } catch {}
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ devices, pending }));
+          res.end(JSON.stringify({ devices, pending, accounts, accessRequests }));
           return;
         }
-        // POST /admin/api/{approve,reject,revoke} { device_id }
+        // POST /admin/api/{approve,reject,revoke,accounts/allow,accounts/revoke}
         if (req.method === 'POST') {
           const chunks = [];
           req.on('data', (c) => chunks.push(c));
           req.on('end', () => {
             try {
               const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+              // ── Gestión de cuentas (allowlist en caliente) ──────────────
+              if (url.pathname === '/admin/api/accounts/allow') {
+                const uid = String(body.supabase_user_id || '').trim();
+                if (!uid) { res.writeHead(400).end('supabase_user_id required'); return; }
+                addAllowedAccount(db, { supabaseUserId: uid, email: body.email ?? null, note: body.note ?? null });
+                // Auto-aprobar cualquier pair_request pendiente de esa cuenta.
+                try {
+                  for (const pr of listPairRequests(db)) {
+                    if (pr.supabase_user_id === uid) {
+                      approveDevice(db, { deviceId: pr.device_id, displayName: pr.display_name, supabaseUserId: uid });
+                    }
+                  }
+                } catch {}
+                res.writeHead(200).end(JSON.stringify({ ok: true }));
+                return;
+              }
+              if (url.pathname === '/admin/api/accounts/revoke') {
+                const uid = String(body.supabase_user_id || '').trim();
+                if (!uid) { res.writeHead(400).end('supabase_user_id required'); return; }
+                removeAllowedAccount(db, uid);
+                res.writeHead(200).end(JSON.stringify({ ok: true }));
+                return;
+              }
+              // ── Gestión de dispositivos ─────────────────────────────────
               const id = String(body.device_id || '');
               if (!id) { res.writeHead(400).end('device_id required'); return; }
               if (url.pathname === '/admin/api/approve') {
@@ -1193,10 +1224,11 @@ export async function startLanServer({
             // El supabase_user_id del body es autodeclarado y no confiable; solo
             // se usa como fallback si NO se exige login (modo abierto/legacy).
             let trustedUserId = null;
+            let trustedEmail = null;
             const bearer = extractBearer(req, url);
             if (bearer && bearer !== accessToken && jwtVerifier.isConfigured()) {
               const verified = await jwtVerifier.verify(bearer);
-              if (verified) trustedUserId = verified.userId;
+              if (verified) { trustedUserId = verified.userId; trustedEmail = verified.email ?? null; }
             }
             if (REQUIRE_AUTH_FOR_PAIR && !trustedUserId) {
               res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -1214,10 +1246,13 @@ export async function startLanServer({
               deviceId: String(device_id),
               displayName: String(display_name),
               supabaseUserId: effectiveUserId,
+              email: trustedEmail,
               pin: String(pin),
               cookiesBlob,
               clientIp,
               allowedUsers: ALLOWED_USERS,
+              // Allowlist gestionable en caliente (tabla allowed_accounts).
+              isAllowed: (uid) => { try { return isAccountAllowed(db, uid); } catch { return false; } },
             });
             if (out.status === 'pending') {
               notifyOwnerNewPairRequest({
@@ -2158,7 +2193,20 @@ const ADMIN_HTML = `<!DOCTYPE html>
 
   <div id="content" style="display:none">
     <div class="card">
-      <h3 style="margin:0 0 8px">Solicitudes pendientes</h3>
+      <h3 style="margin:0 0 8px">Cuentas por aprobar</h3>
+      <p class="sub" style="margin:0 0 8px">Cuentas que intentaron usar el servidor. Aprueba para que puedan escuchar.</p>
+      <div id="access-requests"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input id="manual-uid" placeholder="user_id de Supabase (manual)" style="flex:1">
+        <button class="btn-approve" onclick="allowManual()">Aprobar</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 8px">Cuentas aprobadas</h3>
+      <div id="accounts"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 8px">Solicitudes de dispositivo (PIN)</h3>
       <div id="pending"></div>
     </div>
     <div class="card">
@@ -2189,12 +2237,41 @@ const ADMIN_HTML = `<!DOCTYPE html>
     try { await api('/admin/api/'+kind, 'POST', { device_id: id }); load(); }
     catch(e){ alert('Error: ' + e.message); }
   }
+  async function allowAccount(uid, email){
+    try { await api('/admin/api/accounts/allow', 'POST', { supabase_user_id: uid, email: email||null }); load(); }
+    catch(e){ alert('Error: ' + e.message); }
+  }
+  async function revokeAccount(uid){
+    if(!confirm('Quitar acceso a esta cuenta?')) return;
+    try { await api('/admin/api/accounts/revoke', 'POST', { supabase_user_id: uid }); load(); }
+    catch(e){ alert('Error: ' + e.message); }
+  }
+  function allowManual(){
+    const uid = document.getElementById('manual-uid').value.trim();
+    if(uid) allowAccount(uid, null);
+  }
   function esc(s){ return String(s??'').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
   async function load(){
     try {
       const st = await api('/admin/api/state');
       document.getElementById('auth-card').style.display='none';
       document.getElementById('content').style.display='block';
+      // Cuentas por aprobar (solicitudes de acceso).
+      const areq = (st.accessRequests||[]).map(a => \`
+        <div class="row">
+          <div><div class="name">\${esc(a.email||a.display_name||'cuenta')}</div>
+            <div class="sub">\${esc(a.supabase_user_id)} · \${a.attempts||1} intento(s)</div></div>
+          <div><button class="btn-approve" onclick="allowAccount('\${esc(a.supabase_user_id)}', '\${esc(a.email||'')}')">Aprobar</button></div>
+        </div>\`).join('') || '<div class="empty">Sin solicitudes.</div>';
+      document.getElementById('access-requests').innerHTML = areq;
+      // Cuentas aprobadas.
+      const accts = (st.accounts||[]).map(a => \`
+        <div class="row">
+          <div><div class="name">\${esc(a.email||a.supabase_user_id)}</div>
+            <div class="sub">\${esc(a.supabase_user_id)}</div></div>
+          <div><button class="btn-revoke" onclick="revokeAccount('\${esc(a.supabase_user_id)}')">Quitar</button></div>
+        </div>\`).join('') || '<div class="empty">Ninguna cuenta aprobada.</div>';
+      document.getElementById('accounts').innerHTML = accts;
       const pend = st.pending.map(p => \`
         <div class="row">
           <div><div class="name">\${esc(p.display_name)}</div>

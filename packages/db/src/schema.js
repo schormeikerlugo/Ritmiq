@@ -133,4 +133,26 @@ CREATE TABLE IF NOT EXISTS device_activity (
 );
 CREATE INDEX IF NOT EXISTS idx_activity_device  ON device_activity(device_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_activity_created ON device_activity(created_at);
+
+-- Allowlist de cuentas Supabase aprobadas para usar el servidor 24/7.
+-- Gestionable en caliente desde el panel /admin (sin reiniciar). Se une con
+-- RITMIQ_ALLOWED_USERS (env) para la decisión de auto-aprobación en /pair.
+CREATE TABLE IF NOT EXISTS allowed_accounts (
+  supabase_user_id TEXT PRIMARY KEY,
+  email            TEXT,
+  note             TEXT,
+  approved_at      TEXT NOT NULL
+);
+
+-- Solicitudes de acceso: cuentas que intentaron parear/usar el servidor pero
+-- NO están aprobadas todavía. El owner las ve en /admin y aprueba con un clic.
+-- Upsert por supabase_user_id (se actualiza last_seen_at en cada intento).
+CREATE TABLE IF NOT EXISTS access_requests (
+  supabase_user_id TEXT PRIMARY KEY,
+  email            TEXT,
+  display_name     TEXT,
+  first_seen_at    TEXT NOT NULL,
+  last_seen_at     TEXT NOT NULL,
+  attempts         INTEGER NOT NULL DEFAULT 1
+);
 `;

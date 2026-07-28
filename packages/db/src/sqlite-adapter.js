@@ -252,3 +252,87 @@ function rowToTrack(r) {
     createdAt: r.created_at,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Allowlist de cuentas (servidor 24/7) — gestionable en caliente.
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * @param {BetterDb} db
+ * @returns {Set<string>} user_ids aprobados (lowercase).
+ */
+export function listAllowedAccountIds(db) {
+  try {
+    const rows = db.prepare('SELECT supabase_user_id FROM allowed_accounts').all();
+    return new Set(rows.map((r) => String(r.supabase_user_id).toLowerCase()));
+  } catch { return new Set(); }
+}
+
+/** Lista completa de cuentas aprobadas (para el panel). */
+export function listAllowedAccounts(db) {
+  try {
+    return db.prepare(
+      'SELECT supabase_user_id, email, note, approved_at FROM allowed_accounts ORDER BY approved_at DESC'
+    ).all();
+  } catch { return []; }
+}
+
+/** @param {BetterDb} db */
+export function addAllowedAccount(db, { supabaseUserId, email = null, note = null }) {
+  if (!supabaseUserId) return;
+  db.prepare(/* sql */ `
+    INSERT INTO allowed_accounts (supabase_user_id, email, note, approved_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(supabase_user_id) DO UPDATE SET
+      email = COALESCE(excluded.email, allowed_accounts.email),
+      note = COALESCE(excluded.note, allowed_accounts.note)
+  `).run(String(supabaseUserId), email, note, new Date().toISOString());
+  // Al aprobar, la solicitud pendiente ya no aplica.
+  try { db.prepare('DELETE FROM access_requests WHERE supabase_user_id = ?').run(String(supabaseUserId)); } catch {}
+}
+
+/** @param {BetterDb} db */
+export function removeAllowedAccount(db, supabaseUserId) {
+  if (!supabaseUserId) return;
+  db.prepare('DELETE FROM allowed_accounts WHERE supabase_user_id = ?').run(String(supabaseUserId));
+}
+
+/** ¿Está esta cuenta en la allowlist de la DB? */
+export function isAccountAllowed(db, supabaseUserId) {
+  if (!supabaseUserId) return false;
+  try {
+    const row = db.prepare('SELECT 1 FROM allowed_accounts WHERE supabase_user_id = ?').get(String(supabaseUserId));
+    return !!row;
+  } catch { return false; }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Solicitudes de acceso (cuentas no aprobadas que intentaron usar el server).
+// ─────────────────────────────────────────────────────────────────────
+
+/** Registra/actualiza un intento de acceso de una cuenta no aprobada. */
+export function recordAccessRequest(db, { supabaseUserId, email = null, displayName = null }) {
+  if (!supabaseUserId) return;
+  const now = new Date().toISOString();
+  db.prepare(/* sql */ `
+    INSERT INTO access_requests (supabase_user_id, email, display_name, first_seen_at, last_seen_at, attempts)
+    VALUES (?, ?, ?, ?, ?, 1)
+    ON CONFLICT(supabase_user_id) DO UPDATE SET
+      email = COALESCE(excluded.email, access_requests.email),
+      display_name = COALESCE(excluded.display_name, access_requests.display_name),
+      last_seen_at = excluded.last_seen_at,
+      attempts = access_requests.attempts + 1
+  `).run(String(supabaseUserId), email, displayName, now, now);
+}
+
+/** Lista solicitudes de acceso pendientes (no aprobadas). */
+export function listAccessRequests(db) {
+  try {
+    return db.prepare(/* sql */ `
+      SELECT ar.supabase_user_id, ar.email, ar.display_name, ar.first_seen_at, ar.last_seen_at, ar.attempts
+      FROM access_requests ar
+      WHERE ar.supabase_user_id NOT IN (SELECT supabase_user_id FROM allowed_accounts)
+      ORDER BY ar.last_seen_at DESC
+    `).all();
+  } catch { return []; }
+}

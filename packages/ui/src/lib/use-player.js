@@ -28,6 +28,7 @@ import {
   getSignedStreamUrl, getServerUrlSync, getServerTokenSync, getAccessTokenSync,
 } from './lan-client.js';
 import { getLocalBlobUrl, getJamBlobUrl, cacheJamTrack } from './local-downloads.js';
+import { ensureServerPairing, getDeviceToken, getAutoPairResult } from './device.js';
 
 /**
  * Telemetria de orígenes de stream — singleton in-memory. Cuenta cuantas
@@ -377,11 +378,23 @@ function buildResolveDeps(track) {
         // (rankea server → lan → desktop y hace health-check). Si no hay
         // ningún endpoint sano, caer al lan-server local como último recurso.
         const reachable = await getReachableCached();
-        if (reachable) return reachable;
+        if (reachable) {
+          // Si el host activo es el servidor 24/7, asegurar el pareo silencioso
+          // (device_token permanente) antes de reproducir.
+          if (lastActiveEndpoint.kind === 'server' && !getDeviceToken()) {
+            try { await ensureServerPairing(reachable, supabase); } catch {}
+          }
+          return reachable;
+        }
         if (localBase) lastActiveEndpoint.kind = 'lan';
         return localBase;
       }
-      return getReachableCached();
+      // PWA: el host activo (servidor 24/7 por defecto) requiere device_token.
+      const reachable = await getReachableCached();
+      if (reachable && lastActiveEndpoint.kind === 'server' && !getDeviceToken()) {
+        try { await ensureServerPairing(reachable, supabase); } catch {}
+      }
+      return reachable;
     },
     buildLanStreamUrl: (trackId, base) => {
       // Modelo Y: si esta PWA esta pareada, getAccessTokenSync devuelve
@@ -1045,7 +1058,17 @@ export function usePlayerEngine() {
         publishTrackMeta(track);
       } catch (err) {
         console.error('[player] load failed', err);
-        setState({ isPlaying: false, error: String(err?.message ?? err) });
+        // Mensaje claro si la cuenta está pendiente de aprobación en el
+        // servidor (auto-pareo pending, o 502 account_pending del servidor).
+        let msg = String(err?.message ?? err);
+        try {
+          const pairState = getAutoPairResult();
+          const isPending = pairState === 'pending' || /account_pending|youtube_rejected|502/.test(msg);
+          if (isPending && lastActiveEndpoint.kind === 'server' && !getDeviceToken()) {
+            msg = 'Tu cuenta está pendiente de aprobación para usar el servidor de Ritmiq.';
+          }
+        } catch {}
+        setState({ isPlaying: false, error: msg });
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
       }
     }

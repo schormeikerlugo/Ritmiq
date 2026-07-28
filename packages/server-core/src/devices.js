@@ -43,6 +43,27 @@ const PAIR_REQUEST_TTL_MS = 10 * 60 * 1000; // 10 min
 const DEVICE_TOKEN_BYTES = 32;
 
 /**
+ * Registra/actualiza una solicitud de acceso de una cuenta NO aprobada, para
+ * que el owner la vea en el panel /admin. SQL inline (misma tabla que el
+ * adapter de @ritmiq/db). Best-effort: si la tabla no existe (schema viejo),
+ * no rompe el pareo.
+ * @param {import('better-sqlite3').Database} db
+ */
+function recordAccessRequest(db, { supabaseUserId, email = null, displayName = null }) {
+  if (!supabaseUserId) return;
+  const now = new Date().toISOString();
+  db.prepare(/* sql */ `
+    INSERT INTO access_requests (supabase_user_id, email, display_name, first_seen_at, last_seen_at, attempts)
+    VALUES (?, ?, ?, ?, ?, 1)
+    ON CONFLICT(supabase_user_id) DO UPDATE SET
+      email = COALESCE(excluded.email, access_requests.email),
+      display_name = COALESCE(excluded.display_name, access_requests.display_name),
+      last_seen_at = excluded.last_seen_at,
+      attempts = access_requests.attempts + 1
+  `).run(String(supabaseUserId), email, displayName, now, now);
+}
+
+/**
  * Crea o resucita una solicitud de pareo.
  *
  * Si ya hay device approved con el mismo (device_id) -> retorna el
@@ -66,7 +87,8 @@ const DEVICE_TOKEN_BYTES = 32;
  */
 export function createPairRequest(db, {
   deviceId, displayName, supabaseUserId = null, pin,
-  cookiesBlob = null, clientIp = null, allowedUsers = null,
+  cookiesBlob = null, clientIp = null, allowedUsers = null, isAllowed = null,
+  email = null,
 }) {
   if (!deviceId || !displayName || !pin) {
     throw new Error('deviceId, displayName, pin required');
@@ -84,16 +106,26 @@ export function createPairRequest(db, {
     };
   }
 
-  // ALLOWLIST (Fase 3c): si la cuenta Supabase de quien parea está en la
-  // lista de confianza del servidor (RITMIQ_ALLOWED_USERS), se auto-aprueba
-  // sin PIN. Fuera de la lista → aprobación manual (panel / CLI).
-  // El resto de cuentas Supabase sigue requiriendo aprobación manual
-  // (compromiso de cuenta != compromiso de device — decisión 17/05/2026).
-  if (supabaseUserId && allowedUsers && allowedUsers.has(String(supabaseUserId).toLowerCase())) {
+  // ALLOWLIST: si la cuenta Supabase de quien parea está aprobada, se
+  // auto-aprueba sin PIN. La aprobación viene de:
+  //   1. `allowedUsers` (Set de RITMIQ_ALLOWED_USERS, env) — compat.
+  //   2. `isAllowed(userId)` (tabla allowed_accounts, gestionable en caliente).
+  // Fuera de la lista → pending + se registra la solicitud de acceso para que
+  // el owner la apruebe desde el panel /admin.
+  const uidLower = supabaseUserId ? String(supabaseUserId).toLowerCase() : null;
+  const allowedByEnv = uidLower && allowedUsers && allowedUsers.has(uidLower);
+  const allowedByTable = supabaseUserId && typeof isAllowed === 'function' && isAllowed(supabaseUserId);
+  if (supabaseUserId && (allowedByEnv || allowedByTable)) {
     const deviceToken = approveDevice(db, {
       deviceId, displayName, supabaseUserId, cookiesBlob,
     });
     return { status: 'approved', deviceToken, displayName, autoApproved: true };
+  }
+
+  // Cuenta no aprobada: registrar la solicitud de acceso (best-effort) para
+  // que aparezca en el panel /admin.
+  if (supabaseUserId) {
+    try { recordAccessRequest(db, { supabaseUserId, email, displayName }); } catch {}
   }
 
   // Crear/actualizar pair_request con TTL.

@@ -17,6 +17,10 @@ const HEALTH = '/health';
 
 const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL ?? '';
 const SUPABASE_ANON = import.meta.env?.VITE_SUPABASE_ANON_KEY ?? '';
+// URL del servidor 24/7 por defecto (build-time). Hace que TODO cliente apunte
+// al servidor central sin configuración manual. localStorage (poblado por
+// tunnel_endpoints) tiene prioridad si existe, para permitir override dinámico.
+const DEFAULT_SERVER_URL = (import.meta.env?.VITE_SERVER_URL ?? '').replace(/\/+$/, '');
 
 /**
  * Cache de URLs firmadas por la Edge `sign-stream`. Las firmas tienen TTL
@@ -124,7 +128,12 @@ export function setTunnelUrl(url) {
 
 /** URL pública del SERVIDOR 24/7 (endpoint kind='server'). */
 export function getServerUrlSync() {
-  try { return localStorage.getItem(SERVER_URL_KEY); } catch { return null; }
+  try {
+    const stored = localStorage.getItem(SERVER_URL_KEY);
+    if (stored) return stored;
+  } catch { /* ignore */ }
+  // Fallback al servidor por defecto del build (VITE_SERVER_URL).
+  return DEFAULT_SERVER_URL || null;
 }
 /** @param {string|null} url */
 export function setServerUrl(url) {
