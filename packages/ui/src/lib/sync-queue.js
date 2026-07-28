@@ -17,6 +17,7 @@ import {
   pushTrack, deleteTrackRemote,
   pushPlaylist, deletePlaylistRemote,
   pushPlaylistTrack, removePlaylistTrackRemote, reorderPlaylistRemote,
+  reorderPlaylistsRemote,
 } from './sync.js';
 
 const STORAGE_KEY = 'ritmiq:syncQueue';
@@ -115,6 +116,7 @@ async function applyOp(op) {
     case 'playlist_track.add':      return pushPlaylistTrack(op.payload.playlistId, op.payload.trackId, op.payload.position);
     case 'playlist_track.remove':   return removePlaylistTrackRemote(op.payload.playlistId, op.payload.trackId);
     case 'playlist_track.reorder':  return reorderPlaylistRemote(op.payload.playlistId, op.payload.orderedTrackIds);
+    case 'playlist.reorderList':    return reorderPlaylistsRemote(op.payload.orderedIds);
     default:
       console.warn('[sync-queue] kind desconocido', op.kind);
   }

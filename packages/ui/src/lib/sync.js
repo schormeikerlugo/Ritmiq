@@ -90,28 +90,48 @@ function rowToPlaylist(row) {
     coverUrl: rewriteHost(row.cover_url) ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    sortKey: row.sort_key ?? 0,
   };
 }
 
 /** @param {Playlist} p */
 function playlistToRow(p) {
-  return {
+  const row = {
     id: p.id,
     user_id: p.userId,
     name: p.name,
     is_offline: p.isOffline,
     cover_url: p.coverUrl ?? null,
   };
+  // Solo enviar sort_key si está definido (evita pisar con 0 en upserts de
+  // metadatos que no tocan el orden).
+  if (typeof p.sortKey === 'number') row.sort_key = p.sortKey;
+  return row;
 }
 
 /** @returns {Promise<Playlist[]>} */
 export async function pullPlaylists() {
+  // Orden: sort_key DESC (drag + uso), created_at como desempate estable.
   const { data, error } = await supabase
     .from('playlists')
     .select('*')
+    .order('sort_key', { ascending: false })
     .order('created_at', { ascending: true });
   if (error) throw error;
   return (data ?? []).map(rowToPlaylist);
+}
+
+/**
+ * Reordena la LISTA de playlists asignando sort_key decreciente según el
+ * orden dado (índice 0 = arriba). Un solo upsert batch.
+ * @param {string[]} orderedIds
+ */
+export async function reorderPlaylistsRemote(orderedIds) {
+  if (!Array.isArray(orderedIds) || orderedIds.length === 0) return;
+  const base = Date.now();
+  const rows = orderedIds.map((id, i) => ({ id, sort_key: base - i }));
+  const { error } = await supabase.from('playlists').upsert(rows, { onConflict: 'id' });
+  if (error) throw error;
 }
 
 /** @param {Playlist} p */

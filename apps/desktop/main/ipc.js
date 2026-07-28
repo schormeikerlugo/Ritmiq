@@ -559,9 +559,24 @@ export function registerIpc({ db, lan, accessToken }) {
 
   // ── PLAYLISTS ────────────────────────────────────────────────────────
   ipcMain.handle('playlists:list', (_e, userId) => {
-    return db.prepare('SELECT * FROM playlists WHERE user_id = ? ORDER BY created_at')
+    // Orden: sort_key DESC (mayor = más arriba, gobernado por drag + uso),
+    // y created_at como desempate estable.
+    return db.prepare('SELECT * FROM playlists WHERE user_id = ? ORDER BY sort_key DESC, created_at')
       .all(userId)
       .map(rowToPlaylist);
+  });
+
+  // Reordena la LISTA de playlists reasignando sort_key. Recibe los ids en el
+  // orden deseado (índice 0 = arriba) y asigna sort_key decreciente.
+  ipcMain.handle('playlists:reorderList', (_e, { orderedIds }) => {
+    if (!Array.isArray(orderedIds)) return { ok: false };
+    const stmt = db.prepare('UPDATE playlists SET sort_key = ? WHERE id = ?');
+    const base = Date.now();
+    const tx = db.transaction((ids) => {
+      ids.forEach((id, i) => stmt.run(base - i, id));
+    });
+    tx(orderedIds);
+    return { ok: true };
   });
 
   ipcMain.handle('playlists:upsert', (_e, playlist) => {
@@ -744,6 +759,7 @@ function rowToPlaylist(r) {
     coverUrl: r.cover_url ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    sortKey: r.sort_key ?? 0,
   };
 }
 

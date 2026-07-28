@@ -36,7 +36,10 @@ CREATE TABLE IF NOT EXISTS playlists (
   is_offline  INTEGER NOT NULL DEFAULT 0,
   cover_url   TEXT,
   created_at  TEXT NOT NULL,
-  updated_at  TEXT NOT NULL
+  updated_at  TEXT NOT NULL,
+  -- Orden de la LISTA de playlists. Mayor = más arriba. Lo actualiza el drag
+  -- manual y el "subir por uso" (al reproducir de la playlist). Default 0.
+  sort_key    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS playlist_tracks (

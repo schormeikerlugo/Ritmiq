@@ -24,6 +24,7 @@ export function applySchema(db) {
   db.exec(SCHEMA_SQL);
   // Migraciones aditivas (idempotentes)
   addColumnIfMissing(db, 'playlists', 'cover_url', 'TEXT');
+  addColumnIfMissing(db, 'playlists', 'sort_key', 'INTEGER NOT NULL DEFAULT 0');
   // Cookies por dispositivo (Fase 3): en DBs creadas antes de estas
   // columnas, `CREATE TABLE IF NOT EXISTS` no las añade. Las forzamos aquí.
   addColumnIfMissing(db, 'devices', 'cookies_blob', 'BLOB');

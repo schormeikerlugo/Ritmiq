@@ -82,6 +82,7 @@ contextBridge.exposeInMainWorld('ritmiq', {
     addTrack: (payload) => ipcRenderer.invoke('playlists:addTrack', payload),
     removeTrack: (payload) => ipcRenderer.invoke('playlists:removeTrack', payload),
     reorder: (payload) => ipcRenderer.invoke('playlists:reorder', payload),
+    reorderList: (payload) => ipcRenderer.invoke('playlists:reorderList', payload),
     contents: (userId) => ipcRenderer.invoke('playlists:contents', userId),
   },
 });

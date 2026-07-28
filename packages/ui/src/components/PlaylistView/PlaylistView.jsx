@@ -291,14 +291,14 @@ export function PlaylistView({ playlistId }) {
       return;
     }
     if (playerShuffle) setShuffle();
-    playNow(filteredTracks, 0);
+    playNow(filteredTracks, 0, { context: { kind: 'playlist', playlistId } });
   };
 
   const playShuffle = () => {
     if (filteredTracks.length === 0) return;
     if (!playerShuffle) setShuffle();
     const idx = Math.floor(Math.random() * filteredTracks.length);
-    playNow(filteredTracks, idx);
+    playNow(filteredTracks, idx, { context: { kind: 'playlist', playlistId } });
   };
 
   const downloadAll = async () => {
@@ -598,7 +598,7 @@ export function PlaylistView({ playlistId }) {
               isFavs={isFavs}
               currentTrack={currentTrack}
               tracks={filteredTracks}
-              onPlay={() => playNow(filteredTracks, i)}
+              onPlay={() => playNow(filteredTracks, i, { context: { kind: 'playlist', playlistId } })}
               selectMode={selectMode}
               selected={selected.has(t.id)}
               onToggleSelect={toggleSelect}
@@ -632,7 +632,7 @@ export function PlaylistView({ playlistId }) {
                   isFavs={isFavs}
                   currentTrack={currentTrack}
                   tracks={tracks}
-                  onPlay={() => playNow(tracks, i)}
+                  onPlay={() => playNow(tracks, i, { context: { kind: 'playlist', playlistId } })}
                   actions={{
                     playNext, enqueue, toggleFavorite, isFavorite,
                     downloadOne, undownloadOne, removeTrack, setSaveDialogTrack,

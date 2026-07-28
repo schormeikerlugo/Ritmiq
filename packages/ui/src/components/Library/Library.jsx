@@ -114,6 +114,7 @@ export function Library() {
           coverUrl: pl.coverUrl,
           isFavorites: pl.id === favoritesId,
           updatedAt: pl.updatedAt ?? pl.createdAt,
+          sortKey: pl.sortKey ?? 0,
         });
       }
     }
@@ -177,8 +178,15 @@ export function Library() {
     } else if (sort === 'plays') {
       arr.sort((a, b) => (b.plays ?? 0) - (a.plays ?? 0));
     } else {
-      // recent
-      arr.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+      // recent. Para PLAYLISTS, "reciente" respeta el orden manual + uso
+      // (sortKey: drag y "subir al reproducir"); para tracks/artistas usa
+      // updatedAt como antes.
+      if (filter === 'playlists') {
+        arr.sort((a, b) => (b.sortKey ?? 0) - (a.sortKey ?? 0)
+          || String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));
+      } else {
+        arr.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+      }
     }
     // Pinear "Tus favoritas" siempre al principio si esta visible.
     arr.sort((a, b) => {
@@ -187,7 +195,7 @@ export function Library() {
       return 0;
     });
     return arr;
-  }, [filtered, sort]);
+  }, [filtered, sort, filter]);
 
   // ───────────────────── Selección múltiple (solo Descargados) ─────────────────────
   const canSelect = filter === 'downloaded';

@@ -86,6 +86,7 @@ const electronApi = isElectron
       playlistsAddTrack:       (p) => window.ritmiq.playlists.addTrack(p),
       playlistsRemoveTrack:    (p) => window.ritmiq.playlists.removeTrack(p),
       playlistsReorder:        (p) => window.ritmiq.playlists.reorder(p),
+      playlistsReorderList:    (p) => window.ritmiq.playlists.reorderList(p),
       playlistsContents:       (uid) => window.ritmiq.playlists.contents(uid),
     }
   : null;
@@ -220,6 +221,7 @@ const webApi = {
   playlistsAddTrack: async () => true,
   playlistsRemoveTrack: async () => true,
   playlistsReorder: async () => true,
+  playlistsReorderList: async () => true,
   playlistsContents: async () => ({}),
 };
 

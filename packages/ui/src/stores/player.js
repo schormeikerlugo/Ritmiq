@@ -50,6 +50,12 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
    *  entre batches aunque cambie el currentTrack al avanzar). */
   radioSeedArtist: null,
 
+  /** Contexto de origen de la cola actual. Permite saber de QUÉ playlist
+   *  proviene el track que suena, para el reorden por uso (subir la playlist
+   *  y la canción al tope). null si la cola no viene de una playlist.
+   *  @type {{ kind:'playlist', playlistId:string }|null} */
+  queueContext: null,
+
   /** @param {Partial<any>} p */
   patch: (p) => set(p),
 
@@ -58,8 +64,9 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
    * Acepta un track o un array.
    * @param {Track | Track[]} input
    * @param {number} [startIdx]
+   * @param {{ context?: { kind:'playlist', playlistId:string }|null }} [opts]
    */
-  playNow(input, startIdx = 0) {
+  playNow(input, startIdx = 0, opts = {}) {
     const tracks = Array.isArray(input) ? input.slice() : [input];
     if (tracks.length === 0) return;
     const idx = Math.max(0, Math.min(startIdx, tracks.length - 1));
@@ -69,6 +76,7 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
       currentTrack: tracks[idx],
       isPlaying: true,
       positionSeconds: 0,
+      queueContext: opts.context ?? null,
     });
   },
 

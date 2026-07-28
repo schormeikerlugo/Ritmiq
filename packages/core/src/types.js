@@ -30,6 +30,7 @@
  * @property {string} name
  * @property {boolean} isOffline      true ⇒ "Smart Download": pre-descargar todo
  * @property {string} createdAt
+ * @property {number} [sortKey]       orden en la lista (mayor = más arriba); drag + uso
  */
 
 /**

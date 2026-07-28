@@ -32,7 +32,9 @@ export function playPlaylist(playlistId) {
   const byId = new Map(allTracks.map((t) => [t.id, t]));
   const tracks = ids.map((id) => byId.get(id)).filter(Boolean);
   if (tracks.length === 0) return false;
-  usePlayerStore.getState().playNow(tracks, 0);
+  // Propagamos el contexto de playlist para el reorden por uso (subir la
+  // playlist y la canción al tope al reproducir). Ver use-player.js.
+  usePlayerStore.getState().playNow(tracks, 0, { context: { kind: 'playlist', playlistId } });
   return true;
 }
 

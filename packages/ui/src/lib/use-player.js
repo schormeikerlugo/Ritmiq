@@ -18,6 +18,7 @@ import { resolveAudioSource } from '@ritmiq/core';
 import { createHtmlAudioBackend } from './html-audio-backend.js';
 import { usePlayerStore } from '../stores/player.js';
 import { useHistoryStore } from '../stores/history.js';
+import { usePlaylistsStore } from '../stores/playlists.js';
 import { useJamStore } from '../stores/jam.js';
 import { useSettingsStore } from '../stores/settings.js';
 import { api, isDesktop } from './api.js';
@@ -638,6 +639,18 @@ export function usePlayerEngine() {
             useHistoryStore.getState().record(meta, positionSeconds);
           } catch (e) {
             console.warn('[player] record play failed', e?.message);
+          }
+          // Reorden por uso: si la cola viene de una playlist, subir la
+          // playlist al tope de la lista Y la canción al tope de la playlist.
+          try {
+            const ctx = usePlayerStore.getState().queueContext;
+            if (ctx?.kind === 'playlist' && ctx.playlistId) {
+              const pstore = usePlaylistsStore.getState();
+              pstore.bumpPlaylist?.(ctx.playlistId);
+              pstore.bumpTrackInPlaylist?.(ctx.playlistId, meta.id);
+            }
+          } catch (e) {
+            console.warn('[player] reorden por uso falló', e?.message);
           }
         }
       }

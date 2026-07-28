@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase.js';
 import {
   pullPlaylists, pushPlaylist, deletePlaylistRemote,
   pullPlaylistContents, pushPlaylistTrack, removePlaylistTrackRemote,
-  reorderPlaylistRemote,
+  reorderPlaylistRemote, reorderPlaylistsRemote,
 } from '../lib/sync.js';
 import { tryOrQueue } from '../lib/sync-queue.js';
 import { randomId } from '../lib/id.js';
@@ -30,6 +30,21 @@ function enqueueOfflineDownload(trackId) {
  */
 
 const FAVS_NAME = 'Favoritas';
+
+/**
+ * Comparador canónico de la lista de playlists: por `sortKey` DESC (drag +
+ * uso; mayor = más arriba), con `createdAt` como desempate estable para las
+ * que aún tienen sortKey 0 (playlists antiguas antes de la migración).
+ * NOTA: "Favoritas" se pinea aparte en la UI (Sidebar/Library), no aquí.
+ * @param {import('@ritmiq/core/types').Playlist} a
+ * @param {import('@ritmiq/core/types').Playlist} b
+ */
+function sortPlaylists(a, b) {
+  const ka = a.sortKey ?? 0;
+  const kb = b.sortKey ?? 0;
+  if (kb !== ka) return kb - ka;
+  return String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? ''));
+}
 
 export const usePlaylistsStore = create((set, get) => ({
   /** @type {Playlist[]} */
@@ -62,7 +77,7 @@ export const usePlaylistsStore = create((set, get) => ({
           if (cachedPls.length > 0) {
             const favs = cachedPls.find((p) => p.name === FAVS_NAME);
             set({
-              playlists: cachedPls,
+              playlists: cachedPls.slice().sort(sortPlaylists),
               favoritesId: favs?.id ?? null,
               contents: cachedContents,
             });
@@ -120,7 +135,7 @@ export const usePlaylistsStore = create((set, get) => ({
       }
 
       set({
-        playlists: remote,
+        playlists: remote.slice().sort(sortPlaylists),
         favoritesId: favs.id,
         contents,
         loading: false,
@@ -422,6 +437,60 @@ export const usePlaylistsStore = create((set, get) => ({
     }
   },
 
+  /**
+   * Reordena la LISTA de playlists (drag manual). `orderedIds` = ids en el
+   * orden visible deseado (índice 0 = arriba). Asigna sort_key decreciente y
+   * persiste. Optimistic.
+   * @param {string[]} orderedIds
+   */
+  async reorderPlaylists(orderedIds) {
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) return;
+    const base = Date.now();
+    const keyById = new Map(orderedIds.map((id, i) => [id, base - i]));
+    set((s) => ({
+      playlists: s.playlists
+        .map((p) => (keyById.has(p.id) ? { ...p, sortKey: keyById.get(p.id) } : p))
+        .sort(sortPlaylists),
+    }));
+    try {
+      if (isDesktop) await api.playlistsReorderList({ orderedIds });
+      await tryOrQueue(
+        () => reorderPlaylistsRemote(orderedIds),
+        { kind: 'playlist.reorderList', payload: { orderedIds } }
+      );
+    } catch (err) {
+      console.error('[reorderPlaylists] failed', err);
+    }
+  },
+
+  /**
+   * Sube una playlist al TOPE de la lista (uso: se reprodujo de ella). Le
+   * asigna el mayor sort_key (now) y reordena. Persiste como reorder de toda
+   * la lista para mantener consistencia de claves.
+   * @param {string} playlistId
+   */
+  bumpPlaylist(playlistId) {
+    const { playlists } = get();
+    if (!playlists.some((p) => p.id === playlistId)) return;
+    // Si ya está arriba del todo, no hacer nada (evita escrituras redundantes).
+    const sorted = playlists.slice().sort(sortPlaylists);
+    if (sorted[0]?.id === playlistId) return;
+    const orderedIds = [playlistId, ...sorted.filter((p) => p.id !== playlistId).map((p) => p.id)];
+    get().reorderPlaylists(orderedIds);
+  },
+
+  /**
+   * Sube una canción al TOPE de su playlist (uso). Reutiliza `reorder`.
+   * @param {string} playlistId
+   * @param {string} trackId
+   */
+  bumpTrackInPlaylist(playlistId, trackId) {
+    const ids = get().contents[playlistId] ?? [];
+    if (ids.length === 0 || ids[0] === trackId || !ids.includes(trackId)) return;
+    const reordered = [trackId, ...ids.filter((id) => id !== trackId)];
+    get().reorder(playlistId, reordered);
+  },
+
   /** Toggle favorito sobre un track ya persistido. */
   async toggleFavorite(trackId) {
     const { favoritesId, contents } = get();
@@ -473,7 +542,7 @@ export const usePlaylistsStore = create((set, get) => ({
         playlists = [...s.playlists, incoming];
       }
       const favs = playlists.find((p) => p.name === 'Favoritas');
-      return { playlists, favoritesId: favs?.id ?? s.favoritesId };
+      return { playlists: playlists.sort(sortPlaylists), favoritesId: favs?.id ?? s.favoritesId };
     });
     if (isDesktop) api.playlistsUpsert(incoming).catch(() => {});
   },
@@ -528,5 +597,6 @@ function remoteRowToPlaylist(r) {
     coverUrl: r.cover_url ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    sortKey: r.sort_key ?? 0,
   };
 }

@@ -8,17 +8,22 @@ import { playPlaylist } from '../../lib/play-helpers.js';
 import logotipoUrl from '../../assets/logotipo.png';
 import styles from './Sidebar.module.css';
 
+const PLAYLIST_MIME = 'application/x-ritmiq-playlist';
+
 export function Sidebar() {
   const playlists = usePlaylistsStore((s) => s.playlists);
   const favoritesId = usePlaylistsStore((s) => s.favoritesId);
   const addTrack = usePlaylistsStore((s) => s.addTrack);
+  const reorderPlaylists = usePlaylistsStore((s) => s.reorderPlaylists);
   const { view, goHome, goLibrary, goDownloads, goSettings, goFriends, goPlaylist } = useViewStore();
   const pendingCount = useSocialStore((s) =>
     s.incomingRequests.length + s.inbox.filter((i) => !i.readAt).length
   );
   // Estado del drag-over: id de la playlist sobre la que el cursor esta
-  // arrastrando un track. Usado para highlight visual del item.
+  // arrastrando un track O reordenando otra playlist. Highlight visual.
   const [dragOverId, setDragOverId] = useState(null);
+  // id de la playlist que se está arrastrando (reorden de la lista).
+  const [draggingId, setDraggingId] = useState(null);
 
   /**
    * Maneja drop de un track sobre una playlist del sidebar. El track debe
@@ -28,6 +33,22 @@ export function Sidebar() {
   const onDropToPlaylist = async (e, playlistId, playlistName) => {
     e.preventDefault();
     setDragOverId(null);
+    // Caso 1: reorden de la lista de playlists (arrastrar una playlist sobre
+    // otra → la soltada se coloca en la posición de destino).
+    const draggedPl = e.dataTransfer.getData(PLAYLIST_MIME);
+    if (draggedPl && draggedPl !== playlistId) {
+      setDraggingId(null);
+      // Construir el orden visible actual (sin Favoritas, que queda pineada)
+      // y mover draggedPl a la posición de playlistId.
+      const ids = sorted.filter((p) => p.id !== favoritesId).map((p) => p.id);
+      const from = ids.indexOf(draggedPl);
+      const to = ids.indexOf(playlistId);
+      if (from < 0 || to < 0) return;
+      ids.splice(to, 0, ids.splice(from, 1)[0]);
+      try { await reorderPlaylists(ids); } catch (err) { toast.error(`No se pudo reordenar: ${err?.message ?? err}`); }
+      return;
+    }
+    // Caso 2: añadir un track arrastrado a la playlist.
     const trackId = e.dataTransfer.getData('application/x-ritmiq-track');
     if (!trackId) return;
     try {
@@ -38,10 +59,13 @@ export function Sidebar() {
     }
   };
 
-  // Ordenar: Favoritas primero, luego por created_at.
+  // Ordenar: Favoritas primero, luego por sortKey DESC (drag manual + subir
+  // al reproducir), con created_at de desempate.
   const sorted = playlists.slice().sort((a, b) => {
     if (a.id === favoritesId) return -1;
     if (b.id === favoritesId) return 1;
+    const ka = a.sortKey ?? 0, kb = b.sortKey ?? 0;
+    if (kb !== ka) return kb - ka;
     return (a.createdAt ?? '').localeCompare(b.createdAt ?? '');
   });
 
@@ -125,14 +149,27 @@ export function Sidebar() {
               <li
                 key={pl.id}
                 data-drag-over={isDragOver || undefined}
+                data-dragging={draggingId === pl.id || undefined}
+                // La fila es arrastrable para REORDENAR la lista (salvo
+                // Favoritas, que queda pineada arriba).
+                draggable={pl.id !== favoritesId}
+                onDragStart={(e) => {
+                  if (pl.id === favoritesId) { e.preventDefault(); return; }
+                  e.dataTransfer.setData(PLAYLIST_MIME, pl.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggingId(pl.id);
+                }}
+                onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
                 onDragOver={(e) => {
-                  // Solo aceptamos nuestro MIME custom. Si el browser
-                  // reporta types vacios (algunos eventos), permitimos
-                  // por defecto \u2014 onDrop validara de nuevo.
+                  // Aceptamos: track (añadir) o playlist (reordenar). Si los
+                  // types vienen vacíos, permitimos y onDrop revalida.
                   const types = Array.from(e.dataTransfer?.types ?? []);
-                  if (types.length === 0 || types.includes('application/x-ritmiq-track')) {
+                  const ok = types.length === 0 ||
+                    types.includes('application/x-ritmiq-track') ||
+                    types.includes(PLAYLIST_MIME);
+                  if (ok) {
                     e.preventDefault();
-                    e.dataTransfer.dropEffect = 'copy';
+                    e.dataTransfer.dropEffect = types.includes(PLAYLIST_MIME) ? 'move' : 'copy';
                     if (dragOverId !== pl.id) setDragOverId(pl.id);
                   }
                 }}
