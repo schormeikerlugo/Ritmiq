@@ -26,6 +26,12 @@ Archivos en la raíz del repo:
 | `SUPABASE_*` | Cliente y servidor de Supabase. |
 | `RITMIQ_*` | Específicas del proyecto. Solo main process. |
 
+## Cliente (build): servidor por defecto
+
+| Variable | Uso |
+|---|---|
+| `VITE_SERVER_URL` | URL del servidor 24/7 por defecto (`https://ritmiq.org`). Todo cliente apunta aquí sin config manual (`getServerUrlSync()` cae a esta si localStorage vacío). Pública (túnel público); la seguridad la dan JWT + allowlist. Vive en `.env.production` (no versionado). |
+
 ## Carga
 
 - **Desktop main**: lee desde `process.env` + `dotenv` en `apps/desktop/main/env.js`.

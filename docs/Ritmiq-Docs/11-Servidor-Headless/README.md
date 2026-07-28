@@ -16,6 +16,13 @@ tags: [servidor, headless, docker, indice]
 
 ## Contexto
 
+> **Visión (2026-07)**: el servidor 24/7 es el **host central por defecto**. Todo
+> dispositivo que crea cuenta apunta a `ritmiq.org` automáticamente
+> (`VITE_SERVER_URL`), hace **auto-pareo silencioso** con su JWT y escucha música
+> si su cuenta está en la **allowlist** (gestionable en caliente desde `/admin`).
+> La conexión local al desktop ("Mi PC") es una dualidad opcional de aceleración.
+> Ver [[Administracion-Dispositivos]] y [[Multi-Endpoint-y-Seleccion-Host]].
+
 Antes, el "algoritmo de búsqueda/descarga de YouTube" vivía solo en el desktop
 (Electron levantaba el LAN server). Se migró a un **servidor casero 24/7** con:
 

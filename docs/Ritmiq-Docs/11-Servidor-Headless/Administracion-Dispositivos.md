@@ -24,11 +24,36 @@ tags: [servidor, dispositivos, pareo, admin, allowlist, cookies]
 - **Sub-admin (por cuenta)**: un usuario autenticado (JWT) gestiona **solo** sus
   dispositivos (mismo `supabase_user_id`). No ve ni toca los de otras cuentas (403).
 
-## Allowlist (`RITMIQ_ALLOWED_USERS`)
+## Allowlist (cuentas aprobadas)
 
-Lista de `user_id` de confianza separada por comas. Un dispositivo cuya cuenta
-esté en la lista se **auto-aprueba sin PIN** al parear. El `user_id` se toma del
-JWT verificado ([[Autenticacion-y-JWT]]).
+Un dispositivo cuya cuenta esté aprobada se **auto-aprueba sin PIN** al parear
+(auto-pareo silencioso). El `user_id` se toma del JWT verificado
+([[Autenticacion-y-JWT]]). Dos fuentes de aprobación (unión):
+
+1. **`RITMIQ_ALLOWED_USERS`** (env): lista de `user_id` separada por comas. Fija.
+2. **Tabla `allowed_accounts`** (2026-07): gestionable **en caliente** desde el
+   panel `/admin` sin reiniciar. `isAccountAllowed(db, userId)` la consulta.
+
+### Auto-pareo silencioso (cliente)
+
+`packages/ui/src/lib/device.js` `ensureServerPairing()`: al reproducir del
+servidor sin `device_token`, el cliente hace `POST /pair` con su JWT de sesión.
+Si la cuenta está aprobada → recibe un **device_token permanente** (no caduca,
+resuelve la expiración del JWT). Si no → `pending` y se registra en
+`access_requests`.
+
+### Solicitudes de acceso (`access_requests`)
+
+Cuando una cuenta **no aprobada** intenta parear, se registra (`user_id`,
+`email`, `display_name`, `attempts`). Aparece en el panel `/admin` bajo "Cuentas
+por aprobar" para aprobar con un clic. Al aprobar, se auto-aprueban sus
+`pair_requests` pendientes.
+
+### Panel `/admin` — cuentas
+
+`GET /admin/api/state` incluye `accounts` (aprobadas) y `accessRequests`
+(pendientes). Acciones owner: `POST /admin/api/accounts/allow` y
+`/admin/api/accounts/revoke`.
 
 ## `devices.js` — funciones
 
