@@ -18,7 +18,7 @@ tags: [moc, raiz]
 - [[MOC - UI Compartida]] — 115 notas: 47 componentes + 2 primitives + 19 hooks + 28 helpers + 19 stores.
 - [[MOC - Backend Supabase]] — 35 notas: 19 Edge Functions + 16 tablas + índice migraciones.
 - [[MOC - Flujos]] — 13 flujos end-to-end con Mermaid.
-- [[11-Servidor-Headless/README|Servidor Headless 24/7]] — 8 notas: server-core, apps/server, JWT, admin de dispositivos, login noVNC, caché/rendimiento, multi-endpoint.
+- [[11-Servidor-Headless/README|Servidor Headless 24/7]] — 9 notas: migración/cómo funciona, server-core, apps/server, JWT, admin de dispositivos, login noVNC, caché/rendimiento, multi-endpoint.
 
 ## Arquitectura
 
@@ -50,7 +50,7 @@ tags: [moc, raiz]
 | Supabase Edge Functions | `09-Supabase-Backend/Edge-Functions/` | 19 |
 | Supabase Tablas | `09-Supabase-Backend/Tablas/` | 16 |
 | Flujos end-to-end | `10-Flujos/` | 13 |
-| Servidor Headless 24/7 | `11-Servidor-Headless/` | 8 |
+| Servidor Headless 24/7 | `11-Servidor-Headless/` | 9 |
 | MOCs + meta | `00-Index/` + `01-Arquitectura/` + `99-Mantenimiento/` | 15 |
 
 ## Apoyo

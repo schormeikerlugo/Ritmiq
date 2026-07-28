@@ -3,7 +3,7 @@ tipo: modulo
 capa: servidor
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-07-17
+ultima-revision: 2026-07-28
 archivo: packages/server-core/src/lan-server.js
 tags: [servidor, cache, rendimiento, prewarm, yt-dlp, concurrencia]
 ---
@@ -86,6 +86,26 @@ Fix:
 > **Nota**: el throttle de googlevideo es variable/intermitente; los chunks lo
 > mitigan pero no lo eliminan. El prewarm anticipado (descarga en background) +
 > caché hacen que el usuario perciba reproducción instantánea igualmente.
+
+## Cache-miss en `/stream` vía túnel: descargar+servir (fix 502)
+
+Antes, en cache-miss el path `/stream/yt:` hacía `proxyAudio` de la URL de
+googlevideo **en vivo**. Con el throttle, el TTFB era tan lento que el **túnel
+Cloudflare cortaba con 502** (Bad Gateway) — síntoma: canciones no cacheadas
+fallaban vía `ritmiq.org` aunque localmente funcionaran.
+
+Fix: en cache-miss se **descarga el archivo** (`downloadSharedAudio`, con chunks
+anti-throttle ~5-9s) y se sirve el archivo local (rápido y estable por el túnel),
+que además queda cacheado. `proxyAudio` queda como fallback si la descarga falla.
+Verificado vía túnel: canción no cacheada 502 → 206 (8s 1ª vez, 0.8s cacheada).
+
+## Descargas del cliente (offline): incluir el servidor
+
+`getReachableLanBaseUrl()` (`lan-client.js`, usada por `downloadTrackToLocal`)
+**incluía solo LAN/túnel del desktop**, así que las descargas caían siempre a la
+Edge `resolve-stream` que YouTube bloquea (502 "descargas desde la nube").
+Fix (2026-07): ahora incluye el **servidor 24/7** ordenado por `serverMode`, y
+hace auto-pareo silencioso si falta `device_token`.
 
 ## Concurrencia (Fase C1)
 

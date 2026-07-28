@@ -3,7 +3,7 @@ tipo: indice
 capa: servidor
 plataforma: servidor
 estado: estable
-ultima-revision: 2026-07-17
+ultima-revision: 2026-07-28
 tags: [servidor, headless, docker, indice]
 ---
 
@@ -37,6 +37,7 @@ Cloudflare movido del desktop al servidor). Despliegue en Docker + Compose.
 
 ## Notas
 
+- [[Migracion-y-Como-Funciona]] — **empezar aquí**: qué cambió y el flujo completo de un dispositivo nuevo.
 - [[server-core]] — paquete `@ritmiq/server-core` host-aware (lógica compartida).
 - [[apps-server]] — bootstrap headless (`apps/server`): index, CLI, Docker, systemd.
 - [[Autenticacion-y-JWT]] — verificación de JWT Supabase (ES256/JWKS) + niveles de auth.
@@ -72,6 +73,7 @@ GET  /yt/prewarm?q=<ytId>[&download=1]→ pre-resolver URL / descargar m4a
 GET  /stream/:id?yt=<ytId>            → stream de audio (caché archivo/URL)
 GET  /download/:id?yt=<ytId>          → descarga a shared-audio
 GET  /shared-cache/check?yt=id1,id2   → badge "en caché"
+GET  /spotify/playlist?url=           → scrape embed de playlist Spotify (import) [owner|device]
 POST /cookies/upload                  → subir cookies.txt del propio device
 POST /youtube/link/start|status, /youtube/unlink → login noVNC
 ```

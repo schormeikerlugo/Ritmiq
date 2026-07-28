@@ -3,7 +3,7 @@ tipo: flujo
 capa: pwa
 plataforma: pwa
 estado: estable
-ultima-revision: 2026-05-31
+ultima-revision: 2026-07-28
 archivo: apps/pwa/src/pwa-update.js
 tags: [pwa, service-worker, actualizaciones, update, indexeddb]
 ---
@@ -11,8 +11,10 @@ tags: [pwa, service-worker, actualizaciones, update, indexeddb]
 # Actualización de la PWA (sin reinstalar)
 
 > La PWA instalada se actualiza **in-app** sin reinstalar y **sin borrar las descargas**.
-> Cuando hay una versión nueva, un toast "Actualizar" deja que el usuario aplique el cambio
-> cuando quiera (no se recarga solo para no cortar la reproducción).
+> **Desde 2026-07**: comprueba en cada arranque y cada `visibilitychange` (sin
+> throttle) + cada 30 min, y **auto-aplica** la versión nueva con recarga suave.
+> Excepción: si se está **reproduciendo audio**, no recarga — muestra el toast
+> "Actualizar" para que el usuario decida (no cortar la música).
 
 ## Por qué hacía falta
 
@@ -40,14 +42,16 @@ sequenceDiagram
 
   REG->>SW: registerSW({ immediate, prompt })
   REG->>STORE: bindUpdater({ version, buildDate, update, check })
-  Note over REG: setInterval 24h + visibilitychange (throttle 24h)
+  Note over REG: check en cada arranque + visibilitychange (sin throttle) + cada 30min
   REG->>SW: registration.update()
   SW-->>REG: onNeedRefresh (hay versión nueva en espera)
   REG->>STORE: setNeedRefresh(true)
-  REG->>UI: toast "Nueva versión disponible · Actualizar" (duration 0)
-  U->>UI: pulsa "Actualizar"
-  UI->>STORE: applyUpdate()
-  STORE->>SW: updateSW(true) → SKIP_WAITING + reload
+  alt no se está reproduciendo
+    REG->>SW: updateSW(true) → SKIP_WAITING + reload (auto)
+  else reproduciendo audio
+    REG->>UI: toast "Nueva versión · Actualizar" (duration 0)
+    U->>UI: pulsa "Actualizar" → applyUpdate() → updateSW(true)
+  end
   Note over U: descargas (IndexedDB) intactas tras el reload
 ```
 
@@ -57,28 +61,39 @@ sequenceDiagram
 |---|---|---|
 | `registerType: 'prompt'` + `cleanupOutdatedCaches` | `apps/pwa/vite.config.js` | No auto-recarga; purga precaches viejos (no IndexedDB). |
 | `define __APP_VERSION__ / __BUILD_DATE__` | `apps/pwa/vite.config.js` | Sello de versión/fecha del build. |
-| `setupPwaUpdates()` | `apps/pwa/src/pwa-update.js` | Registra SW vía `virtual:pwa-register`, programa auto-check 24h + visibilitychange, dispara el toast, enlaza el store. |
+| `setupPwaUpdates()` | `apps/pwa/src/pwa-update.js` | Registra SW vía `virtual:pwa-register`, comprueba en cada arranque + `visibilitychange` (sin throttle) + cada 30min, **auto-aplica** (o toast si reproduce), enlaza el store. |
 | store `pwa-update` | `packages/ui/src/stores/pwa-update.js` | Estado desacoplado (`version`, `needRefresh`, `checking`, `bound`) + acciones (`applyUpdate`, `checkForUpdate`). **No** importa `virtual:pwa-register` → el build de Electron compila sin el plugin. |
 | UI | [[AboutInfoView]] | Muestra versión + botón "Buscar actualizaciones" / "Actualizar" + nota de descargas seguras (solo PWA). |
 
 ## Anatomía (snippets)
 
-### Auto-check 24h + visibilitychange con throttle
+### Check en cada foco + auto-aplicar (sin throttle)
 `apps/pwa/src/pwa-update.js`
 
 ```js
-setInterval(() => { registration.update(); markChecked(); }, CHECK_INTERVAL_MS); // 24h
+// Check periódico cada 30 min + en cada foco (sin throttle) + al arrancar.
+setInterval(() => { registration.update(); }, CHECK_INTERVAL_MS); // 30 min
 const onVisible = () => {
-  if (document.visibilityState !== 'visible') return;
-  if (elapsedSinceLastCheck() < CHECK_INTERVAL_MS) return; // throttle 24h
-  registration.update(); markChecked();
+  if (document.visibilityState === 'visible') registration.update();
 };
 document.addEventListener('visibilitychange', onVisible);
+registration.update(); // inmediato al arrancar
+
+// Al haber versión nueva: auto-aplicar salvo que se esté reproduciendo.
+onNeedRefresh() {
+  if (!isPlayingNow()) {
+    toast.info('Actualizando a la última versión…');
+    setTimeout(() => updateSW(true), 800); // SKIP_WAITING + reload
+  } else {
+    toast.info('Nueva versión disponible', { action: { label: 'Actualizar', onClick: applyUpdate } });
+  }
+}
 ```
 
-**Por qué**: el intervalo cubre sesiones largas; el `visibilitychange` cubre el caso típico
-de PWA (el usuario la deja en background y vuelve). El throttle de 24h en localStorage evita
-martillar el servidor en cada cambio de app.
+**Por qué**: se quitó el throttle de 24h (los deploys tardaban demasiado en
+llegar). El check es barato (un HEAD al `sw.js`). El auto-aplicar evita que el
+usuario tenga que pulsar nada; `isPlayingNow()` (lee `usePlayerStore`) protege la
+reproducción en curso.
 
 ### Desacople para no romper Electron
 El store en `@ritmiq/ui` **no** importa `virtual:pwa-register` (módulo virtual que solo existe
