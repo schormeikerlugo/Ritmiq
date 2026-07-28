@@ -1682,21 +1682,27 @@ export async function startLanServer({
             console.warn(`[lan-server] findSharedAudio fallo (no fatal): ${err?.message ?? err}`);
           }
 
-          // 3. Fallback: yt-dlp. Prioridad MAXIMA (10): el usuario YA
-          //    pulso play. Si hay otros prewarms encolados, este se
-          //    cuela al frente.
-          const streamUrl = await resolveCached(ytId, 10);
-          const tResolved = Date.now();
-          console.log(
-            `[lan-server] stream yt:${ytId} resolve=${tResolved - tStart}ms ` +
-            `clientRange=${req.headers.range ?? '-'}`
-          );
-          // Si googlevideo rechaza la URL (403/410 — caducada/inválida),
-          // invalidamos la entrada del cache y re-resolvemos una vez.
-          return proxyAudio(req, res, streamUrl, async () => {
-            streamCache.delete(ytId);
-            return resolveCached(ytId, 10);
-          });
+          // 3. Miss: DESCARGAR el archivo a shared-audio y servirlo local.
+          //
+          // Antes hacíamos proxyAudio de la URL de googlevideo en vivo, pero
+          // el throttling de googlevideo hacía el TTFB tan lento que el TÚNEL
+          // Cloudflare cortaba con 502 (Bad Gateway) — síntoma reportado. La
+          // descarga usa --http-chunk-size (anti-throttle) y es rápida (~5-9s);
+          // luego servimos un archivo local (rápido y estable a través del
+          // túnel) y queda cacheado para la próxima. Coalescing incluido.
+          try {
+            const filePath = await downloadSharedAudio(ytId, ytOptsFor(principal));
+            console.log(`[lan-server] stream yt:${ytId} DOWNLOADED+SERVE ${Date.now() - tStart}ms`);
+            return serveLocalFile(req, res, filePath);
+          } catch (err) {
+            console.warn(`[lan-server] stream yt:${ytId} download falló, fallback a proxy: ${err?.message ?? err}`);
+            // Fallback: proxy en vivo (con re-resolución si 403).
+            const streamUrl = await resolveCached(ytId, 10);
+            return proxyAudio(req, res, streamUrl, async () => {
+              streamCache.delete(ytId);
+              return resolveCached(ytId, 10);
+            });
+          }
         }
 
         // ── Autorización: firma HMAC emitida por Edge `sign-stream` ───────
