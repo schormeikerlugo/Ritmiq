@@ -13,8 +13,10 @@ import Dexie from 'dexie';
 import {
   lanStreamUrl, getLanBaseUrlSync, pingLan,
   getTunnelUrlSync, withTokenInUrl, getReachableLanBaseUrl,
-  getSignedStreamUrl,
+  getSignedStreamUrl, getServerUrlSync,
 } from './lan-client.js';
+import { supabase } from './supabase.js';
+import { ensureServerPairing, getDeviceToken } from './device.js';
 
 class RitmiqLocalDB extends Dexie {
   constructor() {
@@ -202,6 +204,13 @@ export async function downloadTrackToLocal(trackId, onProgress, opts = {}) {
   //    descargas — solo lo usamos como fallback si el usuario lo intenta sin
   //    su PC encendido).
   const reachable = await getReachableLanBaseUrl();
+
+  // Si el host alcanzable es el SERVIDOR 24/7 y aún no hay device_token,
+  // hacer auto-pareo silencioso (con el JWT de sesión) para poder descargar.
+  // Sin esto, la descarga contra el servidor iría sin credencial válida.
+  if (reachable && getServerUrlSync() && reachable === getServerUrlSync() && !getDeviceToken()) {
+    try { await ensureServerPairing(reachable, supabase); } catch {}
+  }
 
   let url;
   if (reachable) {

@@ -232,9 +232,22 @@ export async function pingLan(baseUrl, timeoutMs = 1500) {
  */
 export async function getReachableLanBaseUrl() {
   const lan = getLanBaseUrlSync();
-  if (lan && (await pingLan(lan))) return lan;
   const tunnel = getTunnelUrlSync();
-  if (tunnel && (await pingLan(tunnel, 3000))) return tunnel;
+  const server = getServerUrlSync();
+  const mode = readServerModeSync();
+
+  // Candidatos ordenados según el modo de conexión. Por defecto ('auto'/
+  // 'prefer-server') el SERVIDOR 24/7 va primero (tiene cookies + yt-dlp);
+  // en 'prefer-desktop' prioriza LAN/túnel del desktop. Antes esta función
+  // NO incluía el servidor 24/7 → las descargas caían a Edge Functions (que
+  // YouTube bloquea con 502 "descargas desde la nube"). Este es el fix.
+  const ordered = mode === 'prefer-desktop'
+    ? [[lan, 1500], [tunnel, 3000], [server, 3000]]
+    : [[server, 3000], [lan, 1500], [tunnel, 3000]];
+
+  for (const [url, timeout] of ordered) {
+    if (url && (await pingLan(url, timeout))) return url;
+  }
   return null;
 }
 
