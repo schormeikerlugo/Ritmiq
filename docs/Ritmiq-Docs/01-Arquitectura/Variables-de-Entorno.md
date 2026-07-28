@@ -49,6 +49,7 @@ Ver plantilla completa en `apps/server/.env.example` y [[apps-server]].
 | `RITMIQ_SUPABASE_JWT_SECRET` | HS256 legacy (si el proyecto no usa ES256/JWKS) |
 | `RITMIQ_REQUIRE_AUTH_FOR_PAIR` | exigir JWT válido en `/pair` (default ON) |
 | `RITMIQ_YTDLP_CONCURRENCY` | máx. procesos yt-dlp en paralelo (default: cores/2, 3-8) |
+| `RITMIQ_PREWARM_MAX_DURATION_S` | duración máx. para descarga anticipada auto (default 1800 = 30min) |
 | `RITMIQ_TUNNEL_TOKEN` / `RITMIQ_TUNNEL_CUSTOM_URL` / `RITMIQ_TUNNEL_MODE` | Cloudflare Tunnel |
 | `RITMIQ_LOGIN_IMAGE` | imagen del contenedor noVNC ([[Login-noVNC]]) |
 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | verificación JWT (JWKS) + publicar endpoint |

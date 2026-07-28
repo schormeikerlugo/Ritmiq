@@ -58,11 +58,34 @@ inflight). Búsqueda repetida: 2.0s → ~0.001s.
 ## Prewarm
 
 - `/yt/prewarm?q=<ytId>` → pre-resuelve la URL (prioridad media, fire-and-forget).
+  **Dedupe servidor**: si ya hay archivo cacheado o URL vigente/inflight, no
+  re-encola yt-dlp (evita los `resolve START` redundantes tras `CACHE HIT`).
 - `&download=1` (Fase D1) → **descarga el m4a completo** a `shared-audio/` en una
   cola de baja concurrencia (`schedulePrewarmDownload`). Play instantáneo y
-  permanente (no expira).
+  permanente (no expira). **Límite de duración** `RITMIQ_PREWARM_MAX_DURATION_S`
+  (default 1800 = 30min): no pre-descarga mixes/álbumes largos solos (el usuario
+  aún puede descargarlos manualmente).
 - Cliente (`lan-client.js` `prewarmStream(ytId, { download })`): la vista de
   búsqueda prewarmea los primeros 5; el top-1 con `download`. Dedupe 5min.
+
+## Descarga: m4a nativo + anti-throttle (fix 2026-07)
+
+`downloadAudio` (`packages/yt/src/ytdlp-wrapper.js`) descargaba con
+`-x --audio-format m4a`, que **transcodifica** con ffmpeg (baja opus y re-encoda)
+→ ~2.4x más lento (medido: 11.9s vs 4.9s). Además googlevideo **throttlea** la
+conexión única tras los primeros MB (descargas de 12-105s).
+
+Fix:
+- **m4a nativo directo**: `-f bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/...`
+  con `--remux-video m4a` (remux sin re-encode si ya es AAC). Sin ffmpeg salvo
+  fallback. Los destinos opus/mp3 (desktop) mantienen `-x`.
+- **`--http-chunk-size 1M`**: descarga por chunks con Range → resetea el
+  throttle de googlevideo por chunk (medido: 5.7s con chunks vs 12-32s sin).
+- El JS runtime (Deno) descifra el n-parameter, complemento del anti-throttle.
+
+> **Nota**: el throttle de googlevideo es variable/intermitente; los chunks lo
+> mitigan pero no lo eliminan. El prewarm anticipado (descarga en background) +
+> caché hacen que el usuario perciba reproducción instantánea igualmente.
 
 ## Concurrencia (Fase C1)
 

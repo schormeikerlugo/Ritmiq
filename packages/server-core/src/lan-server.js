@@ -662,6 +662,14 @@ export async function startLanServer({
     try { cores = cpus().length || 4; } catch {}
     return Math.max(1, Math.min(3, Math.floor(cores / 6)));
   })();
+  // Límite de duración para la descarga ANTICIPADA (prewarm). No pre-descargar
+  // mixes/álbumes/podcasts largos (que pesan 50-160MB y llenan disco) solos;
+  // el usuario todavía puede descargarlos manualmente (play → download real).
+  // Configurable con RITMIQ_PREWARM_MAX_DURATION_S (default 1800 = 30 min).
+  const PREWARM_DL_MAX_DURATION_S = (() => {
+    const v = Number(process.env.RITMIQ_PREWARM_MAX_DURATION_S);
+    return Number.isFinite(v) && v > 0 ? v : 30 * 60;
+  })();
   let prewarmDlRunning = 0;
   const prewarmDlQueue = [];
   const prewarmDlSeen = new Set(); // dedupe: no encolar el mismo ytId dos veces
@@ -669,7 +677,19 @@ export async function startLanServer({
     while (prewarmDlRunning < PREWARM_DL_CONCURRENCY && prewarmDlQueue.length > 0) {
       const { ytId, dlOpts } = prewarmDlQueue.shift();
       prewarmDlRunning++;
-      downloadSharedAudio(ytId, dlOpts)
+      (async () => {
+        // Guard de duración: consultamos metadata (barata) y omitimos los
+        // contenidos largos en la descarga automática.
+        try {
+          const meta = await getMetadata(ytId, dlOpts);
+          const dur = Number(meta?.duration);
+          if (Number.isFinite(dur) && dur > PREWARM_DL_MAX_DURATION_S) {
+            console.log(`[lan-server] prewarm-download ${ytId} OMITIDO (${Math.round(dur / 60)}min > límite)`);
+            return;
+          }
+        } catch { /* si falla metadata, seguimos con la descarga */ }
+        await downloadSharedAudio(ytId, dlOpts);
+      })()
         .catch((e) => console.warn(`[lan-server] prewarm-download ${ytId} falló: ${e?.message ?? e}`))
         .finally(() => { prewarmDlRunning--; prewarmDlSeen.delete(ytId); pumpPrewarmDl(); });
     }
@@ -1329,6 +1349,16 @@ export async function startLanServer({
         const ytId = url.searchParams.get('q');
         if (!ytId) { res.writeHead(400).end('q required'); return; }
         const wantDownload = url.searchParams.get('download') === '1';
+        // Dedupe: si ya hay archivo cacheado o URL vigente/inflight, el prewarm
+        // no aporta nada → evitamos re-encolar yt-dlp (los "resolve START"
+        // redundantes que se veían en los logs tras cada CACHE HIT).
+        const alreadyFile = (() => { try { return !!findSharedAudio(db, ytId); } catch { return false; } })();
+        const cachedUrl = streamCache.get(ytId);
+        const urlFresh = cachedUrl && ((cachedUrl.url && cachedUrl.expiresAt > Date.now()) || cachedUrl.inflight);
+        if (alreadyFile || urlFresh) {
+          res.writeHead(204).end();
+          return;
+        }
         if (wantDownload) {
           schedulePrewarmDownload(ytId, ytOptsFor(principal));
         } else {
