@@ -1314,7 +1314,11 @@ export async function startLanServer({
         url.pathname === '/cookies/upload' ||
         url.pathname.startsWith('/youtube/link') ||
         url.pathname === '/youtube/unlink' ||
-        url.pathname === '/shared-cache/check';
+        url.pathname === '/shared-cache/check' ||
+        // Import de Spotify: solo scrapea el embed público de una playlist, no
+        // expone datos privados. Aceptar device_token (no solo owner) para que
+        // cualquier cuenta aprobada pueda importar (antes daba 401 a no-owners).
+        url.pathname === '/spotify/playlist';
       const principal = isMusicEndpoint ? authorizeDeviceOrOwner(req, url) : null;
       const isDeviceAuth = isMusicEndpoint && principal != null;
       if (!isSignedStreamRequest && !isCompatExempt && !isDeviceAuth && !isAuthorized(req, url)) {
