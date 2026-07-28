@@ -25,7 +25,7 @@ import { isEphemeralTrack } from './track-helpers.js';
 import { supabase } from './supabase.js';
 import {
   getLanBaseUrlSync, pingLan, getTunnelUrlSync, withTokenInUrl,
-  getSignedStreamUrl, getServerUrlSync,
+  getSignedStreamUrl, getServerUrlSync, getServerTokenSync, getAccessTokenSync,
 } from './lan-client.js';
 import { getLocalBlobUrl, getJamBlobUrl, cacheJamTrack } from './local-downloads.js';
 
@@ -350,14 +350,36 @@ function buildResolveDeps(track) {
     },
     getLanBaseUrl: async () => {
       if (isDesktop) {
-        // Tanto tracks persistidos como EFÍMEROS (resultados de búsqueda) se
-        // sirven por el lan-server local. Antes las efímeras se excluían y
-        // caían al cloud (Edge resolve-stream), cuyas URLs de googlevideo
-        // están IP-locked → 403 → "audio load failed (code 4)". El lan-server
-        // resuelve por ?yt=<ytId> (buildLanStreamUrl) y aprovecha el caché
-        // de archivos + prewarm.
-        const info = await api.appInfo();
-        return info?.lanPort ? `http://127.0.0.1:${info.lanPort}` : null;
+        // Host del desktop según serverMode:
+        //  - 'prefer-desktop' ("Mi PC") → SIEMPRE el lan-server local.
+        //  - 'auto'/'prefer-server'/'fastest' → prioriza el SERVIDOR 24/7
+        //    (que tiene cookies del owner y funciona aunque Firefox esté
+        //    cerrado), con FALLBACK automático al lan-server local si el
+        //    servidor no responde. Esto arregla el 403 de googlevideo que
+        //    daba el lan-server local cuando no tenía cookies.
+        const localBase = await (async () => {
+          const info = await api.appInfo();
+          return info?.lanPort ? `http://127.0.0.1:${info.lanPort}` : null;
+        })();
+
+        let mode = 'auto';
+        try {
+          const { useSettingsStore } = await import('../stores/settings.js');
+          mode = useSettingsStore.getState().serverMode ?? 'auto';
+        } catch {}
+
+        if (mode === 'prefer-desktop') {
+          if (localBase) lastActiveEndpoint.kind = 'lan';
+          return localBase;
+        }
+
+        // Modos que prefieren el servidor 24/7: usar getReachableCached
+        // (rankea server → lan → desktop y hace health-check). Si no hay
+        // ningún endpoint sano, caer al lan-server local como último recurso.
+        const reachable = await getReachableCached();
+        if (reachable) return reachable;
+        if (localBase) lastActiveEndpoint.kind = 'lan';
+        return localBase;
       }
       return getReachableCached();
     },
@@ -369,7 +391,19 @@ function buildResolveDeps(track) {
       // y caemos a Bearer-token compat.
       const ytQs = track.ytId ? `?yt=${encodeURIComponent(track.ytId)}` : '';
       if (isDesktop) {
-        return withTokenInUrl(`${base}/stream/${encodeURIComponent(trackId)}${ytQs}`);
+        // El token depende del host activo: el SERVIDOR 24/7 usa su propio
+        // access-token (getServerTokenSync); el lan-server LOCAL usa el token
+        // local (getAccessTokenSync). Sin esto, apuntar al servidor con el
+        // token local daría 401.
+        const useServer = lastActiveEndpoint.kind === 'server' ||
+          (getServerUrlSync() && base === getServerUrlSync());
+        const token = useServer
+          ? (getServerTokenSync() || getAccessTokenSync())
+          : getAccessTokenSync();
+        const streamUrl = `${base}/stream/${encodeURIComponent(trackId)}${ytQs}`;
+        if (!token) return streamUrl;
+        const sep = streamUrl.includes('?') ? '&' : '?';
+        return `${streamUrl}${sep}token=${encodeURIComponent(token)}`;
       }
       // PWA: si hay device_token o access_token en localStorage, ir directo.
       // El desktop usa authorizeDeviceOrOwner para validar.

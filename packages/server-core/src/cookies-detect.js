@@ -10,10 +10,11 @@
  * @module main/cookies-detect
  */
 
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync, renameSync, unlinkSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync, spawn } from 'node:child_process';
+import { dataSubdir, isHostReady } from './host.js';
 
 /** @returns {string|null} */
 export function detectCookiesBrowser() {
@@ -86,6 +87,15 @@ export function detectJsRuntime() {
  * (200-500ms cada vez, sumando 1s+ a cada play).
  */
 export function getCookieFilePath() {
+  // Persistir en el dataDir del host (userData en desktop) en vez de /tmp:
+  // /tmp lo limpia el SO periódicamente → el cookies file exportado
+  // desaparecía y el desktop volvía a resolver SIN cookies (403 en
+  // googlevideo). Fallback a /tmp si el host aún no está configurado.
+  // NOTA: el servidor headless usa RITMIQ_YTDLP_COOKIES_FILE explícito, así
+  // que este cambio solo afecta al fallback de export (desktop).
+  try {
+    if (isHostReady()) return join(dataSubdir('cookies'), 'yt-cookies.txt');
+  } catch { /* host no listo → fallback */ }
   return join(tmpdir(), 'ritmiq-yt-cookies.txt');
 }
 
@@ -114,12 +124,16 @@ export function exportCookiesToFile(ytdlpBin, browser, maxAgeMs = 60 * 60 * 1000
     }
   } catch { /* ignore */ }
 
+  // Export a un archivo TEMPORAL y promoción atómica solo si tuvo éxito.
+  // Si falla (típico: Firefox abierto bloquea la DB de cookies), CONSERVAMOS
+  // el último archivo válido en vez de dejar al desktop sin cookies.
+  const tmpFile = `${file}.tmp`;
   return new Promise((resolve) => {
     // `--simulate` evita cualquier I/O extra. Usamos una URL trivial sólo
     // para forzar a yt-dlp a inicializar y volcar cookies al archivo.
     const args = [
       '--cookies-from-browser', browser,
-      '--cookies', file,
+      '--cookies', tmpFile,
       '--simulate',
       '--skip-download',
       '--no-warnings',
@@ -130,16 +144,26 @@ export function exportCookiesToFile(ytdlpBin, browser, maxAgeMs = 60 * 60 * 1000
     let stderr = '';
     child.stderr.on('data', (b) => (stderr += b.toString()));
     child.on('close', (code) => {
-      if (code === 0 && existsSync(file)) {
+      // Éxito solo si el tmp existe y tiene contenido real (cookies).
+      let ok = false;
+      try { ok = code === 0 && existsSync(tmpFile) && statSync(tmpFile).size > 50; } catch { ok = false; }
+      if (ok) {
+        try { renameSync(tmpFile, file); resolve(file); return; } catch { /* fallthrough */ }
+      }
+      // Falló: limpiar tmp y conservar el archivo previo si existe.
+      try { if (existsSync(tmpFile)) unlinkSync(tmpFile); } catch {}
+      if (existsSync(file)) {
+        console.warn(`[cookies-cache] export falló (code=${code}) — se conserva el cookies file previo`);
         resolve(file);
       } else {
-        console.warn(`[cookies-cache] exportar cookies falló (code=${code}): ${stderr.slice(0, 200)}`);
+        console.warn(`[cookies-cache] export falló (code=${code}) y no hay cookies previas: ${stderr.slice(0, 200)}`);
         resolve(null);
       }
     });
     child.on('error', (err) => {
+      try { if (existsSync(tmpFile)) unlinkSync(tmpFile); } catch {}
       console.warn(`[cookies-cache] spawn falló: ${err.message}`);
-      resolve(null);
+      resolve(existsSync(file) ? file : null);
     });
   });
 }

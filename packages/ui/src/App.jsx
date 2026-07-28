@@ -135,7 +135,7 @@ import { requestPersistOnce, sweepJamCache } from './lib/local-downloads.js';
 import { realtime } from './lib/realtime.js';
 import { onConnectivityChange, forceRecheck } from './lib/connectivity.js';
 import { flushQueue } from './lib/sync-queue.js';
-import { subscribeTunnelUrl, publishTunnelUrl, clearTunnelUrl } from './lib/tunnel-registry.js';
+import { subscribeTunnelUrl, subscribeServerEndpoint, publishTunnelUrl, clearTunnelUrl } from './lib/tunnel-registry.js';
 import styles from './App.module.css';
 
 // Parsea el query param `?share=...` al cargar el modulo — solo una vez.
@@ -456,6 +456,11 @@ export function App() {
     // Obtenemos el access token del main process una sola vez.
     api.appInfo().then((info) => { cachedToken = info?.accessToken ?? null; }).catch(() => {});
 
+    // El desktop también necesita conocer el endpoint del SERVIDOR 24/7 para
+    // poder reproducir a través de él (serverMode auto/prefer-server). Solo
+    // hidrata la fila kind='server' (no toca su propio access-token).
+    const unsubServer = subscribeServerEndpoint(user.id, () => { forceRecheck(); });
+
     const unsub = api.tunnelOnState?.((st) => {
       const url = st?.url ?? null;
       if (st?.status === 'connected' && url && url !== lastPublished) {
@@ -469,7 +474,7 @@ export function App() {
         clearTunnelUrl(user.id, 'desktop');
       }
     });
-    return () => { try { unsub?.(); } catch {} };
+    return () => { try { unsub?.(); } catch {} try { unsubServer?.(); } catch {} };
   }, [user]);
 
   // Si hay un share pendiente Y el user ya esta autenticado, cargamos el

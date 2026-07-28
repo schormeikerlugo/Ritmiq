@@ -137,3 +137,55 @@ export function subscribeTunnelUrl(userId, onChange) {
     try { supabase.removeChannel(channel); } catch {}
   };
 }
+
+/**
+ * Hidrata SOLO el endpoint del servidor 24/7 (kind='server') en localStorage.
+ * Pensado para el DESKTOP: necesita conocer la URL/token del servidor para
+ * poder reproducir a través de él (serverMode auto/prefer-server), pero NO
+ * debe suscribirse al flujo completo (que rehidrataría su propio access-token
+ * desde la fila 'desktop'). Hace un pull + suscripción Realtime a la fila
+ * 'server'.
+ *
+ * @param {string} userId
+ * @param {(info: { serverUrl: string|null }) => void} [onChange]
+ * @returns {() => void} unsubscribe
+ */
+export function subscribeServerEndpoint(userId, onChange) {
+  if (!userId) return () => {};
+
+  const apply = (url, token) => {
+    if (url && url !== getServerUrlSync()) {
+      setServerUrl(url);
+      console.info('[tunnel-registry] server URL (desktop) actualizada:', url);
+    }
+    if (token) setServerToken(token);
+    onChange?.({ serverUrl: getServerUrlSync() });
+  };
+
+  supabase
+    .from('tunnel_endpoints')
+    .select('kind, url, access_token')
+    .eq('user_id', userId)
+    .eq('kind', 'server')
+    .then(({ data }) => {
+      const row = (data ?? [])[0];
+      if (row) apply(row.url ?? null, row.access_token ?? null);
+    })
+    .catch(() => {});
+
+  const channel = supabase
+    .channel(`tunnel-server:${userId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'tunnel_endpoints', filter: `user_id=eq.${userId}` },
+      (payload) => {
+        const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+        if ((row?.kind ?? 'desktop') !== 'server') return;
+        if (payload.eventType === 'DELETE') return; // no borrar auto
+        apply(row?.url ?? null, row?.access_token ?? null);
+      }
+    )
+    .subscribe();
+
+  return () => { try { supabase.removeChannel(channel); } catch {} };
+}

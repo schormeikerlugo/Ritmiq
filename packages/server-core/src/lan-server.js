@@ -1927,6 +1927,23 @@ async function proxyAudio(req, res, upstreamUrl, onUpstreamDead) {
     }
   }
 
+  // Si TRAS re-resolver googlevideo sigue rechazando (403/410/401), no es una
+  // URL caducada sino un problema de acceso real (típicamente faltan cookies
+  // válidas de YouTube para ese contenido). Devolvemos un error claro en vez
+  // de propagar el 403 crudo (que el cliente muestra como "audio load failed
+  // code 4" sin contexto).
+  if (upstream.status === 403 || upstream.status === 410 || upstream.status === 401) {
+    console.warn(`[lan-server] proxy upstream ${upstream.status} persistente — probable falta de cookies`);
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        error: 'youtube_rejected',
+        message: 'YouTube rechazó el stream (posible falta de cookies o contenido restringido).',
+      }));
+    }
+    return;
+  }
+
   // Pasamos los headers relevantes
   const passthrough = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
   for (const h of passthrough) {
