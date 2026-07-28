@@ -3,7 +3,7 @@ tipo: tabla
 capa: supabase
 plataforma: backend
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-07-28
 archivo: supabase/migrations/20260507000000_initial_schema.sql
 tags: [tabla, playlists, rls]
 ---
@@ -21,10 +21,11 @@ name        text NOT NULL,
 is_offline  boolean NOT NULL DEFAULT false,  -- Smart Download
 cover_url   text,                             -- añadido en 20260508
 created_at  timestamptz,
-updated_at  timestamptz
+updated_at  timestamptz,
+sort_key    bigint NOT NULL DEFAULT 0         -- orden de la lista (20260728); mayor=arriba; drag+uso
 ```
 
-Índice: `idx_playlists_user` ON `user_id`.
+Índices: `idx_playlists_user` ON `user_id`; `idx_playlists_user_sort` ON `(user_id, sort_key desc)`.
 
 RLS: owner-only.
 
@@ -47,3 +48,4 @@ RLS: `"playlist_tracks: via playlist"` — acceso permitido si la `playlists.use
 ## Notas / Changelog
 - 2026-05-22: schema inicial.
 - 20260508: añadido `cover_url`.
+- 20260728: añadido `sort_key` (orden de la lista de playlists: drag manual + subir al reproducir). Ver [[playlists]] store.

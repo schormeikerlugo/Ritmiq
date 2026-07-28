@@ -3,14 +3,14 @@ tipo: store
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-06-13
+ultima-revision: 2026-07-28
 archivo: packages/ui/src/stores/playlists.js
-tags: [store, playlists, favoritas, offline, sync, realtime]
+tags: [store, playlists, favoritas, offline, sync, realtime, orden]
 ---
 
 # `stores/playlists.js`
 
-> Store de playlists del usuario. Gestiona la colección `playlists[]` y el mapa `contents { playlistId → [trackId] }`. Implementa offline-first, Smart Download (modo offline), toggle de favoritos, y Realtime updates.
+> Store de playlists del usuario. Gestiona la colección `playlists[]` y el mapa `contents { playlistId → [trackId] }`. Implementa offline-first, Smart Download (modo offline), toggle de favoritos, Realtime updates y **orden de la lista (drag manual + subir por uso)**.
 
 ## Ubicación
 `packages/ui/src/stores/playlists.js:1` (378 líneas)
@@ -19,13 +19,31 @@ tags: [store, playlists, favoritas, offline, sync, realtime]
 
 ```js
 {
-  playlists: Playlist[],
+  playlists: Playlist[],         // cada Playlist tiene sortKey (orden de la lista)
   favoritesId: string | null,    // id de la playlist 'Favoritas'
-  contents: Record<string, string[]>,  // trackIds por playlistId
+  contents: Record<string, string[]>,  // trackIds por playlistId (orden = position)
   loading: boolean,
   error: string | null,
 }
 ```
+
+## Orden de la lista (drag manual + uso) — 2026-07
+
+La lista de playlists es ordenable por un único criterio: `playlists.sort_key`
+(mayor = más arriba), que actualizan **tanto el drag manual** (`reorderPlaylists`)
+**como el uso** (`bumpPlaylist` al reproducir de la playlist). El comparador
+`sortPlaylists` ordena por `sortKey` DESC con `createdAt` de desempate;
+`load`/Realtime/Dexie aplican ese orden. "Favoritas" se pinea aparte en la UI
+(Sidebar/Library), no en el comparador.
+
+El **subir por uso** lo dispara `use-player.js` cuando un track se marca como
+"consumido" (>=30s/30%): si `queueContext.kind === 'playlist'`, llama
+`bumpPlaylist(playlistId)` + `bumpTrackInPlaylist(playlistId, trackId)`. El
+contexto de origen lo propaga `playNow(tracks, idx, { context })`.
+
+UI: **Sidebar** usa drag HTML5 nativo para reordenar (distingue el MIME
+`application/x-ritmiq-playlist` del de track; Favoritas no es arrastrable).
+**Library** ordena las playlists por `sortKey` en el modo "reciente".
 
 ## Invariante: playlist "Favoritas"
 
@@ -45,7 +63,10 @@ La playlist `FAVS_NAME = 'Favoritas'` siempre existe. `load()` la crea automáti
 | `addTracks(playlistId, trackIds[])` | `tryOrQueue` | **Lote**. Dedup contra `contents` + entrada; posiciones secuenciales; persiste en paralelo (absorbe 409); **un solo `set` + un toast agregado** (`N añadidas a X`); auto-download batch si offline. |
 | `removeTrack(playlistId, trackId)` | `tryOrQueue` | |
 | `removeTracks(playlistId, trackIds[])` | `tryOrQueue` | **Lote**. Filtra `contents` una vez; remoto en paralelo; un `set` + un toast agregado. |
-| `reorder(playlistId, orderedIds)` | Optimistic | Drag & drop. Rollback en error. |
+| `reorder(playlistId, orderedIds)` | Optimistic | Drag & drop de CANCIONES en la playlist. Rollback en error. |
+| `reorderPlaylists(orderedIds)` | Optimistic + `tryOrQueue` | Drag de la LISTA de playlists. Asigna `sortKey` decreciente (`Date.now()-i`) y persiste (`playlists:reorderList` / `reorderPlaylistsRemote`). |
+| `bumpPlaylist(playlistId)` | — | Sube una playlist al TOPE (uso: se reprodujo de ella). Delega en `reorderPlaylists`. |
+| `bumpTrackInPlaylist(playlistId, trackId)` | — | Sube una canción al TOPE de su playlist (uso). Reutiliza `reorder`. |
 | `toggleFavorite(trackId)` | — | Add/remove de Favoritas. |
 | `toggleFavoriteMany(trackIds[], add)` | — | **Lote**. Delega en `addTracks`/`removeTracks` sobre Favoritas (un toast). |
 | `isFavorite(trackId)` | — | Pure selector. |

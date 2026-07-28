@@ -3,7 +3,7 @@ tipo: store
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-07-28
 archivo: packages/ui/src/stores/player.js
 tags: [store, player, cola, shuffle, repeat, radio]
 ---
@@ -46,7 +46,7 @@ El store mantiene `queue`, `index`, `isPlaying`, `positionSeconds`. El hook [[us
 
 | Acción | Descripción |
 |---|---|
-| `playNow(input, startIdx?)` | Reemplaza cola completa. Acepta Track o Track[]. |
+| `playNow(input, startIdx?, opts?)` | Reemplaza cola completa. Acepta Track o Track[]. `opts.context` = `{ kind:'playlist', playlistId }` se guarda en `queueContext` (para el reorden por uso — subir playlist/canción al reproducir). |
 | `playNext(track)` | Inserta justo después del actual (index+1). |
 | `enqueue(input)` | Añade al final. |
 | `removeFromQueue(idx)` | Quita por índice. Si era el actual, salta al siguiente. |
