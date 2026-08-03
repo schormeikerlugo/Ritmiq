@@ -479,18 +479,6 @@ export const usePlaylistsStore = create((set, get) => ({
     get().reorderPlaylists(orderedIds);
   },
 
-  /**
-   * Sube una canción al TOPE de su playlist (uso). Reutiliza `reorder`.
-   * @param {string} playlistId
-   * @param {string} trackId
-   */
-  bumpTrackInPlaylist(playlistId, trackId) {
-    const ids = get().contents[playlistId] ?? [];
-    if (ids.length === 0 || ids[0] === trackId || !ids.includes(trackId)) return;
-    const reordered = [trackId, ...ids.filter((id) => id !== trackId)];
-    get().reorder(playlistId, reordered);
-  },
-
   /** Toggle favorito sobre un track ya persistido. */
   async toggleFavorite(trackId) {
     const { favoritesId, contents } = get();

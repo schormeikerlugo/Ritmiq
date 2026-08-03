@@ -38,7 +38,8 @@ La lista de playlists es ordenable por un único criterio: `playlists.sort_key`
 
 El **subir por uso** lo dispara `use-player.js` cuando un track se marca como
 "consumido" (>=30s/30%): si `queueContext.kind === 'playlist'`, llama
-`bumpPlaylist(playlistId)` + `bumpTrackInPlaylist(playlistId, trackId)`. El
+`bumpPlaylist(playlistId)` — sube **solo la playlist** al tope de la lista. Las
+CANCIONES internas NO se reordenan por uso (conservan su orden manual). El
 contexto de origen lo propaga `playNow(tracks, idx, { context })`.
 
 UI: **Sidebar** usa drag HTML5 nativo para reordenar (distingue el MIME
@@ -66,7 +67,6 @@ La playlist `FAVS_NAME = 'Favoritas'` siempre existe. `load()` la crea automáti
 | `reorder(playlistId, orderedIds)` | Optimistic | Drag & drop de CANCIONES en la playlist. Rollback en error. |
 | `reorderPlaylists(orderedIds)` | Optimistic + `tryOrQueue` | Drag de la LISTA de playlists. Asigna `sortKey` decreciente (`Date.now()-i`) y persiste (`playlists:reorderList` / `reorderPlaylistsRemote`). |
 | `bumpPlaylist(playlistId)` | — | Sube una playlist al TOPE (uso: se reprodujo de ella). Delega en `reorderPlaylists`. |
-| `bumpTrackInPlaylist(playlistId, trackId)` | — | Sube una canción al TOPE de su playlist (uso). Reutiliza `reorder`. |
 | `toggleFavorite(trackId)` | — | Add/remove de Favoritas. |
 | `toggleFavoriteMany(trackIds[], add)` | — | **Lote**. Delega en `addTracks`/`removeTracks` sobre Favoritas (un toast). |
 | `isFavorite(trackId)` | — | Pure selector. |

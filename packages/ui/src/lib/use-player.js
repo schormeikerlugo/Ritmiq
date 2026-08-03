@@ -640,14 +640,13 @@ export function usePlayerEngine() {
           } catch (e) {
             console.warn('[player] record play failed', e?.message);
           }
-          // Reorden por uso: si la cola viene de una playlist, subir la
-          // playlist al tope de la lista Y la canción al tope de la playlist.
+          // Reorden por uso: si la cola viene de una playlist/álbum, subir SOLO
+          // la playlist al tope de la lista. Las CANCIONES internas NO se
+          // reordenan (conservan su orden manual).
           try {
             const ctx = usePlayerStore.getState().queueContext;
             if (ctx?.kind === 'playlist' && ctx.playlistId) {
-              const pstore = usePlaylistsStore.getState();
-              pstore.bumpPlaylist?.(ctx.playlistId);
-              pstore.bumpTrackInPlaylist?.(ctx.playlistId, meta.id);
+              usePlaylistsStore.getState().bumpPlaylist?.(ctx.playlistId);
             }
           } catch (e) {
             console.warn('[player] reorden por uso falló', e?.message);
