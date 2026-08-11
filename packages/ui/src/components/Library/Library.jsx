@@ -29,6 +29,7 @@ import { SpotifyIcon } from '../Icon/SpotifyIcon.jsx';
 import { TrackRowSkeleton } from '../Skeleton/index.js';
 import { ConfirmDialog, EmptyState } from '../primitives/index.js';
 import { playPlaylist, playArtistFromLibrary } from '../../lib/play-helpers.js';
+import { prewarmStream } from '../../lib/lan-client.js';
 import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
 import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
 import { useDownloadsStats } from '../../lib/use-downloads-stats.js';
@@ -516,11 +517,23 @@ export function Library() {
           } : null;
           const selecting = selectMode && item.kind === 'track';
           const isSel = selecting && selected.has(item.rawId);
+          // FASE 3c: prefetch al posar el cursor sobre una fila de track no
+          // descargado (los descargados ya son locales/instantáneos). Best-
+          // effort; prewarmStream deduplica 5 min.
+          const prefetchRow = () => {
+            if (selectMode || item.kind !== 'track') return;
+            const t = item.track;
+            if (t?.isDownloaded) return;
+            const ytId = t?.ytId
+              || (typeof t?.id === 'string' && t.id.startsWith('yt:') ? t.id.slice(3) : null);
+            if (ytId) prewarmStream(ytId);
+          };
           return (
             <li
               key={item.id}
               className={styles.row}
               data-selected={isSel || undefined}
+              onPointerEnter={prefetchRow}
               {...(selecting ? {} : (draggableProps ?? {}))}
             >
             <button

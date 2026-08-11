@@ -813,6 +813,16 @@ function PlaylistRow({
   // y evita que el click caiga en zonas muertas entre el thumb y el menú).
   const onRowClick = selectMode ? () => onToggleSelect?.(track.id) : undefined;
 
+  // FASE 3c: prefetch al posar el cursor/dedo sobre la fila. Pre-resuelve
+  // la URL en el servidor para que el play arranque al instante. Best-effort
+  // (prewarmStream deduplica 5 min). No prefetch en modo selección.
+  const prefetchTrack = () => {
+    if (selectMode) return;
+    const ytId = track.ytId
+      || (typeof track.id === 'string' && track.id.startsWith('yt:') ? track.id.slice(3) : null);
+    if (ytId) prewarmStream(ytId);
+  };
+
   return (
     <li
       ref={draggable ? sortable.setNodeRef : undefined}
@@ -824,6 +834,7 @@ function PlaylistRow({
       data-dragging={draggable ? sortable.isDragging : false}
       data-draggable={draggable || undefined}
       onClick={onRowClick}
+      onPointerEnter={prefetchTrack}
       // Listeners y attributes en TODA la fila: en touch el TouchSensor
       // (delay 220ms) discrimina long-press vs scroll; en mouse el
       // MouseSensor exige 4px de drag asi que un click normal nunca

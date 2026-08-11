@@ -18,6 +18,7 @@ import { Bonjour } from 'bonjour-service';
 import { dataSubdir } from './host.js';
 import { getStreamUrl, getMetadata, search, downloadAudio, isNativeM4aUrl } from '@ritmiq/yt/ytdlp';
 import { translateYtdlpError } from '@ritmiq/yt';
+import { resolveStreamUrlInnertube } from '@ritmiq/yt/innertube';
 import {
   findSharedAudio, registerSharedAudio,
   sharedAudioStats, clearSharedAudio,
@@ -64,6 +65,20 @@ function publishUrlCacheEnabled() {
   if (publishUrlCacheRuntime !== null) return publishUrlCacheRuntime;
   // Default ON. Para desactivar via env: RITMIQ_PUBLISH_URL_CACHE=false
   const v = String(process.env.RITMIQ_PUBLISH_URL_CACHE ?? 'true').toLowerCase();
+  return v === 'true' || v === '1' || v === 'yes' || v === 'on';
+}
+
+// FASE 4: toggle del acelerador InnerTube. Default OFF.
+//
+// Motivo del default OFF (verificado 2026-08): YouTube endureció InnerTube y
+// los clients IOS/ANDROID/WEB responden 400/403 sin PO tokens desde IPs de
+// datacenter/residenciales normales. Intentarlo solo añadiría ~1.7s de
+// latencia antes de caer a yt-dlp. El código queda listo (bien encapsulado,
+// con fallback robusto a yt-dlp) para REACTIVARLO en caliente con
+// RITMIQ_INNERTUBE_ACCEL=true si YouTube afloja o si integramos PO tokens.
+// Cuando funciona, ahorra 1-3s por resolución (~200-600ms vs yt-dlp).
+function innertubeAccelEnabled() {
+  const v = String(process.env.RITMIQ_INNERTUBE_ACCEL ?? 'false').toLowerCase();
   return v === 'true' || v === '1' || v === 'yes' || v === 'on';
 }
 
@@ -324,6 +339,57 @@ async function publishToGlobalCache(ytId, url, expiresAtMs) {
     };
     // Re-throw para que el .catch() del caller registre en consola.
     throw err;
+  }
+}
+
+/**
+ * FASE 2: lee `stream_url_cache` global (vía Edge get-stream-url) para
+ * reutilizar una URL de googlevideo que otro servidor/desktop ya resolvió
+ * (dura ~5h). Evita invocar yt-dlp (~1-3s) en cache-miss local — útil sobre
+ * todo tras reiniciar el contenedor (streamCache de memoria vacío) o para
+ * tracks que otro usuario ya reprodujo.
+ *
+ * Devuelve `{ url, expiresAtMs }` en HIT, o null en MISS/error/desactivado.
+ * Nunca lanza: cualquier fallo cae silenciosamente a la resolución yt-dlp.
+ *
+ * @param {string} ytId
+ * @returns {Promise<{ url: string, expiresAtMs: number }|null>}
+ */
+async function readGlobalCachedUrl(ytId) {
+  // Reutiliza el mismo toggle que el publish: si no publicamos al global,
+  // tampoco lo consultamos (config coherente).
+  if (!publishUrlCacheEnabled()) return null;
+  const SUP = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
+  const ANON = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
+  const USER_JWT = supabaseUserJwt;
+  if (!SUP || !ANON || !USER_JWT || !ytId) return null;
+
+  try {
+    // Timeout defensivo: la lectura del global no debe frenar el play más
+    // que resolver con yt-dlp. Si tarda >1.5s, abortamos y seguimos con yt-dlp.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 1500);
+    let res;
+    try {
+      res = await fetch(
+        `${SUP}/functions/v1/get-stream-url?ytId=${encodeURIComponent(ytId)}`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${USER_JWT}`, apikey: ANON },
+          signal: ac.signal,
+        },
+      );
+    } finally { clearTimeout(timer); }
+    if (!res.ok) return null; // 404 MISS u otro
+    const data = await res.json().catch(() => null);
+    if (!data?.url) return null;
+    const expiresAtMs = data.expiresAt ? Date.parse(data.expiresAt) : 0;
+    // Margen de seguridad: descartar si expira en <60s (evita servir una
+    // URL que muere a mitad del play).
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs < Date.now() + 60_000) return null;
+    return { url: data.url, expiresAtMs };
+  } catch {
+    return null; // red/abort/parse: fallback a yt-dlp
   }
 }
 
@@ -1077,6 +1143,49 @@ export async function startLanServer({
         const t0 = Date.now();
         console.log(`[lan-server] resolve ${ytId} START (p=${job.priority})`);
         try {
+          // FASE 2: antes de invocar yt-dlp, ver si otro servidor/desktop ya
+          // resolvió esta URL (stream_url_cache global, ~5h). HIT = ahorra
+          // 1-3s de yt-dlp. Solo para prioridad de click real (>=7); en
+          // prewarm de baja prioridad no vale la pena el round-trip. La
+          // lectura tiene timeout de 1.5s y cae a yt-dlp si MISS/lento.
+          if (job.priority >= 7) {
+            const globalHit = await readGlobalCachedUrl(ytId);
+            if (globalHit) {
+              const dt = Date.now() - t0;
+              console.log(`[lan-server] resolve ${ytId} GLOBAL-CACHE HIT en ${dt}ms`);
+              // Cachear en memoria respetando el TTL real del global (acotado
+              // a TTL_MS local para no exceder nuestra política de 30min).
+              const expiresAt = Math.min(globalHit.expiresAtMs, Date.now() + TTL_MS);
+              streamCache.set(ytId, { url: globalHit.url, expiresAt });
+              resolveFn(globalHit.url);
+              return; // no invocamos yt-dlp
+            }
+          }
+
+          // FASE 4: acelerador InnerTube (estilo Demus). Antes de yt-dlp,
+          // intentar resolver la URL m4a nativa vía la API InnerTube móvil
+          // (~200-600ms vs 1-3s de yt-dlp). Frágil pero oportunista: si
+          // funciona ahorramos segundos; si falla (null), caemos a yt-dlp
+          // (robusto). Solo en clicks reales (p>=7). Toggle:
+          // RITMIQ_INNERTUBE_ACCEL=false para desactivar.
+          if (job.priority >= 7 && innertubeAccelEnabled()) {
+            try {
+              const itUrl = await resolveStreamUrlInnertube(ytId, { timeoutMs: 2500 });
+              if (itUrl && isNativeM4aUrl(itUrl)) {
+                const dt = Date.now() - t0;
+                console.log(`[lan-server] resolve ${ytId} INNERTUBE HIT en ${dt}ms`);
+                const expiresAt = Date.now() + TTL_MS;
+                streamCache.set(ytId, { url: itUrl, expiresAt });
+                resolveFn(itUrl);
+                // Sembrar el global igual que el path yt-dlp.
+                if (publishUrlCacheEnabled()) {
+                  publishToGlobalCache(ytId, itUrl, expiresAt).catch(() => {});
+                }
+                return; // no invocamos yt-dlp
+              }
+            } catch { /* InnerTube falló → yt-dlp */ }
+          }
+
           // Cache-miss: resolver con las cookies del solicitante si se pasaron
           // (dlOpts, p.ej. las de un device con cuenta propia); si no, las del
           // owner. El resultado se cachea por ytId (caché global compartido):

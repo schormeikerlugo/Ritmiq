@@ -142,10 +142,11 @@ export function SearchView({ query }) {
     // 24/7 por defecto). La vista de búsqueda completa va a la Edge y no
     // prewarmaba; esto pre-resuelve el stream para que el play arranque al
     // instante (cache HIT) en vez de esperar ~3s a yt-dlp.
-    // El top-1 (el resultado más probable) se DESCARGA completo (permanente,
-    // no expira); el resto solo resuelve la URL (más barato).
+    // Los top-3 (los resultados más probables de elegir) se DESCARGAN
+    // completos (permanente, no expira) → play instantáneo aunque el user
+    // elija el 2º o 3º. El resto (4º-5º) solo resuelve la URL (más barato).
     videos.slice(0, 5).forEach((v, i) => {
-      if (v?.id) prewarmStream(v.id, { download: i === 0 });
+      if (v?.id) prewarmStream(v.id, { download: i < 3 });
     });
     return () => { cancelled = true; };
   }, [videos]);

@@ -27,6 +27,7 @@ import { supabase } from './supabase.js';
 import {
   getLanBaseUrlSync, pingLan, getTunnelUrlSync, withTokenInUrl,
   getSignedStreamUrl, getServerUrlSync, getServerTokenSync, getAccessTokenSync,
+  prewarmStream,
 } from './lan-client.js';
 import { getLocalBlobUrl, getJamBlobUrl, cacheJamTrack } from './local-downloads.js';
 import { ensureServerPairing, getDeviceToken, getAutoPairResult } from './device.js';
@@ -1102,6 +1103,20 @@ export function usePlayerEngine() {
     if (!nextTrack) return;
 
     let cancelled = false;
+    // FASE 3a: pre-DESCARGAR el siguiente en el servidor (no solo resolver
+    // URL). Convierte el swap al siguiente track en un SHARED HIT instantáneo
+    // (el archivo queda en shared-audio) en vez de pagar la resolución+proxy.
+    // Solo cuando hay servidor accesible y el siguiente es un track de
+    // YouTube. prewarmStream deduplica y el servidor omite mixes largos.
+    try {
+      const nextYtId = nextTrack.ytId
+        || (typeof nextTrack.id === 'string' && nextTrack.id.startsWith('yt:')
+          ? nextTrack.id.slice(3) : null);
+      if (nextYtId && (getServerUrlSync() || getLanBaseUrlSync())) {
+        prewarmStream(nextYtId, { download: 1 });
+      }
+    } catch { /* prewarm best-effort */ }
+
     // Delay reducido a 200ms (antes 1200ms): con `cookiesFile` cacheado y
     // MAX_CONCURRENT=3 en el LAN server, la resolución del siguiente NO
     // compite con la del track actual. Lanzarlo casi inmediatamente

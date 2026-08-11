@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.js",
     "./ytdlp": "./src/ytdlp-wrapper.js",
+    "./innertube": "./src/innertube.js",
     "./ffmpeg": "./src/ffmpeg-wrapper.js"
   }
 }
