@@ -18,11 +18,11 @@ import { loadEnv } from './env.js';
 loadEnv();
 
 import {
-  setHost, initDb, getOrCreateAccessToken, startLanServer,
+  setHost, initDb, getOrCreateAccessToken, startLanServer, setSupabaseUserJwt,
 } from '@ritmiq/server-core';
 import { CloudflaredManager, getStoredToken } from '@ritmiq/server-core/cloudflared';
 import { resolveDataDir, resolvePort } from './config.js';
-import { publishServerEndpoint, clearServerEndpoint } from './endpoint-registry.js';
+import { publishServerEndpoint, clearServerEndpoint, getOwnerAccessToken } from './endpoint-registry.js';
 
 async function main() {
   const dataDir = resolveDataDir();
@@ -55,6 +55,30 @@ async function main() {
   console.log(`    ${accessToken}`);
   console.log('[ritmiq-server] aprueba dispositivos con: ritmiq-admin approve <device_id>,');
   console.log('    el panel web /admin, o desde la app desktop (cada cuenta gestiona los suyos).');
+
+  // ── Sesión de dueño → JWT para el cache global de URLs ─────────────────
+  // El servidor headless no tiene renderer que llame a setSupabaseUserJwt.
+  // Si hay credenciales de dueño (RITMIQ_OWNER_EMAIL/PASSWORD), obtenemos su
+  // JWT y lo inyectamos al lan-server para habilitar:
+  //   - LEER stream_url_cache global antes de yt-dlp (Fase 2), y
+  //   - PUBLICAR URLs resueltas al global (Fase 1) para toda la red Ritmiq.
+  // El JWT de Supabase caduca (~1h), así que lo refrescamos periódicamente.
+  let jwtTimer = null;
+  const syncOwnerJwt = async () => {
+    try {
+      const jwt = await getOwnerAccessToken();
+      if (jwt) {
+        setSupabaseUserJwt(jwt);
+        console.log('[ritmiq-server] JWT del dueño sincronizado (cache global URL activo)');
+      }
+    } catch (e) {
+      console.warn('[ritmiq-server] sync JWT del dueño falló:', e?.message ?? e);
+    }
+  };
+  await syncOwnerJwt();
+  // Refrescar cada 30 min (el getOwnerAccessToken renueva si falta <2 min).
+  jwtTimer = setInterval(syncOwnerJwt, 30 * 60 * 1000);
+  if (jwtTimer.unref) jwtTimer.unref();
 
   // ── Cloudflare Tunnel + publicación del endpoint 'server' ──────────────
   // Se activa si hay token de túnel (Named) configurado, o si se fuerza el
@@ -95,6 +119,7 @@ async function main() {
 
   const shutdown = async (sig) => {
     console.log(`[ritmiq-server] ${sig} — apagando…`);
+    try { if (jwtTimer) clearInterval(jwtTimer); } catch {}
     try { await lan._tunnel?.stop?.(); } catch {}
     try { await clearServerEndpoint(); } catch {}
     try { await lan.stop?.(); } catch {}

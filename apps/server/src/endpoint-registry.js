@@ -98,3 +98,34 @@ export async function clearServerEndpoint() {
     .eq('user_id', ownerUserId)
     .eq('kind', 'server');
 }
+
+/**
+ * Devuelve el access_token (JWT) actual de la sesión del dueño, refrescándolo
+ * si está por expirar. Lo usa el servidor para alimentar `setSupabaseUserJwt`
+ * del lan-server, habilitando el cache global de URLs (leer y publicar).
+ *
+ * @returns {Promise<string|null>}
+ */
+export async function getOwnerAccessToken() {
+  const sb = await getOwnerClient();
+  if (!sb) return null;
+  try {
+    // getSession no refresca si expiró; forzamos refresh cuando falta poco.
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) return null;
+    const expMs = (session.expires_at ?? 0) * 1000;
+    // Refrescar si expira en <2 min (o ya expiró).
+    if (expMs && expMs < Date.now() + 120_000) {
+      const { data, error } = await sb.auth.refreshSession();
+      if (error) {
+        console.warn('[endpoint-registry] refresh del token del dueño falló:', error.message);
+        return session.access_token ?? null;
+      }
+      return data?.session?.access_token ?? null;
+    }
+    return session.access_token ?? null;
+  } catch (e) {
+    console.warn('[endpoint-registry] getOwnerAccessToken falló:', e?.message ?? e);
+    return null;
+  }
+}
