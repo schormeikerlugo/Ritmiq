@@ -393,3 +393,36 @@ function normalizeUrl(idOrUrl) {
   if (idOrUrl.startsWith('http')) return idOrUrl;
   return `https://www.youtube.com/watch?v=${idOrUrl}`;
 }
+
+/**
+ * Heurística: ¿la URL directa de googlevideo apunta a un formato de audio
+ * m4a/AAC NATIVO? Determinante para el servido progresivo (Fase 1): iOS
+ * Safari solo decodifica AAC/m4a, así que solo podemos proxear sin remux
+ * cuando el formato origen ya es m4a. Si es opus/webm hay que descargar +
+ * remuxear (camino bloqueante).
+ *
+ * Detección barata desde la propia URL (googlevideo la anota):
+ *   - `mime=audio%2Fmp4` (o `audio/mp4`) en el query string.
+ *   - itag de formatos audio AAC conocidos: 139/140/141 (m4a), 256/258
+ *     (m4a HE-AAC/surround). Los itags opus (249/250/251) y webm se excluyen.
+ *
+ * @param {string} url  URL directa de googlevideo (de getStreamUrl).
+ * @returns {boolean}
+ */
+export function isNativeM4aUrl(url) {
+  if (typeof url !== 'string' || !url) return false;
+  try {
+    const u = new URL(url);
+    const mime = decodeURIComponent(u.searchParams.get('mime') || '').toLowerCase();
+    if (mime) return mime === 'audio/mp4';
+    // Sin `mime` explícito: caer al itag conocido de AAC.
+    const itag = Number(u.searchParams.get('itag'));
+    const AAC_ITAGS = new Set([139, 140, 141, 256, 258]);
+    return AAC_ITAGS.has(itag);
+  } catch {
+    // Fallback textual si no parsea como URL (defensivo).
+    const s = url.toLowerCase();
+    if (s.includes('mime=audio%2fmp4') || s.includes('mime=audio/mp4')) return true;
+    return /[?&]itag=(139|140|141|256|258)(&|$)/.test(s);
+  }
+}
