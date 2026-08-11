@@ -22,7 +22,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useHistoryStore, selectStatsForPeriod } from '../../stores/history.js';
+import { useHistoryStore, selectStatsForPeriod, localDayKey } from '../../stores/history.js';
 import { useViewStore } from '../../stores/view.js';
 import { selectStreakState } from '../../lib/streak-state.js';
 import { useStreakTick } from '../../lib/use-streak-tick.js';
@@ -112,12 +112,25 @@ function StreakCard({ onClick }) {
     return s.streak ?? 0;
   }, [events]);
 
+  // Cross-check local: ¿hay algun play HOY (dia local del device) en events?
+  // Si lo hay, la racha esta cumplida aunque el snapshot autoritativo aun
+  // no lo refleje (desfase tz / lag del trigger DB). Evita el falso aviso
+  // de "puedes perder tu racha" justo despues de escuchar.
+  const playedTodayLocal = useMemo(() => {
+    const todayKey = localDayKey(new Date());
+    return events.some((e) => {
+      const pa = e?.playedAt;
+      if (!pa) return false;
+      return localDayKey(new Date(pa)) === todayKey;
+    });
+  }, [events]);
+
   // Calculo en cada render — useStreakTick fuerza re-renders cada 60s
   // (o 1s en last-hour) para que el estado cruce los umbrales horarios
   // sin que el user toque nada. No usamos useMemo porque la fecha
   // implicita (new Date()) cambia entre renders y necesitamos esa
   // frescura para selectStreakState.
-  const liveState = selectStreakState({ streakSnapshot, fallbackStreak });
+  const liveState = selectStreakState({ streakSnapshot, fallbackStreak, playedTodayLocal });
   useStreakTick(liveState.status);
 
   // Transicion a fulfilled cuando viene de otro estado.

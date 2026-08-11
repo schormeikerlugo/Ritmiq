@@ -401,6 +401,7 @@
 .trophyCard[data-unlocked='true'][data-tier='silver']  { box-shadow: 0 0 0 1px rgba(192,192,192,0.55) inset, 0 4px 16px rgba(192,192,192,0.18); }
 .trophyCard[data-unlocked='true'][data-tier='gold']    { box-shadow: 0 0 0 1px rgba(255,215,0,0.65) inset, 0 4px 20px rgba(255,215,0,0.22); }
 .trophyCard[data-unlocked='true'][data-tier='diamond'] { box-shadow: 0 0 0 1px rgba(120,220,255,0.7) inset, 0 4px 24px rgba(120,220,255,0.28); }
+.trophyCard[data-unlocked='true'][data-tier='legendary'] { box-shadow: 0 0 0 1px rgba(190,130,255,0.75) inset, 0 4px 28px rgba(190,130,255,0.32); }
 .trophyIcon {
   display: inline-grid;
   place-items: center;
@@ -414,6 +415,7 @@
 .trophyCard[data-unlocked='true'][data-tier='silver']  .trophyIcon { color: #c0c0c0; background: rgba(192,192,192,0.14); }
 .trophyCard[data-unlocked='true'][data-tier='gold']    .trophyIcon { color: #ffd700; background: rgba(255,215,0,0.14); }
 .trophyCard[data-unlocked='true'][data-tier='diamond'] .trophyIcon { color: #78dcff; background: rgba(120,220,255,0.14); }
+.trophyCard[data-unlocked='true'][data-tier='legendary'] .trophyIcon { color: #be82ff; background: rgba(190,130,255,0.16); }
 .trophyLabel {
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);

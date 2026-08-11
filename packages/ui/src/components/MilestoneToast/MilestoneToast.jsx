@@ -9,17 +9,13 @@
  * para que los disfrute conscientemente. El daily diario sigue siendo
  * toast no bloqueante (componente DailyStreakToast aparte).
  *
- * Variantes de RACHA (dias):
- *    3d  → MicroSpark    (rapido, suave)
- *    7d  → SparkVariant
- *   14d  → MicroSpark    (variacion del 7)
- *   30d  → BloomVariant
- *   50d  → MicroBloom    (variacion del 30)
- *  100d  → FanfareVariant
- *  200d  → MicroFanfare
- *  365d  → LegendVariant
- *  500d  → MicroLegend
- * 1000d  → LegendVariant (mismo nivel max)
+ * Variantes de RACHA (dias) — derivadas del TIER en streak-milestones.js
+ * (estrategia hibrida: 3/7/14 + cada 30 dias hasta el ano + legendarios):
+ *   bronze  (3–30)     → SparkVariant
+ *   silver  (60–150)   → BloomVariant
+ *   gold    (180–330)  → FanfareVariant
+ *   diamond (365)      → LegendVariant
+ *   legendary (500+)   → LegendVariant
  *
  * Variantes de HORAS:
  *  1h, 10h, 50h, 100h, 500h, 1000h, 5000h → HoursVariant
@@ -36,28 +32,29 @@ import { FanfareVariant, FANFARE_DURATION_MS } from './variants/FanfareVariant.j
 import { LegendVariant, LEGEND_DURATION_MS } from './variants/LegendVariant.jsx';
 import { HoursVariant, HOURS_DURATION_MS } from './variants/HoursVariant.jsx';
 import { pickHourMessage } from '../DailyStreakToast/messages.js';
+import { variantForMilestone } from '../../lib/streak-milestones.js';
 import styles from './MilestoneToast.module.css';
 
 /**
- * Mapeo milestone -> componente variant + duracion. Todos son modal
- * bloqueante (auto-dismiss tras `duration` o cierre manual).
- *
- * Los hitos intermedios (3, 14, 50, 200, 500, 1000) reutilizan los
- * variants existentes con un titulo dinamico distinto — la animacion
- * visual escala con la magnitud, no con el numero exacto.
+ * Variante visual (string) -> componente + duracion. La animacion escala
+ * con el TIER (magnitud), no con el numero exacto de dias, asi los 18
+ * umbrales de la estrategia hibrida reutilizan las 4 animaciones.
  */
-const VARIANTS = {
-  3:    { Component: SparkVariant,   duration: SPARK_DURATION_MS },
-  7:    { Component: SparkVariant,   duration: SPARK_DURATION_MS },
-  14:   { Component: SparkVariant,   duration: SPARK_DURATION_MS },
-  30:   { Component: BloomVariant,   duration: BLOOM_DURATION_MS },
-  50:   { Component: BloomVariant,   duration: BLOOM_DURATION_MS },
-  100:  { Component: FanfareVariant, duration: FANFARE_DURATION_MS },
-  200:  { Component: FanfareVariant, duration: FANFARE_DURATION_MS },
-  365:  { Component: LegendVariant,  duration: LEGEND_DURATION_MS },
-  500:  { Component: LegendVariant,  duration: LEGEND_DURATION_MS },
-  1000: { Component: LegendVariant,  duration: LEGEND_DURATION_MS },
+const VARIANT_COMPONENTS = {
+  spark:   { Component: SparkVariant,   duration: SPARK_DURATION_MS },
+  bloom:   { Component: BloomVariant,   duration: BLOOM_DURATION_MS },
+  fanfare: { Component: FanfareVariant, duration: FANFARE_DURATION_MS },
+  legend:  { Component: LegendVariant,  duration: LEGEND_DURATION_MS },
 };
+
+/**
+ * Config de variant para un milestone (por dias). Deriva el tier desde el
+ * modulo compartido streak-milestones y mapea a su animacion.
+ * @param {number} milestone
+ */
+function variantFor(milestone) {
+  return VARIANT_COMPONENTS[variantForMilestone(milestone)] ?? null;
+}
 
 const FALLBACK_DURATION_MS = 5000;
 
@@ -115,7 +112,7 @@ export function MilestoneToast() {
   }
 
   // ── Hits de racha (default si no type) ──────────────────────────────
-  const cfg = VARIANTS[current.milestone];
+  const cfg = variantFor(current.milestone);
   const displayStreak = Math.max(
     currentStreak,
     current.streakValue ?? current.milestone,
@@ -156,7 +153,7 @@ export function MilestoneToast() {
  */
 function pickDuration(item) {
   if (item.type === 'hours') return HOURS_DURATION_MS;
-  return VARIANTS[item.milestone]?.duration ?? FALLBACK_DURATION_MS;
+  return variantFor(item.milestone)?.duration ?? FALLBACK_DURATION_MS;
 }
 
 /**

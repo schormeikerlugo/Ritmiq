@@ -214,6 +214,33 @@ export const useHistoryStore = create((set, get) => ({
     // Optimista: añadir al state inmediatamente para que la Home reaccione.
     set((s) => ({ events: [event, ...s.events].slice(0, HISTORY_LIMIT) }));
 
+    // Optimista sobre la racha: marcar "escuché hoy" en el snapshot local
+    // sin esperar al trigger DB + Realtime. Evita el falso aviso "puedes
+    // perder tu racha" justo después de reproducir (BUG racha #2). El
+    // snapshot autoritativo llegará después por Realtime y lo reconciliará.
+    set((s) => {
+      const snap = s.streakSnapshot;
+      const todayKey = localDayKey(new Date());
+      // Si ya estaba marcado hoy, nada que hacer.
+      if (snap?.lastPlayedDate === todayKey) return {};
+      const yesterdayKey = localDayKey(new Date(Date.now() - 86400_000));
+      const prevStreak = snap?.currentStreak ?? 0;
+      // Si el último play fue ayer, la racha sube +1; si fue antes (o no
+      // hay snapshot), hoy cuenta como día 1 de una racha viva.
+      const nextStreak =
+        snap?.lastPlayedDate === yesterdayKey ? prevStreak + 1 : Math.max(prevStreak, 1);
+      const nextLongest = Math.max(snap?.longestStreak ?? 0, nextStreak);
+      return {
+        streakSnapshot: {
+          currentStreak: nextStreak,
+          longestStreak: nextLongest,
+          longestAt: snap?.longestAt ?? null,
+          lastPlayedDate: todayKey,
+          lastDailyCelebratedDate: snap?.lastDailyCelebratedDate ?? null,
+        },
+      };
+    });
+
     // Persistir en Supabase, encolando si falla.
     try {
       const { data: { session } } = await supabase.auth.getSession();

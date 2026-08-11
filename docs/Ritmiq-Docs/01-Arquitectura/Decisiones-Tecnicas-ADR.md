@@ -289,4 +289,17 @@ Cada decisión sigue el formato:
 
 ---
 
+## ADR-034 — Fix del sistema de racha (timezone) + trofeos granulares
+
+- **Contexto**: 4 bugs reportados. (1) Se perdía la racha pese a escuchar a diario. (2) El aviso "puedes perder tu racha" aparecía aunque ya se hubiera escuchado hoy. (3) La card de racha desbordaba y provocaba scroll horizontal al iniciar. (4) Solo había 4 trofeos (7/30/100/365), poco granulares.
+- **Causa raíz #1/#2**: `compute_user_streak()` contaba los días con `current_date` (zona del proyecto = **UTC**), pero `refresh_user_streak()` grababa `last_played_date` en la **timezone del perfil**. Dos calendarios → para un usuario en UTC-4 una escucha nocturna caía en días distintos y la racha se rompía. Agravado porque el cliente no marcaba "escuché hoy" de forma optimista (dependía del trigger DB + Realtime).
+- **Decisión**:
+  1. **BUG #1/#2 (raíz)**: migración `20260810000000` reescribe `compute_user_streak(uuid)` para derivar la tz del perfil y comparar `played_at at time zone v_tz`. Backfill de `user_streaks` con tz correcta → **el owner recuperó su racha real (55→90 días)**. El sync de `profiles.timezone` con `Intl` al login ya existía (`social.js`).
+  2. **BUG #2 (cliente, robusto)**: `record()` actualiza `streakSnapshot.lastPlayedDate` de forma **optimista** al escuchar; `selectStreakState()` acepta `playedTodayLocal` (¿algún play HOY en events locales?) y fuerza `fulfilled`. El falso aviso nunca aparece si escuchaste hoy en este device. Ver [[streak-state]], [[history]].
+  3. **BUG #3 (CSS)**: `.value`/`.subValue` con `min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis`; `.grid > * { min-width:0 }`; `.wrap` del Home con `overflow-x:hidden`; sublabel `urgent` acortado.
+  4. **BUG #4 (trofeos)**: estrategia híbrida en módulo compartido `lib/streak-milestones.js` (fuente única): 3/7/14 + **cada 30 días** (30…365) + legendarios 500/730/1000 = 18 trofeos, con tiers bronze/silver/gold/diamond/legendary. `StatsView` y `MilestoneToast` consumen el módulo. Migración amplía CHECK + trigger; backfill retroactivo. Umbrales legacy (50/100/200) se conservan y solo se muestran si están desbloqueados.
+- **Consecuencias**: la racha refleja el día local del usuario en todo el stack; el aviso de peligro solo sale si realmente falta escuchar hoy; sin scroll horizontal; galería con un trofeo mensual todo el año. Migración aplicada a prod (owner 90/90, milestones backfilled 3/7/14/30/50/60/90); builds PWA+desktop verdes.
+
+---
+
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

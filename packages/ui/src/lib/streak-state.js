@@ -110,11 +110,15 @@ function humanRemaining(minutes) {
  *   store. Tiene currentStreak, longestStreak, lastPlayedDate.
  * @param {number} [params.fallbackStreak]    Si no hay snapshot,
  *   calculo local de events (selectStatsForPeriod.streak).
+ * @param {boolean} [params.playedTodayLocal] Si el cliente detecta un play
+ *   HOY (dia local del device) desde events. Cuando es true forzamos
+ *   'fulfilled' aunque el snapshot autoritativo aun diga "ayer" (evita el
+ *   falso aviso de peligro por desfase de timezone o lag del trigger DB).
  * @param {Date} [params.now]                  Fecha de referencia
  *   (default: new Date()). Util para tests.
  * @returns {StreakState}
  */
-export function selectStreakState({ streakSnapshot, fallbackStreak = 0, now = new Date() } = {}) {
+export function selectStreakState({ streakSnapshot, fallbackStreak = 0, playedTodayLocal = false, now = new Date() } = {}) {
   // Sin snapshot: usar fallback (calculo local desde events).
   const snap = streakSnapshot ?? null;
   const currentStreak = snap?.currentStreak ?? fallbackStreak ?? 0;
@@ -139,18 +143,26 @@ export function selectStreakState({ streakSnapshot, fallbackStreak = 0, now = ne
   const yesterdayKey = localDayKey(new Date(now.getTime() - 86400_000));
 
   // Caso 2: ya escucho hoy → cumplida.
-  if (lastPlayedDate === todayKey) {
+  // Cross-check con events locales: si el cliente detecto un play hoy
+  // (playedTodayLocal) confiamos en eso aunque el snapshot autoritativo
+  // aun diga otra fecha (desfase tz / lag del trigger). Nunca mostramos
+  // aviso de peligro si el usuario SI escucho hoy en este device.
+  if (lastPlayedDate === todayKey || playedTodayLocal) {
+    // Si confiamos en el play local pero el snapshot aun no lo refleja,
+    // la racha viva es al menos 1 dia.
+    const effStreak = Math.max(currentStreak, 1);
+    const effLongest = Math.max(longestStreak, effStreak);
     return {
       status: 'fulfilled',
-      currentStreak,
-      longestStreak,
+      currentStreak: effStreak,
+      longestStreak: effLongest,
       minutesRemaining: null,
       daysSinceBroken: null,
       label: '¡Día cumplido!',
       subLabel:
-        currentStreak === longestStreak && longestStreak >= 3
+        effStreak === effLongest && effLongest >= 3
           ? '¡tu mejor racha!'
-          : currentStreak === 1
+          : effStreak === 1
           ? 'primer día'
           : 'consecutivos',
       countdown: null,
@@ -194,7 +206,7 @@ export function selectStreakState({ streakSnapshot, fallbackStreak = 0, now = ne
         minutesRemaining,
         daysSinceBroken: null,
         label: `¡Quedan ${humanRemaining(minutesRemaining)}!`,
-        subLabel: `salva tu racha de ${currentStreak}`,
+        subLabel: `racha de ${currentStreak}`,
         countdown: null,
       };
     }

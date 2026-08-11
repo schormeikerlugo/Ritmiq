@@ -97,10 +97,10 @@ Deno.serve(async (req) => {
       //    del usuario, no el dia UTC del cron.
       const localDate = getLocalDate(tz);
 
-      // 5. Calcular racha + played_today (la funcion SQL usa
-      //    current_date que es la zona del proyecto, NO la del user
-      //    \u2014 esto es aceptable porque play_history se compara con
-      //    today UTC y los desfases de 1-2h son menores).
+      // 5. Calcular racha + played_today. compute_user_streak ahora usa la
+      //    timezone del PERFIL del usuario (dia local), asi que played_today
+      //    es coherente con lo que el usuario percibe como "hoy" y no se
+      //    envia el push si ya escucho (fix racha #1/#2, 2026-08-10).
       const { data: streakData, error: streakErr } = await svc
         .rpc('compute_user_streak', { p_user_id: userId });
 

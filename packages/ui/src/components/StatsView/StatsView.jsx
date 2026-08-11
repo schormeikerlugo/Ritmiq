@@ -17,6 +17,7 @@ import { ActivityHeatmap } from './ActivityHeatmap.jsx';
 import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
 import { useViewTransition } from '../../lib/use-view-transition.js';
+import { STREAK_MILESTONES, LEGACY_STREAK_MILESTONES } from '../../lib/streak-milestones.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { CoverArt, EmptyState } from '../primitives/index.js';
 import styles from './StatsView.module.css';
@@ -36,12 +37,9 @@ function fmtMinutes(min) {
   return m > 0 ? `${h} h ${m} min` : `${h} h`;
 }
 
-const MILESTONES_DEFS = [
-  { value: 7,   icon: 'Flame',  label: '7 días',   tier: 'bronze' },
-  { value: 30,  icon: 'Star',   label: '30 días',  tier: 'silver' },
-  { value: 100, icon: 'Trophy', label: '100 días', tier: 'gold' },
-  { value: 365, icon: 'Award',  label: '1 año',    tier: 'diamond' },
-];
+// Trofeos: fuente unica de verdad compartida (estrategia hibrida cada 30d).
+const MILESTONES_DEFS = STREAK_MILESTONES;
+const LEGACY_BY_VALUE = new Map(LEGACY_STREAK_MILESTONES.map((m) => [m.value, m]));
 
 export function StatsView() {
   const events = useHistoryStore((s) => s.events);
@@ -73,6 +71,13 @@ export function StatsView() {
     [milestones]
   );
   const longestStreak = stats.longestStreak ?? 0;
+
+  // Galeria de trofeos: los de la estrategia actual + los legacy (50/100/
+  // 200) SOLO si el usuario los tiene desbloqueados. Ordenados por valor.
+  const trophyDefs = useMemo(() => {
+    const legacyUnlocked = LEGACY_STREAK_MILESTONES.filter((m) => unlockedSet.has(m.value));
+    return [...MILESTONES_DEFS, ...legacyUnlocked].sort((a, b) => a.value - b.value);
+  }, [unlockedSet]);
 
   const periodLabel = PERIODS.find((p) => p.id === period)?.label.toLowerCase() ?? 'periodo';
   const periodDaysLabel = period === 365 ? '12 meses' : `${period} días`;
@@ -193,7 +198,7 @@ export function StatsView() {
               </p>
             </div>
             <div className={styles.trophyGrid}>
-              {MILESTONES_DEFS.map((m) => {
+              {trophyDefs.map((m) => {
                 const unlocked = unlockedSet.has(m.value);
                 const achieved = milestones.find((x) => x.milestone === m.value);
                 const current = stats.streak ?? 0;

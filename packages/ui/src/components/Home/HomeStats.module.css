@@ -6,6 +6,12 @@
   gap: var(--space-2);
 }
 
+/* Items del grid: permitir que las columnas 1fr se encojan por debajo del
+   ancho de su contenido (min-width:auto por defecto provoca overflow-x). */
+.grid > * {
+  min-width: 0;
+}
+
 @media (max-width: 380px) {
   .grid { grid-template-columns: 1fr; }
 }
@@ -414,6 +420,11 @@
   color: var(--color-text-1);
   line-height: 1.1;
   margin-top: 2px;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .unit {
@@ -427,6 +438,11 @@
   font-size: 11px;
   color: var(--color-text-3);
   margin-top: 1px;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Countdown digital MM:SS (last-hour) */
