@@ -604,31 +604,36 @@ function SongRow({ track, onClick, badge, cached, knownCount, inLibrary }) {
         </span>
       </div>
       <div className={styles.songMeta}>
-        <span className={styles.songTitle}>
-          {track.title}
-          {badge && <span className={styles.songBadge}>{badge}</span>}
-          {knownLabel && (
-            <span
-              className={styles.songKnownBadge}
-              title={`Canonicalizada en la red Ritmiq · ${knownCount} ${knownCount === 1 ? 'reproduccion' : 'reproducciones'} acumuladas`}
-            >{knownLabel}</span>
-          )}
-          {cached && (
-            <span
-              className={styles.songCacheBadge}
-              title="En cache del PC — reproduccion instantanea"
-            >⚡ Caché</span>
-          )}
-          {inLibrary && (
-            <span
-              className={styles.songLibBadge}
-              title="Ya está en tu biblioteca"
-            >♪ En biblioteca</span>
-          )}
-        </span>
+        {/* Título SOLO (con ellipsis) para que un nombre largo no oculte
+            los badges. Los badges van en su propia línea, debajo del
+            subtítulo (título → subtítulo → badges). */}
+        <span className={styles.songTitle}>{track.title}</span>
         <span className={styles.songSub}>
           Canción{track.artist ? ` · ${track.artist}` : ''}
         </span>
+        {(badge || knownLabel || cached || inLibrary) && (
+          <span className={styles.songBadges}>
+            {badge && <span className={styles.songBadge}>{badge}</span>}
+            {knownLabel && (
+              <span
+                className={styles.songKnownBadge}
+                title={`Canonicalizada en la red Ritmiq · ${knownCount} ${knownCount === 1 ? 'reproduccion' : 'reproducciones'} acumuladas`}
+              >{knownLabel}</span>
+            )}
+            {cached && (
+              <span
+                className={styles.songCacheBadge}
+                title="En cache del PC — reproduccion instantanea"
+              >⚡ Caché</span>
+            )}
+            {inLibrary && (
+              <span
+                className={styles.songLibBadge}
+                title="Ya está en tu biblioteca"
+              >♪ En biblioteca</span>
+            )}
+          </span>
+        )}
       </div>
       {track.durationSeconds && (
         <span className={styles.songDur}>{fmtDur(track.durationSeconds)}</span>

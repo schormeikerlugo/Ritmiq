@@ -223,9 +223,21 @@
   text-align: center;
 }
 
+/* Contenedor de badges en su PROPIA línea, debajo del subtítulo. Antes los
+   badges vivían inline dentro de .songTitle (con nowrap+ellipsis), así que un
+   título largo los recortaba. Ahora fluyen aquí con wrap. */
+.songBadges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  width: 100%;
+  min-width: 0;
+}
+
 /* Badge "Tuya"/"Descargada" en SongRow para matches locales. */
 .songBadge {
-  margin-left: 8px;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -234,12 +246,11 @@
   border-radius: 4px;
   background: var(--color-accent-soft));
   color: var(--color-accent);
-  vertical-align: middle;
+  white-space: nowrap;
 }
 
 /* Badge ⚡ "Caché" en SongRow para results YouTube cacheados en el desktop. */
 .songCacheBadge {
-  margin-left: 8px;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -247,7 +258,6 @@
   border-radius: 4px;
   background: rgba(56, 193, 114, 0.12);
   color: var(--color-success, #38c172);
-  vertical-align: middle;
   white-space: nowrap;
 }
 
@@ -255,7 +265,6 @@
  * Diferenciado del cache (verde local) y del badge generico (accent
  * indigo) usando un dorado/violeta sutil que evoque "comunidad". */
 .songKnownBadge {
-  margin-left: 8px;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -263,14 +272,12 @@
   border-radius: 4px;
   background: linear-gradient(135deg, rgba(255, 213, 79, 0.16), rgba(186, 104, 200, 0.16));
   color: #d4a93f;
-  vertical-align: middle;
   white-space: nowrap;
 }
 
 /* Badge "En biblioteca" — el video ya está guardado por el usuario. Se
    muestra en el tab dedicado (que no oculta duplicados) para dar contexto. */
 .songLibBadge {
-  margin-left: 8px;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -278,7 +285,6 @@
   border-radius: 4px;
   background: rgba(129, 140, 248, 0.14);
   color: var(--color-accent, #818cf8);
-  vertical-align: middle;
   white-space: nowrap;
 }
 
