@@ -3,12 +3,12 @@ tipo: modulo
 capa: servidor
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-07-28
+ultima-revision: 2026-08-11
 archivo: packages/server-core/src/lan-server.js
-tags: [servidor, cache, rendimiento, prewarm, yt-dlp, concurrencia]
+tags: [servidor, cache, rendimiento, prewarm, yt-dlp, concurrencia, progresivo, innertube]
 ---
 
-# Caché y rendimiento (Fases A-D)
+# Caché y rendimiento (Fases A-D + 1-4)
 
 > Cómo el servidor minimiza el tiempo de respuesta (buscar → sonar) sacando
 > `yt-dlp` del camino crítico mediante caché y prewarm. Meta: bajar de ~8s a
@@ -50,6 +50,12 @@ usa las cookies del solicitante en cache-miss (antes ignoraba las del device).
 `publishToGlobalCache` publica cada resolución. Única capa que "cruza" entre
 hosts (URLs efímeras, no archivos). Ver [[get-stream-url]], [[publish-stream-url]].
 
+**Fase 2 (2026-08) — LEER el global antes de yt-dlp:** `readGlobalCachedUrl`
+consulta `stream_url_cache` (Edge `get-stream-url`) **antes** de invocar yt-dlp
+en `resolveCached`, solo para clicks reales (prioridad ≥7). HIT = ahorra 1-3s
+(URL que otro host ya resolvió, ~5h TTL). Timeout 1.5s; cae a yt-dlp si MISS.
+Requiere sesión de owner en el servidor (ver más abajo, cuenta de servicio).
+
 ### 4. Búsqueda por query (Fase A2)
 
 `/yt/search` cachea los `items` por query normalizada (TTL 10min, LRU 200, dedupe
@@ -65,8 +71,36 @@ inflight). Búsqueda repetida: 2.0s → ~0.001s.
   permanente (no expira). **Límite de duración** `RITMIQ_PREWARM_MAX_DURATION_S`
   (default 1800 = 30min): no pre-descarga mixes/álbumes largos solos (el usuario
   aún puede descargarlos manualmente).
-- Cliente (`lan-client.js` `prewarmStream(ytId, { download })`): la vista de
-  búsqueda prewarmea los primeros 5; el top-1 con `download`. Dedupe 5min.
+- Cliente (`lan-client.js` `prewarmStream(ytId, { download, wait, timeoutMs })`).
+
+### Prewarm predictivo (Fase 3, 2026-08)
+
+Objetivo: que el usuario casi nunca toque un cache-miss real.
+
+- **3a — siguiente de la cola**: `use-player.js` pre-**descarga** (`download:1`)
+  el track siguiente cuando hay servidor → el cambio de canción es SHARED HIT.
+- **3b — búsqueda**: `SearchView` descarga completo (`download:1`) los **top-3**
+  (antes solo top-1); el resto (4-5) solo resuelve URL.
+- **3c — hover**: `onPointerEnter` en filas de Library (tracks no descargados) y
+  PlaylistView pre-resuelve la URL al posar el cursor/dedo.
+
+### `wait=1` (Fase iOS)
+
+`/yt/prewarm?wait=1` → el endpoint hace `await resolveCached` antes de responder
+204 (en vez de fire-and-forget). Lo usa el cliente móvil para garantizar la URL
+lista antes de reproducir. Ver "Fix iOS" arriba.
+
+## Acelerador InnerTube (Fase 4, DESACTIVADO por defecto)
+
+`packages/yt/src/innertube.js` (`resolveStreamUrlInnertube`) resuelve la URL m4a
+vía la API InnerTube móvil (IOS/ANDROID) sin yt-dlp (~200-600ms vs 1-3s).
+Integrado en `resolveCached` antes de yt-dlp, con fallback robusto.
+
+**Default OFF** (`RITMIQ_INNERTUBE_ACCEL=false`): verificado 2026-08 que YouTube
+responde **400/403** a IOS/ANDROID/WEB sin PO tokens desde IPs normales; activarlo
+solo añadiría ~1.7s antes de caer a yt-dlp. El código queda listo para reactivar
+en caliente si YouTube afloja o se integran PO tokens. Es la técnica "estilo
+Demus" (ver ADR-035).
 
 ## Descarga: m4a nativo + anti-throttle (fix 2026-07)
 
@@ -87,17 +121,30 @@ Fix:
 > mitigan pero no lo eliminan. El prewarm anticipado (descarga en background) +
 > caché hacen que el usuario perciba reproducción instantánea igualmente.
 
-## Cache-miss en `/stream` vía túnel: descargar+servir (fix 502)
+## Cache-miss en `/stream`: servido PROGRESIVO (Fase 1, 2026-08)
 
-Antes, en cache-miss el path `/stream/yt:` hacía `proxyAudio` de la URL de
-googlevideo **en vivo**. Con el throttle, el TTFB era tan lento que el **túnel
-Cloudflare cortaba con 502** (Bad Gateway) — síntoma: canciones no cacheadas
-fallaban vía `ritmiq.org` aunque localmente funcionaran.
+> **Reemplaza** el diseño previo "descargar completo antes de servir" (que daba
+> TTFB ~6-12s). Ver [[Reproduccion-Servidor-24-7]] para el detalle completo.
 
-Fix: en cache-miss se **descarga el archivo** (`downloadSharedAudio`, con chunks
-anti-throttle ~5-9s) y se sirve el archivo local (rápido y estable por el túnel),
-que además queda cacheado. `proxyAudio` queda como fallback si la descarga falla.
-Verificado vía túnel: canción no cacheada 502 → 206 (8s 1ª vez, 0.8s cacheada).
+En cache-miss, el path `/stream/yt:` ahora:
+1. Resuelve **solo la URL** (`resolveCached`, con Fase 2 global + InnerTube).
+2. Si es **m4a nativo** (`isNativeM4aUrl`) → `proxyAudioWithCache`: proxy en vivo
+   googlevideo→cliente (primer byte inmediato) **+ tee a disco en paralelo**.
+   Anti-502: fetch con Range + timeout de primer byte (4s, configurable
+   `RITMIQ_PROXY_FIRST_BYTE_TIMEOUT_MS`); el servidor reenvía bytes al túnel al
+   instante, Cloudflare no ve backend colgado.
+3. **Garantía de cache** paralela: `schedulePrewarmDownload` (yt-dlp chunks).
+4. **Fallback** sin regresión: no-m4a o proxy sin primer byte → `downloadSharedAudio`.
+
+TTFB cache-miss: **~6-12s → ~1-3s**. Verificado vía túnel sin 502.
+
+### Fix iOS (móvil no reproducía canciones nuevas)
+
+iOS Safari aborta si el primer byte tarda (~4s por túnel+celular). El cliente
+**móvil** hace `await prewarmStream(ytId, { wait: true })` antes de `<audio>.src`:
+`/yt/prewarm?wait=1` hace `await resolveCached` y deja la URL lista en
+`streamCache`. Cuando iOS pide bytes → TTFB ~0.2-1s → no aborta. Desktop no usa
+`wait` (LAN local rápido). Ver `use-player.js` `loadAndPlayCurrent`.
 
 ## Descargas del cliente (offline): incluir el servidor
 
@@ -139,6 +186,32 @@ contenido ligado a la cuenta.
   nuevo desde el navegador (`--cookies-from-browser firefox --cookies <file>`) y
   re-copiar al volumen.
 - Log de arranque: `[lan-server] yt-dlp cookies file (env): /data/owner-cookies.txt`.
+
+## Cuenta de servicio (owner del servidor headless)
+
+Para que el cache global funcione (leer Fase 2 + publicar), el servidor necesita
+una **sesión Supabase** que alimente `supabaseUserJwt` del lan-server. El
+servidor headless no tiene renderer, así que `apps/server/src/index.js` obtiene
+el JWT vía `endpoint-registry.getOwnerAccessToken()` y lo inyecta con
+`setSupabaseUserJwt`, refrescándolo cada 30min.
+
+**Se usa una CUENTA DE SERVICIO DEDICADA** (`servidor@ritmiq.org`, user_id
+`54905c8d-…`), NO la cuenta personal del dueño — así el servidor no crea
+sesiones ni asocia datos del cache global a un usuario real. Config en
+`apps/server/.env` (chmod 600, nunca en el repo):
+
+```
+RITMIQ_OWNER_EMAIL=servidor@ritmiq.org
+RITMIQ_OWNER_PASSWORD=…            # (o RITMIQ_OWNER_ACCESS_TOKEN)
+```
+
+Crear la cuenta con el admin API de Supabase (`POST /auth/v1/admin/users` con
+service_role, `email_confirm:true`). Log de arranque al activarse:
+`[endpoint-registry] autenticado como dueño: servidor@ritmiq.org` +
+`[ritmiq-server] JWT del dueño sincronizado (cache global URL activo)`.
+
+Sin credenciales, el comportamiento es idéntico a antes (cae a yt-dlp; no lee ni
+publica el global). Ver [[Autenticacion-y-JWT]] y `apps/server/.env.example`.
 
 ## Migración del caché desktop → servidor
 

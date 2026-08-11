@@ -81,6 +81,10 @@ Ver [[Variables-de-Entorno]] para el listado completo. Las específicas del serv
 - `RITMIQ_YTDLP_CONCURRENCY` (prewarms en paralelo)
 - `RITMIQ_TUNNEL_TOKEN`, `RITMIQ_TUNNEL_CUSTOM_URL`
 - `RITMIQ_LOGIN_IMAGE` (imagen del contenedor noVNC)
+- `RITMIQ_OWNER_EMAIL` / `RITMIQ_OWNER_PASSWORD` — cuenta de SERVICIO para publicar
+  el endpoint + cache global de URLs (Fase 2). Ver [[Cache-y-Rendimiento]], [[Autenticacion-y-JWT]].
+- `RITMIQ_PUBLISH_URL_CACHE` (def. on), `RITMIQ_INNERTUBE_ACCEL` (def. off, Fase 4),
+  `RITMIQ_PROXY_FIRST_BYTE_TIMEOUT_MS` (def. 4000, servido progresivo Fase 1)
 
 ## Ver también
 

@@ -3,9 +3,9 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-07-17
+ultima-revision: 2026-08-11
 archivo: packages/ui/src/components/SearchView/SearchView.jsx
-tags: [componente, busqueda, tabs, youtube, artistas, playlists, persistencia, paginacion]
+tags: [componente, busqueda, tabs, youtube, artistas, playlists, persistencia, paginacion, badges]
 ---
 
 # `SearchView`
@@ -16,7 +16,11 @@ tags: [componente, busqueda, tabs, youtube, artistas, playlists, persistencia, p
 `packages/ui/src/components/SearchView/SearchView.jsx:1` (954 líneas — incluye `ExploreView.jsx`)
 
 ## Props
-Sin props. Recibe la query desde `view.query` del store.
+`query` (desde `view.query`). **Fix 2026-08**: internamente `query = queryProp
+|| storeQuery` — usa el query del store [[search]] como fallback. Al volver por
+el tab "Buscar" (`goSearchView` entra con `query=''`) la búsqueda **no se pierde**
+(antes mostraba Explore vacío aunque el store tuviera resultados). Una búsqueda
+nueva por prop tiene prioridad; el botón X (`reset()`) sigue limpiando.
 
 ## Tabs
 
@@ -66,7 +70,18 @@ La búsqueda persiste al navegar fuera y volver, hasta que el usuario la limpia:
 | [[track-helpers]] | `metaToCandidate` |
 
 ## Prewarm en esta vista
-Al renderizar los resultados, `prewarmStream(ytId)` se llama para los 2 primeros videos (prioridad 1 — más bajo que el prewarm de TopBar que es 5, porque aquí el usuario todavía está eligiendo).
+Al renderizar, `prewarmStream(ytId)` sobre los primeros 5 videos; los **top-3**
+con `download:1` (descarga completa → play instantáneo aunque elijas el 2º/3º),
+el resto solo resuelve URL. Ver [[Cache-y-Rendimiento]] (Fase 3b).
+
+## Layout de las filas (SongRow) — badges (fix 2026-08)
+
+`SongRow` renderiza cada resultado con orden **título → subtítulo → badges**. Los
+badges (`DESCARGADA`/`TUYA`/`N en Ritmiq`/`Caché`/`En biblioteca`) viven en un
+contenedor `.songBadges` (flex-wrap) en su **propia línea**, no inline con el
+título. Antes estaban dentro de `.songTitle` (con `nowrap+ellipsis`) → títulos
+largos los recortaban y no se apreciaban. Aplica a las 3 secciones que usan
+`SongRow` (biblioteca, Conocidas en Ritmiq, tab Canciones).
 
 ## Qué puede romper este cambio
 
@@ -76,6 +91,7 @@ Al renderizar los resultados, `prewarmStream(ytId)` se llama para los 2 primeros
 | `fetchMore` que hace append en lugar de reemplazar | Lista crece con duplicados al paginar. |
 
 ## Notas / Changelog
+- 2026-08-11: fix persistencia (usa query del store como fallback — no se pierde al volver por el tab); badges movidos a línea propia bajo el subtítulo; `download:1` a top-3. Commits `8140d19`, `7b3ecb6`.
 - 2026-07-17: persistencia de búsqueda (key estable + tab/scroll en store + botón limpiar); más variedad (12/30) con "Ver más" incremental; tab Canciones muestra duplicados con badge. Ver [[search-youtube]], [[Cache-y-Rendimiento]]. Commits `d5ba010`, `9ce7ab5`.
 - 2026-05-22: nivel pleno.
 - 2026-05-27 (Fase 0.5): click en card de playlist YT (tabs `all` y `playlists`) ahora navega a [[YtPlaylistView]] vía `goYtPlaylist(p.id)` de [[view]] store. Antes hacía `console.info` sin acción. Removidos los TODOs L389+L456. Commit `d585e68`.

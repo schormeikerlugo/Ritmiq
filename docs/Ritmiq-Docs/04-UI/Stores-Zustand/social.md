@@ -3,7 +3,7 @@ tipo: store
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-08-11
 archivo: packages/ui/src/stores/social.js
 tags: [store, social, amigos, perfil, presencia, inbox]
 ---
@@ -194,8 +194,18 @@ const url = `${pub.publicUrl}?v=${Date.now()}`;
 
 En total, un `load completo del sistema social` = ~7-10 queries Supabase. No hay optimización de batching hoy.
 
+## Hidratación al login (fix 2026-08)
+
+`App.jsx` (bloque de sesión) llama `loadProfile` + **`loadFriends` + `loadInbox`**
++ `loadJamInvites` al iniciar sesión. Antes `loadFriends`/`loadInbox` solo se
+llamaban al **montar `FriendsView`** → si nunca abrías Amigos, `friends=[]` y el
+[[ShareToFriendModal]] mostraba "No tienes amigos" **bloqueando compartir una
+canción** hasta abrir Amigos primero. El realtime social ([[use-social-realtime]])
+solo RE-carga ante cambios de `friendships`, no hidrata en frío. Mismo patrón de
+bug que ya se había corregido para `loadProfile`. Commit `c0673b1`.
+
 ## Dependencias entrantes
-- [[App]] → `loadProfile`, `loadFriends`, `loadRequests`, `loadInbox` al iniciar.
+- [[App]] → `loadProfile`, `loadFriends`, `loadInbox`, `loadJamInvites` al login (ver arriba).
 - [[FriendsView]], [[ProfileView]], [[SharedView]] componentes.
 - [[use-social-realtime]] hook → `setFriendPresence`.
 - [[use-presence]] hook → `setFriendPresence`.
@@ -214,6 +224,7 @@ En total, un `load completo del sistema social` = ~7-10 queries Supabase. No hay
 | `reset()` que no limpia `friendsPresence` | Presencia del usuario anterior visible para el siguiente que hace login. |
 
 ## Notas / Changelog
+- 2026-08-11: `loadFriends` + `loadInbox` se cargan al login en `App.jsx` (antes solo al abrir FriendsView → compartir canción quedaba bloqueado sin abrir Amigos). Commit `c0673b1`.
 - 2026-05-22: nivel pleno.
 - 2026-06-01 (**invitaciones de jam**, Bloque 3.6): estado nuevo `jamInvites[]`; `pendingCount`
   ahora suma las invitaciones. Acciones: `loadJamInvites(userId)` (fetch pendientes + perfiles

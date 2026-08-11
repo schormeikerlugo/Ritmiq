@@ -299,14 +299,21 @@ sequenceDiagram
   alt file_path local existe
     LAN->>FS: createReadStream(file_path)
     FS-->>PWA: bytes con Range support
-  else stream proxy
-    LAN->>YT: getStreamUrl(yt_id, ytOptsFor(principal))
+  else stream proxy (cache-miss, m4a nativo)
+    LAN->>YT: resolveCached(yt_id) (global/InnerTube/yt-dlp)
     YT-->>LAN: googlevideo URL
-    LAN->>LAN: proxyAudio(upstream)
-    LAN-->>PWA: bytes proxied
+    LAN->>LAN: proxyAudioWithCache(upstream) — progresivo + tee a disco
+    LAN-->>PWA: primer byte ~1-3s (+ archivo cacheado)
   end
   LAN->>DB: logActivity(stream)
 ```
+
+> **Servido progresivo (Fase 1, 2026-08)**: en cache-miss el path `/stream/yt:`
+> usa `proxyAudioWithCache` (proxy en vivo + tee a disco) en vez de descargar el
+> archivo completo antes de servir (TTFB ~6-12s → ~1-3s), con fallback a
+> `downloadSharedAudio`. **Fix iOS**: el cliente móvil hace `/yt/prewarm?wait=1`
+> (await de la resolución) antes de `<audio>.src` para que iOS no aborte por
+> TTFB alto. Detalle en [[Cache-y-Rendimiento]] y [[Reproduccion-Servidor-24-7]].
 
 ## Casos de borde y gotchas
 
@@ -388,5 +395,6 @@ sequenceDiagram
 | Cambiar el regex de CORS para no incluir trycloudflare | PWA vía Quick Tunnel recibe error CORS al primer fetch. |
 
 ## Notas / Changelog
+- 2026-08-11 (Playback Fases 1-4 + fix iOS, [[Decisiones-Tecnicas-ADR|ADR-035]]): servido progresivo `proxyAudioWithCache` (proxy + tee a disco) reemplaza descarga-completa en cache-miss; `readGlobalCachedUrl` lee `stream_url_cache` antes de yt-dlp (Fase 2); `/yt/prewarm?wait=1` (await de resolución, fix iOS); acelerador InnerTube `@ritmiq/yt/innertube` (Fase 4, off por defecto); `isNativeM4aUrl`. Cuenta de servicio para el JWT del owner. Ver [[Cache-y-Rendimiento]], [[Reproduccion-Servidor-24-7]].
 - 2026-07-17 (Fases 1-4 + A-D): movido a `@ritmiq/server-core` (compartido desktop+servidor); `authorizeAdmin` + endpoints `/admin/*` y `/devices/*`; verificación JWT en `/pair`; cache de búsqueda por query; prewarm `&download=1`; `MAX_CONCURRENT` adaptativo (`RITMIQ_YTDLP_CONCURRENCY`); fix `resolveCached(dlOpts)`; login noVNC (`/youtube/link/*`). Ver [[11-Servidor-Headless/README]], [[Cache-y-Rendimiento]], [[Administracion-Dispositivos]], [[Autenticacion-y-JWT]].
 - 2026-05-22: nivel pleno (6 snippets, 10 filas qué-rompe, diagrama, perf, casos de borde).

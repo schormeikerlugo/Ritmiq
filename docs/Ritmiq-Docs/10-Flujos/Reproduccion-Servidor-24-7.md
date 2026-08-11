@@ -3,8 +3,8 @@ tipo: flujo
 capa: flujo
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-07-17
-tags: [flujo, servidor, headless, streaming, cache, prewarm]
+ultima-revision: 2026-08-11
+tags: [flujo, servidor, headless, streaming, cache, prewarm, progresivo, ios]
 ---
 
 # Reproducción vía Servidor 24/7
@@ -40,17 +40,52 @@ sequenceDiagram
   SRV->>YT: resolver URL / descargar m4a (background)
   YT-->>FS: <ytId>.m4a (si download)
   U->>SV: click play(track)
+  Note over LC,SRV: móvil: prewarm(wait=1) resuelve la URL ANTES de <audio>.src
   SV->>LC: buildLanStreamUrl (?yt=<ytId>)
   LC->>SRV: GET /stream/yt:<ytId>?yt=<ytId>&token=
   alt archivo en shared-audio
-    SRV-->>U: 206 (~0.004s)
-  else URL cacheada
-    SRV-->>U: proxy stream (~0.14s)
+    SRV-->>U: 206 SHARED HIT (~0.001s)
+  else URL en streamCache/global
+    SRV-->>U: proxy PROGRESIVO + tee a disco (~0.2s)
   else cold
     SRV->>YT: resolveCached(ytId, 10)
-    SRV-->>U: proxy stream
+    SRV-->>U: proxy PROGRESIVO (primer byte ~1-3s) + tee
   end
 ```
+
+## Servido progresivo en cache-miss (Fase 1)
+
+**Antes** el servidor descargaba el m4a **completo** antes de enviar el primer
+byte (~6-12s). **Ahora** en cache-miss sirve de forma progresiva:
+
+1. Resuelve **solo la URL** de googlevideo (rápido; cacheada 30min + global).
+2. Si es **m4a nativo** → `proxyAudioWithCache`: proxy en vivo googlevideo→
+   cliente (primer byte inmediato) **+ tee a disco en paralelo** (queda
+   cacheado para la próxima). Anti-502: fetch con Range + timeout de primer
+   byte (`RITMIQ_PROXY_FIRST_BYTE_TIMEOUT_MS`, def. 4s). Como el servidor
+   reenvía bytes al túnel de inmediato, Cloudflare nunca ve un backend colgado.
+3. **Garantía de cache:** en paralelo se encola `schedulePrewarmDownload` (yt-dlp
+   con `--http-chunk-size`, robusto contra throttle); el tee es best-effort.
+4. **Fallback sin regresión:** opus/webm (iOS no decodifica) o proxy sin primer
+   byte → `downloadSharedAudio` (descarga+remux) como antes.
+
+TTFB en cache-miss: **~6-12s → ~1-3s**. Ver `packages/server-core/src/lan-server.js`
+(`proxyAudioWithCache`) y `packages/yt/src/ytdlp-wrapper.js` (`isNativeM4aUrl`).
+
+## Fix iOS — móvil no reproducía canciones nuevas
+
+iOS Safari **aborta** la reproducción si el primer byte tarda demasiado (~4s en
+cache-miss por túnel+celular, dominado por yt-dlp); Chrome (desktop) es más
+tolerante. Fix: el cliente **móvil espera** a que el servidor resuelva la URL
+antes de asignar `<audio>.src`:
+
+- `/yt/prewarm?wait=1` → el servidor hace `await resolveCached` (prioridad 10) y
+  deja la URL en `streamCache` antes de responder.
+- `use-player.js` `loadAndPlayCurrent`: si `!isDesktop` y es track de YouTube,
+  `await prewarmStream(ytId, { wait: true, timeoutMs: 7000 })` antes de `load`.
+
+Resultado: cuando el `<audio>` pide bytes la URL ya está lista → TTFB ~0.2-1s
+→ iOS ya no aborta. El desktop no usa `wait` (LAN local ya es rápido).
 
 ## Selección de host
 

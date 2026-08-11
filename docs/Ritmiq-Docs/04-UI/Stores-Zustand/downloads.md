@@ -3,9 +3,9 @@ tipo: store
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-08-11
 archivo: packages/ui/src/stores/downloads.js
-tags: [store, descargas, cola, concurrencia]
+tags: [store, descargas, cola, concurrencia, toast]
 ---
 
 # `stores/downloads.js`
@@ -32,7 +32,8 @@ tags: [store, descargas, cola, concurrencia]
 ```js
 {
   entries: DLEntry[],
-  visible: boolean,    // muestra/oculta el panel de progreso
+  visible: boolean,    // muestra/oculta la píldora de progreso
+  _notified: boolean,  // interno: ¿ya se emitió el toast-resumen de la tanda?
 }
 ```
 
@@ -103,6 +104,21 @@ await api.libraryDownload(payload);
 ```
 
 **Por qué pasar `fallback` en desktop**: tracks importados de Spotify están en Supabase pero pueden no estar replicados aún en SQLite local. El IPC handler `library:download` acepta `{ trackId, fallback }` y usa el fallback para sincronizar la fila antes de descargar. Ver [[ipc#library:download]].
+
+### 4. Notificación AGRUPADA de completado (2026-08)
+
+Antes `runOne` emitía `toast.success("X descargada")` **por cada track** → spam
+al descargar varias. Ahora el toast se saca del bucle y se emite **uno solo al
+terminar la tanda**:
+
+- `pump()` detecta `running === 0 && queued === 0`; si hay entries y no se
+  notificó (`_notified`), llama `notifyBatchComplete(get)` y marca `_notified`.
+- `notifyBatchComplete`: 1 track → `"X descargada"`; lote → `"N canciones
+  descargadas"`; con fallos → `"N descargadas · M fallaron"`.
+- `enqueue` limpia la tanda previa ya terminada (todos done/error) y resetea
+  `_notified`, para que el resumen cuente solo la tanda actual.
+
+Ver [[toast]] (max 3 FIFO, sin dedup nativo — por eso el agrupado se hace aquí).
 
 ## Casos de borde
 

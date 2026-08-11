@@ -3,9 +3,9 @@ tipo: modulo
 capa: servidor
 plataforma: servidor
 estado: estable
-ultima-revision: 2026-07-17
+ultima-revision: 2026-08-11
 archivo: packages/server-core/src/auth-jwt.js
-tags: [servidor, seguridad, jwt, supabase, es256, jwks]
+tags: [servidor, seguridad, jwt, supabase, es256, jwks, cuenta-servicio]
 ---
 
 # Autenticación y JWT (Fase 4)
@@ -62,6 +62,20 @@ const res = await verifier.verify(token);  // { userId, email, payload } | null
 - `RITMIQ_REQUIRE_AUTH_FOR_PAIR` (default ON cuando hay verificación): sin JWT
   válido → **401 "login required to pair"**.
 - El allowlist (`RITMIQ_ALLOWED_USERS`) se evalúa contra el `user_id` verificado.
+
+## Sesión de owner del servidor (JWT saliente, no verificación)
+
+Distinto de lo anterior (que VERIFICA JWTs entrantes): el servidor también
+necesita un JWT **propio** para operar como usuario contra Supabase (publicar su
+endpoint + leer/publicar el cache global de URLs, Fase 2). Como es headless (sin
+renderer que llame a `setSupabaseUserJwt`), `apps/server/src/index.js` obtiene el
+token vía `endpoint-registry.getOwnerAccessToken()` y lo inyecta al lan-server,
+refrescándolo cada 30min.
+
+Se usa una **cuenta de servicio dedicada** (`servidor@ritmiq.org`, user_id
+`54905c8d-…`) — separada de la cuenta personal — configurada en
+`apps/server/.env` (`RITMIQ_OWNER_EMAIL/PASSWORD`, chmod 600). Detalle completo en
+[[Cache-y-Rendimiento#Cuenta de servicio (owner del servidor headless)]].
 
 ## Nota de arquitectura
 

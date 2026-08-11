@@ -302,4 +302,17 @@ Cada decisión sigue el formato:
 
 ---
 
+## ADR-035 — Reproducción instantánea: servido progresivo + prewarm predictivo + InnerTube
+
+- **Contexto**: en cache-miss el servidor descargaba el m4a COMPLETO antes del primer byte (~6-12s). Inspirado en apps como Demus (reproducción "instantánea" desde YouTube), se atacó la latencia de "toco play → suena" en 4 fases, manteniendo la infraestructura robusta (caché compartida, offline, multi-dispositivo).
+- **Decisión**:
+  1. **Fase 1 — servido progresivo**: `proxyAudioWithCache` reenvía bytes de googlevideo al cliente al instante **+ tee a disco** (queda cacheado). Anti-502: fetch con Range + timeout de primer byte (4s); el servidor alimenta el túnel de inmediato. Fallback a `downloadSharedAudio` (opus/webm o proxy sin primer byte). Nuevo `isNativeM4aUrl` (detecta m4a por mime/itag). TTFB ~6-12s → ~1-3s.
+  2. **Fase 2 — leer cache global**: `readGlobalCachedUrl` consulta `stream_url_cache` antes de yt-dlp (clicks reales); requiere sesión de owner en el servidor → **cuenta de servicio dedicada** (`servidor@ritmiq.org`, separada de la personal) para no crear sesiones ni asociar datos a un usuario real.
+  3. **Fase 3 — prewarm predictivo**: pre-descarga del siguiente de la cola; `download=1` a top-3 de búsqueda; prefetch en hover de filas.
+  4. **Fase 4 — acelerador InnerTube** (estilo Demus): `@ritmiq/yt/innertube` resuelve la URL vía API móvil sin yt-dlp (~200-600ms). **DESACTIVADO por defecto** (`RITMIQ_INNERTUBE_ACCEL=false`): YouTube devuelve 400/403 sin PO tokens (2026-08); código listo para reactivar en caliente.
+  5. **Fix iOS**: iOS Safari abortaba canciones nuevas por TTFB alto (~4s por túnel+celular; Chrome tolera). El cliente móvil hace `await prewarmStream(ytId,{wait:true})` (`/yt/prewarm?wait=1` resuelve la URL antes de responder) antes de `<audio>.src`. TTFB al pedir bytes ~0.2-1s → no aborta.
+- **Consecuencias**: cache-miss ~1-3s (y sin 502 por túnel); cambio de canción instantáneo por el prewarm-download; móvil reproduce nuevas de forma fiable. Verificado en prod (servidor casero + túnel `ritmiq.org`): `GLOBAL-CACHE HIT 611ms`, `PROXY+CACHE`, `wait` TTFB 0.18s. Builds PWA+desktop verdes. Ver [[Cache-y-Rendimiento]], [[Reproduccion-Servidor-24-7]].
+
+---
+
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.
