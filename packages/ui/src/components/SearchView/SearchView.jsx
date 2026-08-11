@@ -33,7 +33,15 @@ const TABS = [
   { id: 'playlists', label: 'Playlists' },
 ];
 
-export function SearchView({ query }) {
+export function SearchView({ query: queryProp }) {
+  // Fuente de verdad de la query: la PROP dispara una búsqueda nueva, pero
+  // al volver por el tab "Buscar" la prop llega vacía (goSearchView) mientras
+  // el STORE conserva la búsqueda previa. Usamos el store como fallback para
+  // NO perder la búsqueda al navegar fuera y volver (bug reportado). El botón
+  // X (reset del store) sigue vaciando y volviendo a Explorar.
+  const storeQuery = useSearchStore((s) => s.query);
+  const query = queryProp || storeQuery;
+
   const fetchAll  = useSearchStore((s) => s.fetch);
   const videos    = useSearchStore((s) => s.videos);
   const channels  = useSearchStore((s) => s.channels);
