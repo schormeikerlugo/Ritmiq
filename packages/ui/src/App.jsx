@@ -379,6 +379,13 @@ export function App() {
       // entraba a Amigos, profile quedaba null y el dialog de editar
       // perfil no funcionaba.
       useSocialStore.getState().loadProfile(user.id);
+      // Lista de amigos + inbox a nivel App: el realtime social solo
+      // RE-carga ante cambios de `friendships`, no hidrata en frio. Sin
+      // esta carga inicial, ShareToFriendModal veia friends=[] y bloqueaba
+      // compartir hasta abrir la seccion Amigos (mismo bug que loadProfile).
+      // loadInbox mantiene el badge del inbox correcto desde el arranque.
+      useSocialStore.getState().loadFriends(user.id);
+      useSocialStore.getState().loadInbox(user.id);
       // Invitaciones de jam pendientes — para el badge y la pestana
       // Solicitudes desde el arranque (el realtime las refresca al llegar).
       useSocialStore.getState().loadJamInvites(user.id);
