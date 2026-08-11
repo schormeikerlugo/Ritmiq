@@ -1,11 +1,18 @@
 .wrap {
   position: fixed;
-  bottom: calc(var(--layout-player-h) + var(--space-3));
+  /* Por ENCIMA del reproductor fijo (y del bottom-nav en mobile) para no
+     tapar sus controles (play/next). Usa las vars reales del layout de la
+     app (heredadas de .shell): --player-h = alto del player + safe area,
+     --bottom-nav-h = alto del nav inferior (0 en desktop). Fallbacks por si
+     el componente se renderiza fuera de .shell. */
+  bottom: calc(var(--player-h, var(--layout-player-h, 88px)) + var(--bottom-nav-h, 0px) + var(--space-3));
   right: var(--space-4);
   max-width: calc(100vw - 2 * var(--space-4));
   z-index: 80;
   display: flex;
-  flex-direction: column;
+  /* column-reverse: la píldora queda abajo (anclada por `bottom`) y el
+     detalle expandido crece hacia ARRIBA, nunca hacia el reproductor. */
+  flex-direction: column-reverse;
   align-items: flex-end;
   gap: var(--space-2);
 }
