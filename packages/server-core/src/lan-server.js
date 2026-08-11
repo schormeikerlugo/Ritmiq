@@ -1710,12 +1710,28 @@ export async function startLanServer({
           res.writeHead(204).end();
           return;
         }
+        // FIX iOS: `wait=1` ESPERA a que la URL quede resuelta (en el
+        // streamCache) antes de responder. El cliente móvil llama a esto con
+        // await ANTES de asignar <audio>.src, garantizando que cuando iOS
+        // pida bytes el primer byte llegue en ~1s (URL ya lista) en vez de
+        // ~4s (yt-dlp en frío) → iOS ya no aborta la reproducción de tracks
+        // nuevos. Prioridad alta (10) porque es un play real inminente.
+        const wantWait = url.searchParams.get('wait') === '1';
         if (wantDownload) {
           schedulePrewarmDownload(ytId, ytOptsFor(principal));
+          res.writeHead(204).end();
+        } else if (wantWait) {
+          try {
+            await resolveCached(ytId, 10, ytOptsFor(principal));
+            res.writeHead(204).end();
+          } catch (err) {
+            // Si falla la resolución, 204 igual — el /stream reintentará.
+            res.writeHead(204).end();
+          }
         } else {
           resolveCached(ytId, 5).catch(() => {});
+          res.writeHead(204).end();
         }
-        res.writeHead(204).end();
         return;
       }
 
@@ -2048,6 +2064,7 @@ export async function startLanServer({
           //      (descarga + remux a m4a, bloqueante, como antes). Cero
           //      regresión: en el peor caso queda igual que el diseño previo.
           const ytOpts0 = ytOptsFor(principal);
+
           try {
             const streamUrl = await resolveCached(ytId, 10, ytOpts0);
             if (isNativeM4aUrl(streamUrl)) {

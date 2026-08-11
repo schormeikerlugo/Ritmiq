@@ -1054,6 +1054,22 @@ export function usePlayerEngine() {
     async function loadAndPlayCurrent(track, fingerprint, isCancelled) {
       try {
         setState({ error: null });
+        // FIX iOS: ESPERAR a que el servidor resuelva la URL ANTES de asignar
+        // <audio>.src. iOS Safari aborta la reproducción si el primer byte
+        // tarda demasiado (~4s en cache-miss por túnel+celular, dominado por
+        // yt-dlp). Con prewarm(wait) el servidor deja la URL lista en su
+        // streamCache, así cuando el <audio> pide bytes el primer byte llega
+        // en ~1s — sintoma corregido: "en movil no reproduce canciones nuevas,
+        // en desktop sí". Timeout 7s: si excede, seguimos igual (el /stream
+        // reintenta). Solo móvil (desktop en LAN ya es rápido) y solo YouTube.
+        if (!isDesktop) {
+          const ytId = track.ytId
+            || (typeof track.id === 'string' && track.id.startsWith('yt:') ? track.id.slice(3) : null);
+          if (ytId) {
+            try { await prewarmStream(ytId, { wait: true, timeoutMs: 7000 }); } catch {}
+            if (isCancelled()) return;
+          }
+        }
         const resolved = await resolveAudioSource(track, buildResolveDeps(track));
         const { url } = resolved;
         if (isCancelled()) return;

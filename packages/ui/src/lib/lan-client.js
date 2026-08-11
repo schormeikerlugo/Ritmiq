@@ -369,22 +369,33 @@ const prewarmedAt = new Map();
 const PREWARM_DEDUP_MS = 5 * 60 * 1000;
 /**
  * @param {string} ytId
- * @param {{ download?: boolean }} [opts]  download=true descarga el m4a
- *   completo en el servidor (permanente, play instantáneo). Úsalo solo para
- *   el resultado más probable (top-1) para no saturar disco/red.
+ * @param {{ download?: boolean, wait?: boolean, timeoutMs?: number }} [opts]
+ *   download=true descarga el m4a completo en el servidor (permanente, play
+ *   instantáneo). Úsalo solo para el resultado más probable (top-1).
+ *   wait=true ESPERA (await) a que el servidor resuelva la URL antes de
+ *   resolver la promesa — úsalo justo antes de reproducir en móvil para que
+ *   el primer byte de iOS no tarde y aborte. timeoutMs acota la espera.
+ * @returns {Promise<void>} resuelve cuando el prewarm termina (o timeout).
  */
 export function prewarmStream(ytId, opts = {}) {
   const base = preferredBase();
-  if (!base || !ytId) return;
+  if (!base || !ytId) return Promise.resolve();
   const now = Date.now();
-  const dedupKey = opts.download ? `dl:${ytId}` : ytId;
+  // El modo wait NO comparte dedupe con el fire-and-forget: queremos poder
+  // esperar la resolución aunque ya se haya lanzado un prewarm normal antes.
+  const dedupKey = opts.wait ? `wait:${ytId}` : opts.download ? `dl:${ytId}` : ytId;
   const last = prewarmedAt.get(dedupKey);
-  if (last && now - last < PREWARM_DEDUP_MS) return;
+  if (last && now - last < PREWARM_DEDUP_MS) return Promise.resolve();
   prewarmedAt.set(dedupKey, now);
   const dl = opts.download ? '&download=1' : '';
-  fetch(`${base}/yt/prewarm?q=${encodeURIComponent(ytId)}${dl}`, {
+  const wait = opts.wait ? '&wait=1' : '';
+  const ctrl = opts.wait ? new AbortController() : null;
+  let timer = null;
+  if (ctrl && opts.timeoutMs) timer = setTimeout(() => ctrl.abort(), opts.timeoutMs);
+  return fetch(`${base}/yt/prewarm?q=${encodeURIComponent(ytId)}${dl}${wait}`, {
     headers: authHeaders(),
-  }).catch(() => {});
+    signal: ctrl?.signal,
+  }).catch(() => {}).finally(() => { if (timer) clearTimeout(timer); });
 }
 
 /**
