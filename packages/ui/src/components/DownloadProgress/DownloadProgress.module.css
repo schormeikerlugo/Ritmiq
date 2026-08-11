@@ -2,91 +2,97 @@
   position: fixed;
   bottom: calc(var(--layout-player-h) + var(--space-3));
   right: var(--space-4);
-  width: 340px;
   max-width: calc(100vw - 2 * var(--space-4));
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
   z-index: 80;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
 }
 
-.header {
-  display: flex;
+/* ── Píldora compacta (siempre visible) ─────────────────────────────── */
+.pill {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-bg-2);
-  border-bottom: 1px solid var(--color-border);
+  gap: var(--space-2);
+  padding: 6px 8px 6px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text-1);
+  font: inherit;
+  cursor: pointer;
+  max-width: min(320px, calc(100vw - 2 * var(--space-4)));
+  transition: background var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard);
 }
+.pill:hover { background: var(--color-bg-2); border-color: var(--color-border-strong, var(--color-border)); }
 
-.title {
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-}
-
-.controls {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.iconBtn {
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-3);
-  font-size: var(--fs-sm);
+.ring {
   display: grid;
   place-items: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+.ringSvg { width: 20px; height: 20px; transform: rotate(-90deg); }
+.ringTrack {
+  fill: none;
+  stroke: var(--color-bg-3);
+  stroke-width: 3;
+}
+.ringFill {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset var(--dur-normal) var(--ease-standard);
+}
+
+.pillLabel {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pillPct {
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.pillClose {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: var(--color-text-3);
+  flex-shrink: 0;
   transition: background var(--dur-fast) var(--ease-standard),
               color var(--dur-fast) var(--ease-standard);
 }
+.pillClose:hover { background: var(--color-bg-3); color: var(--color-text-1); }
 
-.iconBtn:hover {
-  background: var(--color-bg-3);
-  color: var(--color-text-1);
-}
-
-.overall {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.overallBar {
-  flex: 1;
-  height: 4px;
-  background: var(--color-bg-3);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-}
-
-.overallFill {
-  height: 100%;
-  background: var(--color-accent);
-  transition: width var(--dur-normal) var(--ease-standard);
-}
-
-.overallText {
-  font-size: var(--fs-xs);
-  color: var(--color-text-2);
-  font-variant-numeric: tabular-nums;
-  min-width: 36px;
-  text-align: right;
-}
-
+/* ── Detalle expandible (opcional) ──────────────────────────────────── */
 .list {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3);
+  width: 300px;
+  max-width: calc(100vw - 2 * var(--space-4));
   max-height: 220px;
   overflow-y: auto;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
   list-style: none;
   margin: 0;
 }

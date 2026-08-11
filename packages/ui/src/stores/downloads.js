@@ -34,6 +34,8 @@ export const useDownloadsStore = create((set, get) => ({
   /** @type {DLEntry[]} */
   entries: [],
   visible: false,
+  /** Flag interno: ¿ya se notificó el fin de la tanda actual? */
+  _notified: false,
 
   /**
    * Encola una lista de tracks para descargar (desktop a disco, PWA a IndexedDB).
@@ -41,7 +43,14 @@ export const useDownloadsStore = create((set, get) => ({
    */
   enqueue(tracks) {
     ensureProgressListener(set, get);
-    const existing = new Set(get().entries.map((e) => e.trackId));
+    // Si la tanda anterior ya terminó por completo, limpiar sus entries
+    // (done/error) antes de encolar la nueva. Así el toast-resumen cuenta
+    // solo la tanda actual y no arrastra descargas viejas ya notificadas.
+    const cur = get().entries;
+    const allFinished = cur.length > 0 &&
+      cur.every((e) => e.status === 'done' || e.status === 'error');
+    const base = allFinished ? [] : cur;
+    const existing = new Set(base.map((e) => e.trackId));
     const fresh = tracks
       .filter((t) => !t.isDownloaded && !existing.has(t.id))
       .map((t) => /** @type {DLEntry} */ ({
@@ -50,8 +59,12 @@ export const useDownloadsStore = create((set, get) => ({
         status: 'queued',
         progress: 0,
       }));
-    if (fresh.length === 0) return;
-    set((s) => ({ entries: [...s.entries, ...fresh], visible: true }));
+    if (fresh.length === 0) {
+      // Nada nuevo que encolar; si además limpiamos la tanda vieja, ocultar.
+      if (allFinished) set({ entries: [], visible: false, _notified: false });
+      return;
+    }
+    set({ entries: [...base, ...fresh], visible: true, _notified: false });
     pump(set, get);
   },
 
@@ -67,6 +80,20 @@ export const useDownloadsStore = create((set, get) => ({
 
 async function pump(set, get) {
   const running = get().entries.filter((e) => e.status === 'running').length;
+  const queuedCount = get().entries.filter((e) => e.status === 'queued').length;
+
+  // Tanda terminada: sin running ni queued y hay entries finalizados → toast
+  // agregado una sola vez (flag _notified evita repetirlo en pumps sucesivos).
+  if (running === 0 && queuedCount === 0) {
+    if (get().entries.length > 0 && !get()._notified) {
+      set({ _notified: true });
+      notifyBatchComplete(get);
+    }
+    return;
+  }
+  // Hay trabajo pendiente/en curso → reset del flag para la próxima tanda.
+  if (get()._notified) set({ _notified: false });
+
   const slots = CONCURRENCY - running;
   if (slots <= 0) return;
 
@@ -99,20 +126,46 @@ async function runOne(trackId, set, get) {
     await api.libraryDownload(payload);
     set((s) => ({
       entries: s.entries.map((e) =>
-        e.trackId === trackId ? { ...e, status: 'done', progress: 100 } : e
+        e.trackId === trackId ? { ...e, status: 'done', progress: 100, title: entryTitle } : e
       ),
     }));
     // Refrescar la biblioteca para que aparezca como descargada
     try { await useLibraryStore.getState().load(); } catch {}
-    toast.success(`"${entryTitle}" descargada`, { icon: 'ArrowDownToLine' });
   } catch (err) {
     set((s) => ({
       entries: s.entries.map((e) =>
-        e.trackId === trackId ? { ...e, status: 'error', error: String(err?.message ?? err) } : e
+        e.trackId === trackId ? { ...e, status: 'error', error: String(err?.message ?? err), title: entryTitle } : e
       ),
     }));
-    toast.error(`Error al descargar "${entryTitle}": ${String(err?.message ?? err)}`);
   } finally {
+    // NO emitimos un toast por track (spam al descargar varias). El toast
+    // agregado se dispara UNA vez cuando la tanda termina, en pump().
     pump(set, get);
+  }
+}
+
+/**
+ * Emite UN solo toast-resumen cuando ya no quedan descargas activas ni en
+ * cola. Individual → "X descargada"; lote → "N canciones descargadas"
+ * (+ "M fallaron" si hubo errores). Evita el spam de un toast por canción.
+ */
+function notifyBatchComplete(get) {
+  const entries = get().entries;
+  const done = entries.filter((e) => e.status === 'done');
+  const errored = entries.filter((e) => e.status === 'error');
+  const finished = done.length + errored.length;
+  // Solo cuando TODA la tanda terminó (nada queued/running).
+  if (finished === 0 || finished !== entries.length) return;
+
+  if (done.length === 1 && errored.length === 0) {
+    toast.success(`"${done[0].title}" descargada`, { icon: 'ArrowDownToLine' });
+  } else if (done.length > 0 && errored.length === 0) {
+    toast.success(`${done.length} canciones descargadas`, { icon: 'ArrowDownToLine' });
+  } else if (done.length > 0 && errored.length > 0) {
+    toast.error(`${done.length} descargadas · ${errored.length} ${errored.length === 1 ? 'falló' : 'fallaron'}`);
+  } else if (errored.length === 1) {
+    toast.error(`Error al descargar "${errored[0].title}"`);
+  } else if (errored.length > 1) {
+    toast.error(`${errored.length} descargas fallaron`);
   }
 }
