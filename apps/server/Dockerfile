@@ -89,4 +89,9 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://localhost:3939/health || exit 1
 
 WORKDIR /app/apps/server
-CMD ["node", "src/index.js"]
+
+# Entrypoint: actualiza yt-dlp al arrancar (YouTube rompe la extracción seguido;
+# yt-dlp publica releases frecuentes). Ver docker-entrypoint.sh.
+COPY apps/server/docker-entrypoint.sh /usr/local/bin/ritmiq-entrypoint.sh
+RUN chmod +x /usr/local/bin/ritmiq-entrypoint.sh
+CMD ["/usr/local/bin/ritmiq-entrypoint.sh"]
