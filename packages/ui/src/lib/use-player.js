@@ -188,6 +188,15 @@ let cachedReachable = { value: null, until: 0 };
 const REACHABLE_TTL = 30_000;
 
 /**
+ * Invalida el cache de reachability para que la próxima resolución re-verifique
+ * el host con pingLan. Se llama al volver de segundo plano (el endpoint pudo
+ * cambiar mientras la app estaba suspendida) y ante un fallo de carga.
+ */
+function invalidateReachableCache() {
+  cachedReachable.until = 0;
+}
+
+/**
  * Último endpoint resuelto, para que la UI muestre a qué está conectado.
  * @type {{ url:string|null, kind:'lan'|'desktop'|'server'|null, at:number }}
  */
@@ -278,6 +287,12 @@ if (typeof window !== 'undefined') {
   window.addEventListener('online', () => { cachedReachable.until = 0; });
   window.addEventListener('offline', () => { cachedReachable = { value: null, until: Date.now() + 5_000 }; });
   window.addEventListener('ritmiq:server-mode-changed', () => { cachedReachable.until = 0; });
+  // ARREGLO #3: al volver de segundo plano, invalidar el cache. iOS suspende
+  // timers/red en background; el endpoint cacheado (TTL 30s) puede quedar
+  // stale y la primera reproducción usaría un host muerto → stall/congelado.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') cachedReachable.until = 0;
+  });
 }
 
 /* ── Resolver de URL compartido entre track actual y precarga ─────────── */
@@ -1052,53 +1067,71 @@ export function usePlayerEngine() {
      * fallback del crossfade.
      */
     async function loadAndPlayCurrent(track, fingerprint, isCancelled) {
-      try {
-        setState({ error: null });
+      // Un intento completo de resolver+cargar+reproducir. Devuelve true si
+      // sonó, o lanza si falló (para que el caller decida reintentar).
+      async function attempt() {
         // FIX iOS: ESPERAR a que el servidor resuelva la URL ANTES de asignar
         // <audio>.src. iOS Safari aborta la reproducción si el primer byte
         // tarda demasiado (~4s en cache-miss por túnel+celular, dominado por
         // yt-dlp). Con prewarm(wait) el servidor deja la URL lista en su
-        // streamCache, así cuando el <audio> pide bytes el primer byte llega
-        // en ~1s — sintoma corregido: "en movil no reproduce canciones nuevas,
-        // en desktop sí". Timeout 7s: si excede, seguimos igual (el /stream
-        // reintenta). Solo móvil (desktop en LAN ya es rápido) y solo YouTube.
+        // streamCache. Solo móvil (desktop en LAN ya es rápido) y solo YouTube.
         if (!isDesktop) {
           const ytId = track.ytId
             || (typeof track.id === 'string' && track.id.startsWith('yt:') ? track.id.slice(3) : null);
           if (ytId) {
             try { await prewarmStream(ytId, { wait: true, timeoutMs: 7000 }); } catch {}
-            if (isCancelled()) return;
+            if (isCancelled()) return false;
           }
         }
         const resolved = await resolveAudioSource(track, buildResolveDeps(track));
         const { url } = resolved;
-        if (isCancelled()) return;
+        if (isCancelled()) return false;
         recordStreamOrigin(resolved.origin);
-        await backend.load(url);
-        if (isCancelled()) return;
+        await backend.load(url);          // ahora con timeout/stall-recovery
+        if (isCancelled()) return false;
+        await backend.play();
+        if (isCancelled()) return false;
+        // ARREGLO #2: marcar "cargado" SOLO tras play() exitoso. Antes se
+        // marcaba tras load() (antes de confirmar reproducción); si play()
+        // fallaba, las refs quedaban seteadas y los atajos 974/986 impedían
+        // reintentar la MISMA canción → "congelado hasta pisar otra".
         loadedTrackIdRef.current = track.id;
         loadedFingerprintRef.current = fingerprint;
-        await backend.play();
         setState({ isPlaying: true, durationSeconds: backend.duration() });
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
-        // Fire-and-forget: contribuir metadata al diccionario global
-        // Ritmiq. Solo tras play() exitoso = reproduccion REAL. Dedupe
-        // por sesion + ytId interno. NO bloquea ni afecta latencia.
         publishTrackMeta(track);
+        return true;
+      }
+
+      try {
+        setState({ error: null });
+        await attempt();
       } catch (err) {
-        console.error('[player] load failed', err);
-        // Mensaje claro si la cuenta está pendiente de aprobación en el
-        // servidor (auto-pareo pending, o 502 account_pending del servidor).
-        let msg = String(err?.message ?? err);
+        // AUTO-REINTENTO (1 vez): un stall/timeout transitorio (endpoint stale
+        // tras background, cold-start del túnel) suele resolverse al reintentar.
+        // Invalidamos el cache de reachability para re-verificar el host.
+        console.warn('[player] load falló, reintentando una vez:', err?.message ?? err);
+        try { invalidateReachableCache(); } catch {}
+        if (isCancelled()) return;
         try {
-          const pairState = getAutoPairResult();
-          const isPending = pairState === 'pending' || /account_pending|youtube_rejected|502/.test(msg);
-          if (isPending && lastActiveEndpoint.kind === 'server' && !getDeviceToken()) {
-            msg = 'Tu cuenta está pendiente de aprobación para usar el servidor de Ritmiq.';
-          }
-        } catch {}
-        setState({ isPlaying: false, error: msg });
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+          await attempt();
+          return; // reintento OK
+        } catch (err2) {
+          console.error('[player] load failed (tras reintento)', err2);
+          // ARREGLO #2: limpiar refs para permitir re-tocar la misma canción.
+          loadedTrackIdRef.current = null;
+          loadedFingerprintRef.current = null;
+          let msg = String(err2?.message ?? err2);
+          try {
+            const pairState = getAutoPairResult();
+            const isPending = pairState === 'pending' || /account_pending|youtube_rejected|502/.test(msg);
+            if (isPending && lastActiveEndpoint.kind === 'server' && !getDeviceToken()) {
+              msg = 'Tu cuenta está pendiente de aprobación para usar el servidor de Ritmiq.';
+            }
+          } catch {}
+          setState({ isPlaying: false, error: msg });
+          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+        }
       }
     }
   }, [currentTrack, backend, setState]);

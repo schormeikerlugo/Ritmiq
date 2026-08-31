@@ -390,22 +390,51 @@ export function createHtmlAudioBackend() {
         el.load();
       } catch {}
       return new Promise((resolve, reject) => {
-        const onCanPlay = () => { cleanup(); resolve(); };
-        const onError = () => {
-          cleanup();
-          const code = el.error?.code ?? 0;
-          reject(new Error(`audio load failed (code ${code})`));
-        };
+        // TIMEOUT DURO: si el stream se cuelga (primer byte nunca llega —
+        // endpoint stale tras background, cold-start del túnel, URL fría),
+        // iOS entra en `stalled`/`waiting` SIN emitir `error` y la promesa
+        // quedaría colgada para siempre → "el player se congela". El timeout
+        // convierte ese cuelgue en un rechazo recuperable (el caller reintenta).
+        const LOAD_TIMEOUT_MS = 13000;
+        // Si se estanca a mitad de carga, intentamos re-disparar `load()` UNA
+        // vez antes de rendirnos (a menudo destranca un stall transitorio).
+        let stallRecovered = false;
+        let settled = false;
+        let timer = null;
+
         const cleanup = () => {
+          if (timer) { clearTimeout(timer); timer = null; }
           el.removeEventListener('loadeddata', onCanPlay);
           el.removeEventListener('canplay', onCanPlay);
           el.removeEventListener('error', onError);
+          el.removeEventListener('stalled', onStall);
+          el.removeEventListener('waiting', onStall);
         };
+        const done = (fn) => { if (settled) return; settled = true; cleanup(); fn(); };
+        const onCanPlay = () => done(resolve);
+        const onError = () => {
+          const code = el.error?.code ?? 0;
+          done(() => reject(new Error(`audio load failed (code ${code})`)));
+        };
+        const onTimeout = () => {
+          done(() => reject(new Error('audio load timeout')));
+        };
+        const onStall = () => {
+          // Un stall transitorio: re-disparar load() una sola vez. Si no hay
+          // recuperación, el timeout duro terminará rechazando.
+          if (stallRecovered) return;
+          stallRecovered = true;
+          try { el.load(); } catch {}
+        };
+
         // Resolver tan pronto como haya datos suficientes para empezar.
         // `loadeddata` dispara antes que `canplay` y suele bastar para play().
         el.addEventListener('loadeddata', onCanPlay, { once: true });
         el.addEventListener('canplay', onCanPlay, { once: true });
         el.addEventListener('error', onError, { once: true });
+        el.addEventListener('stalled', onStall);
+        el.addEventListener('waiting', onStall);
+        timer = setTimeout(onTimeout, LOAD_TIMEOUT_MS);
         el.src = url;
         revokeAllExcept(url);
         currentSrc = url;
