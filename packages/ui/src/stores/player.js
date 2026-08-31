@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import { primeAudioForPlayback } from '../lib/audio-prime.js';
 
 /**
  * @typedef {import('@ritmiq/core/types').Track} Track
@@ -69,6 +70,11 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
   playNow(input, startIdx = 0, opts = {}) {
     const tracks = Array.isArray(input) ? input.slice() : [input];
     if (tracks.length === 0) return;
+    // CRÍTICO iOS: desbloquear el <audio> AHORA (dentro del gesto del tap),
+    // antes de que la carga real (con awaits de prewarm/resolve/load) llame a
+    // play() lejos del gesto. Sin esto iOS rechaza la reproducción (el botón
+    // parpadea play/pausa sin sonar).
+    primeAudioForPlayback();
     const idx = Math.max(0, Math.min(startIdx, tracks.length - 1));
     set({
       queue: tracks,
@@ -161,6 +167,7 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
 
   /** Avanza al siguiente track según repeat/shuffle. Devuelve true si avanzó. */
   next() {
+    primeAudioForPlayback();
     const { queue, index, repeat, shuffle } = get();
     if (queue.length === 0) return false;
     if (repeat === 'one') {
@@ -197,6 +204,7 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
 
   /** Retrocede; si llevamos >3s, reinicia el actual. */
   prev() {
+    primeAudioForPlayback();
     const { queue, index, positionSeconds } = get();
     if (queue.length === 0) return false;
     if (positionSeconds > 3) {
@@ -234,7 +242,12 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
   // ── Compatibilidad con código previo ─────────────────────────────────
   /** @param {Track} t */
   setCurrent(t) { get().playNow(t); },
-  togglePlay: () => set((s) => ({ isPlaying: !s.isPlaying })),
+  togglePlay: () => set((s) => {
+    // Al reanudar (pasar a playing) primar dentro del gesto por si el <audio>
+    // perdió la activación (background/suspensión).
+    if (!s.isPlaying) primeAudioForPlayback();
+    return { isPlaying: !s.isPlaying };
+  }),
   setVolume: (v) => set({ volume: Math.max(0, Math.min(1, v)) }),
   toggleShuffle: () => set((s) => ({ shuffle: !s.shuffle })),
   cycleRepeat: () =>

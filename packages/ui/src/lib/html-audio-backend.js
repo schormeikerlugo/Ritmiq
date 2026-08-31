@@ -329,6 +329,36 @@ export function createHtmlAudioBackend() {
     element() { return audio; },
 
     /**
+     * PRIME por gesto (CRÍTICO iOS): desbloquea el <audio> ACTIVO dentro del
+     * stack síncrono del tap del usuario. iOS Safari exige que `play()` ocurra
+     * cerca del gesto; como nuestra reproducción real hace varios `await`
+     * (prewarm, resolver URL, load) ANTES de `play()`, iOS descartaba el gesto
+     * y rechazaba la reproducción (síntoma: el logo pasa a pausa y vuelve a
+     * play sin sonar). Llamando esto SÍNCRONO en el handler del tap, iOS
+     * mantiene la "activación" del elemento y el `play()` posterior (aunque
+     * llegue segundos después) sí se permite.
+     *
+     * Reproduce muteado 1 frame y pausa — sin audio audible. Idempotente.
+     */
+    primeForPlayback() {
+      try {
+        const el = ensureAudio();
+        // resume del ctx dentro del gesto si existe (no await).
+        if (ctx && ctx.state === 'suspended') { try { ctx.resume().catch(() => {}); } catch {} }
+        const wasMuted = el.muted;
+        el.muted = true;
+        const p = el.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => { try { el.pause(); } catch {} el.muted = wasMuted; })
+           .catch(() => { el.muted = wasMuted; });
+        } else {
+          try { el.pause(); } catch {}
+          el.muted = wasMuted;
+        }
+      } catch { /* best-effort */ }
+    },
+
+    /**
      * Desbloquea AMBOS elementos (activo + secundario de crossfade) dentro
      * de un gesto del usuario. Necesario para que `crossfadeTo` pueda
      * reproducir el segundo elemento sin que la autoplay policy lo rechace

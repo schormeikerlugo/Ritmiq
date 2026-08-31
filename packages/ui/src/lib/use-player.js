@@ -31,6 +31,7 @@ import {
 } from './lan-client.js';
 import { getLocalBlobUrl, getJamBlobUrl, cacheJamTrack } from './local-downloads.js';
 import { ensureServerPairing, getDeviceToken, getAutoPairResult } from './device.js';
+import { registerAudioPrime } from './audio-prime.js';
 
 /**
  * Telemetria de orígenes de stream — singleton in-memory. Cuenta cuantas
@@ -519,6 +520,9 @@ export function usePlayerEngine() {
   if (!backendRef.current) {
     backendRef.current = createHtmlAudioBackend();
     sharedBackend = backendRef.current;
+    // Registrar el "prime" por-gesto: el store lo invoca síncrono en playNow
+    // para desbloquear el <audio> en iOS antes de los awaits de la carga.
+    registerAudioPrime(() => { try { sharedBackend?.primeForPlayback?.(); } catch {} });
   }
   const backend = backendRef.current;
 
@@ -1070,18 +1074,18 @@ export function usePlayerEngine() {
       // Un intento completo de resolver+cargar+reproducir. Devuelve true si
       // sonó, o lanza si falló (para que el caller decida reintentar).
       async function attempt() {
-        // FIX iOS: ESPERAR a que el servidor resuelva la URL ANTES de asignar
-        // <audio>.src. iOS Safari aborta la reproducción si el primer byte
-        // tarda demasiado (~4s en cache-miss por túnel+celular, dominado por
-        // yt-dlp). Con prewarm(wait) el servidor deja la URL lista en su
-        // streamCache. Solo móvil (desktop en LAN ya es rápido) y solo YouTube.
+        // FIX iOS: disparar el prewarm en el servidor para que resuelva la URL
+        // pronto, pero SIN bloquear (fire-and-forget). Antes hacíamos
+        // `await prewarmStream(wait, 7000)` que alejaba play() ~7s del gesto →
+        // iOS descartaba la activación y rechazaba la reproducción (botón
+        // parpadea play/pausa sin sonar). Ahora el <audio> se desbloquea con el
+        // prime por-gesto (playNow → primeForPlayback) y el buffering ocurre
+        // dentro de backend.load() (que tiene timeout + stall-recovery), así
+        // que no necesitamos esperar al prewarm antes de arrancar.
         if (!isDesktop) {
           const ytId = track.ytId
             || (typeof track.id === 'string' && track.id.startsWith('yt:') ? track.id.slice(3) : null);
-          if (ytId) {
-            try { await prewarmStream(ytId, { wait: true, timeoutMs: 7000 }); } catch {}
-            if (isCancelled()) return false;
-          }
+          if (ytId) { try { prewarmStream(ytId, { wait: true, timeoutMs: 7000 }); } catch {} }
         }
         const resolved = await resolveAudioSource(track, buildResolveDeps(track));
         const { url } = resolved;
