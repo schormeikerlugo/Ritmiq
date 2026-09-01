@@ -81,6 +81,9 @@ function run(args, opts = {}) {
  * @param {YtDlpOpts} [opts]
  * @returns {Promise<string>}
  */
+// Cache a nivel proceso del player_client que resolvió por última vez. Se
+// prueba primero en la siguiente resolución para no repagar clients fallidos.
+let winningClient = null;
 export async function getStreamUrl(youtubeIdOrUrl, opts) {
   const url = normalizeUrl(youtubeIdOrUrl);
   // Selector m4a-first (para PWA iOS) o bestaudio puro (Electron/Chromium).
@@ -215,10 +218,22 @@ export async function getStreamUrl(youtubeIdOrUrl, opts) {
         { fmt: 'bestaudio', client: null, useCookies: true },
       ];
 
+  // OPTIMIZACIÓN: probar PRIMERO el player_client que resolvió la última vez
+  // (cacheado a nivel proceso). Evita repagar los clients que fallan al inicio
+  // de la cascada (ahorra ~0.5-1.5s cuando `default` no es el ganador). El
+  // orden completo se mantiene como fallback, así que no reduce la robustez.
+  const ordered = winningClient
+    ? [
+        ...attempts.filter((a) => a.client === winningClient),
+        ...attempts.filter((a) => a.client !== winningClient),
+      ]
+    : attempts;
+
   let lastErr;
-  for (const a of attempts) {
+  for (const a of ordered) {
     try {
       const out = await run(build(a.fmt, a.client, a.useCookies ?? true), opts);
+      winningClient = a.client; // recordar el ganador para la próxima
       return out.trim().split('\n')[0];
     } catch (err) {
       lastErr = err;

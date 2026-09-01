@@ -593,8 +593,15 @@ function SongRow({ track, onClick, badge, cached, knownCount, inLibrary }) {
     : knownCount === 1
       ? `✨ Nueva en Ritmiq`
       : null;
+  // Prewarm al primer contacto (pointerdown, antes del click completo): el
+  // servidor empieza a resolver/descargar ~100-300ms antes → play más rápido.
+  const prewarmOnDown = () => {
+    const ytId = track.ytId
+      || (typeof track.id === 'string' && track.id.startsWith('yt:') ? track.id.slice(3) : null);
+    if (ytId) { try { prewarmStream(ytId, { download: 1 }); } catch {} }
+  };
   return (
-    <button type="button" className={styles.songRow} onClick={onClick}>
+    <button type="button" className={styles.songRow} onClick={onClick} onPointerDown={prewarmOnDown}>
       <div className={styles.songCover}>
         {track.coverUrl
           ? <img src={track.coverUrl} alt="" loading="lazy" />
