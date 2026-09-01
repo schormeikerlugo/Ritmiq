@@ -25,6 +25,10 @@ export function applySchema(db) {
   // Migraciones aditivas (idempotentes)
   addColumnIfMissing(db, 'playlists', 'cover_url', 'TEXT');
   addColumnIfMissing(db, 'playlists', 'sort_key', 'INTEGER NOT NULL DEFAULT 0');
+  // Compartido dinámico de playlists: visibilidad + origen de copias jaladas.
+  addColumnIfMissing(db, 'playlists', 'visibility', "TEXT NOT NULL DEFAULT 'private'");
+  addColumnIfMissing(db, 'playlists', 'source_playlist_id', 'TEXT');
+  addColumnIfMissing(db, 'playlists', 'source_owner_id', 'TEXT');
   // Cookies por dispositivo (Fase 3): en DBs creadas antes de estas
   // columnas, `CREATE TABLE IF NOT EXISTS` no las añade. Las forzamos aquí.
   addColumnIfMissing(db, 'devices', 'cookies_blob', 'BLOB');

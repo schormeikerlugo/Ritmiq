@@ -152,7 +152,13 @@ export const usePlaylistsStore = create((set, get) => ({
   },
 
   /** Crea una playlist nueva. */
-  async create(name) {
+  /**
+   * Crea una playlist. `opts` opcional permite fijar visibilidad y origen
+   * (para copias jaladas del perfil de un amigo).
+   * @param {string} name
+   * @param {{ visibility?: 'private'|'friends'|'public', sourcePlaylistId?: string|null, sourceOwnerId?: string|null, silent?: boolean }} [opts]
+   */
+  async create(name, opts = {}) {
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
     if (!userId) throw new Error('No hay sesión');
@@ -166,12 +172,37 @@ export const usePlaylistsStore = create((set, get) => ({
       coverUrl: null,
       createdAt: now,
       updatedAt: now,
+      visibility: opts.visibility ?? 'private',
+      sourcePlaylistId: opts.sourcePlaylistId ?? null,
+      sourceOwnerId: opts.sourceOwnerId ?? null,
     };
     await tryOrQueue(() => pushPlaylist(p), { kind: 'playlist.upsert', payload: p });
     if (isDesktop) await api.playlistsUpsert(p);
     set((s) => ({ playlists: [...s.playlists, p] }));
-    toast.success(`Playlist "${name}" creada`, { icon: 'ListMusic' });
+    if (!opts.silent) toast.success(`Playlist "${name}" creada`, { icon: 'ListMusic' });
     return p;
+  },
+
+  /**
+   * Cambia la visibilidad de una playlist (private|friends|public).
+   * @param {string} id
+   * @param {'private'|'friends'|'public'} visibility
+   */
+  async setVisibility(id, visibility) {
+    const cur = get().playlists.find((p) => p.id === id);
+    if (!cur) return;
+    if (id === get().favoritesId) {
+      toast.show({ message: 'Favoritas es siempre privada', icon: 'Lock' });
+      return;
+    }
+    const next = { ...cur, visibility, updatedAt: new Date().toISOString() };
+    await tryOrQueue(() => pushPlaylist(next), { kind: 'playlist.upsert', payload: next });
+    if (isDesktop) await api.playlistsUpsert(next);
+    set((s) => ({ playlists: s.playlists.map((p) => (p.id === id ? next : p)) }));
+    const label = visibility === 'public' ? 'Pública' : visibility === 'friends' ? 'Solo amigos' : 'Privada';
+    toast.success(`"${cur.name}" ahora es ${label}`, {
+      icon: visibility === 'public' ? 'Globe' : visibility === 'friends' ? 'Users' : 'Lock',
+    });
   },
 
   async rename(id, name) {
@@ -586,5 +617,8 @@ function remoteRowToPlaylist(r) {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     sortKey: r.sort_key ?? 0,
+    visibility: r.visibility ?? 'private',
+    sourcePlaylistId: r.source_playlist_id ?? null,
+    sourceOwnerId: r.source_owner_id ?? null,
   };
 }

@@ -269,3 +269,118 @@
   color: var(--color-text-3);
 }
 .empty p { margin: 0; font-size: var(--fs-md); }
+
+/* ── Playlists visibles del perfil ─────────────────────────────────── */
+.playlistsSection {
+  width: 100%;
+  max-width: 640px;
+  margin: var(--space-6) auto 0;
+  padding: 0 var(--space-4);
+  text-align: left;
+}
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-2);
+}
+.playlistsEmpty {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-3);
+}
+.playlistsGrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.playlistCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
+}
+.plCover {
+  position: relative;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--color-bg-1, rgba(0,0,0,.2));
+  color: var(--color-text-3);
+}
+.plCover img { width: 100%; height: 100%; object-fit: cover; }
+.plPlay {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+.plCover:hover .plPlay,
+.plPlay:focus-visible { opacity: 1; }
+.plPlay:disabled { display: none; }
+.plMeta {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.plName {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.plSub {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fs-xs);
+  color: var(--color-text-3);
+}
+.plPull {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
+}
+.plPull:hover:not(:disabled) {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+.plPull:disabled { opacity: .6; cursor: default; }
+.spin { animation: spin 1s linear infinite; }

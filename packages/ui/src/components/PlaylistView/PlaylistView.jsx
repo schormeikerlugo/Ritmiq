@@ -16,6 +16,7 @@ import { useViewStore } from '../../stores/view.js';
 import { useDownloadsStore } from '../../stores/downloads.js';
 import { useJamStore } from '../../stores/jam.js';
 import { toast } from '../../stores/toast.js';
+import { supabase } from '../../lib/supabase.js';
 import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
 import { RenameDialog } from '../RenameDialog/RenameDialog.jsx';
 import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
@@ -66,6 +67,7 @@ export function PlaylistView({ playlistId }) {
   const rename = usePlaylistsStore((s) => s.rename);
   const reorder = usePlaylistsStore((s) => s.reorder);
   const setOffline = usePlaylistsStore((s) => s.setOffline);
+  const setVisibility = usePlaylistsStore((s) => s.setVisibility);
   const toggleFavorite = usePlaylistsStore((s) => s.toggleFavorite);
   const isFavorite = usePlaylistsStore((s) => s.isFavorite);
 
@@ -105,6 +107,7 @@ export function PlaylistView({ playlistId }) {
   const [selected, setSelected] = useState(() => new Set());
   const [saveDialogTracks, setSaveDialogTracks] = useState(null);
   const [confirmRemoveSelected, setConfirmRemoveSelected] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
   const friends = useSocialStore((s) => s.friends);
 
   // Extraer color dominante del cover para el gradiente hero (estilo Spotify).
@@ -337,6 +340,45 @@ export function PlaylistView({ playlistId }) {
     if (next) enqueueDownloads(tracks);
   };
 
+  // Re-sincroniza esta copia con su playlist original (trae tracks nuevos que
+  // el dueño haya añadido). Solo hace MERGE aditivo — no borra tus cambios.
+  const handleResync = async () => {
+    if (resyncing || !playlist.sourcePlaylistId || !playlist.sourceOwnerId) return;
+    setResyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('get-profile-playlists', {
+        body: { ownerId: playlist.sourceOwnerId },
+      });
+      if (error) throw new Error(error.message);
+      const original = (data?.playlists ?? []).find((p) => p.id === playlist.sourcePlaylistId);
+      if (!original) {
+        toast.error('La playlist original ya no está disponible');
+        setResyncing(false);
+        return;
+      }
+      const { pullPlaylistSnapshot } = await import('../../lib/pull-playlist.js');
+      const res = await pullPlaylistSnapshot({
+        name: playlist.name,
+        tracks: original.tracks ?? [],
+        sourcePlaylistId: playlist.sourcePlaylistId,
+        sourceOwnerId: playlist.sourceOwnerId,
+        existingPlaylistId: playlist.id, // MERGE en esta misma playlist
+      });
+      if (res) {
+        toast.success(
+          res.added > 0
+            ? `${res.added} ${res.added === 1 ? 'canción nueva' : 'canciones nuevas'} añadidas`
+            : 'Ya estás al día',
+          { icon: 'RefreshCw' },
+        );
+      }
+    } catch (e) {
+      console.error('[playlist] resync error', e);
+      toast.error('No se pudo actualizar la playlist');
+    }
+    setResyncing(false);
+  };
+
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -373,6 +415,41 @@ export function PlaylistView({ playlistId }) {
       icon: <Icon name="X" size={16} />,
       disabled: !isDesktop || !someDownloaded,
       onClick: undownloadAll,
+    },
+    // Re-sincronizar una copia jalada con su original (trae tracks nuevos).
+    ...(playlist.sourcePlaylistId && playlist.sourceOwnerId ? [
+      { separator: true },
+      {
+        id: 'resync',
+        label: resyncing ? 'Actualizando…' : 'Actualizar desde el original',
+        icon: <Icon name="RefreshCw" size={16} />,
+        disabled: resyncing,
+        onClick: handleResync,
+      },
+    ] : []),
+    { separator: true },
+    // Visibilidad en el perfil (quién puede ver/jalar esta playlist).
+    // Favoritas siempre privada.
+    {
+      id: 'vis-private',
+      label: 'Privada',
+      icon: <Icon name={(playlist.visibility ?? 'private') === 'private' ? 'Check' : 'Lock'} size={16} />,
+      disabled: isFavs,
+      onClick: () => setVisibility(playlist.id, 'private'),
+    },
+    {
+      id: 'vis-friends',
+      label: 'Visible para amigos',
+      icon: <Icon name={playlist.visibility === 'friends' ? 'Check' : 'Users'} size={16} />,
+      disabled: isFavs,
+      onClick: () => setVisibility(playlist.id, 'friends'),
+    },
+    {
+      id: 'vis-public',
+      label: 'Pública',
+      icon: <Icon name={playlist.visibility === 'public' ? 'Check' : 'Globe'} size={16} />,
+      disabled: isFavs,
+      onClick: () => setVisibility(playlist.id, 'public'),
     },
     { separator: true },
     {
@@ -433,6 +510,12 @@ export function PlaylistView({ playlistId }) {
         <div className={styles.heroMeta}>
           <span className={styles.kind}>
             {playlist.isOffline ? 'Playlist · Offline' : 'Playlist'}
+            {playlist.visibility === 'friends' && (
+              <> · <Icon name="Users" size={12} /> Amigos</>
+            )}
+            {playlist.visibility === 'public' && (
+              <> · <Icon name="Globe" size={12} /> Pública</>
+            )}
           </span>
           <h1 className={styles.heroTitle}>{playlist.name}</h1>
           <p className={styles.heroSubtitle}>

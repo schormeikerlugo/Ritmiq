@@ -31,22 +31,25 @@ export function FriendsView() {
   const incomingCount = useSocialStore((s) => s.incomingRequests.length);
   const unreadInbox   = useSocialStore((s) => s.inbox.filter((i) => !i.readAt).length);
   const jamInviteCount = useSocialStore((s) => s.jamInvites.length);
+  const unreadNotifs  = useSocialStore((s) => s.notifications.filter((n) => !n.readAt).length);
 
   // Cargar datos al montar
   useEffect(() => {
     if (!user) return;
-    const { loadProfile, loadFriends, loadRequests, loadInbox, loadFriendsPresence, loadJamInvites } =
+    const { loadProfile, loadFriends, loadRequests, loadInbox, loadFriendsPresence, loadJamInvites, loadNotifications } =
       useSocialStore.getState();
     loadProfile(user.id);
     loadFriends(user.id);
     loadRequests(user.id);
     loadInbox(user.id);
+    loadNotifications(user.id);
     loadJamInvites(user.id);
     loadFriendsPresence();
   }, [user]);
 
   const tabs = [
     { id: 'friends',  label: 'Amigos',     icon: 'Users' },
+    { id: 'activity', label: 'Actividad',   icon: 'Bell',      badge: unreadNotifs },
     { id: 'requests', label: 'Solicitudes', icon: 'UserPlus',  badge: incomingCount + jamInviteCount },
     { id: 'search',   label: 'Buscar',      icon: 'Search' },
     { id: 'inbox',    label: 'Compartido',  icon: 'Inbox',     badge: unreadInbox },
@@ -82,6 +85,7 @@ export function FriendsView() {
       {/* Contenido del tab activo */}
       <div className={styles.content} role="tabpanel" data-scroll-reset="true">
         {tab === 'friends'  && <FriendsTab />}
+        {tab === 'activity' && <ActivityTab />}
         {tab === 'requests' && <RequestsTab />}
         {tab === 'search'   && <SearchTab />}
         {tab === 'inbox'    && <InboxTab />}
@@ -597,6 +601,94 @@ function InboxCard({ item, onPlay, onSave }) {
   );
 }
 
+// ── Tab: Actividad (notificaciones in-app) ────────────────────────────
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return 'ahora';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `hace ${d} d`;
+  return new Date(iso).toLocaleDateString();
+}
+
+function ActivityTab() {
+  const user          = useAuthStore((s) => s.user);
+  const notifications = useSocialStore((s) => s.notifications);
+  const loading       = useSocialStore((s) => s.notificationsLoading);
+  const goProfile     = useViewStore((s) => s.goProfile);
+  const goPlaylist    = useViewStore((s) => s.goPlaylist);
+
+  // Al abrir la pestaña, marcar todo como leído (limpia el badge).
+  useEffect(() => {
+    if (!user) return;
+    const hasUnread = useSocialStore.getState().notifications.some((n) => !n.readAt);
+    if (hasUnread) {
+      const t = setTimeout(() => useSocialStore.getState().markAllNotificationsRead(user.id), 800);
+      return () => clearTimeout(t);
+    }
+  }, [user]);
+
+  if (loading) return <TrackRowSkeleton count={4} />;
+  if (notifications.length === 0) {
+    return (
+      <EmptyState
+        icon="Bell"
+        title="Sin actividad todavía"
+        subtitle="Aquí verás cuando un amigo guarde tus playlists u otras novedades"
+      />
+    );
+  }
+
+  return (
+    <ul className={styles.activityList}>
+      {notifications.map((n) => {
+        const who = n.actorDisplayName || (n.actorUsername ? `@${n.actorUsername}` : 'Alguien');
+        const name = n.data?.playlistName ?? 'tu playlist';
+        return (
+          <li key={n.id} className={styles.activityRow} data-unread={!n.readAt || undefined}>
+            <button
+              className={styles.activityAvatar}
+              onClick={() => n.actorId && goProfile(n.actorId)}
+              aria-label={`Ver perfil de ${who}`}
+            >
+              <Avatar user={{
+                username: n.actorUsername,
+                displayName: n.actorDisplayName,
+                avatarUrl: n.actorAvatarUrl,
+              }} />
+            </button>
+            <div className={styles.activityBody}>
+              <p className={styles.activityText}>
+                {n.type === 'playlist_pulled' ? (
+                  <><strong>{who}</strong> guardó tu playlist <strong>{name}</strong></>
+                ) : (
+                  <><strong>{who}</strong> · {n.type}</>
+                )}
+              </p>
+              <span className={styles.activityTime}>{timeAgo(n.createdAt)}</span>
+            </div>
+            {n.type === 'playlist_pulled' && n.data?.playlistId && (
+              <button
+                className={styles.activityAction}
+                onClick={() => goPlaylist(n.data.playlistId)}
+                aria-label="Ver playlist"
+              >
+                <Icon name="ChevronRight" size={16} />
+              </button>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 // ── Subcomponentes ────────────────────────────────────────────────────
 
 function Avatar({ user }) {
@@ -621,20 +713,21 @@ function FriendshipButton({ status, onAdd }) {
 }
 
 async function handleSavePlaylist(item) {
-  // Importacion diferida para evitar dependencia circular
-  const { usePlaylistsStore } = await import('../../stores/playlists.js');
-  const { createPlaylist, addTracksToPlaylist } = usePlaylistsStore.getState();
+  // Materializa el snapshot como una copia propia (crea filas en `tracks`
+  // primero para satisfacer la FK, luego crea la playlist y añade los tracks).
+  const { pullPlaylistSnapshot } = await import('../../lib/pull-playlist.js');
   try {
     const name = item.playlistName ?? `Playlist de @${item.senderUsername}`;
-    const playlist = await createPlaylist(name);
-    const tracks = (item.playlistSnapshot?.tracks ?? []).map((t) => ({
-      ytId: t.ytId, title: t.title, artist: t.artist,
-      coverUrl: t.coverUrl, durationSeconds: t.durationSeconds,
-      source: 'youtube',
-    }));
-    await addTracksToPlaylist(playlist.id, tracks);
-    await useSocialStore.getState().markInboxItemSaved(item.id);
+    const res = await pullPlaylistSnapshot({
+      name,
+      tracks: item.playlistSnapshot?.tracks ?? [],
+    });
+    if (res) {
+      await useSocialStore.getState().markInboxItemSaved(item.id);
+      toast.success(`"${name}" guardada en tu biblioteca`, { icon: 'FolderPlus' });
+    }
   } catch (e) {
     console.error('[friends] save playlist error', e);
+    toast.error('No se pudo guardar la playlist');
   }
 }

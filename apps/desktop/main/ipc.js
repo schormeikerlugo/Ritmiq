@@ -569,13 +569,16 @@ export function registerIpc({ db, lan, accessToken }) {
   ipcMain.handle('playlists:upsert', (_e, playlist) => {
     const now = new Date().toISOString();
     db.prepare(/* sql */ `
-      INSERT INTO playlists (id, user_id, name, is_offline, cover_url, created_at, updated_at)
-      VALUES (@id, @userId, @name, @isOffline, @coverUrl, @createdAt, @updatedAt)
+      INSERT INTO playlists (id, user_id, name, is_offline, cover_url, created_at, updated_at, visibility, source_playlist_id, source_owner_id)
+      VALUES (@id, @userId, @name, @isOffline, @coverUrl, @createdAt, @updatedAt, @visibility, @sourcePlaylistId, @sourceOwnerId)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         is_offline = excluded.is_offline,
         cover_url = excluded.cover_url,
-        updated_at = excluded.updated_at
+        updated_at = excluded.updated_at,
+        visibility = excluded.visibility,
+        source_playlist_id = excluded.source_playlist_id,
+        source_owner_id = excluded.source_owner_id
     `).run({
       id: playlist.id,
       userId: playlist.userId,
@@ -584,6 +587,9 @@ export function registerIpc({ db, lan, accessToken }) {
       coverUrl: playlist.coverUrl ?? null,
       createdAt: playlist.createdAt ?? now,
       updatedAt: now,
+      visibility: playlist.visibility ?? 'private',
+      sourcePlaylistId: playlist.sourcePlaylistId ?? null,
+      sourceOwnerId: playlist.sourceOwnerId ?? null,
     });
     return playlist;
   });
@@ -747,6 +753,9 @@ function rowToPlaylist(r) {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     sortKey: r.sort_key ?? 0,
+    visibility: r.visibility ?? 'private',
+    sourcePlaylistId: r.source_playlist_id ?? null,
+    sourceOwnerId: r.source_owner_id ?? null,
   };
 }
 

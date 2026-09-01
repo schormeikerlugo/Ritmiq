@@ -386,6 +386,8 @@ export function App() {
       // loadInbox mantiene el badge del inbox correcto desde el arranque.
       useSocialStore.getState().loadFriends(user.id);
       useSocialStore.getState().loadInbox(user.id);
+      // Notificaciones in-app (playlist jalada, etc.) — badge desde el arranque.
+      useSocialStore.getState().loadNotifications(user.id);
       // Invitaciones de jam pendientes — para el badge y la pestana
       // Solicitudes desde el arranque (el realtime las refresca al llegar).
       useSocialStore.getState().loadJamInvites(user.id);

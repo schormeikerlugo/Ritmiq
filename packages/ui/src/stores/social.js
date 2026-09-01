@@ -48,6 +48,14 @@ export const useSocialStore = create((set, get) => ({
   inbox: [],
   inboxLoading: false,
 
+  /**
+   * Notificaciones in-app (bandeja unificada de eventos). Empieza con
+   * 'playlist_pulled' (alguien guardó tu playlist).
+   * @type {Array<{ id:string, type:string, actorId:string|null, actorUsername:string|null, actorDisplayName:string|null, actorAvatarUrl:string|null, data:object, readAt:string|null, createdAt:string }>}
+   */
+  notifications: [],
+  notificationsLoading: false,
+
   /** @type {Map<string, PresenceEntry>} presencia activa por userId */
   friendsPresence: new Map(),
 
@@ -57,11 +65,17 @@ export const useSocialStore = create((set, get) => ({
    */
   jamInvites: [],
 
-  /** Conteo de solicitudes + inbox no leidos + invitaciones de jam para badge en UI */
+  /** Conteo de solicitudes + inbox no leidos + notificaciones + jam para badge en UI */
   get pendingCount() {
     return get().incomingRequests.length
       + get().inbox.filter((i) => !i.readAt).length
+      + get().notifications.filter((n) => !n.readAt).length
       + get().jamInvites.length;
+  },
+
+  /** Solo notificaciones no leídas (para badge dedicado de campana). */
+  get unreadNotificationsCount() {
+    return get().notifications.filter((n) => !n.readAt).length;
   },
 
   // ── Perfil propio ──────────────────────────────────────────────────
@@ -527,6 +541,60 @@ export const useSocialStore = create((set, get) => ({
     return res.data;
   },
 
+  // ── Notificaciones in-app ───────────────────────────────────────────
+
+  /** Carga las notificaciones del usuario + perfiles de los actores. */
+  async loadNotifications(userId) {
+    set({ notificationsLoading: true });
+    const { data: rows } = await supabase
+      .from('notifications')
+      .select('id, actor_id, type, data, read_at, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    const list = rows ?? [];
+    const actorIds = [...new Set(list.map((r) => r.actor_id).filter(Boolean))];
+
+    let profileMap = new Map();
+    if (actorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, username, display_name, avatar_url')
+        .in('user_id', actorIds);
+      profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
+    }
+
+    set({
+      notifications: list.map((r) => mapNotification(r, profileMap.get(r.actor_id))),
+      notificationsLoading: false,
+    });
+  },
+
+  /** Marca una notificación como leída (optimistic + remoto). */
+  async markNotificationRead(id) {
+    const now = new Date().toISOString();
+    set((s) => ({
+      notifications: s.notifications.map((n) => (n.id === id ? { ...n, readAt: n.readAt ?? now } : n)),
+    }));
+    await supabase.from('notifications').update({ read_at: now }).eq('id', id).is('read_at', null);
+  },
+
+  /** Marca todas las notificaciones como leídas. */
+  async markAllNotificationsRead(userId) {
+    const now = new Date().toISOString();
+    set((s) => ({
+      notifications: s.notifications.map((n) => (n.readAt ? n : { ...n, readAt: now })),
+    }));
+    await supabase.from('notifications').update({ read_at: now }).eq('user_id', userId).is('read_at', null);
+  },
+
+  /** Elimina una notificación. */
+  async deleteNotification(id) {
+    set((s) => ({ notifications: s.notifications.filter((n) => n.id !== id) }));
+    await supabase.from('notifications').delete().eq('id', id);
+  },
+
   // ── Presencia de amigos ─────────────────────────────────────────────
 
   /** Actualiza la presencia de un amigo en el Map local */
@@ -652,5 +720,19 @@ function mapSharedItem(row, senderProfile) {
     savedAt:           row.saved_at ?? null,
     playedAt:          row.played_at ?? null,
     createdAt:         row.created_at,
+  };
+}
+
+function mapNotification(row, actorProfile) {
+  return {
+    id:               row.id,
+    type:             row.type,
+    actorId:          row.actor_id ?? null,
+    actorUsername:    actorProfile?.username ?? null,
+    actorDisplayName: actorProfile?.display_name ?? null,
+    actorAvatarUrl:   actorProfile?.avatar_url ?? null,
+    data:             row.data ?? {},
+    readAt:           row.read_at ?? null,
+    createdAt:        row.created_at,
   };
 }

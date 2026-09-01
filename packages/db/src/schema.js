@@ -39,7 +39,12 @@ CREATE TABLE IF NOT EXISTS playlists (
   updated_at  TEXT NOT NULL,
   -- Orden de la LISTA de playlists. Mayor = más arriba. Lo actualiza el drag
   -- manual y el "subir por uso" (al reproducir de la playlist). Default 0.
-  sort_key    INTEGER NOT NULL DEFAULT 0
+  sort_key    INTEGER NOT NULL DEFAULT 0,
+  -- Compartido dinámico: visibilidad en el perfil (private|friends|public) y
+  -- origen si esta playlist es una copia jalada del perfil de un amigo.
+  visibility         TEXT NOT NULL DEFAULT 'private',
+  source_playlist_id TEXT,
+  source_owner_id    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS playlist_tracks (

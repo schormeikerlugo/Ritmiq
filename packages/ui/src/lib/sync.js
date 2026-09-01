@@ -91,6 +91,9 @@ function rowToPlaylist(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     sortKey: row.sort_key ?? 0,
+    visibility: row.visibility ?? 'private',
+    sourcePlaylistId: row.source_playlist_id ?? null,
+    sourceOwnerId: row.source_owner_id ?? null,
   };
 }
 
@@ -106,6 +109,11 @@ function playlistToRow(p) {
   // Solo enviar sort_key si está definido (evita pisar con 0 en upserts de
   // metadatos que no tocan el orden).
   if (typeof p.sortKey === 'number') row.sort_key = p.sortKey;
+  // Visibilidad y origen (copias jaladas). Solo se envían si están definidos
+  // para no pisar valores existentes con null en upserts parciales.
+  if (typeof p.visibility === 'string') row.visibility = p.visibility;
+  if (p.sourcePlaylistId !== undefined) row.source_playlist_id = p.sourcePlaylistId;
+  if (p.sourceOwnerId !== undefined) row.source_owner_id = p.sourceOwnerId;
   return row;
 }
 

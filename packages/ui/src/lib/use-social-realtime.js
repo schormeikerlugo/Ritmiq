@@ -153,12 +153,31 @@ export function useSocialRealtime(userId) {
         })
       .subscribe();
 
+    // ── Canal 5: notifications ────────────────────────────────────
+    // INSERT donde soy el destinatario: nueva notificación in-app (p.ej.
+    // "alguien guardó tu playlist"). Recargo la lista (barato, y el payload
+    // no trae el perfil del actor) y muestro un toast si la app está abierta.
+    const notificationsCh = supabase
+      .channel(`rt-social-notifications-${userId}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        async (payload) => {
+          await useSocialStore.getState().loadNotifications(userId);
+          const row = payload.new;
+          if (row?.type === 'playlist_pulled') {
+            const name = row?.data?.playlistName ?? 'tu playlist';
+            toast.info(`Alguien guardó "${name}"`, { icon: 'FolderPlus' });
+          }
+        })
+      .subscribe();
+
     return () => {
       clearInterval(sweepTimer);
       try { supabase.removeChannel(presenceCh); } catch {}
       try { supabase.removeChannel(friendshipsCh); } catch {}
       try { supabase.removeChannel(sharedCh); } catch {}
       try { supabase.removeChannel(jamInvitesCh); } catch {}
+      try { supabase.removeChannel(notificationsCh); } catch {}
     };
   }, [userId]);
 }
