@@ -5,7 +5,7 @@
 
 import { ipcMain, app, BrowserWindow } from 'electron';
 import { join } from 'node:path';
-import { mkdirSync, statSync, existsSync, unlinkSync, chmodSync } from 'node:fs';
+import { mkdirSync, statSync, existsSync, unlinkSync, chmodSync, renameSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 import { createWriteStream } from 'node:fs';
@@ -313,25 +313,7 @@ export function registerIpc({ db, lan, accessToken }) {
     return { path, version };
   });
 
-  ipcMain.handle('ytdlp:update', async () => {
-    const platform = process.platform;
-    const target = platform === 'win32'  ? 'yt-dlp.exe'
-                 : platform === 'darwin' ? 'yt-dlp_macos'
-                 : 'yt-dlp';
-    const url = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${target}`;
-    const out = getYtDlpUserDataPath();
-
-    const res = await fetch(url, { redirect: 'follow' });
-    if (!res.ok) throw new Error(`Descarga falló: HTTP ${res.status}`);
-    if (!res.body) throw new Error('Respuesta vacía');
-
-    await pipeline(res.body, createWriteStream(out));
-    if (platform !== 'win32') chmodSync(out, 0o755);
-
-    // Devuelve la nueva versión instalada.
-    const r = spawnSync(out, ['--version'], { encoding: 'utf8' });
-    return { path: out, version: r.stdout?.trim() ?? null };
-  });
+  ipcMain.handle('ytdlp:update', async () => updateYtDlpBinary());
 
   ipcMain.handle('library:list', (_e, userId) => listTracks(db, userId));
 
@@ -453,10 +435,15 @@ export function registerIpc({ db, lan, accessToken }) {
     }
 
     // ── yt-dlp fallback ────────────────────────────────────────────────
+    // format m4a (antes 'opus'): el m4a NATIVO evita el transcode ffmpeg
+    // (más rápido y sin dependencia de ffmpeg en el PATH de Electron), es el
+    // mismo formato que usa el servidor 24/7, y Chromium/iOS lo reproducen sin
+    // problema. downloadAudio ahora reintenta la cascada de player_clients
+    // (igual que getStreamUrl) para sortear 403/PO-token como en reproducción.
     try {
       await downloadAudio(row.yt_id, out, {
         ...ytOpts,
-        format: 'opus',
+        format: 'm4a',
         onProgress: (pct) => {
           try { e.sender.send('library:download:progress', { trackId, pct }); } catch {}
         },
@@ -468,7 +455,7 @@ export function registerIpc({ db, lan, accessToken }) {
       console.warn(`[ipc] yt-dlp falló para ${row.yt_id}:`, err?.message);
       throw new Error(translateYtdlpError(err));
     }
-    const finalPath = `${out}.opus`;
+    const finalPath = `${out}.m4a`;
     db.prepare(/* sql */ `
       UPDATE tracks SET is_downloaded = 1, file_path = ?, updated_at = ?
       WHERE id = ?
@@ -480,7 +467,7 @@ export function registerIpc({ db, lan, accessToken }) {
       registerSharedAudio(db, {
         ytId: row.yt_id,
         filePath: finalPath,
-        mime: 'audio/ogg', // opus en contenedor ogg
+        mime: 'audio/mp4', // m4a (AAC)
         size,
       });
     } catch (err) {
@@ -810,6 +797,41 @@ function getAudioDir() {
   const dir = join(app.getPath('userData'), 'audio');
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/**
+ * Descarga la última release de yt-dlp a userData/bin/yt-dlp (que tiene
+ * prioridad sobre el binario empaquetado/dev en getYtDlpPath). YouTube rompe
+ * la extracción cada pocas semanas y yt-dlp publica releases frecuentes; sin
+ * esto, la descarga de canciones falla con 403/PO-token aunque la reproducción
+ * (por el servidor 24/7, ya actualizado) funcione. Best-effort: si no hay red,
+ * conserva el binario existente. Valida el binario nuevo antes de dejarlo.
+ * @returns {Promise<{ path: string, version: string|null }>}
+ */
+export async function updateYtDlpBinary() {
+  const platform = process.platform;
+  const target = platform === 'win32'  ? 'yt-dlp.exe'
+               : platform === 'darwin' ? 'yt-dlp_macos'
+               : 'yt-dlp';
+  const url = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${target}`;
+  const out = getYtDlpUserDataPath();
+  const tmp = `${out}.new`;
+
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`Descarga falló: HTTP ${res.status}`);
+  if (!res.body) throw new Error('Respuesta vacía');
+
+  await pipeline(res.body, createWriteStream(tmp));
+  if (platform !== 'win32') chmodSync(tmp, 0o755);
+  // Validar que el binario nuevo responde antes de reemplazar.
+  const check = spawnSync(tmp, ['--version'], { encoding: 'utf8' });
+  if (check.status !== 0 || !check.stdout?.trim()) {
+    try { unlinkSync(tmp); } catch {}
+    throw new Error('binario yt-dlp descargado inválido');
+  }
+  try { unlinkSync(out); } catch {}
+  renameSync(tmp, out);
+  return { path: out, version: check.stdout.trim() };
 }
 
 export { isYoutubeRef };

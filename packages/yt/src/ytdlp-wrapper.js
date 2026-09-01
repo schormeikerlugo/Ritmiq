@@ -350,9 +350,53 @@ function pickThumb(j) {
  * @param {YtDlpOpts & { format?: 'opus'|'m4a'|'mp3', onProgress?: (pct: number) => void }} [opts]
  * @returns {Promise<void>}
  */
-export function downloadAudio(youtubeIdOrUrl, outputPath, opts = {}) {
+export async function downloadAudio(youtubeIdOrUrl, outputPath, opts = {}) {
   const url = normalizeUrl(youtubeIdOrUrl);
   const fmt = opts.format ?? 'opus';
+
+  // Cascada de player_clients con REINTENTO. Antes se pasaban todos los
+  // clients en una sola invocación (`player_client=default,web_safari,...`),
+  // pero si el primero daba 403 en la descarga de bytes (firma caducada / PO
+  // token) yt-dlp NO reintentaba con otro → la descarga fallaba aunque la
+  // reproducción (getStreamUrl, que sí cascada) funcionara. Ahora probamos
+  // client por client hasta que uno complete la descarga (mismo enfoque que
+  // getStreamUrl). Los player-clients "unavailable" cortan de inmediato.
+  const CLIENTS = ['default', 'web_safari', 'mweb', 'tv_embedded', 'android_vr', 'ios_music'];
+  let lastErr;
+  for (const client of CLIENTS) {
+    try {
+      await runDownloadOnce(youtubeIdOrUrl, outputPath, { ...opts, fmt, url, client });
+      return; // descarga OK
+    } catch (err) {
+      lastErr = err;
+      const msg = err?.message ?? '';
+      // Video permanentemente no disponible: no probar más clients.
+      if (/video is unavailable|Video unavailable|Private video|has been removed|removed by the uploader|account.*terminated|members-only/i.test(msg)) {
+        const e = new Error('video_unavailable'); e.permanent = true; throw e;
+      }
+      // Reintentable (403/PO-token/firma/bot): probar el siguiente client.
+      const retryable =
+        /HTTP Error 403/i.test(msg) ||
+        /PO Token/i.test(msg) ||
+        /Sign in to confirm/i.test(msg) ||
+        /Requested format is not available/i.test(msg) ||
+        /Signature|n challenge|player_client/i.test(msg) ||
+        /Only images are available/i.test(msg);
+      if (!retryable) throw err; // error distinto → no seguir
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * Una sola invocación de descarga con UN player_client concreto.
+ * @param {string} youtubeIdOrUrl
+ * @param {string} outputPath
+ * @param {YtDlpOpts & { fmt: string, url: string, client: string, onProgress?: (pct:number)=>void }} opts
+ * @returns {Promise<void>}
+ */
+function runDownloadOnce(youtubeIdOrUrl, outputPath, opts) {
+  const { fmt, url, client } = opts;
   const bin = opts.binary ?? 'yt-dlp';
   return new Promise((resolve, reject) => {
     const dlArgs = [
@@ -376,13 +420,12 @@ export function downloadAudio(youtubeIdOrUrl, outputPath, opts = {}) {
       // contenedor); solo transcodifica cuando es estrictamente necesario.
       dlArgs.push('--remux-video', 'm4a');
     } else {
-      // opus/mp3 (desktop): extracción con ffmpeg como antes.
+      // opus/mp3 (desktop legacy): extracción con ffmpeg.
       dlArgs.push('-x', '--audio-format', fmt);
     }
 
-    // Cascada de player_clients (mismo orden que getStreamUrl). Con JS runtime
-    // (Deno) el n-parameter se descifra → googlevideo NO throttlea la descarga.
-    dlArgs.push('--extractor-args', 'youtube:player_client=default,web_safari,mweb,tv_embedded,android_vr,ios_music');
+    // UN solo player_client por invocación (permite reintentar con otro).
+    dlArgs.push('--extractor-args', `youtube:player_client=${client}`);
 
     if (opts.cacheDir) dlArgs.push('--cache-dir', opts.cacheDir);
     if (opts.jsRuntime) dlArgs.push('--js-runtimes', opts.jsRuntime);

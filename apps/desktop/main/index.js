@@ -9,7 +9,7 @@ import { safeStorage } from 'electron';
 import {
   setHost, startLanServer, initDb, getOrCreateAccessToken,
 } from '@ritmiq/server-core';
-import { registerIpc } from './ipc.js';
+import { registerIpc, updateYtDlpBinary } from './ipc.js';
 import { cloudflared, getStoredToken } from './cloudflared.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -119,6 +119,14 @@ app.whenReady().then(async () => {
   }
 
   await createWindow();
+
+  // Auto-actualizar yt-dlp al arranque (best-effort, no bloqueante). YouTube
+  // rompe la extracción cada pocas semanas; sin esto la DESCARGA de canciones
+  // falla con 403/PO-token aunque la reproducción (servidor 24/7) funcione.
+  // Guarda en userData/bin/yt-dlp (prioritario sobre el binario empaquetado).
+  updateYtDlpBinary()
+    .then((r) => console.log('[main] yt-dlp actualizado:', r?.version ?? '?'))
+    .catch((e) => console.warn('[main] auto-update yt-dlp falló (no fatal):', e?.message ?? e));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
