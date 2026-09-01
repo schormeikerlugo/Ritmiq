@@ -1129,16 +1129,33 @@ export function usePlayerEngine() {
           // ARREGLO #2: limpiar refs para permitir re-tocar la misma canción.
           loadedTrackIdRef.current = null;
           loadedFingerprintRef.current = null;
+          if (isCancelled()) return;
           let msg = String(err2?.message ?? err2);
+          const unavailable = /video_unavailable|unavailable|404|not available/i.test(msg);
           try {
             const pairState = getAutoPairResult();
             const isPending = pairState === 'pending' || /account_pending|youtube_rejected|502/.test(msg);
             if (isPending && lastActiveEndpoint.kind === 'server' && !getDeviceToken()) {
               msg = 'Tu cuenta está pendiente de aprobación para usar el servidor de Ritmiq.';
+            } else if (unavailable) {
+              msg = 'Esta canción no está disponible en YouTube.';
             }
           } catch {}
           setState({ isPlaying: false, error: msg });
           if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+          // AUTO-SKIP: si la canción no está disponible y hay más en la cola,
+          // saltar a la siguiente en vez de quedarse trabado. Solo cuando el
+          // usuario estaba reproduciendo activamente (no en pausa manual).
+          if (unavailable) {
+            try {
+              const st = usePlayerStore.getState();
+              const hasNext = st.queue.length > 1 && st.index < st.queue.length - 1;
+              if (hasNext) {
+                console.info('[player] canción no disponible → saltando a la siguiente');
+                setTimeout(() => { try { usePlayerStore.getState().next(); } catch {} }, 400);
+              }
+            } catch {}
+          }
         }
       }
     }

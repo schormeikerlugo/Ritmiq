@@ -223,6 +223,22 @@ export async function getStreamUrl(youtubeIdOrUrl, opts) {
     } catch (err) {
       lastErr = err;
       const msg = err?.message ?? '';
+      // Fallo PERMANENTE del video: no tiene sentido reintentar la cascada de
+      // 7 clients (~15s perdidos). Cortamos de inmediato con un error claro.
+      const permanent =
+        /This video is unavailable/i.test(msg) ||
+        /Video unavailable/i.test(msg) ||
+        /Private video/i.test(msg) ||
+        /has been removed/i.test(msg) ||
+        /account.*terminated/i.test(msg) ||
+        /removed by the uploader/i.test(msg) ||
+        /not available in your country/i.test(msg) ||
+        /members-only/i.test(msg);
+      if (permanent) {
+        const e = new Error('video_unavailable');
+        e.permanent = true;
+        throw e;
+      }
       const retryable =
         /Requested format is not available/i.test(msg) ||
         /Sign in to confirm/i.test(msg) ||

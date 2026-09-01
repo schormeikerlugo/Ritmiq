@@ -2090,6 +2090,15 @@ export async function startLanServer({
               console.log(`[lan-server] stream yt:${ytId} no-m4a nativo → descarga+remux`);
             }
           } catch (err) {
+            // Video permanentemente no disponible (borrado/privado/geo/etc):
+            // NO reintentar con descarga (perdería ~14s más). Devolver 404
+            // claro de inmediato; el cliente muestra "no disponible" y salta.
+            if (err?.permanent || /video_unavailable/i.test(String(err?.message ?? err))) {
+              console.log(`[lan-server] stream yt:${ytId} NO DISPONIBLE (fast-fail) ${Date.now() - tStart}ms`);
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'video_unavailable' }));
+              return;
+            }
             console.warn(`[lan-server] stream yt:${ytId} resolveCached falló (${err?.message ?? err}) → fallback a descarga`);
           }
 
