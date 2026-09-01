@@ -342,19 +342,17 @@ export function createHtmlAudioBackend() {
      */
     primeForPlayback() {
       try {
-        const el = ensureAudio();
         // resume del ctx dentro del gesto si existe (no await).
         if (ctx && ctx.state === 'suspended') { try { ctx.resume().catch(() => {}); } catch {} }
-        const wasMuted = el.muted;
-        el.muted = true;
+        const el = ensureAudio();
+        // Unlock iOS MÍNIMO: invocar play() dentro del gesto "activa" el
+        // elemento para iOS aunque la promesa rechace (sin src o src viejo).
+        // NO tocamos `muted` ni pausamos en un .then() diferido — eso pausaba/
+        // muteaba el track NUEVO que load() carga enseguida ("reproduce pero no
+        // se escucha"). load() (pause+removeAttribute+load) corre acto seguido
+        // y resetea el elemento, así que el track viejo no llega a sonar.
         const p = el.play();
-        if (p && typeof p.then === 'function') {
-          p.then(() => { try { el.pause(); } catch {} el.muted = wasMuted; })
-           .catch(() => { el.muted = wasMuted; });
-        } else {
-          try { el.pause(); } catch {}
-          el.muted = wasMuted;
-        }
+        if (p && typeof p.catch === 'function') p.catch(() => {});
       } catch { /* best-effort */ }
     },
 
@@ -425,10 +423,13 @@ export function createHtmlAudioBackend() {
         // iOS entra en `stalled`/`waiting` SIN emitir `error` y la promesa
         // quedaría colgada para siempre → "el player se congela". El timeout
         // convierte ese cuelgue en un rechazo recuperable (el caller reintenta).
-        const LOAD_TIMEOUT_MS = 13000;
-        // Si se estanca a mitad de carga, intentamos re-disparar `load()` UNA
-        // vez antes de rendirnos (a menudo destranca un stall transitorio).
-        let stallRecovered = false;
+        // TIMEOUT DURO como única red de seguridad contra cuelgues. NO usamos
+        // listeners de `stalled`/`waiting` con re-load: `waiting` es un evento
+        // NORMAL de buffering, no un fallo — re-disparar `el.load()` ahí
+        // reseteaba el src y `loadeddata` nunca volvía → "audio load timeout"
+        // espurio (regresión en desktop). El timeout de 15s cubre el cuelgue
+        // real sin romper el buffering legítimo en redes lentas.
+        const LOAD_TIMEOUT_MS = 15000;
         let settled = false;
         let timer = null;
 
@@ -437,8 +438,6 @@ export function createHtmlAudioBackend() {
           el.removeEventListener('loadeddata', onCanPlay);
           el.removeEventListener('canplay', onCanPlay);
           el.removeEventListener('error', onError);
-          el.removeEventListener('stalled', onStall);
-          el.removeEventListener('waiting', onStall);
         };
         const done = (fn) => { if (settled) return; settled = true; cleanup(); fn(); };
         const onCanPlay = () => done(resolve);
@@ -449,21 +448,12 @@ export function createHtmlAudioBackend() {
         const onTimeout = () => {
           done(() => reject(new Error('audio load timeout')));
         };
-        const onStall = () => {
-          // Un stall transitorio: re-disparar load() una sola vez. Si no hay
-          // recuperación, el timeout duro terminará rechazando.
-          if (stallRecovered) return;
-          stallRecovered = true;
-          try { el.load(); } catch {}
-        };
 
         // Resolver tan pronto como haya datos suficientes para empezar.
         // `loadeddata` dispara antes que `canplay` y suele bastar para play().
         el.addEventListener('loadeddata', onCanPlay, { once: true });
         el.addEventListener('canplay', onCanPlay, { once: true });
         el.addEventListener('error', onError, { once: true });
-        el.addEventListener('stalled', onStall);
-        el.addEventListener('waiting', onStall);
         timer = setTimeout(onTimeout, LOAD_TIMEOUT_MS);
         el.src = url;
         revokeAllExcept(url);

@@ -520,9 +520,13 @@ export function usePlayerEngine() {
   if (!backendRef.current) {
     backendRef.current = createHtmlAudioBackend();
     sharedBackend = backendRef.current;
-    // Registrar el "prime" por-gesto: el store lo invoca síncrono en playNow
-    // para desbloquear el <audio> en iOS antes de los awaits de la carga.
-    registerAudioPrime(() => { try { sharedBackend?.primeForPlayback?.(); } catch {} });
+    // Registrar el "prime" por-gesto SOLO en PWA/móvil. Desktop (Electron/
+    // Chromium) no tiene la autoplay policy estricta de iOS, y el prime
+    // (play+pause síncrono) interfería con el load() inmediato → "audio load
+    // timeout". En desktop no se registra: reproducción normal sin prime.
+    if (!isDesktop) {
+      registerAudioPrime(() => { try { sharedBackend?.primeForPlayback?.(); } catch {} });
+    }
   }
   const backend = backendRef.current;
 
