@@ -49,9 +49,12 @@
 .mainArea[data-with-panel='true'] {
   display: flex;
   flex-direction: column;
-  /* 100vh - padding vertical del root - peek del panel.
-     Calculo: --safe-top + --space-3 + --safe-bottom + --space-5 + ~10vh peek. */
+  /* Altura del primer "screenful". Usamos 100dvh (viewport dinámico REAL de
+     iOS) en vez de 100vh (viewport grande, que sobreestima la altura y hacía
+     que la fila de iconos secundarios invadiera "Acerca del artista").
+     Fallback a 100vh para navegadores sin dvh. */
   min-height: calc(100vh - var(--safe-top) - var(--safe-bottom) - var(--space-3) - var(--space-5) - 10vh);
+  min-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - var(--space-3) - var(--space-5) - 10vh);
 }
 
 /* ── Header ──────────────────────────────────────────────────────────── */
@@ -356,7 +359,10 @@
   display: flex;
   justify-content: space-between;
   margin-top: var(--space-5);
-  padding: 0 var(--space-2);
+  /* Separación GARANTIZADA respecto al panel "Acerca del artista" que fluye
+     justo debajo (fuera del .mainArea). Sin este padding-bottom, en pantallas
+     cortas la fila de iconos quedaba pegada/solapada con el título. */
+  padding: 0 var(--space-2) var(--space-4);
 }
 .footerBtn {
   width: 44px;
@@ -372,6 +378,38 @@
 .footerBtn:active { color: var(--color-text-1); }
 .footerBtn:disabled { opacity: 0.4; }
 .footerBtn[data-active='true'] { color: var(--color-accent); }
+
+/* ── Pantallas cortas (iPhone 14 Pro y menores) ──────────────────────────
+   El área útil vertical es menor. Comprimimos los gaps fijos y reducimos el
+   "peek" del panel para que la fila de iconos secundarios NUNCA se solape con
+   "Acerca del artista". Cada opción se re-espacia automáticamente según la
+   altura real de la pantalla. Sólo aplica en móvil (max-width evita tocar el
+   panel lateral de desktop). */
+@media (max-width: 768px) and (max-height: 820px) {
+  .coverWrap { padding: var(--space-3) 0; min-height: 0; }
+  /* La cover se dimensiona por el MENOR entre ancho y alto disponibles para
+     que el flex:1 del wrap pueda comprimirla y no empuje los controles hacia
+     el panel. min-height:0 en el wrap permite que encoja. */
+  .cover { width: min(60vw, 300px, 40vh); }
+  .scrubber { margin-top: var(--space-3); }
+  .controls { margin-top: var(--space-3); }
+  .footer { margin-top: var(--space-3); padding-bottom: var(--space-3); }
+  .mainArea[data-with-panel='true'] {
+    /* Menos peek (5vh) → más aire para los controles antes del panel. */
+    min-height: calc(100vh - var(--safe-top) - var(--safe-bottom) - var(--space-3) - var(--space-5) - 5vh);
+    min-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - var(--space-3) - var(--space-5) - 5vh);
+  }
+}
+/* Pantallas MUY cortas (SE, mini) — comprimir aún más y encoger botones. */
+@media (max-width: 768px) and (max-height: 700px) {
+  .coverWrap { padding: var(--space-2) 0; }
+  .scrubber { margin-top: var(--space-2); }
+  .controls { margin-top: var(--space-2); }
+  .footer { margin-top: var(--space-2); padding-bottom: var(--space-2); }
+  .playBtn { width: 56px; height: 56px; }
+  .ctrlBtn { width: 44px; height: 44px; }
+  .footerBtn { width: 40px; height: 40px; }
+}
 
 /* Desktop: NowPlaying se muestra como side panel a la derecha cuando el
    user hace click en el cover/meta del player. NO es modal fullscreen:
