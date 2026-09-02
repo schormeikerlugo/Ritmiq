@@ -95,6 +95,13 @@ export const useViewStore = create((set, get) => ({
    *  'devices', 'pairing', etc.). null = grid principal de Ajustes. */
   settingsSubview: null,
 
+  /** @type {null | 'friends'|'activity'|'requests'|'search'|'inbox'}
+   *  Pestaña inicial deseada al abrir FriendsView (deep-link / notif). La lee
+   *  FriendsView al montar y luego se limpia. */
+  friendsTab: null,
+  /** @param {'friends'|'activity'|'requests'|'search'|'inbox'} tab */
+  setFriendsTab: (tab) => set({ friendsTab: tab }),
+
   // Navegaciones "top-level" desde sidebar resetean el historial — el botón
   // "atrás" solo tiene sentido dentro de un flujo de navegación lateral
   // (search → artist → album).
@@ -109,7 +116,8 @@ export const useViewStore = create((set, get) => ({
   setSettingsSubview: (sub) => set({ settingsSubview: sub }),
   goStats:     () => set({ view: { kind: 'stats' }, history: [], sidebarOpen: false }),
   goHistory:   () => set({ view: { kind: 'history' }, history: [], sidebarOpen: false }),
-  goFriends:   () => set({ view: { kind: 'friends' }, history: [], sidebarOpen: false }),
+  /** @param {'friends'|'activity'|'requests'|'search'|'inbox'} [tab] */
+  goFriends:   (tab) => set({ view: { kind: 'friends' }, history: [], sidebarOpen: false, ...(tab ? { friendsTab: tab } : {}) }),
   /** @param {string} userId */
   goProfile:   (userId) => navigateTo(set, get, { kind: 'profile', userId }),
   goSearchView: () => set({ view: { kind: 'search', query: '' }, history: [], sidebarOpen: false }),

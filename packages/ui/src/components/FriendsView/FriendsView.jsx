@@ -26,7 +26,16 @@ import styles from './FriendsView.module.css';
 
 export function FriendsView() {
   const user = useAuthStore((s) => s.user);
-  const [tab, setTab] = useState('friends');
+  // Pestaña inicial: si un deep-link / notificación pidió una concreta
+  // (view store friendsTab), abrir en ella y limpiarla.
+  const requestedTab = useViewStore((s) => s.friendsTab);
+  const [tab, setTab] = useState(() => requestedTab ?? 'friends');
+  useEffect(() => {
+    if (requestedTab) {
+      setTab(requestedTab);
+      useViewStore.getState().setFriendsTab(null);
+    }
+  }, [requestedTab]);
 
   const incomingCount = useSocialStore((s) => s.incomingRequests.length);
   const unreadInbox   = useSocialStore((s) => s.inbox.filter((i) => !i.readAt).length);

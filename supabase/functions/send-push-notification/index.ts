@@ -21,6 +21,9 @@ const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const VAPID_PUBLIC  = Deno.env.get('VAPID_PUBLIC_KEY')!;
 const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY')!;
 const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:hola@ritmiq.app';
+// Origen público de la PWA (para la URL absoluta que exige `navigate` del
+// formato declarativo). Configurable por env; fallback al dominio de prod.
+const APP_ORIGIN = (Deno.env.get('RITMIQ_APP_ORIGIN') ?? 'https://ritmiq.app').replace(/\/$/, '');
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -55,7 +58,35 @@ Deno.serve(async (req) => {
   if (error) return json({ error: error.message }, 500);
   if (!subs || subs.length === 0) return json({ sent: 0, skipped: 'no_subscriptions' });
 
-  const payload = JSON.stringify({ title, body: msgBody, data });
+  // Payload en formato DECLARATIVO estándar (Declarative Web Push, iOS 18.4+),
+  // que además es retrocompatible:
+  //   - Navegadores nuevos (iOS 18.4+/macOS 15.5+): leen `web_push`+`notification`
+  //     y muestran la notificación SIN Service Worker (más fiable, menos batería).
+  //   - Navegadores viejos / Android: el SW (sw-push.js) sigue leyendo los
+  //     campos planos `title`/`body`/`data` como siempre.
+  // `navigate` (URL destino al pulsar) es obligatorio en el formato declarativo.
+  const navigateUrl = buildNavigateUrl(data);
+  const badge = typeof (data as Record<string, unknown>)?.badgeCount === 'number'
+    ? String((data as Record<string, number>).badgeCount)
+    : undefined;
+
+  const declarative: Record<string, unknown> = {
+    web_push: 8030,
+    notification: {
+      title,
+      body: msgBody,
+      lang: 'es',
+      dir: 'ltr',
+      navigate: navigateUrl,
+      silent: false,
+      ...(badge !== undefined ? { app_badge: badge } : {}),
+    },
+    // Campos planos conservados para el SW imperativo (retrocompat).
+    title,
+    body: msgBody,
+    data,
+  };
+  const payload = JSON.stringify(declarative);
 
   // Enviar a cada suscripcion
   const results = await Promise.allSettled(
@@ -120,6 +151,21 @@ Deno.serve(async (req) => {
   const sent = results.filter((r) => r.status === 'fulfilled' && !r.value.expired && !r.value.error).length;
   return json({ sent, total: subs.length, errors: errorLogs.length });
 });
+
+/**
+ * URL absoluta de destino al pulsar la notificación, según el tipo. Debe
+ * coincidir con el enrutado del SW (notificationclick) para consistencia entre
+ * el modo declarativo (sin SW) y el imperativo (con SW).
+ */
+function buildNavigateUrl(data: Record<string, unknown>): string {
+  const type = String((data as Record<string, string>)?.type ?? '');
+  let path = '/';
+  if (type === 'share') path = '/?openTab=inbox';
+  else if (type === 'friend_request' || type === 'friend_accepted') path = '/?openTab=requests';
+  else if (type === 'jam_invite' || type === 'jam_invite_rejected') path = '/?openTab=requests';
+  else if (type === 'notification' || type === 'playlist_pulled') path = '/?openTab=activity';
+  return APP_ORIGIN + path;
+}
 
 // ── VAPID / Web Push ─────────────────────────────────────────────────
 

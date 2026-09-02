@@ -34,19 +34,34 @@ self.addEventListener('push', (event) => {
     payload.body = event.data?.text() ?? '';
   }
 
+  // Formato DECLARATIVO (web_push:8030 + notification). Los navegadores nuevos
+  // (iOS 18.4+) lo muestran SIN pasar por este SW. Pero si llegamos aquí (SW
+  // presente / navegador viejo), leemos title/body/navigate del bloque
+  // `notification`, con fallback a los campos planos retrocompat.
+  const decl = payload.notification && typeof payload.notification === 'object'
+    ? payload.notification
+    : null;
+  const title = (decl?.title ?? payload.title) || 'Ritmiq';
+  const body  = decl?.body ?? payload.body ?? '';
+  const data  = payload.data ?? {};
+  // `navigate` del formato declarativo tiene prioridad para el destino del tap.
+  if (decl?.navigate && !data.navigate) data.navigate = decl.navigate;
+
   // Badge nativo (contador rojo en icono iOS/Android). El backend
   // envia el conteo total de items sin leer para este usuario.
   // setAppBadge en el contexto del SW funciona aunque la app no
   // este abierta \u2014 unica forma de mantener el badge sincronizado.
-  if (typeof payload.data?.badgeCount === 'number' && self.navigator?.setAppBadge) {
-    self.navigator.setAppBadge(payload.data.badgeCount).catch(() => {});
+  const badgeFromDecl = decl?.app_badge != null ? Number(decl.app_badge) : undefined;
+  const badgeCount = typeof data.badgeCount === 'number' ? data.badgeCount : badgeFromDecl;
+  if (typeof badgeCount === 'number' && !Number.isNaN(badgeCount) && self.navigator?.setAppBadge) {
+    self.navigator.setAppBadge(badgeCount).catch(() => {});
   }
 
   // tag unico por notificacion individual, NO por categoria.
   // Si usamos tag=data.type (ej. 'share'), dos shares seguidos se
   // sobrescriben en el centro de notificaciones — el usuario solo ve
   // el ultimo. Backend envia tag = `${type}:${itemId}`.
-  const tag = payload.data?.tag ?? payload.data?.type ?? 'ritmiq';
+  const tag = data?.tag ?? data?.type ?? 'ritmiq';
 
   // actions: solo Android Chrome los muestra. iOS Safari y desktop
   // Safari los IGNORAN silenciosamente — no es un error. Progressive
@@ -58,20 +73,20 @@ self.addEventListener('push', (event) => {
   //   friend_request \u2192 [Aceptar, Rechazar]  (futuro: requiere endpoint
   //     que acepte sin abrir la app; por ahora reusamos Ver)
   //   friend_accepted \u2192 [Ver perfil]
-  const actions = buildActions(payload.data?.type);
+  const actions = buildActions(data?.type);
 
   const options = {
-    body: payload.body,
+    body,
     icon: '/icon-192.png',
     badge: '/icon-192.png',
-    data: payload.data ?? {},
+    data,
     tag,
     renotify: true,
     actions,
   };
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, options),
+    self.registration.showNotification(title, options),
   );
 });
 
@@ -83,15 +98,21 @@ self.addEventListener('notificationclick', (event) => {
   // Accion explicita "Ignorar/Rechazar" \u2014 solo cerrar, no abrir.
   if (action === 'dismiss') return;
 
-  // URL destino segun el tipo de notificacion + accion.
+  // URL destino segun el tipo de notificacion + accion. Si el payload
+  // declarativo trae `navigate` (URL absoluta), la usamos tal cual — así el
+  // destino es idéntico al del modo declarativo (sin SW).
   let url = '/';
-  if (data.type === 'share') {
+  if (typeof data.navigate === 'string' && data.navigate) {
+    url = data.navigate;
+  } else if (data.type === 'share') {
     url = '/?openTab=inbox';
   } else if (data.type === 'friend_request' || data.type === 'friend_accepted') {
     url = '/?openTab=requests';
   } else if (data.type === 'jam_invite' || data.type === 'jam_invite_rejected') {
     // La invitacion de jam se gestiona en la pestana Solicitudes de Amigos.
     url = '/?openTab=requests';
+  } else if (data.type === 'notification' || data.type === 'playlist_pulled') {
+    url = '/?openTab=activity';
   }
 
   // Limpiar badge al interactuar — el usuario va a leer.

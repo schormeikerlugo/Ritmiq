@@ -165,12 +165,16 @@ function detectLaunchIntent() {
   if (typeof window === 'undefined') return null;
   const params = new URLSearchParams(window.location.search);
   const go = params.get('go');
+  const openTab = params.get('openTab');
   const sharedUrl = params.get('shared_url');
   const sharedText = params.get('shared_text');
   const sharedTitle = params.get('shared_title');
 
   let intent = null;
-  if (go && ['search', 'favorites', 'friends', 'downloads'].includes(go)) {
+  if (openTab && ['inbox', 'requests', 'activity', 'friends', 'search'].includes(openTab)) {
+    // Deep-link desde una notificación: abrir Amigos en la pestaña indicada.
+    intent = { kind: 'openTab', tab: openTab };
+  } else if (go && ['search', 'favorites', 'friends', 'downloads'].includes(go)) {
     intent = { kind: 'go', target: go };
   } else if (sharedUrl || sharedText) {
     // El share target manda una URL o texto. Lo tratamos como una consulta de
@@ -181,7 +185,7 @@ function detectLaunchIntent() {
 
   if (intent) {
     // Limpiar los params de arranque conservando el resto (p.ej. source=pwa).
-    for (const k of ['go', 'shared_url', 'shared_text', 'shared_title']) params.delete(k);
+    for (const k of ['go', 'openTab', 'shared_url', 'shared_text', 'shared_title']) params.delete(k);
     const qs = params.toString();
     const clean = window.location.pathname + (qs ? `?${qs}` : '');
     try { window.history.replaceState({}, '', clean); } catch {}
@@ -239,7 +243,15 @@ export function App() {
     launchIntentDone.current = true;
     const v = useViewStore.getState();
     const intent = initialLaunchIntent;
-    if (intent.kind === 'go') {
+    if (intent.kind === 'openTab') {
+      // Notificación → Amigos en la pestaña indicada.
+      const tab = intent.tab === 'inbox' ? 'inbox'
+        : intent.tab === 'requests' ? 'requests'
+        : intent.tab === 'activity' ? 'activity'
+        : intent.tab === 'search' ? 'search'
+        : 'friends';
+      v.goFriends(tab);
+    } else if (intent.kind === 'go') {
       if (intent.target === 'search') v.goSearchView();
       else if (intent.target === 'friends') v.goFriends();
       else if (intent.target === 'downloads') v.goDownloads();
@@ -254,6 +266,26 @@ export function App() {
       v.goSearch(intent.query);
     }
   }, [user]);
+
+  // Notificación pulsada con la app YA abierta: el SW enfoca la ventana y
+  // envía 'push-click'. Enrutamos a la pestaña de Amigos correcta según el
+  // tipo (o la URL `navigate` del payload declarativo).
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker) return;
+    const onMsg = (event) => {
+      const msg = event.data;
+      if (!msg || msg.type !== 'push-click') return;
+      const data = msg.data ?? {};
+      const v = useViewStore.getState();
+      const nav = typeof data.navigate === 'string' ? data.navigate : '';
+      const t = data.type ?? '';
+      if (t === 'share' || nav.includes('openTab=inbox')) v.goFriends('inbox');
+      else if (t === 'friend_request' || t === 'friend_accepted' || t === 'jam_invite' || t === 'jam_invite_rejected' || nav.includes('openTab=requests')) v.goFriends('requests');
+      else if (t === 'notification' || t === 'playlist_pulled' || nav.includes('openTab=activity')) v.goFriends('activity');
+    };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
+  }, []);
 
   // Presencia "Escuchando ahora" — publica el track actual a los amigos.
   const eqEnabled    = useSettingsStore((s) => s.eqEnabled);
