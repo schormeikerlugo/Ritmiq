@@ -256,6 +256,40 @@ export function detectPlatform() {
 }
 
 /**
+ * Devuelve la versión MAYOR de Safari/iOS, o null si no es iOS o no se puede
+ * determinar. OJO: desde iOS 26 (Safari 26), Apple CONGELÓ el número de OS en
+ * la UA (`iPhone OS 18_6`) y sólo actualiza `Version/26.0`. Por eso leemos la
+ * versión de `Version/NN` (Safari), que sí refleja iOS 26+. Como fallback,
+ * usamos `OS X_Y` para iOS ≤18.
+ *
+ * @returns {number|null} p.ej. 26, 18, 17…
+ */
+export function getIOSMajorVersion() {
+  if (typeof navigator === 'undefined') return null;
+  if (detectPlatform() !== 'ios') return null;
+  const ua = navigator.userAgent || '';
+  // Preferir Version/NN (Safari) — refleja iOS 26+ aunque OS esté congelado.
+  const vMatch = ua.match(/Version\/(\d+)/);
+  if (vMatch) {
+    const v = parseInt(vMatch[1], 10);
+    if (Number.isFinite(v)) return v;
+  }
+  // Fallback: número de OS en la UA (fiable sólo hasta iOS 18.x).
+  const osMatch = ua.match(/OS (\d+)[_.]/);
+  if (osMatch) {
+    const v = parseInt(osMatch[1], 10);
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+/** ¿iOS 26 o superior? (instalación sin fricción: cualquier sitio es web app). */
+export function isIOS26OrNewer() {
+  const v = getIOSMajorVersion();
+  return v != null && v >= 26;
+}
+
+/**
  * Copia un texto al portapapeles. Usa Clipboard API si disponible, con
  * fallback a textarea + execCommand.
  *

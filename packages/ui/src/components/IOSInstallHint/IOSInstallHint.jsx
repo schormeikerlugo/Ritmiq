@@ -20,9 +20,14 @@
  */
 import { Modal } from '../Modal/Modal.jsx';
 import { Icon } from '../Icon/Icon.jsx';
+import { isIOS26OrNewer } from '../../lib/share.js';
 import styles from './IOSInstallHint.module.css';
 
 export function IOSInstallHint({ onClose }) {
+  // iOS 26+ instala CUALQUIER sitio como web app y muestra un toggle
+  // "Abrir como web app" en el diálogo de Añadir. El copy se adapta.
+  const ios26 = isIOS26OrNewer();
+
   return (
     <Modal
       onClose={onClose}
@@ -43,9 +48,9 @@ export function IOSInstallHint({ onClose }) {
           </div>
           <div className={styles.stepBody}>
             <span className={styles.stepNum}>1</span>
-            <h3 className={styles.stepTitle}>Pulsa el boton Compartir</h3>
+            <h3 className={styles.stepTitle}>Pulsa el botón Compartir</h3>
             <p className={styles.stepDesc}>
-              Lo encuentras en la barra inferior de Safari \u2014 un
+              Lo encuentras en la barra inferior de Safari — un
               cuadrado con una flecha hacia arriba.
             </p>
           </div>
@@ -57,10 +62,20 @@ export function IOSInstallHint({ onClose }) {
           </div>
           <div className={styles.stepBody}>
             <span className={styles.stepNum}>2</span>
-            <h3 className={styles.stepTitle}>"Anadir a pantalla de inicio"</h3>
+            <h3 className={styles.stepTitle}>"Añadir a pantalla de inicio"</h3>
             <p className={styles.stepDesc}>
-              Desplaza hacia abajo en el menu y pulsa esta opcion.
-              Confirma con "Anadir" en la esquina superior derecha.
+              {ios26 ? (
+                <>
+                  Desplaza y pulsa esta opción. Deja activado el
+                  interruptor <strong>"Abrir como web app"</strong> y
+                  confirma con "Añadir".
+                </>
+              ) : (
+                <>
+                  Desplaza hacia abajo en el menú y pulsa esta opción.
+                  Confirma con "Añadir" en la esquina superior derecha.
+                </>
+              )}
             </p>
           </div>
         </li>
@@ -74,8 +89,8 @@ export function IOSInstallHint({ onClose }) {
             <h3 className={styles.stepTitle}>Abre Ritmiq y activa las notifs</h3>
             <p className={styles.stepDesc}>
               Abre Ritmiq desde tu pantalla principal y vuelve a
-              Ajustes &gt; Cuenta. El boton "Activar" ahora si
-              funcionara.
+              Ajustes &gt; Cuenta. El botón "Activar" ahora sí
+              funcionará.
             </p>
           </div>
         </li>
@@ -84,8 +99,8 @@ export function IOSInstallHint({ onClose }) {
       <div className={styles.note}>
         <Icon name="Info" size={14} />
         <span>
-          Tambien recibiras tus listas, descargas y configuracion
-          intactas \u2014 es la misma cuenta.
+          También recibirás tus listas, descargas y configuración
+          intactas — es la misma cuenta.
         </span>
       </div>
 

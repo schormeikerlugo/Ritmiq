@@ -37,6 +37,8 @@ export default defineConfig({
         'splash/iphone-14pro.png',
         'splash/iphone-12promax.png',
         'splash/iphone-14promax.png',
+        'splash/iphone-16pro.png',
+        'splash/iphone-16promax.png',
         'splash/ipad-air.png',
         'splash/ipad-pro-12.png',
         // Screenshots para la ficha de instalación de la PWA.

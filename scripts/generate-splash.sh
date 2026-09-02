@@ -67,6 +67,9 @@ generate 1170 2532 "iphone-12"           # 12, 13, 14
 generate 1179 2556 "iphone-14pro"        # 14 Pro, 15, 15 Pro
 generate 1284 2778 "iphone-12promax"     # 12/13/14 Pro Max
 generate 1290 2796 "iphone-14promax"     # 14 Pro Max, 15 Plus, 15 Pro Max
+# Modelos nuevos (iOS 18/26): pantallas más grandes que la serie 14/15.
+generate 1206 2622 "iphone-16pro"        # 16 Pro (402x874 pt @3x)
+generate 1320 2868 "iphone-16promax"     # 16 Pro Max (440x956 pt @3x)
 generate 2048 2732 "ipad-pro-12"         # iPad Pro 12.9"
 generate 1536 2048 "ipad-air"            # iPad Air / iPad estandar
 
