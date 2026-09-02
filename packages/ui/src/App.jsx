@@ -136,6 +136,7 @@ import { realtime } from './lib/realtime.js';
 import { onConnectivityChange, forceRecheck } from './lib/connectivity.js';
 import { flushQueue } from './lib/sync-queue.js';
 import { subscribeTunnelUrl, subscribeServerEndpoint, publishTunnelUrl, clearTunnelUrl } from './lib/tunnel-registry.js';
+import { useEdgeSwipeBack } from './lib/use-edge-swipe-back.js';
 import styles from './App.module.css';
 
 // Parsea el query param `?share=...` al cargar el modulo — solo una vez.
@@ -217,6 +218,47 @@ export function App() {
   const closeSidebar = useViewStore((s) => s.closeSidebar);
   const nowPlayingOpen = useViewStore((s) => s.nowPlayingOpen);
   const viewKind = useViewStore((s) => s.view.kind);
+
+  // ── Gesto "deslizar desde el borde izquierdo para volver" (PWA móvil) ──
+  // Ref al shell para el feedback visual (translateX mientras se arrastra).
+  const shellRef = useRef(null);
+  // ¿Hay a dónde volver? Overlay abierto O historial de vistas no vacío.
+  const edgeBackAvailable = () => {
+    const s = useViewStore.getState();
+    if (s.nowPlayingOpen || s.queueOpen || s.sidebarOpen) return true;
+    try { if (useJamStore.getState().jamModalOpen) return true; } catch {}
+    return (s.history?.length ?? 0) > 0;
+  };
+  // Acción "atrás" jerárquica: cierra el overlay más externo; si no hay, goBack.
+  const edgeBackAction = () => {
+    const s = useViewStore.getState();
+    if (s.nowPlayingOpen) { s.closeNowPlaying(); return; }
+    try { if (useJamStore.getState().jamModalOpen) { useJamStore.getState().closeJamModal(); return; } } catch {}
+    if (s.queueOpen) { s.closeQueue(); return; }
+    if (s.sidebarOpen) { s.closeSidebar(); return; }
+    if ((s.history?.length ?? 0) > 0) s.goBack();
+  };
+  // Feedback visual: desplaza el shell con el dedo y lo revierte al soltar.
+  const edgeOnProgress = (px) => {
+    const el = shellRef.current;
+    if (!el) return;
+    el.style.transition = 'none';
+    el.style.transform = `translateX(${px}px)`;
+    el.style.opacity = String(Math.max(0.6, 1 - px / (window.innerWidth || 1)));
+  };
+  const edgeOnEnd = () => {
+    const el = shellRef.current;
+    if (!el) return;
+    el.style.transition = 'transform 220ms cubic-bezier(0.4,0,0.2,1), opacity 220ms';
+    el.style.transform = '';
+    el.style.opacity = '';
+  };
+  useEdgeSwipeBack({
+    onBack: edgeBackAction,
+    canGoBack: edgeBackAvailable,
+    onProgress: edgeOnProgress,
+    onEnd: edgeOnEnd,
+  });
 
   // Deep-link de invitacion a Jam (/jam/<code>): al boot setea el codigo
   // pendiente en el store y limpia la URL. El JamModal global (mas abajo)
@@ -681,7 +723,7 @@ export function App() {
       <header className={styles.topbar}>
         <TopBar />
       </header>
-      <main className={styles.main} data-view={viewKind} data-main-scroll>
+      <main ref={shellRef} className={styles.main} data-view={viewKind} data-main-scroll>
         <MainView />
       </main>
       <aside className={styles.queue}>
