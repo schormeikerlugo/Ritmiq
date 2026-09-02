@@ -156,7 +156,7 @@ export const usePlaylistsStore = create((set, get) => ({
    * Crea una playlist. `opts` opcional permite fijar visibilidad y origen
    * (para copias jaladas del perfil de un amigo).
    * @param {string} name
-   * @param {{ visibility?: 'private'|'friends'|'public', sourcePlaylistId?: string|null, sourceOwnerId?: string|null, silent?: boolean }} [opts]
+   * @param {{ visibility?: 'private'|'friends'|'public', coverUrl?: string|null, sourcePlaylistId?: string|null, sourceOwnerId?: string|null, silent?: boolean }} [opts]
    */
   async create(name, opts = {}) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -169,7 +169,7 @@ export const usePlaylistsStore = create((set, get) => ({
       userId,
       name,
       isOffline: false,
-      coverUrl: null,
+      coverUrl: opts.coverUrl ?? null,
       createdAt: now,
       updatedAt: now,
       visibility: opts.visibility ?? 'private',

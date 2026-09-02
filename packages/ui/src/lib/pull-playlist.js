@@ -25,6 +25,7 @@ import { toast } from '../stores/toast.js';
  * @param {{
  *   name: string,
  *   tracks: Array<{ytId:string, title?:string, artist?:string, coverUrl?:string, durationSeconds?:number}>,
+ *   coverUrl?: string|null,             // carátula de la playlist original
  *   sourcePlaylistId?: string|null,
  *   sourceOwnerId?: string|null,
  *   existingPlaylistId?: string|null,  // si se pasa, hace MERGE en vez de crear (re-sync)
@@ -32,7 +33,7 @@ import { toast } from '../stores/toast.js';
  * @returns {Promise<{ playlist: any, added: number } | null>}
  */
 export async function pullPlaylistSnapshot(opts) {
-  const { name, tracks, sourcePlaylistId = null, sourceOwnerId = null, existingPlaylistId = null } = opts;
+  const { name, tracks, coverUrl = null, sourcePlaylistId = null, sourceOwnerId = null, existingPlaylistId = null } = opts;
   const snapshot = Array.isArray(tracks) ? tracks.filter((t) => t?.ytId) : [];
   if (snapshot.length === 0) {
     toast.show({ message: 'Esa playlist está vacía', icon: 'Info' });
@@ -72,12 +73,15 @@ export async function pullPlaylistSnapshot(opts) {
     if (!playlist) {
       // La copia local ya no existe: crear de nuevo.
       playlist = await usePlaylistsStore.getState().create(name, {
-        sourcePlaylistId, sourceOwnerId, silent: true,
+        coverUrl, sourcePlaylistId, sourceOwnerId, silent: true,
       });
+    } else if (coverUrl && !playlist.coverUrl) {
+      // Re-sync: si la copia no tenía carátula y el original sí, adoptarla.
+      try { await usePlaylistsStore.getState().setCover(playlist.id, coverUrl); } catch {}
     }
   } else {
     playlist = await usePlaylistsStore.getState().create(name, {
-      sourcePlaylistId, sourceOwnerId, silent: true,
+      coverUrl, sourcePlaylistId, sourceOwnerId, silent: true,
     });
   }
 

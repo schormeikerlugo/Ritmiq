@@ -88,6 +88,7 @@ export function ProfileView({ userId }) {
       const res = await pullPlaylistSnapshot({
         name: pl.name,
         tracks: pl.tracks ?? [],
+        coverUrl: pl.coverUrl ?? null,
         sourcePlaylistId: pl.id,
         sourceOwnerId: userId,
       });

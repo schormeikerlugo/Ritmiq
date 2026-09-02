@@ -370,6 +370,7 @@ export function PlaylistView({ playlistId }) {
       const res = await pullPlaylistSnapshot({
         name: playlist.name,
         tracks: original.tracks ?? [],
+        coverUrl: original.coverUrl ?? null,
         sourcePlaylistId: playlist.sourcePlaylistId,
         sourceOwnerId: playlist.sourceOwnerId,
         existingPlaylistId: playlist.id, // MERGE en esta misma playlist
