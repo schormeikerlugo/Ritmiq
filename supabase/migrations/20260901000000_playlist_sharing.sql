@@ -57,21 +57,13 @@ create policy "playlists: visible read"
     or (visibility = 'friends' and public.are_mutual_friends(auth.uid(), user_id))
   );
 
--- playlist_tracks: lectura para terceros si la playlist padre es visible para
--- el lector bajo la misma regla.
+-- NOTA: NO abrimos RLS de lectura cruzada en `playlist_tracks`. La Edge
+-- Function `get-profile-playlists` resuelve los tracks de playlists visibles
+-- con service-role (sin exponer la biblioteca del dueño). Abrir esta RLS
+-- causaba que el canal realtime SIN filtro de `playlist_tracks` recibiera
+-- eventos de playlists AJENAS (públicas/de-amigos), creando playlists
+-- fantasma en el store del que mira un perfil. Se mantiene deshabilitada.
 drop policy if exists "playlist_tracks: visible read" on public.playlist_tracks;
-create policy "playlist_tracks: visible read"
-  on public.playlist_tracks for select
-  using (
-    exists (
-      select 1 from public.playlists p
-      where p.id = playlist_tracks.playlist_id
-        and (
-          p.visibility = 'public'
-          or (p.visibility = 'friends' and public.are_mutual_friends(auth.uid(), p.user_id))
-        )
-    )
-  );
 
 -- ── 4. Tabla de notificaciones ────────────────────────────────────────────
 create table if not exists public.notifications (

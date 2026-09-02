@@ -571,6 +571,17 @@ export const usePlaylistsStore = create((set, get) => ({
    * @param {{eventType:'INSERT'|'UPDATE'|'DELETE', new:any, old:any}} ev
    */
   applyRemotePlaylistTrack({ eventType, new: row, old }) {
+    // El canal realtime de `playlist_tracks` va SIN filtro y confía en RLS.
+    // Desde que existe la visibilidad de playlists (public/friends), la RLS
+    // TAMBIÉN deja leer playlist_tracks de OTROS usuarios → llegan eventos de
+    // playlists ajenas. Hay que ignorarlos: solo aplicamos los de playlists
+    // que están en NUESTRO store (las nuestras). Sin esto aparecían playlists
+    // fantasma (la del dueño, vacía) al ver un perfil ajeno.
+    const evPid = row?.playlist_id ?? old?.playlist_id;
+    if (!evPid) return;
+    const isMine = get().playlists.some((p) => p.id === evPid);
+    if (!isMine) return;
+
     if (eventType === 'DELETE') {
       const playlistId = old?.playlist_id;
       const trackId = old?.track_id;
