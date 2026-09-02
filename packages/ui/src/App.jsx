@@ -156,6 +156,40 @@ function detectJamDeepLink() {
 }
 const initialJamCode = detectJamDeepLink();
 
+// Detecta la intención de arranque desde un SHORTCUT del manifest
+// (?go=search|favorites|friends|downloads) o desde el WEB SHARE TARGET
+// (?shared_url / ?shared_text / ?shared_title cuando el usuario comparte a
+// Ritmiq desde otra app). Devuelve un objeto de intención y limpia esos
+// params de la URL para que un reload no lo re-dispare.
+function detectLaunchIntent() {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const go = params.get('go');
+  const sharedUrl = params.get('shared_url');
+  const sharedText = params.get('shared_text');
+  const sharedTitle = params.get('shared_title');
+
+  let intent = null;
+  if (go && ['search', 'favorites', 'friends', 'downloads'].includes(go)) {
+    intent = { kind: 'go', target: go };
+  } else if (sharedUrl || sharedText) {
+    // El share target manda una URL o texto. Lo tratamos como una consulta de
+    // búsqueda: la búsqueda ya extrae el ytId si es un enlace de YouTube.
+    const query = (sharedUrl || sharedText || sharedTitle || '').trim();
+    if (query) intent = { kind: 'share', query };
+  }
+
+  if (intent) {
+    // Limpiar los params de arranque conservando el resto (p.ej. source=pwa).
+    for (const k of ['go', 'shared_url', 'shared_text', 'shared_title']) params.delete(k);
+    const qs = params.toString();
+    const clean = window.location.pathname + (qs ? `?${qs}` : '');
+    try { window.history.replaceState({}, '', clean); } catch {}
+  }
+  return intent;
+}
+const initialLaunchIntent = detectLaunchIntent();
+
 // Detecta si el usuario llega via link de recovery de password.
 // Supabase mete el access_token en el hash con type=recovery.
 function detectRecoveryFromUrl() {
@@ -194,6 +228,32 @@ export function App() {
       window.history.replaceState({}, '', '/');
     }
   }, [setPendingJoinCode]);
+
+  // Intención de arranque (shortcut del manifest o Web Share Target). Se
+  // ejecuta UNA vez cuando ya hay usuario logueado (así la vista objetivo
+  // existe). No se re-dispara: initialLaunchIntent se calcula una sola vez al
+  // cargar el módulo y la URL ya fue limpiada.
+  const launchIntentDone = useRef(false);
+  useEffect(() => {
+    if (!user || !initialLaunchIntent || launchIntentDone.current) return;
+    launchIntentDone.current = true;
+    const v = useViewStore.getState();
+    const intent = initialLaunchIntent;
+    if (intent.kind === 'go') {
+      if (intent.target === 'search') v.goSearchView();
+      else if (intent.target === 'friends') v.goFriends();
+      else if (intent.target === 'downloads') v.goDownloads();
+      else if (intent.target === 'favorites') {
+        const favId = usePlaylistsStore.getState().favoritesId;
+        if (favId) v.goPlaylist(favId);
+        else v.goLibrary();
+      }
+    } else if (intent.kind === 'share' && intent.query) {
+      // Compartido a Ritmiq: abrir la búsqueda con la URL/texto (extrae el
+      // ytId si es un enlace de YouTube).
+      v.goSearch(intent.query);
+    }
+  }, [user]);
 
   // Presencia "Escuchando ahora" — publica el track actual a los amigos.
   const eqEnabled    = useSettingsStore((s) => s.eqEnabled);

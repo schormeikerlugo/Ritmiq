@@ -39,6 +39,9 @@ export default defineConfig({
         'splash/iphone-14promax.png',
         'splash/ipad-air.png',
         'splash/ipad-pro-12.png',
+        // Screenshots para la ficha de instalación de la PWA.
+        'screenshots/mobile-1.png',
+        'screenshots/mobile-2.png',
       ],
       manifest: {
         // id explicito recomendado para PWAs publicadas — sin esto iOS y
@@ -51,7 +54,18 @@ export default defineConfig({
         theme_color: '#0a0a0c',
         background_color: '#0a0a0c',
         display: 'standalone',
+        // display_override: preferencia ordenada de modo de visualización.
+        // Si el navegador soporta un modo más inmersivo cae al siguiente.
+        display_override: ['standalone', 'minimal-ui'],
         orientation: 'portrait',
+        // Categorías: mejoran la ficha en tiendas/instaladores de PWA.
+        categories: ['music', 'entertainment'],
+        lang: 'es',
+        dir: 'ltr',
+        // launch_handler: al reabrir la PWA, reusar la ventana/cliente ya
+        // abierto en vez de crear uno nuevo (evita instancias duplicadas y
+        // que se corte la reproducción).
+        launch_handler: { client_mode: 'navigate-existing' },
         // start_url incluye source=pwa para que el server pueda distinguir
         // arranques desde el home screen vs visitas web normales (utiles
         // para analytics y para que la PWA marque "instalada" en su
@@ -63,6 +77,71 @@ export default defineConfig({
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: '/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           { src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+        ],
+        // Accesos rápidos: al mantener pulsado el icono (iOS 26 / Android)
+        // aparecen estas acciones. Cada url usa ?go=<vista> que App.jsx
+        // interpreta al arrancar para navegar directo.
+        shortcuts: [
+          {
+            name: 'Buscar música',
+            short_name: 'Buscar',
+            description: 'Busca y reproduce cualquier canción',
+            url: '/?source=pwa&go=search',
+            icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'Favoritas',
+            short_name: 'Favoritas',
+            description: 'Tu playlist de favoritas',
+            url: '/?source=pwa&go=favorites',
+            icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'Amigos',
+            short_name: 'Amigos',
+            description: 'Actividad y compartidos',
+            url: '/?source=pwa&go=friends',
+            icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'Descargas',
+            short_name: 'Descargas',
+            description: 'Tu música offline',
+            url: '/?source=pwa&go=downloads',
+            icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
+          },
+        ],
+        // Web Share Target: Ritmiq aparece en la hoja de "Compartir" de iOS/
+        // Android. Al compartir un enlace (YouTube, Ritmiq) o texto hacia
+        // Ritmiq, se abre con ?shared_url=… / ?shared_text=… y App.jsx lo
+        // enruta a búsqueda/importación. method GET (sin archivos) es lo que
+        // iOS soporta de forma fiable.
+        share_target: {
+          action: '/?source=share_target',
+          method: 'GET',
+          params: {
+            title: 'shared_title',
+            text: 'shared_text',
+            url: 'shared_url',
+          },
+        },
+        // Screenshots: enriquecen la ficha de instalación (form_factor
+        // narrow = móvil). Se generan en public/screenshots/.
+        screenshots: [
+          {
+            src: '/screenshots/mobile-1.png',
+            sizes: '1080x1920',
+            type: 'image/png',
+            form_factor: 'narrow',
+            label: 'Reproductor de Ritmiq',
+          },
+          {
+            src: '/screenshots/mobile-2.png',
+            sizes: '1080x1920',
+            type: 'image/png',
+            form_factor: 'narrow',
+            label: 'Tu biblioteca y playlists',
+          },
         ],
       },
       workbox: {
