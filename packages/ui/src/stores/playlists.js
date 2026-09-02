@@ -6,7 +6,7 @@ import {
   pullPlaylistContents, pushPlaylistTrack, removePlaylistTrackRemote,
   reorderPlaylistRemote, reorderPlaylistsRemote,
 } from '../lib/sync.js';
-import { tryOrQueue } from '../lib/sync-queue.js';
+import { tryOrQueue, purgeQueueForPlaylist, purgeQueueForPlaylistTrack } from '../lib/sync-queue.js';
 import { randomId } from '../lib/id.js';
 import { useLibraryStore } from './library.js';
 import { useDownloadsStore } from './downloads.js';
@@ -259,6 +259,12 @@ export const usePlaylistsStore = create((set, get) => ({
       icon: 'Trash2',
     });
 
+    // Purgar de la cola cualquier op pendiente de esta playlist (upsert/tracks)
+    // ANTES de encolar el delete. Sin esto, un `playlist.upsert` viejo (p.ej.
+    // de crear/jalar/cambiar visibilidad mientras no había red) resucitaba la
+    // playlist al drenar la cola tras el delete → "no se borra, reaparece".
+    purgeQueueForPlaylist(id);
+
     // Persistencia best-effort (tryOrQueue encola si no hay red; si falla por
     // otra causa, no revierte la UI — la próxima sincronización reconcilia).
     try {
@@ -310,17 +316,24 @@ export const usePlaylistsStore = create((set, get) => ({
   },
 
   async removeTrack(playlistId, trackId) {
-    await tryOrQueue(
-      () => removePlaylistTrackRemote(playlistId, trackId),
-      { kind: 'playlist_track.remove', payload: { playlistId, trackId } }
-    );
-    if (isDesktop) await api.playlistsRemoveTrack({ playlistId, trackId });
+    // Quitar del store primero (optimista) y purgar cualquier add pendiente del
+    // mismo track para que no reaparezca al drenar la cola.
+    purgeQueueForPlaylistTrack(playlistId, trackId);
     set((s) => ({
       contents: {
         ...s.contents,
         [playlistId]: (s.contents[playlistId] ?? []).filter((id) => id !== trackId),
       },
     }));
+    try {
+      await tryOrQueue(
+        () => removePlaylistTrackRemote(playlistId, trackId),
+        { kind: 'playlist_track.remove', payload: { playlistId, trackId } }
+      );
+      if (isDesktop) await api.playlistsRemoveTrack({ playlistId, trackId });
+    } catch (e) {
+      console.error('[playlists] removeTrack remoto falló', e);
+    }
 
     const pl = get().playlists.find((p) => p.id === playlistId);
     const isFavs = playlistId === get().favoritesId;
@@ -406,22 +419,27 @@ export const usePlaylistsStore = create((set, get) => ({
     const targets = [...new Set(trackIds)].filter((id) => present.has(id));
     if (targets.length === 0) return;
 
-    await Promise.all(targets.map(async (trackId) => {
-      await tryOrQueue(
-        () => removePlaylistTrackRemote(playlistId, trackId),
-        { kind: 'playlist_track.remove', payload: { playlistId, trackId } }
-      );
-      if (isDesktop) {
-        try { await api.playlistsRemoveTrack({ playlistId, trackId }); } catch {}
-      }
-    }));
-
+    // Optimista + purga de adds pendientes ANTES del remoto (evita resurección
+    // por la cola).
     const drop = new Set(targets);
+    for (const trackId of targets) purgeQueueForPlaylistTrack(playlistId, trackId);
     set((s) => ({
       contents: {
         ...s.contents,
         [playlistId]: (s.contents[playlistId] ?? []).filter((id) => !drop.has(id)),
       },
+    }));
+
+    await Promise.all(targets.map(async (trackId) => {
+      try {
+        await tryOrQueue(
+          () => removePlaylistTrackRemote(playlistId, trackId),
+          { kind: 'playlist_track.remove', payload: { playlistId, trackId } }
+        );
+        if (isDesktop) await api.playlistsRemoveTrack({ playlistId, trackId });
+      } catch (e) {
+        console.error('[playlists] removeTracks remoto falló', e);
+      }
     }));
 
     const pl = get().playlists.find((p) => p.id === playlistId);

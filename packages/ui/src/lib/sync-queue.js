@@ -52,6 +52,47 @@ export function onQueueSizeChange(cb) {
 export function queueSize() { return read().length; }
 
 /**
+ * Elimina de la cola toda operación pendiente relacionada con una playlist:
+ * su upsert (playlist.upsert), y los add/remove/reorder de sus tracks. Se
+ * llama al ELIMINAR una playlist para que un upsert viejo encolado no la
+ * "resucite" al drenar la cola tras el delete.
+ * @param {string} playlistId
+ */
+export function purgeQueueForPlaylist(playlistId) {
+  const ops = read();
+  const kept = ops.filter((op) => {
+    const p = op.payload ?? {};
+    if (op.kind === 'playlist.upsert' && p.id === playlistId) return false;
+    if (op.kind === 'playlist.delete' && p.id === playlistId) return false;
+    if (
+      (op.kind === 'playlist_track.add' ||
+        op.kind === 'playlist_track.remove' ||
+        op.kind === 'playlist_track.reorder') &&
+      p.playlistId === playlistId
+    ) return false;
+    return true;
+  });
+  if (kept.length !== ops.length) write(kept);
+}
+
+/**
+ * Elimina de la cola cualquier `playlist_track.add` pendiente de un track
+ * concreto dentro de una playlist. Se llama al quitar un track para que un
+ * add viejo encolado no lo "resucite" al drenar la cola tras el remove.
+ * @param {string} playlistId
+ * @param {string} trackId
+ */
+export function purgeQueueForPlaylistTrack(playlistId, trackId) {
+  const ops = read();
+  const kept = ops.filter((op) => {
+    const p = op.payload ?? {};
+    if (op.kind === 'playlist_track.add' && p.playlistId === playlistId && p.trackId === trackId) return false;
+    return true;
+  });
+  if (kept.length !== ops.length) write(kept);
+}
+
+/**
  * Encola una operación. Llamar cuando una mutación remota falle por red.
  * @param {{kind: string, payload: any}} op
  */
