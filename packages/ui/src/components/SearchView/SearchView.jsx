@@ -64,10 +64,6 @@ export function SearchView({ query: queryProp }) {
   const loadingMore = useSearchStore((s) => s.loadingMore);
   const [cachedSet, setCachedSet] = useState(/** @type {Set<string>} */ (new Set()));
   const [inputValue, setInputValue] = useState(query ?? '');
-  // Link de YouTube detectado en el portapapeles (para iOS, donde el Web Share
-  // Target del manifest NO funciona — es limitación de Apple). Ofrecemos pegar
-  // el link con un toque.
-  const [clipboardYtUrl, setClipboardYtUrl] = useState('');
 
   // Al abrir un tab dedicado (Canciones/Artistas/Playlists), cargar la
   // versión ampliada (max=30) una sola vez. En "Todo" no aplica.
@@ -135,26 +131,37 @@ export function SearchView({ query: queryProp }) {
     if (q && q !== query) goSearch(q);
   };
 
-  // Detección de link de YouTube en el portapapeles (fallback universal al
-  // Web Share Target, que iOS no soporta). Se intenta al montar la búsqueda
-  // vacía y al volver a foco. Si el navegador bloquea la lectura sin gesto,
-  // falla en silencio (no es crítico).
+  // Auto-detección de link de YouTube en el portapapeles (fallback universal
+  // al Web Share Target, que iOS no soporta). Se lee al ENTRAR a Buscar con la
+  // búsqueda vacía — no se re-verifica en cada focus. Si hay un enlace de
+  // YouTube, se lanza la búsqueda directamente (sin chip intermedio).
+  // SearchView NO se remonta (key estable), así que disparamos la lectura en la
+  // TRANSICIÓN a búsqueda vacía (el usuario acaba de entrar a Buscar), no en
+  // cada render. Un flag de sesión evita re-preguntar por el mismo link ya
+  // resuelto.
+  // Nota: en iOS/Safari, leer el portapapeles dispara el prompt nativo del
+  // sistema ("Permitir pegar"); es una exigencia de Apple, inevitable.
+  const prevEmptyRef = useRef(!query);
+  const clipboardFirstRunRef = useRef(true); // primer montaje con búsqueda vacía
   useEffect(() => {
-    if (query) { setClipboardYtUrl(''); return; }
+    const isEmptyNow = !query;
+    const justEntered = isEmptyNow && !prevEmptyRef.current;  // no-empty → empty
+    prevEmptyRef.current = isEmptyNow;
+    // Disparar al montar con búsqueda vacía o al volver a vacío (entrar a Buscar).
+    if (!isEmptyNow) return;
+    if (!justEntered && !clipboardFirstRunRef.current) return;
+    clipboardFirstRunRef.current = false;
     let cancelled = false;
-    const tryRead = async () => {
+    (async () => {
       try {
         if (!navigator.clipboard?.readText) return;
         const text = await navigator.clipboard.readText();
         const yt = /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/|music\.youtube\.com\/watch\?v=)[\w-]{11}/.exec(text ?? '');
-        if (!cancelled) setClipboardYtUrl(yt ? yt[0] : '');
-      } catch { /* permiso denegado o sin gesto: ignorar */ }
-    };
-    tryRead();
-    const onFocus = () => tryRead();
-    window.addEventListener('focus', onFocus);
-    return () => { cancelled = true; window.removeEventListener('focus', onFocus); };
-  }, [query]);
+        if (!cancelled && yt) goSearch(yt[0]);
+      } catch { /* permiso denegado o sin gesto: ignorar en silencio */ }
+    })();
+    return () => { cancelled = true; };
+  }, [query, goSearch]);
 
   // En mobile cuando no hay query, mostramos ExploreView (Explorar).
   // Mantenemos el input arriba para que el user pueda escribir.
@@ -331,20 +338,6 @@ export function SearchView({ query: queryProp }) {
           ><Icon name="X" size={16} /></button>
         )}
       </form>
-
-      {/* Chip: pegar link de YouTube del portapapeles (fallback iOS al share
-          target). Sólo con búsqueda vacía y un link detectado. */}
-      {showExplore && clipboardYtUrl && (
-        <button
-          type="button"
-          className={styles.pasteChip}
-          onClick={() => { const u = clipboardYtUrl; setClipboardYtUrl(''); goSearch(u); }}
-        >
-          <Icon name="ClipboardPaste" size={16} />
-          <span>Pegar link de YouTube copiado</span>
-          <Icon name="ChevronRight" size={14} />
-        </button>
-      )}
 
       {showExplore ? (
         <ExploreView />
