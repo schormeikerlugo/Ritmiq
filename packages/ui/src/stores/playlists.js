@@ -246,8 +246,10 @@ export const usePlaylistsStore = create((set, get) => ({
   async remove(id) {
     if (id === get().favoritesId) throw new Error('No se puede borrar Favoritas');
     const cur = get().playlists.find((p) => p.id === id);
-    await tryOrQueue(() => deletePlaylistRemote(id), { kind: 'playlist.delete', payload: { id } });
-    if (isDesktop) await api.playlistsDelete(id);
+
+    // OPTIMISTA: quitar del store PRIMERO para que la UI reaccione al instante
+    // y nunca quede bloqueada esperando la red (era una causa de "pantalla
+    // negra": el modal quedaba con busy=true si el remoto tardaba/colgaba).
     set((s) => {
       const { [id]: _, ...rest } = s.contents;
       return { playlists: s.playlists.filter((p) => p.id !== id), contents: rest };
@@ -256,6 +258,15 @@ export const usePlaylistsStore = create((set, get) => ({
       message: cur ? `Playlist "${cur.name}" eliminada` : 'Playlist eliminada',
       icon: 'Trash2',
     });
+
+    // Persistencia best-effort (tryOrQueue encola si no hay red; si falla por
+    // otra causa, no revierte la UI — la próxima sincronización reconcilia).
+    try {
+      await tryOrQueue(() => deletePlaylistRemote(id), { kind: 'playlist.delete', payload: { id } });
+      if (isDesktop) await api.playlistsDelete(id);
+    } catch (e) {
+      console.error('[playlists] remove remoto falló', e);
+    }
   },
 
   /** Añade un track a una playlist (idempotente). */

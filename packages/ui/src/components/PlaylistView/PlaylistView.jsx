@@ -330,8 +330,18 @@ export function PlaylistView({ playlistId }) {
   const onRemovePlaylist = () => setConfirmRemovePlaylist(true);
 
   const performRemovePlaylist = async () => {
-    await remove(playlist.id);
+    // Navegar ANTES de borrar: así PlaylistView se desmonta y no re-renderiza
+    // con `playlist=undefined` cuando el store quita la playlist (lo que
+    // provocaba una pantalla negra por crash de render). El borrado remoto +
+    // local corre después, ya fuera de esta vista.
+    const id = playlist.id;
     goLibrary();
+    try {
+      await remove(id);
+    } catch (e) {
+      console.error('[playlist] remove error', e);
+      toast.error('No se pudo eliminar la playlist');
+    }
   };
 
   const onToggleOffline = async () => {
