@@ -10,7 +10,7 @@
  * lan-server).
  */
 import { create } from 'zustand';
-import { api } from '../lib/api.js';
+import { api, extractYtId } from '../lib/api.js';
 
 export const useSearchStore = create((set, get) => ({
   query: '',
@@ -51,8 +51,13 @@ export const useSearchStore = create((set, get) => ({
    * @param {string} q
    */
   async fetch(q) {
-    const query = String(q ?? '').trim();
-    if (!query) return;
+    const raw = String(q ?? '').trim();
+    if (!raw) return;
+    // Si la query es un ENLACE (o id) de YouTube, buscar por el ytId para que
+    // el primer resultado sea EXACTAMENTE ese video (compartir un link desde
+    // YouTube → resultado correcto, no una búsqueda difusa por el texto/URL).
+    const ytId = extractYtId(raw);
+    const query = ytId || raw;
     if (get().query === query && get().videos.length > 0) return;
     // Nueva búsqueda: resetea el estado de paginación.
     set({ query, loading: true, error: null, videosContinuation: null, expandedTabs: new Set() });

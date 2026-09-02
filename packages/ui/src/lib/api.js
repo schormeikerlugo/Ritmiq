@@ -304,11 +304,11 @@ async function edgeSearchByType(q, type, max = 20, continuation = null) {
  * @param {string} input
  * @returns {string|null}
  */
-function extractYtId(input) {
+export function extractYtId(input) {
   if (!input) return null;
   const trimmed = String(input).trim();
   if (/^[\w-]{11}$/.test(trimmed)) return trimmed;
-  const m = trimmed.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)([\w-]{11})/);
+  const m = trimmed.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/|music\.youtube\.com\/watch\?v=)([\w-]{11})/);
   return m?.[1] ?? null;
 }
 

@@ -38,7 +38,7 @@ import {
   Radio, Crown, Copy,
   Trophy, Star, Award, TrendingUp, CalendarDays,
   Minus, ListChecks, ListPlus, PlayCircle, CheckSquare,
-  Globe, RefreshCw,
+  Globe, RefreshCw, Link, ClipboardPaste,
 } from 'lucide-react';
 
 const ICONS = {
@@ -64,7 +64,7 @@ const ICONS = {
   Radio, Crown, Copy,
   Trophy, Star, Award, TrendingUp, CalendarDays,
   Minus, ListChecks, ListPlus, PlayCircle, CheckSquare,
-  Globe, RefreshCw,
+  Globe, RefreshCw, Link, ClipboardPaste,
 };
 
 /**
