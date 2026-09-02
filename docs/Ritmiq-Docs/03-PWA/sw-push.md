@@ -165,3 +165,4 @@ El botón "Ignorar" / "Más tarde" cierra la notif sin abrir la app.
 
 ## Notas / Changelog
 - 2026-05-22: nivel medio.
+- 2026-09-02 (Fase C): migrado a **Declarative Web Push** (formato `web_push:8030` + `notification` con `navigate`) retrocompatible: iOS 18.4+ muestra la notif SIN SW; navegadores viejos/Android siguen usando este SW (lee ambos formatos + respeta `navigate`). Deep-links `?openTab=` ahora enrutan a la pestaña de Amigos correcta. Ver [[Capacidades-iOS-Fases-ABC]] y ADR-037. Commit `016ddfd`.
