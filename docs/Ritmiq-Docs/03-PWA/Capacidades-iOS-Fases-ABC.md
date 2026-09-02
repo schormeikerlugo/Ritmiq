@@ -4,8 +4,8 @@ capa: pwa
 plataforma: pwa
 estado: estable
 ultima-revision: 2026-09-02
-archivo: apps/pwa/vite.config.js, packages/ui/src/App.jsx, supabase/functions/send-push-notification
-tags: [pwa, ios, manifest, shortcuts, share-target, web-push, declarative, gesto, edge-swipe]
+archivo: apps/pwa/vite.config.js, packages/ui/src/App.jsx, packages/ui/src/stores/search.js, supabase/functions/send-push-notification
+tags: [pwa, ios, manifest, shortcuts, share-target, web-push, declarative, gesto, edge-swipe, clipboard]
 ---
 
 # Capacidades iOS — Fases A / B / C + gesto de "volver"
@@ -27,7 +27,7 @@ Archivo: `apps/pwa/vite.config.js` (bloque `manifest`).
 | Campo | Qué aporta |
 |---|---|
 | `shortcuts` (4) | Al mantener pulsado el icono (iOS 26 / Android): **Buscar, Favoritas, Amigos, Descargas**. Cada uno abre `/?go=<vista>`. |
-| `share_target` (GET) | Ritmiq aparece en la hoja **Compartir** del sistema. Al compartirle una URL/texto (p.ej. enlace de YouTube) abre `/?source=share_target&shared_url=…`. |
+| `share_target` (GET) | Registra Ritmiq como destino de "Compartir" **sólo en Android** (Chrome/Edge). Al compartirle una URL/texto abre `/?source=share_target&shared_url=…`. **NO funciona en iOS/Safari** (ver aviso abajo). |
 | `launch_handler` | `navigate-existing`: reabrir reusa la ventana abierta (no corta reproducción ni duplica instancias). |
 | `display_override` | `[standalone, minimal-ui]`. |
 | `categories` | `[music, entertainment]`. |
@@ -36,6 +36,16 @@ Archivo: `apps/pwa/vite.config.js` (bloque `manifest`).
 **Enrutado de la intención** — `packages/ui/src/App.jsx`:
 - `detectLaunchIntent()` (nivel módulo): lee `?go=`, `?openTab=`, `?shared_url/text/title`, limpia esos params con `history.replaceState` y guarda `initialLaunchIntent`.
 - Un `useEffect` que corre **una vez al haber usuario** ejecuta la intención: `goSearchView`/`goFriends`/`goDownloads`/`goPlaylist(favoritesId)` o `goSearch(query)` para lo compartido.
+
+> [!warning] Web Share Target NO funciona en iOS (`039576b`)
+> El `share_target` del manifest es **"Limited availability"** ([MDN](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/share_target)) — **Safari/iOS NO lo soporta** (sólo Android Chrome/Edge). Es una limitación de Apple, no del código. Por eso "Compartir → Ritmiq" desde YouTube **nunca aparece en iPhone**.
+>
+> **Fallback universal implementado** (iOS + Android), sin depender del share target:
+> 1. **Búsqueda por ytId** — `stores/search.js` `fetch()`: si la query es un enlace/id de YouTube (`extractYtId`, ahora exportado desde `lib/api.js` y con soporte `music.youtube.com`), se busca por el **ytId** → el primer resultado es exactamente ese video (antes se hacía una búsqueda difusa por la URL y fallaba).
+> 2. **Chip "Pegar link de YouTube copiado"** — `SearchView.jsx`: con la búsqueda vacía, si `navigator.clipboard.readText()` detecta un enlace de YouTube, aparece un chip que al tocar lo busca. Best-effort (si el navegador bloquea la lectura sin gesto, falla en silencio); re-chequea al volver a foco.
+>
+> **Uso en iPhone**: en YouTube → Compartir → Copiar enlace → abrir Ritmiq → Buscar → "Pegar link de YouTube copiado" (o pegar el link en el buscador).
+> **Android**: el share target sí funciona, pero hay que **reinstalar la PWA** para refrescar el manifest cacheado.
 
 ---
 
@@ -93,7 +103,8 @@ Replica el back nativo de iOS/Android en la PWA standalone (donde no hay back de
 
 ## Verificación
 
-- Manifest generado con los 4 shortcuts, share_target GET, launch_handler, categories y 2 screenshots (assets copiados a `dist/`).
+- Manifest generado con los 4 shortcuts, share_target GET (Android), launch_handler, categories y 2 screenshots (assets copiados a `dist/`).
+- Fallback iOS: buscar por ytId devuelve el video exacto (verificado en el servidor 24/7 y en el Edge `search-youtube`); el chip de portapapeles aparece con un enlace de YouTube copiado.
 - Payload declarativo validado (checks: `web_push:8030`, `navigate` correcta, `app_badge`, retrocompat de campos planos). `notify-playlist-pulled` → push no rompe la cadena. Edge desplegada.
 - Builds PWA + desktop verdes en cada fase. En desktop el gesto es no-op (check táctil).
 
