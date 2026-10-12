@@ -3,9 +3,9 @@ tipo: modulo
 capa: servidor
 plataforma: servidor
 estado: estable
-ultima-revision: 2026-08-11
+ultima-revision: 2026-10-12
 archivo: packages/server-core/src/auth-jwt.js
-tags: [servidor, seguridad, jwt, supabase, es256, jwks, cuenta-servicio]
+tags: [ servidor, seguridad, jwt, supabase, es256, jwks, cuenta-servicio ]
 ---
 
 # Autenticación y JWT (Fase 4)
@@ -70,7 +70,10 @@ necesita un JWT **propio** para operar como usuario contra Supabase (publicar su
 endpoint + leer/publicar el cache global de URLs, Fase 2). Como es headless (sin
 renderer que llame a `setSupabaseUserJwt`), `apps/server/src/index.js` obtiene el
 token vía `endpoint-registry.getOwnerAccessToken()` y lo inyecta al lan-server,
-refrescándolo cada 30min.
+refrescándolo cada 10 min. **Fix 2026-10**: renueva si faltan <15 min (antes <2
+min con sync cada 30 min) y, si el refresh falla, hace re-login completo. Antes
+se entregaba un JWT caducado y `publish-stream-url` respondía 401 (45 fallos en
+48 h: caché global rota).
 
 Se usa una **cuenta de servicio dedicada** (`servidor@ritmiq.org`, user_id
 `54905c8d-…`) — separada de la cuenta personal — configurada en

@@ -3,9 +3,9 @@ tipo: hook
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-10-12
 archivo: packages/ui/src/lib/use-player.js
-tags: [hook, player, audio, mediasession, ios, precarga]
+tags: [ hook, player, audio, mediasession, ios, precarga ]
 ---
 
 # `usePlayerEngine()`
@@ -280,4 +280,5 @@ sequenceDiagram
 | Precarga en shuffle | Se precarga un track que no es el próximo → precarga desperdiciada, sin mejora de latencia. |
 
 ## Notas / Changelog
+- 2026-10-12: `loadAndPlayCurrent` mide el tiempo hasta que suena (o hasta el error tras el reintento) y lo envía con `recordPlaybackMetric` ([[playback_metrics]]).
 - 2026-05-22: nivel pleno. Nota más larga del vault — justificado por la complejidad de iOS background audio.

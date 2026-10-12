@@ -32,6 +32,7 @@ import {
 import { getLocalBlobUrl, getJamBlobUrl, cacheJamTrack } from './local-downloads.js';
 import { ensureServerPairing, getDeviceToken, getAutoPairResult } from './device.js';
 import { registerAudioPrime } from './audio-prime.js';
+import { recordPlaybackMetric } from './playback-metrics.js';
 
 /**
  * Telemetria de orígenes de stream — singleton in-memory. Cuenta cuantas
@@ -1075,6 +1076,11 @@ export function usePlayerEngine() {
      * fallback del crossfade.
      */
     async function loadAndPlayCurrent(track, fingerprint, isCancelled) {
+      // Telemetría: tiempo desde aquí hasta que suena (incluye reintento).
+      const tLoad = performance.now();
+      const metricYtId = track.ytId
+        || (typeof track.id === 'string' && track.id.startsWith('yt:') ? track.id.slice(3) : null);
+      let metricOrigin = null;
       // Un intento completo de resolver+cargar+reproducir. Devuelve true si
       // sonó, o lanza si falló (para que el caller decida reintentar).
       async function attempt() {
@@ -1095,10 +1101,12 @@ export function usePlayerEngine() {
         const { url } = resolved;
         if (isCancelled()) return false;
         recordStreamOrigin(resolved.origin);
+        metricOrigin = resolved.origin;
         await backend.load(url);          // ahora con timeout/stall-recovery
         if (isCancelled()) return false;
         await backend.play();
         if (isCancelled()) return false;
+        recordPlaybackMetric({ ytId: metricYtId, ms: performance.now() - tLoad, origin: metricOrigin });
         // ARREGLO #2: marcar "cargado" SOLO tras play() exitoso. Antes se
         // marcaba tras load() (antes de confirmar reproducción); si play()
         // fallaba, las refs quedaban seteadas y los atajos 974/986 impedían
@@ -1126,6 +1134,9 @@ export function usePlayerEngine() {
           return; // reintento OK
         } catch (err2) {
           console.error('[player] load failed (tras reintento)', err2);
+          if (!isCancelled()) {
+            recordPlaybackMetric({ ytId: metricYtId, ms: performance.now() - tLoad, origin: metricOrigin, outcome: 'error' });
+          }
           // ARREGLO #2: limpiar refs para permitir re-tocar la misma canción.
           loadedTrackIdRef.current = null;
           loadedFingerprintRef.current = null;

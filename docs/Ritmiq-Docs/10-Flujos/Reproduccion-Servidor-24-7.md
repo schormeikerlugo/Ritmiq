@@ -3,8 +3,8 @@ tipo: flujo
 capa: flujo
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-08-11
-tags: [flujo, servidor, headless, streaming, cache, prewarm, progresivo, ios]
+ultima-revision: 2026-10-12
+tags: [ flujo, servidor, headless, streaming, cache, prewarm, progresivo, ios ]
 ---
 
 # Reproducción vía Servidor 24/7
@@ -52,6 +52,13 @@ sequenceDiagram
     SRV-->>U: proxy PROGRESIVO (primer byte ~1-3s) + tee
   end
 ```
+
+## Actualización 2026-10: descarga progresiva compartida + prefetch
+
+El proxy+tee de abajo se sustituyó por una **descarga progresiva compartida**
+(una por canción; todos los Range de Safari se sirven del archivo que crece) y el
+servidor **pre-descarga todas las bibliotecas** cada 10 min. Detalle y cifras en
+[[Cache-y-Rendimiento#Descarga progresiva compartida + prefetch de bibliotecas (2026-10)]] y ADR-039.
 
 ## Servido progresivo en cache-miss (Fase 1)
 

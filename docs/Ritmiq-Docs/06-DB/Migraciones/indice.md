@@ -47,6 +47,8 @@ tags: [migraciones, indice, postgres]
 | 2026-05-28 | `jam_mode.sql` | Tablas `jam_sessions` + `jam_participants` + Realtime + RLS + cron 24h | [[jam_sessions]], [[jam_participants]] |
 | 2026-05-29 | `jam_roles.sql` | Columna `jam_participants.role` + RPC `jam_transfer_host` (pasar control) | [[jam_participants]] |
 | 2026-08-10 | `streak_tz_and_milestones.sql` | `compute_user_streak` con timezone del perfil + trofeos cada 30 días + backfill | [[Racha]] |
+| 2026-10-12 | `library_prefetch.sql` | Tabla `prefetch_principals` + RPC `get_prefetch_targets` (servidor pre-descarga todas las bibliotecas) | [[prefetch_principals]] |
+| 2026-10-12 | `playback_metrics.sql` | Tabla `playback_metrics` (tiempo hasta que suena, RLS dueño) | [[playback_metrics]] |
 | 2026-10-12 | `streak_repairs.sql` | Tabla `streak_repairs` + RPC `get_streak_repair_offer`/`repair_streak` (5 intentos/mes) + tope de racha 3650 días | [[streak_repairs]], [[Racha]] |
 
 > Nota: este índice se actualizó parcialmente en F12 (entradas de F4-F8). Las migraciones de

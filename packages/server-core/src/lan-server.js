@@ -12,7 +12,7 @@
 import http from 'node:http';
 import { cpus } from 'node:os';
 import { Readable, PassThrough } from 'node:stream';
-import { createReadStream, createWriteStream, statSync, existsSync, mkdirSync, renameSync, unlink } from 'node:fs';
+import { createReadStream, statSync, existsSync, mkdirSync, readdirSync, unlink } from 'node:fs';
 import { join } from 'node:path';
 import { Bonjour } from 'bonjour-service';
 import { dataSubdir } from './host.js';
@@ -38,6 +38,7 @@ import {
   listDevicesForUser, listPairRequestsForUser, getDeviceOwnerUserId,
 } from './devices.js';
 import { getCookieFileForDevice, invalidateDeviceCookies, encryptCookies } from './device-cookies.js';
+import { createProgressiveAudio, durationFromUrl } from './progressive-audio.js';
 import {
   startLoginSession, getLoginStatus, stopLoginSession, isDockerAvailable,
 } from './youtube-login.js';
@@ -694,6 +695,13 @@ export async function startLanServer({
     const inflight = inflightDownloads.get(ytId);
     if (inflight) return inflight;
 
+    // Si ya hay una descarga progresiva de este ytId, esperarla en vez de
+    // lanzar yt-dlp en paralelo sobre el mismo destino.
+    const prog = progressive.get(ytId);
+    if (prog) {
+      try { return await prog.finished; } catch { /* cae a yt-dlp */ }
+    }
+
     const promise = (async () => {
       const outBase = join(sharedAudioDir, ytId);
       const t0 = Date.now();
@@ -721,207 +729,115 @@ export async function startLanServer({
     return promise;
   }
 
-  // ── FASE 1: Servido PROGRESIVO con tee a disco ──────────────────────
-  // Reemplaza (en el camino m4a-nativo) la descarga bloqueante por un
-  // proxy en vivo googlevideo→cliente que ADEMÁS guarda el archivo a
-  // shared-audio en paralelo (tee). El cliente recibe el primer byte en
-  // ~1-3s (resolver URL) en vez de ~6-12s (descargar todo), y el archivo
-  // queda cacheado para la próxima reproducción.
-  //
-  // Anti-502: como resolvemos la URL ANTES y hacemos fetch con Range, el
-  // servidor obtiene el primer chunk en cientos de ms y ya reenvía al
-  // túnel — Cloudflare nunca ve un backend "colgado". Un timeout de primer
-  // byte (FIRST_BYTE_TIMEOUT_MS) aborta y deja que el caller caiga al
-  // método de descarga bloqueante si googlevideo tarda demasiado.
+  // ── Servido PROGRESIVO compartido (2026-10) ─────────────────────────
+  // En cache-miss se lanza UNA descarga por ytId (bloques de 10MB contra
+  // googlevideo) a un `.part` propio, y todos los Range del cliente se
+  // sirven desde ese archivo mientras crece. Reemplaza al proxy+tee anterior,
+  // que abría una conexión nueva a googlevideo por cada Range de Safari y
+  // cuyo `.part` chocaba con el de yt-dlp (la canción no quedaba en disco).
+  // Ver progressive-audio.js.
   const FIRST_BYTE_TIMEOUT_MS = (() => {
     const v = Number(process.env.RITMIQ_PROXY_FIRST_BYTE_TIMEOUT_MS);
     return Number.isFinite(v) && v > 0 ? v : 4000;
   })();
-  // Dedupe de tees: solo un request escribe el archivo por ytId a la vez.
-  const inflightTees = new Set();
+  // Restos de descargas progresivas de un proceso anterior (reinicio a mitad).
+  try {
+    for (const f of readdirSync(sharedAudioDir)) {
+      if (/\.prog-\d+-\d+\.part$/.test(f)) unlink(join(sharedAudioDir, f), () => {});
+    }
+  } catch { /* carpeta ilegible: no fatal */ }
+  const progressive = createProgressiveAudio({
+    dir: sharedAudioDir,
+    firstByteTimeoutMs: FIRST_BYTE_TIMEOUT_MS,
+    onComplete: (e) => {
+      registerSharedAudio(db, { ytId: e.ytId, filePath: e.finalPath, mime: 'audio/mp4', size: e.total ?? 0 });
+      console.log(`[lan-server] progressive ${e.ytId} guardado en disco (${e.total} bytes)`);
+    },
+  });
 
   /**
-   * Proxy en vivo con tee a disco. Solo debe usarse cuando la URL es m4a
-   * NATIVO (iOS Safari no decodifica opus/webm).
+   * Arranca (o reutiliza) la descarga progresiva de una URL m4a nativa.
+   * @param {string} ytId
+   * @param {string} streamUrl
+   * @param {object|null} dlOpts
+   */
+  function startProgressive(ytId, streamUrl, dlOpts) {
+    return progressive.get(ytId) ?? progressive.start(ytId, streamUrl, {
+      onUpstreamDead: async () => {
+        streamCache.delete(ytId);
+        return resolveCached(ytId, 10, dlOpts);
+      },
+    });
+  }
+
+  /**
+   * Sirve un ytId: disco si existe; si no, descarga progresiva (m4a nativo)
+   * con fallback a descarga+remux y, en último caso, proxy en vivo.
    *
    * @param {http.IncomingMessage} req
    * @param {http.ServerResponse} res
    * @param {string} ytId
-   * @param {string} upstreamUrl  URL directa de googlevideo (m4a nativo).
-   * @param {() => Promise<string>} onUpstreamDead  Re-resuelve la URL si 403/410.
-   * @returns {Promise<{ ok: boolean, servedFirstByte: boolean }>}
-   *   ok=false ⇒ el caller debe caer al fallback (downloadSharedAudio).
-   *   Si servedFirstByte=true ya escribimos al cliente: NO reintentar.
+   * @param {object|null} dlOpts  Opciones yt-dlp del solicitante (cookies).
+   * @param {string} label        Prefijo de log (p. ej. `yt:<id>`).
    */
-  async function proxyAudioWithCache(req, res, ytId, upstreamUrl, onUpstreamDead) {
-    /** @type {Record<string,string>} */
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 ' +
-                    '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    };
-    const clientRange = req.headers.range ? String(req.headers.range) : null;
-    if (clientRange) headers['Range'] = clientRange;
-
-    // Fetch con timeout de primer byte (headers). AbortController corta si
-    // googlevideo no responde a tiempo → caemos al fallback bloqueante.
-    const ac = new AbortController();
-    const firstByteTimer = setTimeout(() => ac.abort(), FIRST_BYTE_TIMEOUT_MS);
-    let upstream;
+  async function serveYouTube(req, res, ytId, dlOpts, label) {
+    const tStart = Date.now();
     try {
-      upstream = await fetch(upstreamUrl, { headers, signal: ac.signal });
+      const shared = findSharedAudio(db, ytId);
+      if (shared?.filePath && existsSync(shared.filePath)) {
+        console.log(`[lan-server] stream ${label} SHARED HIT ${Date.now() - tStart}ms`);
+        return serveLocalFile(req, res, shared.filePath);
+      }
     } catch (err) {
-      clearTimeout(firstByteTimer);
-      console.warn(`[lan-server] proxy+cache ${ytId} sin primer byte (${err?.name === 'AbortError' ? 'timeout' : err?.message}) → fallback`);
-      return { ok: false, servedFirstByte: false };
+      console.warn(`[lan-server] findSharedAudio fallo (no fatal): ${err?.message ?? err}`);
     }
-    clearTimeout(firstByteTimer);
 
-    // URL muerta (403/410/401): re-resolver UNA vez y reintentar.
-    if ((upstream.status === 403 || upstream.status === 410 || upstream.status === 401)
-        && typeof onUpstreamDead === 'function') {
-      console.warn(`[lan-server] proxy+cache ${ytId} upstream ${upstream.status} — re-resolviendo`);
-      try {
-        const fresh = await onUpstreamDead();
-        if (fresh && fresh !== upstreamUrl) {
-          const ac2 = new AbortController();
-          const t2 = setTimeout(() => ac2.abort(), FIRST_BYTE_TIMEOUT_MS);
-          try {
-            upstream = await fetch(fresh, { headers, signal: ac2.signal });
-          } finally { clearTimeout(t2); }
-          upstreamUrl = fresh;
+    try {
+      const inflightProg = progressive.get(ytId);
+      const streamUrl = inflightProg ? inflightProg.url : await resolveCached(ytId, 10, dlOpts);
+      if (isNativeM4aUrl(streamUrl)) {
+        const entry = startProgressive(ytId, streamUrl, dlOpts);
+        const r = await progressive.serve(req, res, entry);
+        if (r === 'served') {
+          console.log(`[lan-server] stream ${label} PROGRESSIVE ${Date.now() - tStart}ms range=${req.headers.range ?? '-'}`);
+          return;
         }
-      } catch (e) {
-        console.warn(`[lan-server] proxy+cache ${ytId} re-resolve falló: ${e?.message ?? e}`);
+        if (r === 'far') {
+          console.log(`[lan-server] stream ${label} PROXY-SEEK range=${req.headers.range ?? '-'}`);
+          return proxyAudio(req, res, entry.url, async () => {
+            streamCache.delete(ytId);
+            return resolveCached(ytId, 10, dlOpts);
+          });
+        }
+        console.warn(`[lan-server] stream ${label} progresivo no listo (${entry.error?.message ?? 'timeout'}) → fallback`);
+      } else {
+        console.log(`[lan-server] stream ${label} no-m4a nativo → descarga+remux`);
       }
-    }
-
-    // Si sigue rechazando, no es URL caducada: dejar al caller decidir
-    // (probablemente falten cookies) — el fallback de descarga dará un
-    // error claro. NO hemos escrito nada al cliente todavía.
-    if (upstream.status === 403 || upstream.status === 410 || upstream.status === 401 || !upstream.body) {
-      return { ok: false, servedFirstByte: false };
-    }
-
-    // Solo cacheamos (tee) en la reproducción lineal COMPLETA: el cuerpo que
-    // recibimos debe ser el archivo entero desde el byte 0. Dos casos:
-    //   - 200: respuesta completa (sin Range o el servidor ignoró el Range).
-    //   - 206 con Content-Range 'bytes 0-N/(N+1)': googlevideo respondió al
-    //     'Range: bytes=0-' del <audio> con TODO el archivo desde 0. iOS/
-    //     Safari suele arrancar así. Solo teeamos si empieza en 0 y llega
-    //     hasta el final (end == total-1). Los seeks (Range en medio) o
-    //     rangos parciales hacen proxy simple sin cachear.
-    const startsAtZero = !clientRange || /^bytes=0-/.test(clientRange);
-    let coversWholeFile = upstream.status === 200;
-    if (!coversWholeFile && upstream.status === 206) {
-      const cr = upstream.headers.get('content-range') || '';
-      const m = /^bytes\s+(\d+)-(\d+)\/(\d+)$/.exec(cr.trim());
-      if (m) {
-        const start = Number(m[1]); const end = Number(m[2]); const total = Number(m[3]);
-        coversWholeFile = start === 0 && end === total - 1;
+    } catch (err) {
+      // Video permanentemente no disponible (borrado/privado/geo/etc):
+      // NO reintentar con descarga. 404 claro; el cliente salta.
+      if (err?.permanent || /video_unavailable/i.test(String(err?.message ?? err))) {
+        console.log(`[lan-server] stream ${label} NO DISPONIBLE (fast-fail) ${Date.now() - tStart}ms`);
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'video_unavailable' }));
+        return;
       }
-    }
-    const canTee = startsAtZero && coversWholeFile
-      && !findSharedAudio(db, ytId) && !inflightTees.has(ytId);
-
-    // Passthrough de headers relevantes.
-    const passthrough = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
-    for (const h of passthrough) {
-      const v = upstream.headers.get(h);
-      if (v) res.setHeader(h, v);
-    }
-    if (!upstream.headers.get('accept-ranges')) res.setHeader('Accept-Ranges', 'bytes');
-    if (!upstream.headers.get('content-type')) res.setHeader('Content-Type', 'audio/mp4');
-    res.setHeader('Cache-Control', 'no-store, no-transform');
-    res.writeHead(upstream.status);
-
-    const nodeStream = Readable.fromWeb(upstream.body);
-    let clientClosed = false;
-
-    // ── Tee a disco (opcional) ──────────────────────────────────────────
-    let diskStream = null;
-    let partPath = null;
-    let finalPath = null;
-    let teeAborted = false;
-    if (canTee) {
-      inflightTees.add(ytId);
-      finalPath = join(sharedAudioDir, `${ytId}.m4a`);
-      partPath = `${finalPath}.part`;
-      try {
-        diskStream = createWriteStream(partPath);
-        diskStream.on('error', (e) => {
-          // Un fallo de disco NO debe romper la reproducción del cliente.
-          teeAborted = true;
-          console.warn(`[lan-server] tee ${ytId} error de disco (no fatal): ${e?.message ?? e}`);
-          try { diskStream.destroy(); } catch {}
-        });
-      } catch (e) {
-        console.warn(`[lan-server] tee ${ytId} no se pudo abrir .part: ${e?.message ?? e}`);
-        diskStream = null;
-        inflightTees.delete(ytId);
-      }
+      console.warn(`[lan-server] stream ${label} resolveCached falló (${err?.message ?? err}) → fallback a descarga`);
     }
 
-    const cleanupPart = () => {
-      if (partPath) unlink(partPath, () => {});
-    };
-    const finishTee = () => {
-      if (!diskStream) return;
-      inflightTees.delete(ytId);
-      if (teeAborted || clientClosed) { cleanupPart(); return; }
-      // Si la descarga background (yt-dlp con chunks) ya guardó el archivo
-      // final, descartar nuestro .part para no pisarnos (ambos son el mismo
-      // audio; evita una carrera de rename sobre el mismo destino).
-      if (findSharedAudio(db, ytId)) { cleanupPart(); return; }
-      // Renombrar .part → .m4a y registrar en el índice compartido.
-      try {
-        renameSync(partPath, finalPath);
-        let size = 0;
-        try { size = statSync(finalPath).size; } catch {}
-        registerSharedAudio(db, { ytId, filePath: finalPath, mime: 'audio/mp4', size });
-        console.log(`[lan-server] proxy+cache ${ytId} guardado en disco (${size} bytes)`);
-      } catch (e) {
-        console.warn(`[lan-server] tee ${ytId} finalize falló: ${e?.message ?? e}`);
-        cleanupPart();
-      }
-    };
-
-    return await new Promise((resolve) => {
-      let settled = false;
-      const settle = (v) => { if (!settled) { settled = true; resolve(v); } };
-
-      nodeStream.on('error', (err) => {
-        if (clientClosed) return; // abort intencional del cliente
-        console.warn(`[lan-server] proxy+cache ${ytId} stream error: ${err?.message}`);
-        teeAborted = true;
-        try { if (diskStream) diskStream.destroy(); } catch {}
-        finishTee();
-        try { res.end(); } catch {}
-        settle({ ok: true, servedFirstByte: true });
+    // Fallback bloqueante: descargar (+remux si hace falta) y servir.
+    try {
+      const filePath = await downloadSharedAudio(ytId, dlOpts);
+      console.log(`[lan-server] stream ${label} DOWNLOADED+SERVE ${Date.now() - tStart}ms`);
+      return serveLocalFile(req, res, filePath);
+    } catch (err) {
+      console.warn(`[lan-server] stream ${label} download falló, fallback a proxy: ${err?.message ?? err}`);
+      const streamUrl = await resolveCached(ytId, 10, dlOpts);
+      return proxyAudio(req, res, streamUrl, async () => {
+        streamCache.delete(ytId);
+        return resolveCached(ytId, 10, dlOpts);
       });
-
-      res.on('close', () => {
-        // Cliente cerró antes de terminar (cambió de canción / seek). El
-        // .part queda incompleto → descartar.
-        clientClosed = true;
-        teeAborted = true;
-        try { nodeStream.destroy(); } catch {}
-        try { if (diskStream) diskStream.destroy(); } catch {}
-        finishTee();
-        settle({ ok: true, servedFirstByte: true });
-      });
-
-      nodeStream.on('end', () => {
-        // Descarga lineal completa: el archivo quedó entero → persistir.
-        if (diskStream && !teeAborted) diskStream.end();
-        finishTee();
-        settle({ ok: true, servedFirstByte: true });
-      });
-
-      // Pipe al cliente; tee a disco si aplica. `end:false` en el disco lo
-      // cerramos manualmente en 'end' para controlar el finalize.
-      if (diskStream) nodeStream.pipe(diskStream, { end: false });
-      nodeStream.pipe(res);
-    });
+    }
   }
 
   // ── Cola de descarga anticipada (prewarm con download=1, Fase D1) ───
@@ -944,35 +860,83 @@ export async function startLanServer({
   let prewarmDlRunning = 0;
   const prewarmDlQueue = [];
   const prewarmDlSeen = new Set(); // dedupe: no encolar el mismo ytId dos veces
+  // Prefetch de bibliotecas (Fase 2): ids omitidos (largos) o fallidos no se
+  // reintentan durante 24h para no gastar yt-dlp en cada ciclo.
+  const PREFETCH_RETRY_MS = 24 * 60 * 60 * 1000;
+  /** @type {Map<string, number>} */
+  const prefetchSkipUntil = new Map();
   function pumpPrewarmDl() {
     while (prewarmDlRunning < PREWARM_DL_CONCURRENCY && prewarmDlQueue.length > 0) {
       const { ytId, dlOpts } = prewarmDlQueue.shift();
       prewarmDlRunning++;
       (async () => {
-        // Guard de duración: consultamos metadata (barata) y omitimos los
-        // contenidos largos en la descarga automática.
-        try {
-          const meta = await getMetadata(ytId, dlOpts);
-          const dur = Number(meta?.duration);
-          if (Number.isFinite(dur) && dur > PREWARM_DL_MAX_DURATION_S) {
-            console.log(`[lan-server] prewarm-download ${ytId} OMITIDO (${Math.round(dur / 60)}min > límite)`);
-            return;
-          }
-        } catch { /* si falla metadata, seguimos con la descarga */ }
+        if (findSharedAudio(db, ytId)) return;
+        // Resolver la URL (p=1: un click real la desaloja) y usar su `dur=`
+        // como guard de duración, sin una llamada extra a yt-dlp. Si es m4a
+        // nativo, descarga progresiva directa desde googlevideo (más rápida
+        // que yt-dlp, que re-resuelve); si no, yt-dlp con remux.
+        const url = await resolveCached(ytId, 1, dlOpts);
+        const dur = durationFromUrl(url);
+        if (dur && dur > PREWARM_DL_MAX_DURATION_S) {
+          console.log(`[lan-server] prewarm-download ${ytId} OMITIDO (${Math.round(dur / 60)}min > límite)`);
+          prefetchSkipUntil.set(ytId, Date.now() + PREFETCH_RETRY_MS);
+          return;
+        }
+        if (isNativeM4aUrl(url)) {
+          await startProgressive(ytId, url, dlOpts).finished;
+          return;
+        }
         await downloadSharedAudio(ytId, dlOpts);
       })()
-        .catch((e) => console.warn(`[lan-server] prewarm-download ${ytId} falló: ${e?.message ?? e}`))
+        .catch((e) => {
+          const msg = String(e?.message ?? e);
+          console.warn(`[lan-server] prewarm-download ${ytId} falló: ${msg}`);
+          // Desalojado por un click real: no es un fallo del video.
+          if (!/cancelled/i.test(msg)) prefetchSkipUntil.set(ytId, Date.now() + PREFETCH_RETRY_MS);
+        })
         .finally(() => { prewarmDlRunning--; prewarmDlSeen.delete(ytId); pumpPrewarmDl(); });
     }
   }
-  function schedulePrewarmDownload(ytId, dlOpts) {
-    if (!ytId) return;
+  /**
+   * @param {string} ytId
+   * @param {object|null} dlOpts
+   * @param {{ background?: boolean }} [opts]  background=true (prefetch de
+   *   bibliotecas) va al final de la cola; lo pedido por un usuario (prewarm
+   *   de búsqueda) se adelanta.
+   */
+  function schedulePrewarmDownload(ytId, dlOpts, { background = false } = {}) {
+    if (!ytId) return false;
     // Ya cacheado en disco → nada que hacer.
-    if (findSharedAudio(db, ytId)) return;
-    if (prewarmDlSeen.has(ytId)) return;
+    if (findSharedAudio(db, ytId)) return false;
+    if (prewarmDlSeen.has(ytId)) return false;
     prewarmDlSeen.add(ytId);
-    prewarmDlQueue.push({ ytId, dlOpts });
+    if (background) prewarmDlQueue.push({ ytId, dlOpts });
+    else prewarmDlQueue.unshift({ ytId, dlOpts });
     pumpPrewarmDl();
+    return true;
+  }
+
+  /**
+   * Prefetch de bibliotecas (Fase 2): encola en segundo plano los ytIds que
+   * aún no están en disco, en el orden recibido (prioridad del caller), con
+   * un máximo por llamada para no disparar ráfagas de yt-dlp contra YouTube.
+   *
+   * @param {string[]} ytIds
+   * @param {{ limit?: number }} [opts]
+   * @returns {{ queued: number, missing: number, pending: number }}
+   */
+  function prefetch(ytIds, { limit = 60 } = {}) {
+    const now = Date.now();
+    let queued = 0;
+    let missing = 0;
+    for (const id of ytIds) {
+      if (!/^[A-Za-z0-9_-]{11}$/.test(id)) continue;
+      if (findSharedAudio(db, id)) continue;
+      if ((prefetchSkipUntil.get(id) ?? 0) > now) continue;
+      missing++;
+      if (queued < limit && schedulePrewarmDownload(id, null, { background: true })) queued++;
+    }
+    return { queued, missing, pending: prewarmDlQueue.length + prewarmDlRunning };
   }
 
   // Cache en memoria de URLs de stream resueltas por yt-dlp.
@@ -1705,8 +1669,12 @@ export async function startLanServer({
         // redundantes que se veían en los logs tras cada CACHE HIT).
         const alreadyFile = (() => { try { return !!findSharedAudio(db, ytId); } catch { return false; } })();
         const cachedUrl = streamCache.get(ytId);
-        const urlFresh = cachedUrl && ((cachedUrl.url && cachedUrl.expiresAt > Date.now()) || cachedUrl.inflight);
-        if (alreadyFile || urlFresh) {
+        const urlReady = cachedUrl && cachedUrl.url && cachedUrl.expiresAt > Date.now();
+        const urlInflight = cachedUrl && !urlReady && cachedUrl.inflight;
+        // Con wait=1 una resolución EN VUELO no basta: antes se respondía 204
+        // al instante y el /stream volvía a esperar a yt-dlp (iOS abortaba).
+        // resolveCached(…, 10) se engancha al inflight y lo promueve.
+        if (alreadyFile || urlReady || (urlInflight && url.searchParams.get('wait') !== '1')) {
           res.writeHead(204).end();
           return;
         }
@@ -2037,86 +2005,8 @@ export async function startLanServer({
             console.warn(`[lan-server] lookup tracks by yt_id fallo (no fatal): ${err?.message ?? err}`);
           }
 
-          // 2. shared_audio (cache compartido + indice de todos los
-          //    archivos descargados de la app via backfill al arranque).
-          try {
-            const shared = findSharedAudio(db, ytId);
-            if (shared?.filePath && existsSync(shared.filePath)) {
-              console.log(`[lan-server] stream yt:${ytId} SHARED HIT ${Date.now() - tStart}ms`);
-              return serveLocalFile(req, res, shared.filePath);
-            }
-          } catch (err) {
-            console.warn(`[lan-server] findSharedAudio fallo (no fatal): ${err?.message ?? err}`);
-          }
-
-          // 3. Miss: SERVIDO PROGRESIVO (Fase 1) con fallback a descarga.
-          //
-          // Estrategia (TTFB ~6-12s → ~1-3s):
-          //   a) Resolver SOLO la URL directa de googlevideo (~1-3s, cacheada
-          //      30min + stream_url_cache global).
-          //   b) Si es m4a NATIVO → proxyAudioWithCache: proxy en vivo al
-          //      cliente (primer byte inmediato) + tee a disco en paralelo
-          //      (queda cacheado para la próxima). Anti-502: fetch con Range
-          //      + timeout de primer byte; si googlevideo tarda, abortamos y
-          //      caemos a la descarga bloqueante.
-          //   c) Si NO es m4a (opus/webm — iOS Safari no lo decodifica) o el
-          //      proxy no llegó a servir primer byte → downloadSharedAudio
-          //      (descarga + remux a m4a, bloqueante, como antes). Cero
-          //      regresión: en el peor caso queda igual que el diseño previo.
-          const ytOpts0 = ytOptsFor(principal);
-
-          try {
-            const streamUrl = await resolveCached(ytId, 10, ytOpts0);
-            if (isNativeM4aUrl(streamUrl)) {
-              // Garantía de cache: encolar una descarga con chunks en
-              // background (yt-dlp --http-chunk-size, robusto contra el
-              // throttle de googlevideo). El tee del proxy es best-effort
-              // (googlevideo puede estrangular la conexión lineal larga);
-              // esta descarga asegura que el archivo quede cacheado para la
-              // próxima aunque el tee no complete. schedulePrewarmDownload
-              // deduplica y se omite si el tee ya guardó el archivo.
-              schedulePrewarmDownload(ytId, ytOpts0);
-              const r = await proxyAudioWithCache(req, res, ytId, streamUrl, async () => {
-                streamCache.delete(ytId);
-                return resolveCached(ytId, 10, ytOpts0);
-              });
-              if (r.ok) {
-                console.log(`[lan-server] stream yt:${ytId} PROXY+CACHE ${Date.now() - tStart}ms`);
-                return;
-              }
-              // proxy no sirvió (timeout/403) y NO escribió al cliente → fallback.
-              console.warn(`[lan-server] stream yt:${ytId} proxy no sirvió, fallback a descarga`);
-            } else {
-              console.log(`[lan-server] stream yt:${ytId} no-m4a nativo → descarga+remux`);
-            }
-          } catch (err) {
-            // Video permanentemente no disponible (borrado/privado/geo/etc):
-            // NO reintentar con descarga (perdería ~14s más). Devolver 404
-            // claro de inmediato; el cliente muestra "no disponible" y salta.
-            if (err?.permanent || /video_unavailable/i.test(String(err?.message ?? err))) {
-              console.log(`[lan-server] stream yt:${ytId} NO DISPONIBLE (fast-fail) ${Date.now() - tStart}ms`);
-              res.writeHead(404, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'video_unavailable' }));
-              return;
-            }
-            console.warn(`[lan-server] stream yt:${ytId} resolveCached falló (${err?.message ?? err}) → fallback a descarga`);
-          }
-
-          // Fallback bloqueante: descargar (+remux si hace falta) y servir
-          // archivo local. Coalescing incluido.
-          try {
-            const filePath = await downloadSharedAudio(ytId, ytOpts0);
-            console.log(`[lan-server] stream yt:${ytId} DOWNLOADED+SERVE ${Date.now() - tStart}ms`);
-            return serveLocalFile(req, res, filePath);
-          } catch (err) {
-            console.warn(`[lan-server] stream yt:${ytId} download falló, fallback a proxy: ${err?.message ?? err}`);
-            // Último recurso: proxy en vivo simple (con re-resolución si 403).
-            const streamUrl = await resolveCached(ytId, 10, ytOpts0);
-            return proxyAudio(req, res, streamUrl, async () => {
-              streamCache.delete(ytId);
-              return resolveCached(ytId, 10, ytOpts0);
-            });
-          }
+          // 2-3. shared_audio o descarga progresiva (ver serveYouTube).
+          return serveYouTube(req, res, ytId, ytOptsFor(principal), `yt:${ytId}`);
         }
 
         // ── Autorización: firma HMAC emitida por Edge `sign-stream` ───────
@@ -2154,18 +2044,7 @@ export async function startLanServer({
           if (localRow?.is_downloaded && localRow.file_path && existsSync(localRow.file_path)) {
             return serveLocalFile(req, res, localRow.file_path);
           }
-          if (ytId) {
-            const shared = findSharedAudio(db, ytId);
-            if (shared) {
-              console.log(`[lan-server] stream ${trackId} SHARED HIT ytId=${ytId}`);
-              return serveLocalFile(req, res, shared.filePath);
-            }
-            const streamUrl = await resolveCached(ytId, 10);
-            return proxyAudio(req, res, streamUrl, async () => {
-              streamCache.delete(ytId);
-              return resolveCached(ytId, 10);
-            });
-          }
+          if (ytId) return serveYouTube(req, res, ytId, null, `${trackId} ytId=${ytId}`);
           res.writeHead(404).end('source unavailable');
           return;
         }
@@ -2177,23 +2056,13 @@ export async function startLanServer({
             res.writeHead(404).end('source unavailable (no ytId)');
             return;
           }
-          // Cache hit cross-account: lo que el user pidio.
-          const shared = findSharedAudio(db, ytId);
-          if (shared) {
-            console.log(`[lan-server] stream ${trackId} SHARED HIT (device) ytId=${ytId}`);
-            try { logActivity(db, { deviceId: principal.device_id, action: 'stream_shared', trackId, ytId }); } catch {}
-            return serveLocalFile(req, res, shared.filePath);
-          }
           // SQLite local (track del owner descargado).
           if (localRow?.is_downloaded && localRow.file_path && existsSync(localRow.file_path)) {
             return serveLocalFile(req, res, localRow.file_path);
           }
-          const streamUrl = await resolveCached(ytId, 10, ytOptsFor(principal));
-          try { logActivity(db, { deviceId: principal.device_id, action: 'stream', trackId, ytId }); } catch {}
-          return proxyAudio(req, res, streamUrl, async () => {
-            streamCache.delete(ytId);
-            return resolveCached(ytId, 10, ytOptsFor(principal));
-          });
+          const action = findSharedAudio(db, ytId) ? 'stream_shared' : 'stream';
+          try { logActivity(db, { deviceId: principal.device_id, action, trackId, ytId }); } catch {}
+          return serveYouTube(req, res, ytId, ytOptsFor(principal), `${trackId} (device) ytId=${ytId}`);
         }
 
         // Path C: compat ACCEPT_UNSIGNED (legacy PWA sin firma ni device).
@@ -2202,26 +2071,13 @@ export async function startLanServer({
             return serveLocalFile(req, res, localRow.file_path);
           }
           if (localRow.source === 'youtube' && localRow.yt_id) {
-            const shared = findSharedAudio(db, localRow.yt_id);
-            if (shared) return serveLocalFile(req, res, shared.filePath);
-            const ytId = localRow.yt_id;
-            const streamUrl = await resolveCached(ytId, 10);
-            return proxyAudio(req, res, streamUrl, async () => {
-              streamCache.delete(ytId);
-              return resolveCached(ytId, 10);
-            });
+            return serveYouTube(req, res, localRow.yt_id, null, `${trackId} ytId=${localRow.yt_id}`);
           }
         }
         // ACCEPT_UNSIGNED + ytId por query (sin localRow): util cuando un
         // device legacy sin pairing trae el ytId en la URL.
         if (ACCEPT_UNSIGNED && ytFromQs) {
-          const shared = findSharedAudio(db, ytFromQs);
-          if (shared) return serveLocalFile(req, res, shared.filePath);
-          const streamUrl = await resolveCached(ytFromQs, 10);
-          return proxyAudio(req, res, streamUrl, async () => {
-            streamCache.delete(ytFromQs);
-            return resolveCached(ytFromQs, 10);
-          });
+          return serveYouTube(req, res, ytFromQs, null, `${trackId} ytId=${ytFromQs}`);
         }
 
         // Rechazo: firma inválida y no hay fallback.
@@ -2264,6 +2120,8 @@ export async function startLanServer({
     port: actualPort,
     /** Suscribe al renderer a nuevos pair requests (para notificacion + UI). */
     onPairRequest,
+    /** Prefetch de bibliotecas a shared-audio (servidor 24/7). */
+    prefetch,
     stop: async () => {
       try { advert?.stop?.(); } catch {}
       try { bonjour?.destroy(); } catch {}

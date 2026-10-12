@@ -3,9 +3,9 @@ tipo: modulo
 capa: servidor
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-07-17
+ultima-revision: 2026-10-12
 archivo: packages/server-core/src/lan-server.js
-tags: [servidor, lan, http, mdns, streaming, headless, jwt, cache]
+tags: [ servidor, lan, http, mdns, streaming, headless, jwt, cache ]
 ---
 
 # `lan-server.js`
@@ -395,6 +395,7 @@ sequenceDiagram
 | Cambiar el regex de CORS para no incluir trycloudflare | PWA vía Quick Tunnel recibe error CORS al primer fetch. |
 
 ## Notas / Changelog
+- 2026-10-12: **descarga progresiva compartida** (`progressive-audio.js`) sustituye a `proxyAudioWithCache` (tee); `serveYouTube()` unifica todos los caminos de `/stream`; `downloadSharedAudio` espera la descarga progresiva en curso; prewarm-download resuelve la URL y usa `dur=` como guard; `prefetch(ids, { limit })` expuesto en el objeto devuelto (prefetch de bibliotecas); `schedulePrewarmDownload(..., { background })`; fix `/yt/prewarm?wait=1` con resolución en vuelo; limpieza de `.prog-*.part` al arrancar. Ver [[Cache-y-Rendimiento]], ADR-039.
 - 2026-08-11 (Playback Fases 1-4 + fix iOS, [[Decisiones-Tecnicas-ADR|ADR-035]]): servido progresivo `proxyAudioWithCache` (proxy + tee a disco) reemplaza descarga-completa en cache-miss; `readGlobalCachedUrl` lee `stream_url_cache` antes de yt-dlp (Fase 2); `/yt/prewarm?wait=1` (await de resolución, fix iOS); acelerador InnerTube `@ritmiq/yt/innertube` (Fase 4, off por defecto); `isNativeM4aUrl`. Cuenta de servicio para el JWT del owner. Ver [[Cache-y-Rendimiento]], [[Reproduccion-Servidor-24-7]].
 - 2026-07-17 (Fases 1-4 + A-D): movido a `@ritmiq/server-core` (compartido desktop+servidor); `authorizeAdmin` + endpoints `/admin/*` y `/devices/*`; verificación JWT en `/pair`; cache de búsqueda por query; prewarm `&download=1`; `MAX_CONCURRENT` adaptativo (`RITMIQ_YTDLP_CONCURRENCY`); fix `resolveCached(dlOpts)`; login noVNC (`/youtube/link/*`). Ver [[11-Servidor-Headless/README]], [[Cache-y-Rendimiento]], [[Administracion-Dispositivos]], [[Autenticacion-y-JWT]].
 - 2026-05-22: nivel pleno (6 snippets, 10 filas qué-rompe, diagrama, perf, casos de borde).

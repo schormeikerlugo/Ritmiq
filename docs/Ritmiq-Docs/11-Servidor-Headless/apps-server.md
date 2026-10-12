@@ -3,9 +3,9 @@ tipo: aplicacion
 capa: servidor
 plataforma: servidor
 estado: estable
-ultima-revision: 2026-07-17
+ultima-revision: 2026-10-12
 archivo: apps/server/src/index.js
-tags: [servidor, headless, docker, systemd, cli]
+tags: [ servidor, headless, docker, systemd, cli ]
 ---
 
 # `apps/server` — Bootstrap headless
@@ -25,7 +25,7 @@ tags: [servidor, headless, docker, systemd, cli]
 | `src/cli.js` | CLI `ritmiq-admin` (pending, approve, reject, devices, revoke, token) |
 | `src/config.js` | `resolveDataDir()` (`RITMIQ_DATA_DIR`), `resolvePort()` (3939) |
 | `src/env.js` | carga de `.env` |
-| `src/endpoint-registry.js` | publica el endpoint `kind='server'` en Supabase (`tunnel_endpoints`) |
+| `src/endpoint-registry.js` | publica el endpoint `kind='server'` en Supabase (`tunnel_endpoints`); JWT del dueño (`getOwnerAccessToken`); `fetchPrefetchTargets()` (RPC paginada) |
 | `src/import-shared-cache.js` | re-indexa `shared-audio/` en la tabla `shared_audio` (migración de caché) |
 | `Dockerfile` | imagen Node 22 + yt-dlp + deno + docker.io (para login noVNC) |
 | `docker-compose.yml` | servicio + volumen `ritmiq-data` + montaje de `/var/run/docker.sock` |
@@ -42,6 +42,7 @@ tags: [servidor, headless, docker, systemd, cli]
 4. Si hay `RITMIQ_TUNNEL_TOKEN` o `RITMIQ_TUNNEL_MODE`: arranca `CloudflaredManager`
    y publica el endpoint `kind='server'` (para que la PWA lo descubra).
 5. `onPairRequest` → log en consola con el PIN (el dueño aprueba con CLI/panel/desktop).
+6. Prefetch de bibliotecas: 1 min tras arrancar y cada 10 min, `fetchPrefetchTargets()` → `lan.prefetch(ids, { limit })`. Vars: `RITMIQ_LIBRARY_PREFETCH`, `RITMIQ_PREFETCH_PER_CYCLE`.
 
 ## Despliegue (Docker)
 

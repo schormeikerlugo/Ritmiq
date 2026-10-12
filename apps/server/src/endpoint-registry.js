@@ -110,22 +110,56 @@ export async function getOwnerAccessToken() {
   const sb = await getOwnerClient();
   if (!sb) return null;
   try {
-    // getSession no refresca si expiró; forzamos refresh cuando falta poco.
+    // getSession no refresca si expiró; forzamos refresh con margen amplio
+    // (el JWT dura ~1h y el caller sincroniza cada 10 min). Antes el margen
+    // era 2 min con sync cada 30 min: si el autoRefresh interno fallaba en
+    // silencio, se seguía entregando un JWT caducado → 401 "invalid token"
+    // en publish-stream-url y el cache global quedaba roto.
     const { data: { session } } = await sb.auth.getSession();
-    if (!session) return null;
-    const expMs = (session.expires_at ?? 0) * 1000;
-    // Refrescar si expira en <2 min (o ya expiró).
-    if (expMs && expMs < Date.now() + 120_000) {
-      const { data, error } = await sb.auth.refreshSession();
-      if (error) {
-        console.warn('[endpoint-registry] refresh del token del dueño falló:', error.message);
-        return session.access_token ?? null;
-      }
-      return data?.session?.access_token ?? null;
-    }
-    return session.access_token ?? null;
+    const expMs = (session?.expires_at ?? 0) * 1000;
+    if (session && expMs > Date.now() + 15 * 60_000) return session.access_token ?? null;
+
+    const { data, error } = await sb.auth.refreshSession();
+    if (!error && data?.session?.access_token) return data.session.access_token;
+
+    // Refresh imposible (refresh token rotado/revocado): re-login completo.
+    console.warn('[endpoint-registry] refresh del token del dueño falló, re-login:', error?.message ?? 'sin sesión');
+    clientPromise = null;
+    ownerUserId = null;
+    const fresh = await getOwnerClient();
+    if (!fresh) return null;
+    const { data: { session: s2 } } = await fresh.auth.getSession();
+    return s2?.access_token ?? null;
   } catch (e) {
     console.warn('[endpoint-registry] getOwnerAccessToken falló:', e?.message ?? e);
     return null;
   }
+}
+
+/**
+ * yt_id de todas las bibliotecas + historial reciente, ordenados por
+ * prioridad (RPC get_prefetch_targets; solo responde a la cuenta del
+ * servidor listada en prefetch_principals).
+ *
+ * @param {number} [limit]
+ * @returns {Promise<string[]>}
+ */
+export async function fetchPrefetchTargets(limit = 3000) {
+  const sb = await getOwnerClient();
+  if (!sb) return [];
+  // PostgREST corta cada respuesta a 1000 filas (max_rows): paginar.
+  const PAGE = 1000;
+  const out = [];
+  for (let from = 0; from < limit; from += PAGE) {
+    const { data, error } = await sb
+      .rpc('get_prefetch_targets', { p_limit: limit })
+      .range(from, Math.min(from + PAGE, limit) - 1);
+    if (error) {
+      console.warn('[endpoint-registry] get_prefetch_targets falló:', error.message);
+      break;
+    }
+    for (const r of data ?? []) out.push(r.yt_id);
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
 }

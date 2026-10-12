@@ -3,9 +3,9 @@ tipo: modulo
 capa: yt
 plataforma: desktop
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-10-12
 archivo: packages/yt/src/ytdlp-wrapper.js
-tags: [yt, ytdlp, streaming, descarga, bot-check]
+tags: [ yt, ytdlp, streaming, descarga, bot-check ]
 ---
 
 # `yt/ytdlp-wrapper.js`
@@ -261,4 +261,5 @@ El cache de yt-dlp (`--cache-dir <userData>/yt-dlp-cache`) reduce el boot de 3-8
 | Cambiar `bestaudio` a `bestaudio[ext=opus]` como default | Falla en clients como android_vr que no tienen opus → "Requested format is not available" masivo. |
 
 ## Notas / Changelog
+- 2026-10-12: cascada de `player_client` sin `tv_embedded` (eliminado por yt-dlp en 2026.02) ni `android_vr` (YouTube da 403 a todos sus formatos desde 2026.08.17); último recurso sin cookies = `ios_music`.
 - 2026-05-22: nivel pleno (crítico: toda la reproducción pasa por aquí).

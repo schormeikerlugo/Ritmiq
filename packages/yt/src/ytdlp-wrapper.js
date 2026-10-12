@@ -201,17 +201,15 @@ export async function getStreamUrl(youtubeIdOrUrl, opts) {
         { fmt, client: 'default',     useCookies: true  },
         { fmt, client: 'web_safari',  useCookies: true  },
         { fmt, client: 'mweb',        useCookies: true  },
-        { fmt, client: 'tv_embedded', useCookies: true  },
         // Fallback final si lo de arriba falla por formato:
         { fmt: 'bestaudio', client: null, useCookies: true },
-        // Último recurso: android_vr SIN cookies (yt-dlp lo skip-ea si las hay).
-        { fmt, client: 'android_vr',  useCookies: false },
+        // Último recurso sin cookies. (2026-10) Fuera de la cascada:
+        // `tv_embedded` (yt-dlp lo eliminó en 2026.02) y `android_vr`
+        // (YouTube devuelve 403 en todos sus formatos desde 2026.08.17).
         { fmt, client: 'ios_music',   useCookies: false },
       ]
     : [
         // SIN JS runtime: SOLO los clients que no necesitan signature solving.
-        // Hay que ir SIN cookies (yt-dlp salta android_vr si las pasamos).
-        { fmt, client: 'android_vr',  useCookies: false },
         { fmt, client: 'ios_music',   useCookies: false },
         // Intento desesperado con cookies por si algún client raro funciona:
         { fmt, client: 'mweb',        useCookies: true  },

@@ -3,9 +3,19 @@ tipo: modulo
 capa: servidor
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-08-11
+ultima-revision: 2026-10-12
 archivo: packages/server-core/src/lan-server.js
-tags: [servidor, cache, rendimiento, prewarm, yt-dlp, concurrencia, progresivo, innertube]
+tags:
+  [
+    servidor,
+    cache,
+    rendimiento,
+    prewarm,
+    yt-dlp,
+    concurrencia,
+    progresivo,
+    innertube
+  ]
 ---
 
 # Caché y rendimiento (Fases A-D + 1-4)
@@ -87,7 +97,9 @@ Objetivo: que el usuario casi nunca toque un cache-miss real.
 ### `wait=1` (Fase iOS)
 
 `/yt/prewarm?wait=1` → el endpoint hace `await resolveCached` antes de responder
-204 (en vez de fire-and-forget). Lo usa el cliente móvil para garantizar la URL
+204 (en vez de fire-and-forget). Fix 2026-10: con `wait=1` una resolución **en
+vuelo** ya no cuenta como lista (antes respondía 204 al instante y el `/stream`
+volvía a esperar a yt-dlp). Lo usa el cliente móvil para garantizar la URL
 lista antes de reproducir. Ver "Fix iOS" arriba.
 
 ## Acelerador InnerTube (Fase 4, DESACTIVADO por defecto)
@@ -121,7 +133,44 @@ Fix:
 > mitigan pero no lo eliminan. El prewarm anticipado (descarga en background) +
 > caché hacen que el usuario perciba reproducción instantánea igualmente.
 
+## Descarga progresiva compartida + prefetch de bibliotecas (2026-10)
+
+> Diagnóstico (48 h de uso real): **87%** de las reproducciones eran canciones ya
+> escuchadas, pero solo el **23%** se servía desde disco. Causas: (1) el tee del
+> proxy y la descarga yt-dlp escribían el **mismo** `<id>.m4a.part`; al cerrar
+> Safari un rango, el tee borraba el `.part` de yt-dlp → `Unable to rename file`
+> → la canción nunca quedaba en disco; (2) cada Range de Safari (20+ por canción)
+> abría un proxy **nuevo** a googlevideo (1-5 s cada uno).
+
+**Descarga progresiva** (`packages/server-core/src/progressive-audio.js`): en
+cache-miss, **una** descarga por ytId (bloques de 10 MB, `.prog-<pid>-<ts>.part`
+propio) y **todos** los Range del cliente se sirven desde ese archivo mientras
+crece. Al terminar → `<id>.m4a` + `registerSharedAudio`. Seeks >1 MB por
+delante de lo descargado → `PROXY-SEEK` (proxy directo de ese rango). Si no hay
+tamaño a tiempo (4 s) → fallback `downloadSharedAudio` (yt-dlp + remux).
+`downloadSharedAudio` espera la descarga progresiva en curso en vez de lanzar
+yt-dlp en paralelo. Todos los caminos de `/stream` (efímero `yt:`, firma HMAC,
+device, ACCEPT_UNSIGNED) pasan por `serveYouTube()`. Al arrancar se borran
+`.prog-*.part` huérfanos. Tests: `progressive-audio.test.js`.
+
+Medido tras el cambio (túnel, canciones nuevas): primer Range = resolución
+(2-5 s); Ranges siguientes **0.5-0.8 s** (antes 1-5 s c/u); repetición =
+`SHARED HIT` **~0.55 s** (0 ms en el servidor).
+
+**Prefetch de bibliotecas** (Fase 2): cada 10 min el servidor pide
+`get_prefetch_targets()` (RPC; solo la cuenta del servidor vía
+`prefetch_principals`) = `yt_id` de **todas** las bibliotecas (`tracks`, que
+incluye favoritas y playlists) + historial de 60 días, ≤30 min, escuchadas
+primero. `lan.prefetch(ids, { limit })` encola en segundo plano hasta
+`RITMIQ_PREFETCH_PER_CYCLE` (60) faltantes; las precargas pedidas por usuarios se
+adelantan en la cola. Fallidos/largos no se reintentan en 24 h. Apagar con
+`RITMIQ_LIBRARY_PREFETCH=false`. El guard de duración usa `dur=` de la URL de
+googlevideo (`durationFromUrl`) en vez de `getMetadata`.
+
 ## Cache-miss en `/stream`: servido PROGRESIVO (Fase 1, 2026-08)
+
+> **Sustituido (2026-10)** por la descarga progresiva compartida de arriba. Se
+> conserva como historia.
 
 > **Reemplaza** el diseño previo "descargar completo antes de servir" (que daba
 > TTFB ~6-12s). Ver [[Reproduccion-Servidor-24-7]] para el detalle completo.

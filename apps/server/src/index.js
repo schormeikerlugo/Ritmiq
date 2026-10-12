@@ -22,7 +22,7 @@ import {
 } from '@ritmiq/server-core';
 import { CloudflaredManager, getStoredToken } from '@ritmiq/server-core/cloudflared';
 import { resolveDataDir, resolvePort } from './config.js';
-import { publishServerEndpoint, clearServerEndpoint, getOwnerAccessToken } from './endpoint-registry.js';
+import { publishServerEndpoint, clearServerEndpoint, getOwnerAccessToken, fetchPrefetchTargets } from './endpoint-registry.js';
 
 async function main() {
   const dataDir = resolveDataDir();
@@ -76,9 +76,30 @@ async function main() {
     }
   };
   await syncOwnerJwt();
-  // Refrescar cada 30 min (el getOwnerAccessToken renueva si falta <2 min).
-  jwtTimer = setInterval(syncOwnerJwt, 30 * 60 * 1000);
+  // Refrescar cada 10 min (getOwnerAccessToken renueva si faltan <15 min).
+  jwtTimer = setInterval(syncOwnerJwt, 10 * 60 * 1000);
   if (jwtTimer.unref) jwtTimer.unref();
+
+  // ── Prefetch de bibliotecas (todas las cuentas) a shared-audio ─────────
+  // El 87% de las reproducciones son repeticiones: con todo lo que está en
+  // bibliotecas/historial ya en disco, suenan en ~0.5s. Cada ciclo encola como
+  // máximo RITMIQ_PREFETCH_PER_CYCLE canciones (default 60) para no disparar
+  // ráfagas de yt-dlp contra YouTube. RITMIQ_LIBRARY_PREFETCH=false lo apaga.
+  if (String(process.env.RITMIQ_LIBRARY_PREFETCH ?? 'true').toLowerCase() !== 'false') {
+    const perCycle = Number(process.env.RITMIQ_PREFETCH_PER_CYCLE) || 60;
+    const runPrefetch = async () => {
+      try {
+        const ids = await fetchPrefetchTargets();
+        if (ids.length === 0) return;
+        const r = lan.prefetch(ids, { limit: perCycle });
+        console.log(`[ritmiq-server] prefetch bibliotecas: ${ids.length} objetivo, ${r.missing} sin descargar, ${r.queued} encoladas (cola=${r.pending})`);
+      } catch (e) {
+        console.warn('[ritmiq-server] prefetch bibliotecas falló:', e?.message ?? e);
+      }
+    };
+    setTimeout(runPrefetch, 60_000).unref?.();
+    setInterval(runPrefetch, 10 * 60_000).unref?.();
+  }
 
   // ── Cloudflare Tunnel + publicación del endpoint 'server' ──────────────
   // Se activa si hay token de túnel (Named) configurado, o si se fuerza el
