@@ -238,7 +238,7 @@
      header propio) y playlist (el hero escapa safe-top con margen negativo
      y ya deja el cover por debajo). */
   .main:not([data-view='library']):not([data-view='settings']):not([data-view='playlist']) {
-    padding-top: calc(env(safe-area-inset-top, 0px) + var(--space-3) + var(--space-4)) !important;
+    padding-top: calc(env(safe-area-inset-top, 0px) + var(--top-blur-gap)) !important;
   }
 
   /* Player como pill flotante encima del bottom nav. En landscape

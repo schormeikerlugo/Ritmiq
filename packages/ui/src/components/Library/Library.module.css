@@ -65,6 +65,13 @@
   padding-top: var(--safe-top);
   border-bottom: 1px solid var(--color-border);
 }
+/* Móvil: el header sticky queda bajo la franja de desenfoque de iOS 26/27
+   (ver --top-blur-gap); su fondo sigue cubriendo hasta el borde físico. */
+@media (max-width: 768px) {
+  .stickyHeader {
+    padding-top: calc(var(--safe-top) + var(--top-blur-gap));
+  }
+}
 
 .header {
   display: flex;

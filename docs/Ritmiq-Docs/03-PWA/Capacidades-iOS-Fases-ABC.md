@@ -133,4 +133,6 @@ Replica el back nativo de iOS/Android en la PWA standalone (donde no hay back de
 
 **Solución** (`App.module.css`, móvil): `.main` usa `padding-top: safe-top + space-3 + space-4` (28 px) en todas las vistas salvo `settings` (ya lo aporta su header), `library` (header sticky propio con fondo, que iOS usa como color sólido) y `playlist` (hero con margen negativo). En reposo la franja queda sobre fondo liso (invisible); al hacer scroll el contenido pasa por debajo con efecto cristal y desaparece al volver arriba.
 
+**Ampliación (mismo día)**: token `--top-blur-gap` (28 px) en `tokens.css`, usado por `.main` (móvil), el header sticky de **Biblioteca** (móvil: `padding-top: safe-top + gap`, el fondo sigue cubriendo hasta el borde) y los avisos fijos arriba **`DailyStreakToast`** y **`MilestoneToast`** (`top: safe-top + gap`; antes `safe-top`, quedaban dentro de la franja al abrir la app). Cualquier elemento nuevo fijo arriba debe usar el mismo token.
+
 **Alternativas descartadas**: cambiar a `status-bar-style: default` (barra opaca; obliga a todos a borrar y reinstalar el icono, porque iOS cachea el meta al instalar) y el truco de un elemento `position: fixed` con fondo en los 4 px superiores (documentado para iOS 27, no verificable sin el dispositivo).

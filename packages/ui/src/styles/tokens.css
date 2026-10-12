@@ -88,6 +88,10 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left:   env(safe-area-inset-left, 0px);
   --safe-right:  env(safe-area-inset-right, 0px);
+  /* iOS 26/27 (Liquid Glass): la PWA instalada desenfoca una franja bajo la
+     barra de estado más alta que safe-area-inset-top. Todo lo que deba verse
+     arriba (contenido, cabeceras, avisos) se separa este extra. */
+  --top-blur-gap: calc(var(--space-3) + var(--space-4));
 
   /* ── Motion system (durations + easings) ──────────────────────────────
    *

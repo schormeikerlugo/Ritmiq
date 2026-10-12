@@ -12,7 +12,8 @@
 
 .wrap {
   position: fixed;
-  top: env(safe-area-inset-top, 24px);
+  /* Bajo la franja de desenfoque de iOS 26/27 (--top-blur-gap). */
+  top: calc(env(safe-area-inset-top, 0px) + var(--top-blur-gap));
   left: 50%;
   transform: translateX(-50%);
   z-index: 9998;     /* uno menos que MilestoneToast (9999) por prioridad */
