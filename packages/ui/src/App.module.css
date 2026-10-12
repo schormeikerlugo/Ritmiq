@@ -227,6 +227,19 @@
   .main[data-view='library'] {
     padding-top: 0 !important;
   }
+  /* iOS 26/27 (Liquid Glass): en la PWA instalada el sistema pinta un
+     desenfoque bajo la barra de estado que baja MÁS que safe-area-inset-top
+     (no se puede desactivar ni medir). El contenido que empezaba justo en
+     safe-top (p. ej. el buscador) quedaba debajo de esa franja. Margen extra
+     igual al de Ajustes (28px): en reposo la franja queda sobre fondo liso
+     (invisible) y al hacer scroll el contenido pasa por debajo con efecto
+     cristal, que desaparece al volver arriba.
+     Excluidas: settings (su header ya aporta ese margen), library (sticky
+     header propio) y playlist (el hero escapa safe-top con margen negativo
+     y ya deja el cover por debajo). */
+  .main:not([data-view='library']):not([data-view='settings']):not([data-view='playlist']) {
+    padding-top: calc(env(safe-area-inset-top, 0px) + var(--space-3) + var(--space-4)) !important;
+  }
 
   /* Player como pill flotante encima del bottom nav. En landscape
      iPhone con notch, el pill no debe quedar debajo \u2014 sumamos los

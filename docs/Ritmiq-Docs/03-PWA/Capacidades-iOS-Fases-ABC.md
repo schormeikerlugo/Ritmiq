@@ -3,9 +3,22 @@ tipo: modulo
 capa: pwa
 plataforma: pwa
 estado: estable
-ultima-revision: 2026-09-02
-archivo: apps/pwa/vite.config.js, packages/ui/src/App.jsx, packages/ui/src/stores/search.js, supabase/functions/send-push-notification
-tags: [pwa, ios, manifest, shortcuts, share-target, web-push, declarative, gesto, edge-swipe, clipboard]
+ultima-revision: 2026-10-12
+archivo: apps/pwa/vite.config.js, packages/ui/src/App.jsx,
+  packages/ui/src/stores/search.js, supabase/functions/send-push-notification
+tags:
+  [
+    pwa,
+    ios,
+    manifest,
+    shortcuts,
+    share-target,
+    web-push,
+    declarative,
+    gesto,
+    edge-swipe,
+    clipboard
+  ]
 ---
 
 # Capacidades iOS — Fases A / B / C + gesto de "volver"
@@ -111,3 +124,13 @@ Replica el back nativo de iOS/Android en la PWA standalone (donde no hay back de
 ## Enlaces
 - [[manifest-y-service-worker]], [[sw-push]], [[apple-touch-startup]], [[IOSInstallHint]]
 - ADR-037 en [[Decisiones-Tecnicas-ADR]].
+
+## Franja de desenfoque superior (iOS 26/27, 2026-10-12)
+
+**Síntoma**: en la PWA instalada en iPhone, una capa desenfocada en la parte superior tapaba el contenido que empieza justo bajo la barra de estado (p. ej. el buscador). En Ajustes no pasaba.
+
+**Causa**: no es nuestra. Es el *scroll edge effect* de Liquid Glass que iOS 26/27 aplica en web apps instaladas con `black-translucent`: el desenfoque baja **más** que `env(safe-area-inset-top)` y no se puede desactivar ni medir desde CSS. Ajustes se libraba porque su cabecera añade ~28 px.
+
+**Solución** (`App.module.css`, móvil): `.main` usa `padding-top: safe-top + space-3 + space-4` (28 px) en todas las vistas salvo `settings` (ya lo aporta su header), `library` (header sticky propio con fondo, que iOS usa como color sólido) y `playlist` (hero con margen negativo). En reposo la franja queda sobre fondo liso (invisible); al hacer scroll el contenido pasa por debajo con efecto cristal y desaparece al volver arriba.
+
+**Alternativas descartadas**: cambiar a `status-bar-style: default` (barra opaca; obliga a todos a borrar y reinstalar el icono, porque iOS cachea el meta al instalar) y el truco de un elemento `position: fixed` con fondo en los 4 px superiores (documentado para iOS 27, no verificable sin el dispositivo).
