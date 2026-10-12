@@ -3,7 +3,7 @@ tipo: indice
 capa: meta
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-28
+ultima-revision: 2026-10-12
 ---
 
 # Ritmiq-Docs
@@ -12,7 +12,9 @@ Vault de documentación técnica del proyecto **Ritmiq** (reproductor de música
 
 **~215 notas** que documentan exhaustivamente todo el código del repositorio, organizadas por capa. Actualizado tras las Fases 0-5 y 7 de mejoras (34 notas nuevas, 21 actualizadas, 11 ADRs añadidos).
 
-Repositorio de código: `/home/lenovics/portafolio Dev/Ritmiq`
+Repositorio de código: `/home/lenovics/portafolio Dev/Personal/Ritmiq` (este vault vive en `docs/Ritmiq-Docs/`).
+
+**Acceso para agentes**: el vault está expuesto por el MCP `ritmiq-docs` (`@bitbonsai/mcpvault`, configurado en `~/.config/opencode/opencode.json`). Ver `AGENTS.md` en la raíz del repo.
 
 ## Empezar aquí
 
