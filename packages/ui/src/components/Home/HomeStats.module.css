@@ -190,6 +190,17 @@
   filter: grayscale(1);
 }
 
+/* ── PAUSED: rota pero recuperable. Brasa atenuada, respira lento. ── */
+.iconWrap[data-variant='streak'][data-status='paused'] {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.16), rgba(120, 120, 120, 0.08));
+  color: #f0a060;
+}
+.iconWrap[data-variant='streak'][data-status='paused'] .flameCore {
+  opacity: 0.6;
+  filter: saturate(0.55);
+  animation: flame-calm 4s ease-in-out infinite;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    KEYFRAMES
    ═══════════════════════════════════════════════════════════════════════ */
@@ -419,6 +430,9 @@
 }
 .card[data-status='broken'] .label {
   color: rgba(200, 200, 200, 0.55);
+}
+.card[data-status='paused'] .label {
+  color: #e8a476;
 }
 
 .value {

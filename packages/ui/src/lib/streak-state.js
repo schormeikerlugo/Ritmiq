@@ -10,6 +10,8 @@
  *   urgent      no escucho hoy, 18-23 (urgente, jitter, ceniza)
  *   last-hour   no escucho hoy, 23-23:59 (countdown MM:SS dramatico)
  *   broken      ultimo play fue ANTES de ayer (racha rota)
+ *   paused      racha rota pero recuperable con intentos (repairOffer ok);
+ *               muestra la racha que se puede recuperar, no 0
  *
  * Funcion pura: depende solo del streakSnapshot del store + new Date().
  * Si snapshot null o invalido, devuelve 'inactive' (silencio seguro).
@@ -19,7 +21,7 @@
 
 /**
  * @typedef {Object} StreakState
- * @property {'inactive'|'fulfilled'|'calm'|'danger'|'urgent'|'last-hour'|'broken'} status
+ * @property {'inactive'|'fulfilled'|'calm'|'danger'|'urgent'|'last-hour'|'broken'|'paused'} status
  * @property {number} currentStreak
  * @property {number} longestStreak
  * @property {number|null} minutesRemaining  Minutos hasta medianoche local
@@ -114,11 +116,13 @@ function humanRemaining(minutes) {
  *   HOY (dia local del device) desde events. Cuando es true forzamos
  *   'fulfilled' aunque el snapshot autoritativo aun diga "ayer" (evita el
  *   falso aviso de peligro por desfase de timezone o lag del trigger DB).
+ * @param {Object|null} [params.repairOffer] Oferta de get_streak_repair_offer().
+ *   Si reason='ok', una racha rota se muestra como 'paused' (recuperable).
  * @param {Date} [params.now]                  Fecha de referencia
  *   (default: new Date()). Util para tests.
  * @returns {StreakState}
  */
-export function selectStreakState({ streakSnapshot, fallbackStreak = 0, playedTodayLocal = false, now = new Date() } = {}) {
+export function selectStreakState({ streakSnapshot, fallbackStreak = 0, playedTodayLocal = false, repairOffer = null, now = new Date() } = {}) {
   // Sin snapshot: usar fallback (calculo local desde events).
   const snap = streakSnapshot ?? null;
   const currentStreak = snap?.currentStreak ?? fallbackStreak ?? 0;
@@ -226,6 +230,20 @@ export function selectStreakState({ streakSnapshot, fallbackStreak = 0, playedTo
   // Caso 4: ultimo play fue ANTES de ayer → racha rota.
   if (lastPlayedDate && lastPlayedDate < yesterdayKey) {
     const daysSince = daysBetween(lastPlayedDate, todayKey);
+    // Caso 4b: rota pero recuperable → en pausa (el banner ofrece recuperarla).
+    if (repairOffer?.reason === 'ok') {
+      const paused = repairOffer.previous_streak ?? currentStreak;
+      return {
+        status: 'paused',
+        currentStreak: paused,
+        longestStreak,
+        minutesRemaining: null,
+        daysSinceBroken: daysSince,
+        label: 'Racha en pausa',
+        subLabel: 'Recupérala abajo',
+        countdown: null,
+      };
+    }
     return {
       status: 'broken',
       currentStreak: 0,

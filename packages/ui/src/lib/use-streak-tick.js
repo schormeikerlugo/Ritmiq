@@ -14,7 +14,7 @@
 import { useEffect, useReducer } from 'react';
 
 /**
- * @param {'inactive'|'fulfilled'|'calm'|'danger'|'urgent'|'last-hour'|'broken'} status
+ * @param {'inactive'|'fulfilled'|'calm'|'danger'|'urgent'|'last-hour'|'broken'|'paused'} status
  */
 export function useStreakTick(status) {
   const [, forceTick] = useReducer((x) => (x + 1) % 1000, 0);

@@ -13,6 +13,7 @@
  *   - urgent       jitter aumentado + ceniza cayendo (18-23 sin play)
  *   - last-hour    flama apagandose + countdown MM:SS (23-23:59)
  *   - broken       gris + humo, mensaje "empieza de nuevo"
+ *   - paused       llama atenuada, racha recuperable (StreakRepairBanner)
  *
  * Transicion a fulfilled: cuando snapshot.lastPlayedDate cambia a hoy
  * y el estado anterior NO era fulfilled, disparamos animacion de 700ms
@@ -109,6 +110,7 @@ function HoursCard({ minutes, onClick }) {
 function StreakCard({ onClick }) {
   const streakSnapshot = useHistoryStore((s) => s.streakSnapshot);
   const events = useHistoryStore((s) => s.events);
+  const repairOffer = useHistoryStore((s) => s.repairOffer);
 
   // Fallback local desde events si snapshot todavia no cargado.
   const fallbackStreak = useMemo(() => {
@@ -134,7 +136,7 @@ function StreakCard({ onClick }) {
   // sin que el user toque nada. No usamos useMemo porque la fecha
   // implicita (new Date()) cambia entre renders y necesitamos esa
   // frescura para selectStreakState.
-  const liveState = selectStreakState({ streakSnapshot, fallbackStreak, playedTodayLocal });
+  const liveState = selectStreakState({ streakSnapshot, fallbackStreak, playedTodayLocal, repairOffer });
   useStreakTick(liveState.status);
 
   // Transicion a fulfilled cuando viene de otro estado.
