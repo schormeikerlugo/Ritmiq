@@ -3,7 +3,7 @@ tipo: moc
 capa: flujo
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-27
+ultima-revision: 2026-10-12
 tags: [moc, flujos]
 ---
 
@@ -34,4 +34,5 @@ SORT file.name ASC
 - [[Recomendaciones]] — Last.fm + Innertube + cache 12h.
 - [[Push-Notifications]] — suscripción, envío y sync (iOS edge cases).
 - [[Sincronizacion-Offline]] — sync queue offline-first + hidratación Dexie.
+- [[Racha]] — racha de días locales (trigger en BD), estados de la tarjeta y recuperación con 5 intentos/mes. *(2026-10)*
 - [[p2p-knowledge-sharing]] — Fase 1 + Fase 2: cache URLs + diccionario metadata cross-user.

@@ -44,3 +44,4 @@ Owner-only: `auth.uid() = user_id`.
 ## Notas / Changelog
 - 2026-05-07: schema inicial (FK obligatoria a tracks).
 - 2026-05-13: migración a snapshot — track_id nullable + campos title/artist/cover/duration propios.
+- 2026-10-12: la racha se calcula desde esta tabla (trigger `play_history_refresh_streak`) **más** los días de [[streak_repairs]]. Existen filas `source='restore'` / título "(racha restaurada)" de restauraciones manuales antiguas; las nuevas recuperaciones van a `streak_repairs`. Ver [[Racha]].

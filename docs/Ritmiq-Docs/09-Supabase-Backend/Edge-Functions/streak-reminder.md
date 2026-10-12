@@ -73,3 +73,4 @@ Fuerza el slot ignorando la hora local. Solo para debug manual.
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-10-12: `compute_user_streak` cuenta también los días recuperados ([[streak_repairs]]) para `streak_days`; `played_today` sigue mirando solo `play_history`, así que el reminder no cambia. Tope de racha 365 → 3650. Ver [[Racha]].

@@ -3,9 +3,9 @@ tipo: store
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-10-12
 archivo: packages/ui/src/stores/history.js
-tags: [store, historial, reproduccion, estadisticas, offline]
+tags: [store, historial, reproduccion, estadisticas, offline, racha]
 ---
 
 # `stores/history.js`
@@ -53,6 +53,28 @@ tags: [store, historial, reproduccion, estadisticas, offline]
 | `record(track, playedSeconds)` | Registra play con dedup 60s. Optimistic + offline queue. |
 | `flushOffline()` | Reintenta enviar eventos encolados offline. |
 | `reset()` | Vacía todo. |
+
+## Racha (snapshot + recuperación)
+
+Estado adicional (ver [[Racha]]):
+
+```js
+{
+  streakSnapshot: { currentStreak, longestStreak, longestAt, lastPlayedDate, lastDailyCelebratedDate } | null,
+  repairOffer: { available, reason, cost, missed_days, previous_streak, restored_streak, remaining, monthly_limit, deadline } | null,
+  repairing: boolean,   // true mientras repair_streak está en vuelo
+  milestones: [...], hourMilestones: [...], milestoneToastQueue: [...],
+}
+```
+
+| Acción | Descripción |
+|---|---|
+| `loadStreakSnapshot(userId)` | Lee `user_streaks`, `streak_milestones`, `hour_milestones`; al final llama a `loadRepairOffer()`. |
+| `subscribeStreak(userId)` | Realtime de `user_streaks` (refresca snapshot **y** oferta) y de milestones (toasts). |
+| `loadRepairOffer()` | `rpc('get_streak_repair_offer')`. Fallo silencioso → sin banner. |
+| `repairStreak()` | `rpc('repair_streak')`; actualiza `repairOffer` y el snapshot. Devuelve `true/false`. Evita dobles taps con `repairing`. |
+
+`selectStatsForPeriod` sigue calculando una racha local desde `events` solo como **fallback** cuando aún no hay `streakSnapshot`.
 
 ## Selectores exportados (puros)
 
@@ -195,3 +217,4 @@ for (let i = 0; i < days; i++) {
 
 ## Notas / Changelog
 - 2026-05-22: nivel pleno.
+- 2026-10-12: `repairOffer`/`repairing` + `loadRepairOffer()`/`repairStreak()` para la recuperación de racha (ADR-038).
