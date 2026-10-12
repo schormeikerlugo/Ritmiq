@@ -9,6 +9,7 @@ import { SaveDialog } from '../SaveDialog/SaveDialog.jsx';
 import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import { hapticTap } from '../../lib/haptics.js';
+import { useLoadingBar, formatLoadingSeconds } from '../../lib/use-loading-bar.js';
 import styles from './Player.module.css';
 
 function fmt(sec) {
@@ -54,9 +55,14 @@ export function Player() {
   const draggingRef = useRef(false);
 
   const effectivePos = scrubPos != null ? scrubPos : positionSeconds;
-  const progress = durationSeconds
-    ? Math.max(0, Math.min(100, (effectivePos / durationSeconds) * 100))
-    : 0;
+  // Mientras carga la canción, la barra de tiempo hace de barra de carga.
+  const loadingBar = useLoadingBar();
+  const showLoading = loadingBar.phase !== 'idle';
+  const progress = showLoading
+    ? loadingBar.pct
+    : durationSeconds
+      ? Math.max(0, Math.min(100, (effectivePos / durationSeconds) * 100))
+      : 0;
 
   /* ── Seek por click/drag en la barra de progreso ────────────────────
    * Antes el `<div className={styles.bar}>` solo tenia `cursor: pointer`
@@ -203,7 +209,11 @@ export function Player() {
     <div className={styles.player} data-empty={!currentTrack}>
       {/* Barra fina superior de progreso, visible solo en mobile (CSS). */}
       <div className={styles.miniProgress} aria-hidden="true">
-        <div className={styles.miniProgressFill} style={{ width: `${progress}%` }} />
+        <div
+          className={styles.miniProgressFill}
+          data-loading={showLoading ? loadingBar.phase : undefined}
+          style={{ width: `${progress}%` }}
+        />
       </div>
 
       <div className={styles.left}>
@@ -313,7 +323,17 @@ export function Player() {
           ><Icon name={repeat === 'one' ? 'Repeat1' : 'Repeat'} size={18} /></button>
         </div>
         <div className={styles.progress}>
-          <span className={styles.time}>{fmt(effectivePos)}</span>
+          <span
+            className={styles.time}
+            data-loading={showLoading || undefined}
+            aria-live={showLoading ? 'polite' : undefined}
+          >
+            {loadingBar.phase === 'loading'
+              ? formatLoadingSeconds(loadingBar.elapsedMs)
+              : loadingBar.phase === 'done'
+                ? `Listo en ${formatLoadingSeconds(loadingBar.elapsedMs)}`
+                : fmt(effectivePos)}
+          </span>
           <div
             ref={barRef}
             className={styles.bar}
@@ -327,6 +347,7 @@ export function Player() {
             aria-disabled={!currentTrack || !durationSeconds || isJamGuest}
             data-scrubbing={scrubPos != null || undefined}
             data-locked={isJamGuest || undefined}
+            data-loading={showLoading ? loadingBar.phase : undefined}
             onPointerDown={isJamGuest ? undefined : onBarPointerDown}
             onPointerMove={isJamGuest ? undefined : onBarPointerMove}
             onPointerUp={isJamGuest ? undefined : onBarPointerEnd}

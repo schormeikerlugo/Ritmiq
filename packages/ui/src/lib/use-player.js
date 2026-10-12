@@ -931,6 +931,7 @@ export function usePlayerEngine() {
           queue: [track],
           index: 0,
           isPlaying: false,
+          isLoading: false,
           positionSeconds: 0,
         });
         applyMediaSessionMetadata(track);
@@ -1043,7 +1044,7 @@ export function usePlayerEngine() {
           if (cancelled) return;
           loadedTrackIdRef.current = currentTrack.id;
           loadedFingerprintRef.current = fp;
-          setState({ isPlaying: true, durationSeconds: backend.duration() });
+          setState({ isPlaying: true, isLoading: false, durationSeconds: backend.duration() });
           if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
           publishTrackMeta(currentTrack);
         } catch (err) {
@@ -1078,6 +1079,8 @@ export function usePlayerEngine() {
     async function loadAndPlayCurrent(track, fingerprint, isCancelled) {
       // Telemetría: tiempo desde aquí hasta que suena (incluye reintento).
       const tLoad = performance.now();
+      // Barra de carga en la barra de tiempo (useLoadingBar).
+      setState({ isLoading: true, loadingStartedAt: Date.now() });
       const metricYtId = track.ytId
         || (typeof track.id === 'string' && track.id.startsWith('yt:') ? track.id.slice(3) : null);
       let metricOrigin = null;
@@ -1102,9 +1105,17 @@ export function usePlayerEngine() {
         if (isCancelled()) return false;
         recordStreamOrigin(resolved.origin);
         metricOrigin = resolved.origin;
-        await backend.load(url);          // ahora con timeout/stall-recovery
+        // play() en PARALELO con load(), no después: Safari iOS ignora
+        // preload='auto' y apenas bufferiza hasta que hay un play() pendiente,
+        // así que esperar `loadeddata` antes de play() tardaba 13-30s (medido
+        // con playback_metrics) aunque el servidor ya hubiera servido el audio.
+        // load() asigna src de forma síncrona, así que play() ya lo ve.
+        const loadP = backend.load(url);   // con timeout duro
+        const playP = backend.play();
+        playP.catch(() => {});             // si load falla, play también; se reporta por load
+        await loadP;
         if (isCancelled()) return false;
-        await backend.play();
+        await playP;
         if (isCancelled()) return false;
         recordPlaybackMetric({ ytId: metricYtId, ms: performance.now() - tLoad, origin: metricOrigin });
         // ARREGLO #2: marcar "cargado" SOLO tras play() exitoso. Antes se
@@ -1113,7 +1124,7 @@ export function usePlayerEngine() {
         // reintentar la MISMA canción → "congelado hasta pisar otra".
         loadedTrackIdRef.current = track.id;
         loadedFingerprintRef.current = fingerprint;
-        setState({ isPlaying: true, durationSeconds: backend.duration() });
+        setState({ isPlaying: true, isLoading: false, durationSeconds: backend.duration() });
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
         publishTrackMeta(track);
         return true;
@@ -1152,7 +1163,7 @@ export function usePlayerEngine() {
               msg = 'Esta canción no está disponible en YouTube.';
             }
           } catch {}
-          setState({ isPlaying: false, error: msg });
+          setState({ isPlaying: false, isLoading: false, error: msg });
           if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
           // AUTO-SKIP: si la canción no está disponible y hay más en la cola,
           // saltar a la siguiente en vez de quedarse trabado. Solo cuando el

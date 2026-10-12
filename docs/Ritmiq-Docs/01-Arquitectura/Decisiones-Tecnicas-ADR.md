@@ -3,8 +3,8 @@ tipo: adr
 capa: meta
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-28
-tags: [adr, decisiones]
+ultima-revision: 2026-10-12
+tags: [ adr, decisiones ]
 ---
 # ADR — Decisiones Técnicas
 
@@ -361,6 +361,7 @@ Cada decisión sigue el formato:
   4. Fix `wait=1`; cascada yt-dlp sin `android_vr`/`tv_embedded`.
   5. **Telemetría** `playback_metrics` (tiempo hasta que suena, por plataforma y origen) desde `use-player`.
 - **Consecuencias**: cualquier canción escuchada una vez queda en disco; repetición = `SHARED HIT` (~0.55 s vía túnel). Primer play: Ranges posteriores 0.5-0.8 s (antes 1-5 s c/u); la resolución inicial (yt-dlp, 2-5 s) sigue siendo el coste de una canción nueva → candidata a Fase 3. Prefetch: 1096 objetivos, 49 guardadas sin fallos en los primeros 6 min; 0 × 401 tras el fix. Verificado en producción y con tests (4/4 en el contenedor). Ver [[Cache-y-Rendimiento]], [[prefetch_principals]], [[playback_metrics]].
+- **Adenda — barra de carga + `play()` en paralelo**: (1) la barra de tiempo muestra la carga ([[use-loading-bar]]) con contador real, para que el usuario vea cuánto tarda. (2) Las primeras métricas reales de iPhone dieron **13,7 s y 29,7 s** con el servidor sirviendo el audio en ~3 s (logs: decenas de `SHARED HIT 0ms` mientras el iPhone no arrancaba). Causa: `use-player` esperaba `loadeddata` (timeout 15 s) antes de `play()`, y Safari iOS no bufferiza sin un `play()` pendiente. Ahora `play()` se pide en paralelo con `load()`.
 
 ---
 

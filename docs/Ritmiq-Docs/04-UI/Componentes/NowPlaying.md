@@ -3,9 +3,19 @@ tipo: componente
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-27
+ultima-revision: 2026-10-12
 archivo: packages/ui/src/components/NowPlaying/NowPlaying.jsx
-tags: [componente, now-playing, fullscreen, ios, mediasession, bpm, lyrics, visualizer]
+tags:
+  [
+    componente,
+    now-playing,
+    fullscreen,
+    ios,
+    mediasession,
+    bpm,
+    lyrics,
+    visualizer
+  ]
 ---
 
 # `NowPlaying`
@@ -72,6 +82,7 @@ Abre [[BottomSheet]] con opciones: Guardar en playlist, Copiar link, Ver artista
 | Quitar `enabled` en `useBpmPulse` | rAF activo aunque NowPlaying esté cerrado → CPU leak. |
 
 ## Notas / Changelog
+- 2026-10-12: el scrubber hace de barra de carga mientras carga la canción ([[use-loading-bar]]); "Cargando 1,4 s" / "Listo en 2,6 s".
 - 2026-05-22: nivel pleno.
 - 2026-05-27 (Fase 2.5): cover gana keyframe `ritmiq-cover-breathing` que anima el `box-shadow` accent (intensidad 60→100%, 4s sine inOut) cuando `data-playing="true"`. Independiente del BPM pulse. Commit `ab1372f`.
 - 2026-05-27 (Fase 4.2 + ajuste UX): añadido toggle de letras en el **footer** (icono `Music2`, antes en el header). Cuando `lyricsOpen=true`, [[LyricsPanel]] reemplaza a [[ArtistInfoPanel]] post-fold. `hasLowerPanel` sustituye a `hasArtistPanel` para mantener min-height del mainArea. Commits `555231e` + `1220428`.

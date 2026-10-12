@@ -43,6 +43,11 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
   repeat: 'off',
   /** @type {string|null} Mensaje de error visible al usuario */
   error: null,
+  /** true desde que use-player empieza a cargar la canción hasta que suena
+   *  (o falla). La barra de tiempo lo muestra como barra de carga. */
+  isLoading: false,
+  /** Date.now() del inicio de la carga en curso (para el contador). */
+  loadingStartedAt: 0,
 
   /** Modo Radio activo — auto-extiende la cola con tracks de la lib
    *  basados en el seed cuando quedan ≤ 2 tracks por delante. */
@@ -110,7 +115,7 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
     next.splice(removeIdx, 1);
 
     if (next.length === 0) {
-      set({ queue: [], index: -1, currentTrack: null, isPlaying: false });
+      set({ queue: [], index: -1, currentTrack: null, isPlaying: false, isLoading: false });
       return;
     }
 
@@ -129,7 +134,7 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
   },
 
   clearQueue() {
-    set({ queue: [], index: -1, currentTrack: null, isPlaying: false });
+    set({ queue: [], index: -1, currentTrack: null, isPlaying: false, isLoading: false });
   },
 
   /**

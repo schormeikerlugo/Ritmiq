@@ -33,6 +33,7 @@ import { Visualizer } from './Visualizer.jsx';
 import { useSettingsStore } from '../../stores/settings.js';
 import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
 import { useMobileViewport } from '../../lib/use-mobile-viewport.js';
+import { useLoadingBar, formatLoadingSeconds } from '../../lib/use-loading-bar.js';
 import styles from './NowPlaying.module.css';
 
 function fmt(sec) {
@@ -255,6 +256,10 @@ export function NowPlaying() {
 
   const displayPos = scrubPos !== null ? scrubPos : positionSeconds;
   const dur = Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : 0;
+  // Mientras carga la canción, el scrubber hace de barra de carga.
+  const loadingBar = useLoadingBar();
+  const showLoading = loadingBar.phase !== 'idle';
+  const scrubPct = showLoading ? loadingBar.pct : dur ? (displayPos / dur) * 100 : 0;
 
   const background = useMemo(() => {
     const c = bgColor || 'var(--color-bg-1)';
@@ -466,13 +471,20 @@ export function NowPlaying() {
           onMouseUp={onScrubCommit}
           onTouchEnd={onScrubCommit}
           onKeyUp={onScrubCommit}
-          disabled={!dur || isJamGuest}
-          aria-label="Posición de la canción"
+          disabled={!dur || isJamGuest || showLoading}
+          aria-label={showLoading ? 'Cargando canción' : 'Posición de la canción'}
           className={styles.scrubInput}
-          style={{ '--pct': `${dur ? (displayPos / dur) * 100 : 0}%` }}
+          data-loading={showLoading ? loadingBar.phase : undefined}
+          style={{ '--pct': `${scrubPct}%` }}
         />
         <div className={styles.times}>
-          <span>{fmt(displayPos)}</span>
+          <span data-loading={showLoading || undefined} aria-live={showLoading ? 'polite' : undefined}>
+            {loadingBar.phase === 'loading'
+              ? `Cargando ${formatLoadingSeconds(loadingBar.elapsedMs)}`
+              : loadingBar.phase === 'done'
+                ? `Listo en ${formatLoadingSeconds(loadingBar.elapsedMs)}`
+                : fmt(displayPos)}
+          </span>
           <span>{fmt(dur)}</span>
         </div>
       </div>

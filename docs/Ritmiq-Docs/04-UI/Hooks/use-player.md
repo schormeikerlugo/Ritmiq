@@ -280,5 +280,6 @@ sequenceDiagram
 | Precarga en shuffle | Se precarga un track que no es el próximo → precarga desperdiciada, sin mejora de latencia. |
 
 ## Notas / Changelog
+- 2026-10-12 (b): `isLoading`/`loadingStartedAt` en el store durante `loadAndPlayCurrent` (barra de carga, [[use-loading-bar]]). **`play()` en paralelo con `load()`**: Safari iOS ignora `preload='auto'` y no bufferiza sin un `play()` pendiente; esperar `loadeddata` antes de `play()` daba 13-30 s en iPhone (medido en `playback_metrics`) aunque el servidor ya hubiera servido el audio en ~3 s.
 - 2026-10-12: `loadAndPlayCurrent` mide el tiempo hasta que suena (o hasta el error tras el reintento) y lo envía con `recordPlaybackMetric` ([[playback_metrics]]).
 - 2026-05-22: nivel pleno. Nota más larga del vault — justificado por la complejidad de iOS background audio.

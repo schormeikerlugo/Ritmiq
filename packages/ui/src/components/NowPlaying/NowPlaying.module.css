@@ -296,6 +296,52 @@
   margin-top: var(--space-2);
 }
 
+/* ── Barra de carga (useLoadingBar) ─────────────────────────────────
+ * Mientras carga, el track del scrubber se rellena en accent con un brillo
+ * que avanza y sin thumb; al sonar vuelve a ser la barra de tiempo. */
+.scrubInput[data-loading] {
+  cursor: default;
+}
+.scrubInput[data-loading]::-webkit-slider-runnable-track {
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.45) 50%, transparent 100%) 0 0 / 30% 100% no-repeat,
+    linear-gradient(
+      to right,
+      var(--color-accent) 0%,
+      var(--color-accent) var(--pct, 0%),
+      rgba(255, 255, 255, 0.25) var(--pct, 0%),
+      rgba(255, 255, 255, 0.25) 100%
+    );
+  animation: np-loading-shine 1.2s linear infinite;
+}
+.scrubInput[data-loading='done']::-webkit-slider-runnable-track {
+  animation: none;
+  background: var(--color-accent);
+}
+.scrubInput[data-loading]::-moz-range-progress {
+  background: var(--color-accent);
+}
+.scrubInput[data-loading]::-webkit-slider-thumb {
+  opacity: 0;
+}
+.scrubInput[data-loading]::-moz-range-thumb {
+  opacity: 0;
+}
+.times span[data-loading] {
+  color: var(--color-accent);
+}
+
+@keyframes np-loading-shine {
+  from { background-position: -30% 0, 0 0; }
+  to   { background-position: 130% 0, 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrubInput[data-loading]::-webkit-slider-runnable-track {
+    animation: none;
+  }
+}
+
 /* ── Controles ───────────────────────────────────────────────────────── */
 .controls {
   display: flex;
