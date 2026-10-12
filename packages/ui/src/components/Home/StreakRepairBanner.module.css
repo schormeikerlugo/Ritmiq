@@ -1,0 +1,89 @@
+/* StreakRepairBanner — aviso de racha recuperable bajo las cards de HomeStats. */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 138, 61, 0.14), rgba(255, 94, 58, 0.06));
+  border: 1px solid rgba(255, 138, 61, 0.3);
+}
+
+.banner[data-disabled='true'] {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: rgba(255, 138, 61, 0.2);
+  color: #ffa25c;
+}
+
+.banner[data-disabled='true'] .icon {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-2);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.sub {
+  font-size: 12px;
+  color: var(--color-text-2);
+  line-height: 1.35;
+}
+
+.action {
+  flex-shrink: 0;
+  min-width: 96px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #ff8a3d, #ff5e3a);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  transition: transform var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard);
+}
+
+.action:active {
+  transform: scale(0.96);
+}
+
+.action:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 380px) {
+  .banner { flex-wrap: wrap; }
+  .action { width: 100%; }
+}

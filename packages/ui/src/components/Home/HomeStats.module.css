@@ -6,6 +6,13 @@
   gap: var(--space-2);
 }
 
+/* Cards + banner de recuperacion de racha, mas juntos que las secciones del Home. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
 /* Items del grid: permitir que las columnas 1fr se encojan por debajo del
    ancho de su contenido (min-width:auto por defecto provoca overflow-x). */
 .grid > * {

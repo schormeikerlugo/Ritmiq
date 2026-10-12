@@ -338,6 +338,17 @@ Cada decisión sigue el formato:
 - **Consecuencias**: instalación y puntos de entrada más nativos; notificaciones más fiables en iOS 18.4+ (sin depender del SW) y que llevan a la pestaña correcta; navegación con gesto natural. Edge desplegada; builds PWA+desktop verdes; gesto no-op en desktop. Ver [[Capacidades-iOS-Fases-ABC]].
 - **Adenda — Web Share Target NO funciona en iOS (`039576b`)**: el `share_target` del manifest es "Limited availability" ([MDN](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/share_target)); **Safari/iOS no lo soporta**, sólo Android. Fallback universal implementado sin depender del share target: (1) `stores/search.js` busca por el **ytId** cuando la query es un enlace/id de YouTube (`extractYtId` exportado + `music.youtube.com`), devolviendo el video exacto; (2) chip **"Pegar link de YouTube copiado"** en `SearchView` que lee `navigator.clipboard.readText()` con la búsqueda vacía. Es el camino real para compartir a Ritmiq en iPhone.
 
+## ADR-038 — Recuperación de racha con intentos mensuales
+
+- **Contexto**: un solo día local sin escuchar rompía la racha sin remedio. Las restauraciones se hacían a mano insertando filas `source='restore'` en `play_history` (contaminan historial y horas). Editar `user_streaks` no sirve: el trigger recalcula desde `play_history` en cada play.
+- **Decisión**:
+  1. **Tabla `streak_repairs`** (`user_id`, `repaired_date`, `used_at`): cada fila es un día local cubierto. `compute_user_streak` cuenta como activo un día con play **o** recuperado (`_streak_day_active`). `played_today` sigue mirando solo plays (lo usa `streak-reminder`).
+  2. **Reglas** (confirmadas por el usuario): **manual**, **5 intentos por mes calendario** (tz del perfil, no se acumulan), **1 intento por día faltante**, **plazo de 48 h** tras terminar el último día faltante. Hueco > 5 días → no recuperable.
+  3. **RPC** `get_streak_repair_offer()` (cálculo puro: `cost`, `missed_days`, `restored_streak`, `remaining`, `deadline`, `reason` `ok|none|not_enough|gap_too_long`) y `repair_streak()` (advisory lock por usuario, revalida la oferta, inserta los días y recalcula `user_streaks`; el trigger de milestones otorga los trofeos cruzados). Solo `authenticated`; helpers internos revocados.
+  4. **UI**: `StreakRepairBanner` bajo las cards de `HomeStats` ("Recupera tu racha de N días · cuesta X · te quedan R de 5"); variante informativa si no alcanzan los intentos. La oferta se recarga al login, al cambiar `user_streaks` por Realtime y al volver a la app.
+  5. Tope de seguridad de `compute_user_streak` subido de 365 a 3650 días.
+- **Consecuencias**: perder un día deja de ser definitivo sin falsear el historial. Migración `20261012000000_streak_repairs.sql` aplicada a prod; probado en transacción revertida (hueco de 1 y 2 días, sin intentos suficientes, plazo vencido, anon sin permiso) y vía PostgREST. Builds PWA+desktop verdes.
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

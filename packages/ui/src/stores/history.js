@@ -99,6 +99,22 @@ export const useHistoryStore = create((set, get) => ({
   streakSnapshot: null,
 
   /**
+   * Oferta de recuperacion de racha desde get_streak_repair_offer() (BD).
+   * 5 intentos por mes calendario, 1 por dia faltante, plazo de 48 h.
+   *
+   * Estructura (snake_case tal cual la RPC):
+   *   { available, reason: 'ok'|'none'|'not_enough'|'gap_too_long',
+   *     remaining, monthly_limit, cost?, missed_days?, previous_streak?,
+   *     restored_streak?, deadline? }
+   *
+   * null = no cargada (offline, migration no aplicada, sin sesion).
+   * @type {Object|null}
+   */
+  repairOffer: null,
+  /** true mientras repairStreak() espera la RPC (evita dobles taps). */
+  repairing: false,
+
+  /**
    * Lista de trofeos desbloqueados desde streak_milestones.
    * Cada item: { milestone: 3|7|14|30|50|100|200|365|500|1000,
    *              achievedAt: 'YYYY-MM-DD', streakValue: number }
@@ -284,6 +300,8 @@ export const useHistoryStore = create((set, get) => ({
       _recentlyRecorded: new Map(),
       _channel: null,
       streakSnapshot: null,
+      repairOffer: null,
+      repairing: false,
       milestones: [],
       hourMilestones: [],
       milestoneToastQueue: [],
@@ -362,6 +380,52 @@ export const useHistoryStore = create((set, get) => ({
     } catch (err) {
       console.warn('[history] loadStreakSnapshot fallo (no fatal):', err?.message);
     }
+    get().loadRepairOffer();
+  },
+
+  /**
+   * Pide a la BD si hay una racha recuperable (y cuantos intentos quedan).
+   * Fallo silencioso: sin oferta, la UI simplemente no muestra el banner.
+   */
+  async loadRepairOffer() {
+    try {
+      const { data, error } = await supabase.rpc('get_streak_repair_offer');
+      if (error) throw error;
+      set({ repairOffer: data ?? null });
+    } catch (err) {
+      console.info('[history] loadRepairOffer fallo (no fatal):', err?.message);
+    }
+  },
+
+  /**
+   * Gasta los intentos necesarios para recuperar la racha rota.
+   * La BD valida plazo e intentos; user_streaks llega tambien por Realtime.
+   * @returns {Promise<boolean>} true si se recupero.
+   */
+  async repairStreak() {
+    if (get().repairing) return false;
+    set({ repairing: true });
+    try {
+      const { data, error } = await supabase.rpc('repair_streak');
+      if (error) throw error;
+      set((s) => ({
+        repairOffer: data?.offer ?? null,
+        streakSnapshot: s.streakSnapshot
+          ? {
+              ...s.streakSnapshot,
+              currentStreak: data?.current_streak ?? s.streakSnapshot.currentStreak,
+              longestStreak: Math.max(s.streakSnapshot.longestStreak, data?.current_streak ?? 0),
+            }
+          : s.streakSnapshot,
+      }));
+      return true;
+    } catch (err) {
+      console.warn('[history] repairStreak fallo:', err?.message);
+      get().loadRepairOffer();
+      return false;
+    } finally {
+      set({ repairing: false });
+    }
   },
 
   /**
@@ -405,6 +469,8 @@ export const useHistoryStore = create((set, get) => ({
               lastDailyCelebratedDate: row.last_daily_celebrated_date ?? null,
             },
           });
+          // Un play nuevo puede abrir (o cerrar) una oferta de recuperacion.
+          get().loadRepairOffer();
         }
       )
       .subscribe();

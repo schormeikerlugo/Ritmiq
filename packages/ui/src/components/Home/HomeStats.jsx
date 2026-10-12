@@ -27,6 +27,7 @@ import { useViewStore } from '../../stores/view.js';
 import { selectStreakState } from '../../lib/streak-state.js';
 import { useStreakTick } from '../../lib/use-streak-tick.js';
 import { Icon } from '../Icon/Icon.jsx';
+import { StreakRepairBanner } from './StreakRepairBanner.jsx';
 import styles from './HomeStats.module.css';
 
 export function HomeStats() {
@@ -49,9 +50,12 @@ export function HomeStats() {
   }
 
   return (
-    <div className={styles.grid}>
-      <HoursCard minutes={totalMinutes} onClick={goStats} />
-      <StreakCard onClick={goStats} />
+    <div className={styles.stack}>
+      <div className={styles.grid}>
+        <HoursCard minutes={totalMinutes} onClick={goStats} />
+        <StreakCard onClick={goStats} />
+      </div>
+      <StreakRepairBanner />
     </div>
   );
 }
