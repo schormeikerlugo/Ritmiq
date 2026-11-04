@@ -34,6 +34,7 @@
  */
 import { useEffect } from 'react';
 import { gsap } from 'gsap';
+import { isLowPerf } from './perf-mode.js';
 
 const DEFAULT_DURATION = 0.32; // 320ms \u2014 alineado con --duration-lg
 const DEFAULT_STAGGER  = 0.04;
@@ -52,7 +53,7 @@ export function useViewTransition(ref, opts = {}) {
   } = opts;
 
   useEffect(() => {
-    if (disabled) return undefined;
+    if (disabled || isLowPerf()) return undefined;
     const node = ref?.current;
     if (!node) return undefined;
 

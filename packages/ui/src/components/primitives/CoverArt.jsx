@@ -121,6 +121,7 @@ export function CoverArt({
           src={coverUrl}
           alt={alt}
           loading={loading}
+          decoding="async"
           onError={() => setImgFailed(true)}
           className={styles.img}
         />

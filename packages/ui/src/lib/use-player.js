@@ -33,6 +33,7 @@ import { getLocalBlobUrl, getJamBlobUrl, cacheJamTrack } from './local-downloads
 import { ensureServerPairing, getDeviceToken, getAutoPairResult } from './device.js';
 import { registerAudioPrime } from './audio-prime.js';
 import { recordPlaybackMetric } from './playback-metrics.js';
+import { isLowPerf } from './perf-mode.js';
 
 /**
  * Telemetria de orígenes de stream — singleton in-memory. Cuenta cuantas
@@ -345,6 +346,8 @@ async function resolveLocalUrl(track) {
  * @returns {boolean}
  */
 function canCrossfade(backend) {
+  // Modo ligero: dos <audio> + fundido es caro en aparatos modestos (TV).
+  if (isLowPerf()) return false;
   if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return false;
   if (backend.isGraphReady && backend.isGraphReady()) return false;
   if (useJamStore.getState().mode !== 'idle') return false;

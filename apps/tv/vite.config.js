@@ -10,6 +10,8 @@ const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf
 export default defineConfig({
   envDir: resolve(process.cwd(), '../..'),
   define: {
+    // Modo ligero siempre en la TV (lib/perf-mode.js).
+    'import.meta.env.VITE_PERF_LOW': JSON.stringify('1'),
     // Servidor 24/7 por la red local (ver lan-client.js SERVER_LAN_URL).
     'import.meta.env.VITE_SERVER_LAN_URL': JSON.stringify(
       process.env.RITMIQ_TV_SERVER_LAN_URL ?? 'http://192.168.68.117:3939',

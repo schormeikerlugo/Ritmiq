@@ -57,3 +57,25 @@ textarea:focus-visible,
 select:focus-visible {
   outline-offset: 0;
 }
+
+/* ── Modo ligero (lib/perf-mode.js) ───────────────────────────────────
+   Aparatos modestos (app de Google TV): las animaciones saltan a su estado
+   final (las infinitas se detienen; entradas y salidas conservan su fill),
+   sin transiciones, desenfoques, sombras ni filtros. Duración 1 ms en vez
+   de `none` para que se apliquen los fill-mode y se emita animationend. */
+html[data-perf='low'] *,
+html[data-perf='low'] *::before,
+html[data-perf='low'] *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+  will-change: auto !important;
+  scroll-behavior: auto !important;
+}

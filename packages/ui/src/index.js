@@ -1,3 +1,4 @@
+import './lib/perf-mode.js';
 export { App } from './App.jsx';
 export { Player } from './components/Player/Player.jsx';
 export { Sidebar } from './components/Sidebar/Sidebar.jsx';

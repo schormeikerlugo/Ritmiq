@@ -179,6 +179,7 @@ export async function getLocalBlobUrl(trackId) {
 | `clearAllLocal` sin borrar caché de metadata | La PWA muestra tracks que ya no tiene offline → isDownloaded desincronizado. |
 
 ## Notas / Changelog
+- 2026-11-04: `cacheTracks`/`cachePlaylists`/`cachePlaylistContents` se ejecutan en `requestIdleCallback` y solo escriben filas nuevas o cambiadas (antes borraban y reescribían todo en cada arranque: ~1,5 s de hilo principal en el onn.).
 - 2026-05-22: nivel pleno.
 - 2026-05-31 (fix offline): `requestPersistOnce()` ahora es **export público** y se llama al
   **login** (App.jsx, solo PWA), no solo al descargar — pide `navigator.storage.persist()`

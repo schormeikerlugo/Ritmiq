@@ -138,6 +138,7 @@ import { flushQueue } from './lib/sync-queue.js';
 import { subscribeTunnelUrl, subscribeServerEndpoint, publishTunnelUrl, clearTunnelUrl } from './lib/tunnel-registry.js';
 import { useEdgeSwipeBack } from './lib/use-edge-swipe-back.js';
 import styles from './App.module.css';
+import { isLowPerf } from './lib/perf-mode.js';
 
 // Parsea el query param `?share=...` al cargar el modulo — solo una vez.
 // Si encuentra un share valido se renderiza la landing publica antes que
@@ -792,7 +793,7 @@ export function App() {
           fallback null porque el modal va sobre un overlay que ya tiene
           su propio loading state. */}
       <Suspense fallback={null}>
-        <MonthlyWrappedAutoTrigger />
+        {!isLowPerf() && <MonthlyWrappedAutoTrigger />}
       </Suspense>
     </div>
   );

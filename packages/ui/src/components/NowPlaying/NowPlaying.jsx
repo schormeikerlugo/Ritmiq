@@ -35,6 +35,7 @@ import { DropdownMenu } from '../DropdownMenu/DropdownMenu.jsx';
 import { useMobileViewport } from '../../lib/use-mobile-viewport.js';
 import { useLoadingBar, formatLoadingSeconds } from '../../lib/use-loading-bar.js';
 import styles from './NowPlaying.module.css';
+import { isLowPerf } from '../../lib/perf-mode.js';
 
 function fmt(sec) {
   if (!Number.isFinite(sec)) return '0:00';
@@ -458,7 +459,7 @@ export function NowPlaying() {
         </button>
       </div>
 
-      <Visualizer enabled={visualizerEnabled && !!currentTrack} />
+      <Visualizer enabled={visualizerEnabled && !!currentTrack && !isLowPerf()} />
 
       <div className={styles.scrubber}>
         <input

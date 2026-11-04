@@ -95,3 +95,14 @@
     font-size: var(--fs-lg);
   }
 }
+
+/* Modo ligero (lib/perf-mode.js): las filas fuera de pantalla no se
+   maquetan ni pintan hasta acercarse (Inicio tardaba ~600 ms en el onn.). */
+:global(html[data-perf='low']) .row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
+}
+:global(html[data-perf='low']) .item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
+}

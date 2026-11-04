@@ -20,6 +20,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { usePlayerStore } from '../stores/player.js';
+import { isLowPerf } from './perf-mode.js';
 
 const FFT_SIZE = 1024;
 const SMOOTH = 0.85;            // smoothing exponencial del valor
@@ -37,7 +38,7 @@ export function useBpmPulse(backend, enabled = true) {
   const smoothRef = useRef(0);
 
   useEffect(() => {
-    if (!enabled || !backend) return undefined;
+    if (!enabled || !backend || isLowPerf()) return undefined;
 
     // Estado del attach: el analyser puede no existir todavia (graph
     // lazy del backend \u2014 ver html-audio-backend.js header). Hacemos

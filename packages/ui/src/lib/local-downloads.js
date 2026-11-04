@@ -308,7 +308,34 @@ export async function downloadTrackToLocal(trackId, onProgress, opts = {}) {
  * @param {import('@ritmiq/core/types').Track[]} tracks
  * @param {string} userId dueño de la biblioteca (requerido para reconciliar)
  */
-export async function cacheTracks(tracks, userId) {
+/**
+ * Ejecuta `fn` cuando el hilo principal esté libre (tras el arranque). El
+ * espejo es solo para uso offline: no debe competir con la primera pintura
+ * (en el onn. de Google TV reescribir la biblioteca costaba ~1,5 s al abrir).
+ * @template T
+ * @param {() => Promise<T>} fn
+ * @returns {Promise<T>}
+ */
+function whenIdle(fn) {
+  return new Promise((resolve, reject) => {
+    const run = () => fn().then(resolve, reject);
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 8000 });
+    else setTimeout(run, 2000);
+  });
+}
+
+/** Igualdad superficial de filas del espejo (mismas claves). */
+function sameRow(a, b) {
+  if (!a || !b) return false;
+  for (const k of Object.keys(b)) if ((a[k] ?? null) !== (b[k] ?? null)) return false;
+  return true;
+}
+
+export function cacheTracks(tracks, userId) {
+  return whenIdle(() => cacheTracksNow(tracks, userId));
+}
+
+async function cacheTracksNow(tracks, userId) {
   if (!userId) return; // sin owner no podemos reconciliar con seguridad
   const list = Array.isArray(tracks) ? tracks : [];
   // Persistimos solo metadata (sin blob). Los flags por-dispositivo se ignoran.
@@ -330,7 +357,10 @@ export async function cacheTracks(tracks, userId) {
     const mine = await db.table('tracks').where('userId').equals(userId).toArray();
     const stale = mine.filter((r) => !keepIds.has(r.id)).map((r) => r.id);
     if (stale.length) await db.table('tracks').bulkDelete(stale);
-    if (rows.length) await db.table('tracks').bulkPut(rows);
+    // Solo las filas nuevas o cambiadas (normalmente ninguna).
+    const byId = new Map(mine.map((r) => [r.id, r]));
+    const changed = rows.filter((r) => !sameRow(byId.get(r.id), r));
+    if (changed.length) await db.table('tracks').bulkPut(changed);
   });
   await db.table('meta').put({ key: 'tracks.syncedAt', value: new Date().toISOString() });
 }
@@ -396,11 +426,20 @@ export async function removeCachedTrack(trackId) {
 }
 
 /** @param {import('@ritmiq/core/types').Playlist[]} playlists */
-export async function cachePlaylists(playlists) {
+export function cachePlaylists(playlists) {
+  return whenIdle(() => cachePlaylistsNow(playlists));
+}
+
+async function cachePlaylistsNow(playlists) {
   if (!Array.isArray(playlists)) return;
   await db.transaction('rw', db.table('playlists'), async () => {
-    await db.table('playlists').clear();
-    if (playlists.length) await db.table('playlists').bulkPut(playlists);
+    const current = await db.table('playlists').toArray();
+    const keep = new Set(playlists.map((p) => p.id));
+    const stale = current.filter((p) => !keep.has(p.id)).map((p) => p.id);
+    if (stale.length) await db.table('playlists').bulkDelete(stale);
+    const byId = new Map(current.map((p) => [p.id, p]));
+    const changed = playlists.filter((p) => JSON.stringify(byId.get(p.id)) !== JSON.stringify(p));
+    if (changed.length) await db.table('playlists').bulkPut(changed);
   });
   await db.table('meta').put({ key: 'playlists.syncedAt', value: new Date().toISOString() });
 }
@@ -412,12 +451,23 @@ export async function getCachedPlaylists() {
 }
 
 /** @param {Record<string,string[]>} contents */
-export async function cachePlaylistContents(contents) {
+export function cachePlaylistContents(contents) {
+  return whenIdle(() => cachePlaylistContentsNow(contents));
+}
+
+async function cachePlaylistContentsNow(contents) {
   const rows = [];
   for (const [playlistId, trackIds] of Object.entries(contents ?? {})) {
     trackIds.forEach((trackId, position) => {
       rows.push({ playlistId, trackId, position });
     });
+  }
+  // Si el contenido no cambió, no reescribir (lo habitual en cada arranque).
+  const key = (r) => `${r.playlistId}|${r.position}|${r.trackId}`;
+  const current = await db.table('playlistTracks').toArray();
+  if (current.length === rows.length) {
+    const have = new Set(current.map(key));
+    if (rows.every((r) => have.has(key(r)))) return;
   }
   await db.transaction('rw', db.table('playlistTracks'), async () => {
     await db.table('playlistTracks').clear();

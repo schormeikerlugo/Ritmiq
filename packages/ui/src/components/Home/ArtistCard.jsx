@@ -43,7 +43,7 @@ export function ArtistCard({ entry, onClick }) {
       <div className={styles.avatarBox}>
         <div className={styles.coverWrap}>
           {entry.coverUrl
-            ? <img className={styles.cover} src={entry.coverUrl} alt="" loading="lazy" />
+            ? <img className={styles.cover} src={entry.coverUrl} alt="" loading="lazy" decoding="async" />
             : <div className={styles.fallback}><Icon name="User" size={32} /></div>}
           <span className={styles.playBtn} aria-hidden="true">
             <Icon name="Play" size={16} filled />
