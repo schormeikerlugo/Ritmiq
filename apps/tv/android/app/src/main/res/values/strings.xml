@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Ritmiq</string>
+    <string name="title_activity_main">Ritmiq</string>
+    <string name="package_name">org.ritmiq.tv</string>
+    <string name="custom_url_scheme">org.ritmiq.tv</string>
+</resources>

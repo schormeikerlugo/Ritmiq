@@ -3,9 +3,9 @@ tipo: modulo
 capa: ui
 plataforma: ambas
 estado: estable
-ultima-revision: 2026-05-22
+ultima-revision: 2026-11-04
 archivo: packages/ui/src/lib/lan-client.js
-tags: [helper, lan, red, streaming, firma, hmac]
+tags: [ helper, lan, red, streaming, firma, hmac ]
 ---
 
 # `lib/lan-client.js`
@@ -171,4 +171,5 @@ export function startTunnelKeepalive() {
 | `startTunnelKeepalive` con 10 min en lugar de 3 min | El Quick Tunnel se cierra por inactividad → PWA pierde conexión. |
 
 ## Notas / Changelog
+- 2026-11-04: `VITE_SERVER_LAN_URL` + `probeServerLan()`: si el build lo define (app de Google TV) y `/health` responde por LAN, `getServerUrlSync()` devuelve la URL local en vez del túnel. Ver [[Google-TV]].
 - 2026-05-22: nivel pleno.

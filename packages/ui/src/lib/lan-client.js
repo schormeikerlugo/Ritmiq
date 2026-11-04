@@ -22,6 +22,45 @@ const SUPABASE_ANON = import.meta.env?.VITE_SUPABASE_ANON_KEY ?? '';
 // tunnel_endpoints) tiene prioridad si existe, para permitir override dinámico.
 const DEFAULT_SERVER_URL = (import.meta.env?.VITE_SERVER_URL ?? '').replace(/\/+$/, '');
 
+// Dirección del MISMO servidor 24/7 en la red local (solo builds que la
+// definen, p. ej. la app de Google TV). Si responde, se usa en lugar del túnel:
+// primer byte ~10 ms en vez de ~600 ms y sin el límite de subida de casa. Si no
+// responde (fuera de casa), se cae al túnel. Es el mismo host, así que el
+// device_token del pareo sirve para ambas rutas.
+const SERVER_LAN_URL = (import.meta.env?.VITE_SERVER_LAN_URL ?? '').replace(/\/+$/, '');
+let serverLanOk = false;
+let serverLanProbe = null;
+
+/** Comprueba si el servidor responde por la red local (timeout corto). */
+export function probeServerLan() {
+  if (!SERVER_LAN_URL || typeof fetch === 'undefined') return Promise.resolve(false);
+  if (serverLanProbe) return serverLanProbe;
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 1200);
+  serverLanProbe = fetch(`${SERVER_LAN_URL}${HEALTH}`, { signal: ac.signal, cache: 'no-store' })
+    .then((r) => r.ok)
+    .catch(() => false)
+    .then((ok) => {
+      clearTimeout(t);
+      if (ok !== serverLanOk) {
+        serverLanOk = ok;
+        try { window.dispatchEvent(new Event('ritmiq:server-mode-changed')); } catch {}
+      }
+      serverLanProbe = null;
+      return ok;
+    });
+  return serverLanProbe;
+}
+
+if (SERVER_LAN_URL && typeof window !== 'undefined') {
+  probeServerLan();
+  window.addEventListener('online', () => { probeServerLan(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') probeServerLan();
+  });
+  setInterval(() => { probeServerLan(); }, 60_000);
+}
+
 /**
  * Cache de URLs firmadas por la Edge `sign-stream`. Las firmas tienen TTL
  * 5 min; mantenemos en cache `expiresAt - 30s` para no servir URLs que
@@ -128,6 +167,7 @@ export function setTunnelUrl(url) {
 
 /** URL pública del SERVIDOR 24/7 (endpoint kind='server'). */
 export function getServerUrlSync() {
+  if (serverLanOk && SERVER_LAN_URL) return SERVER_LAN_URL;
   try {
     const stored = localStorage.getItem(SERVER_URL_KEY);
     if (stored) return stored;

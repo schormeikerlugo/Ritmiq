@@ -363,6 +363,12 @@ Cada decisión sigue el formato:
 - **Consecuencias**: cualquier canción escuchada una vez queda en disco; repetición = `SHARED HIT` (~0.55 s vía túnel). Primer play: Ranges posteriores 0.5-0.8 s (antes 1-5 s c/u); la resolución inicial (yt-dlp, 2-5 s) sigue siendo el coste de una canción nueva → candidata a Fase 3. Prefetch: 1096 objetivos, 49 guardadas sin fallos en los primeros 6 min; 0 × 401 tras el fix. Verificado en producción y con tests (4/4 en el contenedor). Ver [[Cache-y-Rendimiento]], [[prefetch_principals]], [[playback_metrics]].
 - **Adenda — barra de carga + `play()` en paralelo**: (1) la barra de tiempo muestra la carga ([[use-loading-bar]]) con contador real, para que el usuario vea cuánto tarda. (2) Las primeras métricas reales de iPhone dieron **13,7 s y 29,7 s** con el servidor sirviendo el audio en ~3 s (logs: decenas de `SHARED HIT 0ms` mientras el iPhone no arrancaba). Causa: `use-player` esperaba `loadeddata` (timeout 15 s) antes de `play()`, y Safari iOS no bufferiza sin un `play()` pendiente. Ahora `play()` se pide en paralelo con `load()`.
 
+## ADR-040 — App de Google TV con Capacitor y red local
+
+- **Contexto**: el usuario quiere escuchar Ritmiq en el televisor sin Bluetooth desde el teléfono. Se evaluaron iOS nativo (descartado: App Store 5.2.3, 99 USD/año, sin Mac), LG webOS (Modo Desarrollador caduca cada 1000 h, un solo `<audio>`, sin EQ) y Google TV (onn. del usuario).
+- **Decisión**: `apps/tv` = `@ritmiq/ui` empaquetada con Capacitor 8 como APK Android (leanback, banner, sin touchscreen obligatorio), origen `http://localhost` (`androidScheme: http`) para hablar con la LAN sin contenido mixto y con el CORS existente. `lan-client` prefiere el servidor por LAN (`VITE_SERVER_LAN_URL`, sondeo `/health`) y cae al túnel. Regla `ufw` 3939 solo desde 192.168.68.0/24. Instalación por ADB (no caduca).
+- **Consecuencias**: primer byte ~10 ms por LAN (vs ~600 ms por túnel). La PWA no cambia (variable no definida). Pendiente: reproductor nativo en segundo plano, UI para mando, registro de distribución limitada antes de 2027. Ver [[Google-TV]].
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

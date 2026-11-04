@@ -1,0 +1,13 @@
+{
+  "appId": "org.ritmiq.tv",
+  "appName": "Ritmiq",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#0a0a0c"
+  }
+}
