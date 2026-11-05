@@ -218,11 +218,25 @@
 }
 .root .pill[data-on]:focus { background-color: #fff; }
 
-/* Reposo: queda la imagen con el título y el progreso. */
+/* Reposo: queda la imagen con el título y el progreso. Los controles se
+ * ocultan, el hueco del play se cierra (la barra pasa a todo el ancho) y el
+ * bloque baja lo que ocupaban los controles (gap 18 + 52 px). */
+.bottom { transition: transform 500ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.play {
+  transition: opacity 300ms ease, width 450ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    margin 450ms cubic-bezier(0.2, 0.7, 0.2, 1), border-width 450ms ease;
+}
 .root[data-idle] .top,
 .root[data-idle] .controls,
 .root[data-idle] .play {
   opacity: 0;
+}
+.root[data-idle] .bottom { transform: translateY(70px); }
+.root[data-idle] .progressRow > .play {
+  width: 0;
+  border-width: 0;
+  margin-right: -22px;
+  overflow: hidden;
 }
 
 /* Panel lateral: Letras / A continuación / Artista */
