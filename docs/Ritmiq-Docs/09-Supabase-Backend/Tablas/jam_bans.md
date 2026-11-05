@@ -2,7 +2,7 @@
 tipo: tabla
 capa: db
 plataforma: backend
-estado: pendiente-aplicar
+estado: estable
 ultima-revision: 2026-11-04
 archivo: supabase/migrations/20261104000000_jam_kick.sql
 tags: [tabla, jam, rls]
@@ -31,4 +31,4 @@ create table public.jam_bans (
 Cliente: [[jam]] `kickParticipant(userId)` (upsert del veto + delete del participante) y `rotateCode()`. El expulsado detecta que su fila desapareció, sale y recibe el aviso `ritmiq:jam-kicked`.
 
 ## Notas / Changelog
-- 2026-11-04: creación. **Pendiente de aplicar en producción** (token de Management API revocado).
+- 2026-11-04: creación. Aplicada en producción el mismo día (Management API). Verificado: expulsar → el invitado sale con aviso; reintentar con el mismo código → «Te desconectaron de esta jam. Pide el código nuevo.» (comprobación previa en `joinSession`); con el código nuevo entra.

@@ -203,6 +203,14 @@ export const useJamStore = create((set, get) => ({
     const sameAccountAsHost = ses.host_id === user.id;
     const isHost = sameAccountAsHost && hostedHere(ses.id);
 
+    // Expulsado de esta sesión (jam_bans): la RLS no le deja unirse; avisar
+    // claro en vez de entrar y salir de golpe.
+    if (!sameAccountAsHost) {
+      const { data: ban } = await supabase.from('jam_bans').select('session_id')
+        .eq('session_id', ses.id).eq('user_id', user.id).maybeSingle();
+      if (ban) throw new Error('Te desconectaron de esta jam. Pide el código nuevo.');
+    }
+
     set({
       mode: isHost ? 'hosting' : 'guest',
       kind: ses.kind === 'speaker' ? 'speaker' : 'sync',

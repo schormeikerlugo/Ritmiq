@@ -57,7 +57,7 @@ tags: [migraciones, indice, postgres]
 ## 2026-11
 | Archivo | Qué hace |
 |---|---|
-| `20261104000000_jam_kick.sql` | [[jam_bans]]: expulsar participantes de una jam, vetos que se limpian al cambiar el código. **Pendiente de aplicar.** |
+| `20261104000000_jam_kick.sql` | [[jam_bans]]: expulsar participantes de una jam, vetos que se limpian al cambiar el código. Aplicada 2026-11-04. |
 
 ## Cómo añadir una migración
 
