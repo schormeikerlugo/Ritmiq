@@ -528,3 +528,27 @@
   color: var(--color-accent);
   text-decoration: underline;
 }
+
+/* "Conectar a mi TV": altavoz de la misma cuenta encendido en otro aparato. */
+.speakerCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg, 16px);
+  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-bg-2));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  color: var(--color-text-1);
+  font: inherit;
+  cursor: pointer;
+}
+.speakerCard:disabled { opacity: 0.6; cursor: default; }
+.speakerText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}

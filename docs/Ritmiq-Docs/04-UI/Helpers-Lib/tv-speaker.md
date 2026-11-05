@@ -16,7 +16,8 @@ tags: [tv, jam, altavoz]
 - Si la sesión se cierra, el modo vuelve a `idle` y se recrea sola. El latido del host refresca `jam_sessions.updated_at` para que el cron de 24 h no la borre.
 - Depuración: `window.__ritmiqJam` = store del jam (solo TV).
 
-UI: `components/Jam/TvConnect.jsx` (bloque QR+código de la barra y ventana del QR grande con conectados, "Desconectar" y "Cambiar código"), `components/Jam/QrCode.jsx` (SVG con `qrcode-generator`), `lib/jam-link.js` (`https://ritmiq.app/jam/<CODE>`; en TV/escritorio el origen no es público). Ver [[Google-TV]], ADR-043.
+UI: `components/Jam/TvConnect.jsx` (bloque con el código en la barra y ventana con el código grande, conectados, "Desconectar" y "Cambiar código"). Sin QR (en iPhone abría Safari, no la app). En el móvil/PC de la misma cuenta, `JamModal` muestra «Conectar a mi TV» con [[jam]] `findMySpeakers()`. Ver [[Google-TV]], ADR-043.
 
 ## Notas / Changelog
+- 2026-11-04 (b): fuera el QR; «Conectar a mi TV».
 - 2026-11-04: creación.

@@ -1,7 +1,12 @@
 /**
- * TV como altavoz: bloque de conexión de la barra inferior (QR pequeño +
- * código + quién está conectado) y ventana con el QR grande, la lista de
- * participantes (expulsar) y "Cambiar código".
+ * TV como altavoz: bloque de conexión de la barra inferior (código + quién
+ * está conectado) y ventana con el código grande, la lista de participantes
+ * (expulsar) y "Cambiar código".
+ *
+ * Sin QR: en iPhone los enlaces siempre abren Safari, nunca la app de la
+ * pantalla de inicio (ni con sesión iniciada), así que el QR no servía. Con la
+ * misma cuenta, la app ofrece "Conectar a mi TV" en Jam (stores/jam.js
+ * findMySpeakers); el resto escribe el código.
  *
  * Solo se monta en la app de TV (lib/tv-nav.js IS_TV). La sesión la crea
  * lib/tv-speaker.js.
@@ -11,10 +16,8 @@
 import { useEffect, useState } from 'react';
 import { useJamStore } from '../../stores/jam.js';
 import { toast } from '../../stores/toast.js';
-import { buildJamLink } from '../../lib/jam-link.js';
 import { Modal } from '../Modal/Modal.jsx';
 import { Icon } from '../Icon/Icon.jsx';
-import { QrCode } from './QrCode.jsx';
 import styles from './TvConnect.module.css';
 
 // Conectado = latido (heartbeat cada 30 s) en los últimos 2 minutos. Quien
@@ -67,9 +70,9 @@ export function TvConnectBlock() {
         onClick={() => setOpen(true)}
         aria-label={`Conectar teléfono. Código ${session.code}`}
       >
-        <QrCode value={buildJamLink(session.code)} size={52} className={styles.qrSmall} />
+        <span className={styles.blockIcon}><Icon name="Smartphone" size={22} /></span>
         <span className={styles.blockText}>
-          <span className={styles.blockLabel}>Controla desde tu móvil o PC</span>
+          <span className={styles.blockLabel}>Controla desde Ritmiq → Jam</span>
           <span className={styles.code}>{session.code}</span>
         </span>
         {guests.length > 0 && (
@@ -92,7 +95,6 @@ function TvConnectDialog({ onClose }) {
   const rotate = useJamStore((s) => s.rotateCode);
   const [busy, setBusy] = useState(false);
   if (!session) return null;
-  const link = buildJamLink(session.code);
   const guests = activeGuests(participants, session.hostId);
 
   const onKick = async (userId) => {
@@ -109,14 +111,10 @@ function TvConnectDialog({ onClose }) {
   return (
     <Modal onClose={onClose} title="Controla la TV" size="lg">
       <div className={styles.dialog}>
-        <div className={styles.qrBig}>
-          <QrCode value={link} size={300} />
-        </div>
         <div className={styles.info}>
-          <p className={styles.step}><strong>Teléfono:</strong> escanea el QR con la cámara.</p>
-          <p className={styles.step}><strong>PC o sin cámara:</strong> en Ritmiq, Jam → Unirse, y escribe el código:</p>
           <p className={styles.bigCode}>{session.code}</p>
-          <p className={styles.url}>{link.replace(/^https:\/\//, '')}</p>
+          <p className={styles.step}><strong>Con tu cuenta:</strong> en Ritmiq (móvil o PC), abre Jam y pulsa «Conectar a mi TV».</p>
+          <p className={styles.step}><strong>Otra persona:</strong> en Ritmiq, Jam → Unirse a una jam, y escribe el código.</p>
 
           <h3 className={styles.partTitle}>
             Conectados <span className={styles.count}>{guests.length}</span>

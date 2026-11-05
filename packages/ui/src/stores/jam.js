@@ -597,6 +597,26 @@ export const useJamStore = create((set, get) => ({
     get()._broadcast('control', { action, seconds, speaker: true, ...extra });
   },
 
+  /**
+   * Altavoces de MI cuenta encendidos en otro aparato (p. ej. la TV): sesiones
+   * 'speaker' cuyo host soy yo, no creadas en este aparato, con latido reciente
+   * (el host refresca updated_at cada 30 s). Para "Conectar a mi TV" sin código.
+   * @returns {Promise<Array<{ code: string, currentTrack: any, isPlaying: boolean }>>}
+   */
+  async findMySpeakers() {
+    const me = await get()._myUserId();
+    if (!me) return [];
+    const since = new Date(Date.now() - 3 * 60_000).toISOString();
+    const { data, error } = await supabase.from('jam_sessions')
+      .select('id, code, current_track, is_playing, updated_at')
+      .eq('host_id', me).eq('kind', 'speaker').gt('updated_at', since)
+      .order('updated_at', { ascending: false });
+    if (error) return [];
+    return (data ?? []).filter((r) => !hostedHere(r.id)).map((r) => ({
+      code: r.code, currentTrack: r.current_track, isPlaying: !!r.is_playing,
+    }));
+  },
+
   /** Remoto: reproducir ya en el altavoz (sin borrar su cola). */
   playOnSpeaker(track) {
     if (!track) return;
@@ -987,8 +1007,8 @@ setSpeakerRouter((action, track) => {
   const j = useJamStore.getState();
   if (j.mode !== 'guest' || j.kind !== 'speaker' || !track) return false;
   if (action === 'play') {
+    // Sin aviso: la barra ya muestra lo que suena en el altavoz.
     j.playOnSpeaker(track);
-    toast.success(`Sonando en el altavoz: ${track.title ?? ''}`);
   } else {
     j.suggestTrack(track)
       .then(() => toast.success('Añadida a la cola del altavoz'))

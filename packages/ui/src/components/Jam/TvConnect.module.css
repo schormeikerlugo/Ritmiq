@@ -4,7 +4,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 4px 10px 4px 4px;
+  padding: 6px 14px 6px 6px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: var(--color-bg-2);
@@ -18,9 +18,14 @@
   color: var(--color-text-3);
   font-size: var(--fs-xs);
 }
-.qrSmall {
-  display: block;
-  border-radius: 4px;
+.blockIcon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--color-bg-3);
+  color: var(--color-accent);
   flex-shrink: 0;
 }
 .blockText {
@@ -36,7 +41,7 @@
 }
 .code {
   font-family: ui-monospace, monospace;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: var(--fw-bold);
   letter-spacing: 0.12em;
 }
@@ -67,13 +72,6 @@
   gap: var(--space-6);
   align-items: flex-start;
 }
-.qrBig {
-  background: #fff;
-  border-radius: var(--radius-md);
-  padding: 6px;
-  flex-shrink: 0;
-  line-height: 0;
-}
 .info {
   display: flex;
   flex-direction: column;
@@ -86,17 +84,14 @@
   color: var(--color-text-2);
 }
 .bigCode {
-  margin: var(--space-1) 0 0;
+  margin: 0 0 var(--space-2);
   font-family: ui-monospace, monospace;
-  font-size: 44px;
+  font-size: 72px;
+  line-height: 1;
+  text-align: center;
   font-weight: var(--fw-bold);
   letter-spacing: 0.18em;
   color: var(--color-text-1);
-}
-.url {
-  margin: 0;
-  color: var(--color-text-3);
-  font-size: var(--fs-sm);
 }
 .partTitle {
   margin: var(--space-3) 0 0;

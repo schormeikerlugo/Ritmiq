@@ -88,6 +88,9 @@ export function JamModal({ onClose, initialCode = '' }) {
   const kind = useJamStore((s) => s.kind);
   const jamPlayState = useJamStore((s) => s.state);
   const requestControl = useJamStore((s) => s.requestControl);
+  const findMySpeakers = useJamStore((s) => s.findMySpeakers);
+  // TV (u otro altavoz) de mi cuenta encendida: unirse con un toque.
+  const [mySpeakers, setMySpeakers] = useState([]);
 
   // Estado inicial: si hay sesion activa lo decide el effect de mode; si
   // estamos idle, la intro educativa tiene prioridad la primera vez
@@ -107,6 +110,25 @@ export function JamModal({ onClose, initialCode = '' }) {
     else if (mode === 'guest') setView('guest');
     else setView(initialCode ? 'join' : (hasSeenJamIntro() ? 'menu' : 'intro'));
   }, [mode, initialCode]);
+
+  useEffect(() => {
+    if (mode !== 'idle') return undefined;
+    let alive = true;
+    findMySpeakers().then((list) => { if (alive) setMySpeakers(list); }).catch(() => {});
+    return () => { alive = false; };
+  }, [mode, findMySpeakers]);
+
+  const handleJoinSpeaker = async (speakerCode) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await joinSession(speakerCode);
+    } catch (e) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // Avanza la intro o, en el ultimo paso, la marca como vista y cae al menu.
   const handleIntroNext = () => {
@@ -314,9 +336,25 @@ export function JamModal({ onClose, initialCode = '' }) {
             Escucha música con tus amigos en tiempo real. Elige el modo,
             comparte una cola y controlen juntos.
           </p>
+          {mySpeakers.map((sp) => (
+            <button
+              key={sp.code}
+              type="button"
+              className={styles.speakerCard}
+              onClick={() => handleJoinSpeaker(sp.code)}
+              disabled={busy}
+            >
+              <span className={styles.kindIcon}><Icon name="Tv" size={24} /></span>
+              <span className={styles.speakerText}>
+                <span className={styles.kindTitle}>Conectar a mi TV</span>
+                <span className={styles.kindDesc}>Controla lo que suena y añade canciones · {sp.code}</span>
+              </span>
+              <Icon name="ChevronRight" size={20} />
+            </button>
+          ))}
           <div className={styles.menuActions}>
             <Button
-              variant="primary"
+              variant={mySpeakers.length ? 'subtle' : 'primary'}
               size="lg"
               fullWidth
               iconLeft="Plus"
