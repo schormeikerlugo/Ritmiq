@@ -186,7 +186,18 @@ export function TvNowPlaying() {
         />
       )}
       <div className={styles.shade} aria-hidden="true" />
-      {side === 'lyrics' && <TvLyrics track={track} />}
+      {side === 'lyrics' && <TvLyrics track={track} idle={idle} />}
+      {side === 'lyrics' && (
+        <div className={styles.lyricsHead}>
+          {track.coverUrl
+            ? <img className={styles.lyricsHeadCover} src={track.coverUrl} alt="" />
+            : <span className={styles.lyricsHeadCover}><Icon name="Music" size={22} /></span>}
+          <span className={styles.lyricsHeadText}>
+            <span className={styles.lyricsHeadTitle}>{track.title}</span>
+            <span className={styles.lyricsHeadArtist}>{track.artist ?? ''}</span>
+          </span>
+        </div>
+      )}
 
       <header className={styles.top}>
         <span className={styles.from}>
@@ -244,6 +255,13 @@ export function TvNowPlaying() {
             <button type="button" className={styles.ctrl} onClick={prev} aria-label="Anterior">
               <Icon name="SkipBack" size={22} filled />
             </button>
+            {/* Modo letra: el play va aquí, entre anterior y siguiente, y la
+                barra de tiempo ocupa todo el ancho (como en la referencia). */}
+            {side === 'lyrics' && (
+              <button type="button" className={`${styles.ctrl} ${styles.ctrlPlay}`} onClick={togglePlay} aria-label={isPlaying ? 'Pausar' : 'Reproducir'}>
+                <Icon name={isPlaying ? 'Pause' : 'Play'} size={24} filled />
+              </button>
+            )}
             <button type="button" className={styles.ctrl} onClick={next} aria-label="Siguiente">
               <Icon name="SkipForward" size={22} filled />
             </button>

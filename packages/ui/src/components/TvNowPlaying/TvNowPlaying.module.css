@@ -304,19 +304,56 @@
 .root[data-panel] .ctrl { width: 46px; height: 46px; }
 .root[data-panel] .pill { height: 44px; padding: 0 14px; font-size: 15px; gap: 6px; }
 
-/* Modo letra (TvLyrics a pantalla completa): fuera imagen y cabecera, y la
- * canción en una franja compacta abajo. */
+/* Modo letra (TvLyrics a pantalla completa): fuera imagen y cabecera; la
+ * canción arriba a la izquierda en pequeño; abajo la barra de tiempo a todo
+ * el ancho y los controles. En reposo los controles se ocultan y la barra
+ * baja (translateY, sin recalcular el diseño). */
 .root[data-lyrics] .bg,
 .root[data-lyrics] .shade,
 .root[data-lyrics] .top { display: none; }
-.root[data-lyrics] .bottom { gap: 12px; bottom: 32px; }
-.root[data-lyrics] .meta { align-items: center; gap: 14px; }
-.root[data-lyrics] .cover { width: 56px; height: 56px; border-radius: 6px; }
-.root[data-lyrics] .titles { padding-bottom: 0; }
-.root[data-lyrics] .title { font-size: 22px; -webkit-line-clamp: 1; }
-.root[data-lyrics] .artist { font-size: 15px; margin-top: 2px; }
-.root[data-lyrics] .play { width: 52px; height: 52px; }
+.root[data-lyrics] .meta { display: none; }
+.lyricsHead {
+  position: absolute;
+  top: 36px;
+  left: 56px;
+  right: 56px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  animation: tvFadeIn 400ms ease both;
+}
+.lyricsHeadCover {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.2);
+  display: grid;
+  place-items: center;
+}
+.lyricsHeadText { display: flex; flex-direction: column; min-width: 0; }
+.lyricsHeadTitle,
+.lyricsHeadArtist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lyricsHeadTitle { font-size: 18px; font-weight: 700; }
+.lyricsHeadArtist { font-size: 15px; color: rgba(255, 255, 255, 0.8); margin-top: 2px; }
+.root[data-lyrics] .bottom {
+  gap: 14px;
+  bottom: 28px;
+  transition: transform 500ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.root[data-lyrics] .progressRow > .play { display: none; }
 .root[data-lyrics] .ctrl,
-.root[data-lyrics] .pill { background: rgba(0, 0, 0, 0.22); }
+.root[data-lyrics] .pill { background: rgba(0, 0, 0, 0.2); }
 .root[data-lyrics] .pill[data-on] { background: #fff; }
 .root[data-lyrics] .bar { background: rgba(255, 255, 255, 0.35); }
+.root[data-lyrics] .controls { transition: opacity 400ms ease, transform 500ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.ctrlPlay { background: #fff !important; color: #111 !important; }
+.root[data-lyrics][data-idle] .bottom { transform: translateY(66px); }
+.root[data-lyrics][data-idle] .controls { transform: translateY(12px); }
+
+@keyframes tvFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}

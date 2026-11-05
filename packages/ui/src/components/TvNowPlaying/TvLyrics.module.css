@@ -1,25 +1,29 @@
-/* Letra a pantalla completa (estilo karaoke). Sin máscaras ni desenfoques:
- * solo color sólido y un transform con transición para desplazar. */
+/* Letra a pantalla completa (estilo Spotify TV): columna centrada, línea
+ * actual blanca a media altura, el resto en blanco translúcido. Solo se
+ * animan transform/opacity/color (baratos en el onn.). */
 
 .root {
   position: absolute;
   inset: 0;
-  transition: background-color 600ms ease;
+  transition: background-color 700ms ease;
+  animation: lyrIn 450ms ease both;
 }
 
+/* Columna centrada (≈ como la referencia: empieza hacia el 22 % del ancho). */
 .box {
   position: absolute;
-  top: 48px;
-  left: 64px;
-  right: 64px;
-  bottom: 236px;
+  top: 116px;
+  bottom: 196px;
+  left: calc(50% - 400px);
+  width: 800px;
   overflow: hidden;
-  /* Desvanecido en los bordes: sin líneas cortadas de golpe. Es estático
-   * (solo se mueve la lista), así que apenas cuesta en el onn. */
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 7%, #000 84%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 7%, #000 84%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 82%, transparent 100%);
+  transition: bottom 500ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation: lyrIn 500ms ease both;
 }
-.box > :first-child { padding-top: 28px; }
+/* En reposo los controles se ocultan: más sitio para la letra. */
+.root[data-idle] .box { bottom: 112px; }
 
 .lines {
   list-style: none;
@@ -27,32 +31,38 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  transition: transform 450ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  gap: 22px;
+  transition: transform 700ms cubic-bezier(0.22, 0.8, 0.24, 1);
   will-change: transform;
 }
 
 .line {
-  font-size: 44px;
-  line-height: 1.22;
+  font-size: 40px;
+  line-height: 1.25;
   font-weight: 800;
-  letter-spacing: -0.015em;
-  max-width: 1050px;
-  color: rgba(0, 0, 0, 0.62);
-  transition: color 250ms ease;
+  letter-spacing: -0.01em;
+  color: #fff;
+  opacity: 0.42;
+  transform-origin: left center;
+  transform: scale(0.97);
+  transition:
+    opacity 500ms ease,
+    transform 600ms cubic-bezier(0.22, 0.8, 0.24, 1);
 }
-.line[data-state='past'] { color: rgba(255, 255, 255, 0.72); }
-.line[data-state='now'] { color: #fff; }
+.line[data-state='past'] { opacity: 0.55; }
+.line[data-state='now'] {
+  opacity: 1;
+  transform: none;
+}
 
 .plain {
-  font-size: 36px;
-  line-height: 1.35;
+  font-size: 34px;
+  line-height: 1.4;
   font-weight: 800;
   color: #fff;
   white-space: pre-wrap;
-  max-width: 1050px;
   outline: none;
-  transition: transform 300ms ease;
+  transition: transform 400ms ease;
 }
 
 .msg {
@@ -60,4 +70,9 @@
   font-size: 36px;
   font-weight: 800;
   color: rgba(255, 255, 255, 0.85);
+}
+
+@keyframes lyrIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

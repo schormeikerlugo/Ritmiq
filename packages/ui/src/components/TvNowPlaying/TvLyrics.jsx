@@ -1,9 +1,9 @@
 /**
  * Letra a pantalla completa en la TV, estilo karaoke: fondo de color sólido
  * sacado de la portada, letra grande en negrita, la línea actual en blanco,
- * las ya cantadas en blanco suave y las siguientes en oscuro. La línea
- * actual se coloca hacia el tercio superior (desplazamiento con transform,
- * barato en el onn.).
+ * y el resto en blanco translúcido, en una columna centrada. La línea actual
+ * queda a media altura (desplazamiento con transform, barato en el onn.) y
+ * los cambios se animan con color/opacity/transform.
  *
  * Letra sin sincronizar: texto completo en blanco; ↑/↓ la desplazan
  * (role=slider vertical, así lib/tv-nav.js no mueve el foco).
@@ -53,7 +53,7 @@ function activeIndex(parsed, ms) {
   return ans;
 }
 
-export function TvLyrics({ track }) {
+export function TvLyrics({ track, idle = false }) {
   const fetchLyrics = useLyricsStore((s) => s.fetch);
   const position = usePlayerStore((s) => s.positionSeconds);
   const params = {
@@ -88,13 +88,21 @@ export function TvLyrics({ track }) {
   const boxRef = useRef(null);
   const listRef = useRef(null);
   const [offset, setOffset] = useState(0);
+  // La zona visible cambia de alto al entrar/salir del reposo (transición de
+  // 500 ms): recalcular al terminar.
+  const [settled, setSettled] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled((n) => n + 1), 550);
+    return () => clearTimeout(t);
+  }, [idle]);
   useLayoutEffect(() => {
     if (!parsed) return;
     const box = boxRef.current;
     const el = listRef.current?.children[Math.max(0, active)];
     if (!box || !el) return;
-    setOffset(Math.max(0, el.offsetTop - box.clientHeight * 0.3));
-  }, [active, parsed]);
+    // Línea actual centrada en la zona visible (como en la referencia).
+    setOffset(Math.max(0, el.offsetTop + el.offsetHeight / 2 - box.clientHeight * 0.45));
+  }, [active, parsed, settled]);
 
   // Letra sin sincronizar: ↑/↓ desplazan.
   const [plainOffset, setPlainOffset] = useState(0);
@@ -146,8 +154,8 @@ export function TvLyrics({ track }) {
   }
 
   return (
-    <div className={styles.root} style={{ background: bg }}>
-      <div ref={boxRef} className={styles.box}>{body}</div>
+    <div className={styles.root} style={{ background: bg }} data-idle={idle || undefined}>
+      <div ref={boxRef} className={styles.box} key={key}>{body}</div>
     </div>
   );
 }
