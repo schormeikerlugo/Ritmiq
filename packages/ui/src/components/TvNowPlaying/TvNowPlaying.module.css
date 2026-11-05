@@ -1,0 +1,322 @@
+/* Pantalla "Reproduciendo" de la TV (1280×720). Sin desenfoques ni
+ * animaciones continuas: el onn. es modesto (ver perf-mode). Solo
+ * transiciones cortas de opacidad al entrar/salir del reposo. */
+
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 250; /* sobre la barra; bajo las ventanas (Modal = 300) */
+  background: #07070a;
+  color: #fff;
+  overflow: hidden;
+}
+
+.bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Oscurece abajo y a la izquierda (donde va el texto) y deja ver la imagen. */
+.shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to top, rgba(5, 5, 8, 0.96) 0%, rgba(5, 5, 8, 0.72) 32%, rgba(5, 5, 8, 0.1) 62%, rgba(5, 5, 8, 0.45) 100%),
+    linear-gradient(to right, rgba(5, 5, 8, 0.55) 0%, rgba(5, 5, 8, 0) 55%);
+}
+
+.top,
+.bottom,
+.side {
+  position: absolute;
+  z-index: 1;
+}
+
+.top {
+  top: 28px;
+  left: 56px;
+  right: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  transition: opacity 300ms ease;
+}
+.from {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.from strong { color: #fff; font-weight: 700; }
+
+.bottom {
+  left: 56px;
+  right: 56px;
+  bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.root[data-panel] .bottom { right: 488px; }
+
+.meta {
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+  min-width: 0;
+}
+.cover {
+  width: 128px;
+  height: 128px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.titles { min-width: 0; padding-bottom: 6px; }
+.title {
+  margin: 0;
+  font-size: 44px;
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.artist {
+  margin: 8px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.play {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.progressWrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.25);
+  outline: none;
+}
+.fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: #fff;
+}
+.knob {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+}
+.bar:focus .knob,
+.bar:focus-visible .knob { opacity: 1; width: 20px; height: 20px; margin: -10px 0 0 -10px; }
+.bar:focus,
+.bar:focus-visible {
+  height: 8px;
+  box-shadow: 0 0 0 3px var(--color-accent);
+}
+.times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  transition: opacity 300ms ease;
+}
+.group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ctrl {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.ctrl[data-on] { color: var(--color-accent); }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pill[data-on] { background: #fff; color: #111; }
+
+/* Foco del mando: anillo de acento por fuera conservando la forma redonda
+ * (el foco global de la TV en global.css pone radio 8 px y anillo interior). */
+.root .play:focus,
+.root .ctrl:focus {
+  border-radius: 50%;
+  outline-offset: 4px;
+  background-color: rgba(255, 255, 255, 0.22);
+}
+.root .pill:focus {
+  border-radius: 999px;
+  outline-offset: 4px;
+}
+.root .pill[data-on]:focus { background-color: #fff; }
+
+/* Reposo: queda la imagen con el título y el progreso. */
+.root[data-idle] .top,
+.root[data-idle] .controls,
+.root[data-idle] .play {
+  opacity: 0;
+}
+
+/* Panel lateral: Letras / A continuación / Artista */
+.side {
+  top: 96px;
+  right: 40px;
+  bottom: 40px;
+  width: 420px;
+  padding: 20px 24px;
+  border-radius: 16px;
+  background: rgba(10, 10, 14, 0.86);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.side::-webkit-scrollbar { display: none; }
+.sideTitle {
+  margin: 4px 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.6);
+}
+.sideTitle:not(:first-child) { margin-top: 20px; }
+.empty { color: rgba(255, 255, 255, 0.6); margin: 0; }
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.root .item:focus,
+.root .item:focus-visible {
+  outline: none;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+.thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+  display: grid;
+  place-items: center;
+}
+.itemText { display: flex; flex-direction: column; min-width: 0; }
+.itemTitle,
+.itemSub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.itemTitle { font-size: 16px; font-weight: 600; }
+.itemSub { font-size: 13px; color: rgba(255, 255, 255, 0.6); }
+
+.artist2 { color: #fff; }
+
+.pill { white-space: nowrap; }
+/* Con panel abierto queda menos ancho: botones más compactos. */
+.root[data-panel] .group { gap: 8px; }
+.root[data-panel] .ctrl { width: 46px; height: 46px; }
+.root[data-panel] .pill { height: 44px; padding: 0 14px; font-size: 15px; gap: 6px; }
+
+/* Modo letra (TvLyrics a pantalla completa): fuera imagen y cabecera, y la
+ * canción en una franja compacta abajo. */
+.root[data-lyrics] .bg,
+.root[data-lyrics] .shade,
+.root[data-lyrics] .top { display: none; }
+.root[data-lyrics] .bottom { gap: 12px; bottom: 32px; }
+.root[data-lyrics] .meta { align-items: center; gap: 14px; }
+.root[data-lyrics] .cover { width: 56px; height: 56px; border-radius: 6px; }
+.root[data-lyrics] .titles { padding-bottom: 0; }
+.root[data-lyrics] .title { font-size: 22px; -webkit-line-clamp: 1; }
+.root[data-lyrics] .artist { font-size: 15px; margin-top: 2px; }
+.root[data-lyrics] .play { width: 52px; height: 52px; }
+.root[data-lyrics] .ctrl,
+.root[data-lyrics] .pill { background: rgba(0, 0, 0, 0.22); }
+.root[data-lyrics] .pill[data-on] { background: #fff; }
+.root[data-lyrics] .bar { background: rgba(255, 255, 255, 0.35); }

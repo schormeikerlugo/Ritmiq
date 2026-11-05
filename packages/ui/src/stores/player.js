@@ -221,6 +221,15 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
     return true;
   },
 
+  /** Salta a un elemento de la cola por índice (p. ej. "A continuación" en la TV). */
+  playAt(i) {
+    const { queue } = get();
+    if (i < 0 || i >= queue.length) return false;
+    primeAudioForPlayback();
+    set({ index: i, currentTrack: queue[i], isPlaying: true, positionSeconds: 0 });
+    return true;
+  },
+
   /** Retrocede; si llevamos >3s, reinicia el actual. */
   prev() {
     primeAudioForPlayback();

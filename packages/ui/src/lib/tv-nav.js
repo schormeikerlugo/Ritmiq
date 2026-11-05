@@ -199,7 +199,24 @@ function isSlider(el) {
   return (el instanceof HTMLInputElement && el.type === 'range') || el.getAttribute?.('role') === 'slider';
 }
 
+/**
+ * Interceptor de teclas (p. ej. la pantalla "Reproduciendo" en reposo: la
+ * primera tecla solo la despierta). Si devuelve true, la tecla se consume.
+ * @type {null | ((e: KeyboardEvent) => boolean)}
+ */
+let keyInterceptor = null;
+/** @param {(e: KeyboardEvent) => boolean} fn @returns {() => void} quitar */
+export function setTvKeyInterceptor(fn) {
+  keyInterceptor = fn;
+  return () => { if (keyInterceptor === fn) keyInterceptor = null; };
+}
+
 function onKeyDown(e) {
+  if (keyInterceptor?.(e)) {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
   const dir = DIRS[e.key];
   const active = document.activeElement;
   const hasFocus = active && active !== document.body && active !== document.documentElement;

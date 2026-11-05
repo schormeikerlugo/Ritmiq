@@ -14,6 +14,7 @@ import { DailyStreakToast } from './components/DailyStreakToast/DailyStreakToast
 import { ToastHost } from './components/Toast/ToastHost.jsx';
 import { QueuePanel } from './components/QueuePanel/QueuePanel.jsx';
 import { NowPlaying } from './components/NowPlaying/NowPlaying.jsx';
+import { TvNowPlaying } from './components/TvNowPlaying/TvNowPlaying.jsx';
 import { BottomSheetHost } from './components/BottomSheet/BottomSheetHost.jsx';
 import { SharedView } from './components/SharedView/SharedView.jsx';
 import { TrackRowSkeleton } from './components/Skeleton/index.js';
@@ -754,7 +755,7 @@ export function App() {
   }
 
   return (
-    <div className={styles.shell} data-queue-open={queueOpen} data-nowplaying-open={nowPlayingOpen}>
+    <div className={styles.shell} data-queue-open={queueOpen} data-nowplaying-open={!IS_TV && nowPlayingOpen}>
       <aside className={styles.sidebar} data-mobile-open={sidebarOpen}>
         <Sidebar />
       </aside>
@@ -786,9 +787,12 @@ export function App() {
               en mobile el aside no contribuye visualmente (grid-area
               nowplaying esta a 0px en mobile).
        */}
-      <aside className={styles.nowplayingPanel}>
-        <NowPlaying />
-      </aside>
+      {/* TV: pantalla completa propia en lugar del panel lateral. */}
+      {IS_TV ? (nowPlayingOpen && <TvNowPlaying />) : (
+        <aside className={styles.nowplayingPanel}>
+          <NowPlaying />
+        </aside>
+      )}
       <footer className={styles.player}>
         <Player />
       </footer>

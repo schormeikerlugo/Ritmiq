@@ -37,6 +37,7 @@ Campos de texto: al seleccionarlos con flechas reciben `inputmode=none` (no abre
 Flechas por Inicio/playlist, OK reproduce, Canal ^ siguiente, buscador alcanzable con ↑, Atrás: Ajustes → Inicio → aviso → sale. Depurar foco: `adb forward tcp:9229 localabstract:webview_devtools_remote_<pid>` + `Runtime.evaluate(document.activeElement)`.
 
 ## Notas / Changelog
+- 2026-11-05 (b): `setTvKeyInterceptor(fn)` — consume teclas antes de la navegación (reposo de [[TvNowPlaying]]).
 - 2026-11-05: la Biblioteca no se podía recorrer (las filas son botones con un «reproducir rápido» dentro y se descartaban); ahora cuentan los botones nativos.
 - 2026-11-04 (b): filas de canción (OK a la primera), botón principal de ventanas, teclado solo con OK, EQ vertical, zonas en la puntuación (↓ desde el hero de playlist iba al menú).
 - 2026-11-04: creación (ADR-042).

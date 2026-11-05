@@ -1,0 +1,63 @@
+/* Letra a pantalla completa (estilo karaoke). Sin máscaras ni desenfoques:
+ * solo color sólido y un transform con transición para desplazar. */
+
+.root {
+  position: absolute;
+  inset: 0;
+  transition: background-color 600ms ease;
+}
+
+.box {
+  position: absolute;
+  top: 48px;
+  left: 64px;
+  right: 64px;
+  bottom: 236px;
+  overflow: hidden;
+  /* Desvanecido en los bordes: sin líneas cortadas de golpe. Es estático
+   * (solo se mueve la lista), así que apenas cuesta en el onn. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 7%, #000 84%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 7%, #000 84%, transparent 100%);
+}
+.box > :first-child { padding-top: 28px; }
+
+.lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  transition: transform 450ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  will-change: transform;
+}
+
+.line {
+  font-size: 44px;
+  line-height: 1.22;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  max-width: 1050px;
+  color: rgba(0, 0, 0, 0.62);
+  transition: color 250ms ease;
+}
+.line[data-state='past'] { color: rgba(255, 255, 255, 0.72); }
+.line[data-state='now'] { color: #fff; }
+
+.plain {
+  font-size: 36px;
+  line-height: 1.35;
+  font-weight: 800;
+  color: #fff;
+  white-space: pre-wrap;
+  max-width: 1050px;
+  outline: none;
+  transition: transform 300ms ease;
+}
+
+.msg {
+  margin: 0;
+  font-size: 36px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.85);
+}
