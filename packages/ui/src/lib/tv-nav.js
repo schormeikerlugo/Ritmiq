@@ -53,8 +53,16 @@ function candidates(root) {
   // Sin contenedores que tengan controles dentro (p. ej. filas arrastrables
   // con role=button): se navega directo al botón interior, que es el que
   // reproduce/abre. Si no, OK caía en el contenedor y no hacía nada.
-  return all.filter((el) => isVisible(el) && !el.querySelector(FOCUSABLE));
+  // Pero un <button>/<a> de verdad sí cuenta (las filas de la Biblioteca son
+  // botones con un "reproducir rápido" tabindex=-1 dentro): se navega a él y
+  // se ignora lo de dentro marcado como no enfocable. Lo de dentro enfocable
+  // a propósito (p. ej. "Cerrar" del aviso de descargas) sigue alcanzable.
+  return all.filter((el) => isVisible(el)
+    && !(el.getAttribute('tabindex') === '-1' && el.parentElement?.closest(NATIVE))
+    && (el.matches(NATIVE) || !el.querySelector(FOCUSABLE)));
 }
+
+const NATIVE = 'button, a[href]';
 
 const PRIMARY_RE = /^(continuar|siguiente|empezar|comenzar|aceptar|entendido|listo|ok|unirse|crear|guardar|recuperar|terminar|finalizar)\b/i;
 

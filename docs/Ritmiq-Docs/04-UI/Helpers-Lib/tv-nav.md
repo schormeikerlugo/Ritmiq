@@ -26,7 +26,7 @@ tags:
 | Canal ^ / v | `MainActivity.dispatchKeyEvent` → `window.__ritmiqTvKey('next'\|'prev')`. También `MEDIA_NEXT/PREVIOUS/PLAY_PAUSE`. |
 | Volumen, silencio, inicio, etc. | Sistema. |
 
-Candidatos: elementos enfocables visibles **sin controles dentro** (las filas arrastrables `role=button` se saltan y se va directo a su botón; el arrastre está desactivado en TV). Puntuación: vertical = 2×eje + lateral, horizontal = eje + 2×lateral. Zonas (`main` / cada `aside` / resto): en vertical se penaliza cambiar de zona; en horizontal gana lo de la misma zona y fila si existe (banda siguiente del EQ antes que el reproductor), y si no se cruza (← desde el contenido → menú).
+Candidatos: elementos enfocables visibles **sin controles dentro** (las filas arrastrables `role=button` se saltan y se va directo a su botón; el arrastre está desactivado en TV), salvo `<button>`/`<a>` nativos, que siempre cuentan; lo que tengan dentro con `tabindex=-1` (el «reproducir rápido» de las portadas en Biblioteca, menú e Inicio) se ignora. Puntuación: vertical = 2×eje + lateral, horizontal = eje + 2×lateral. Zonas (`main` / cada `aside` / resto): en vertical se penaliza cambiar de zona; en horizontal gana lo de la misma zona y fila si existe (banda siguiente del EQ antes que el reproductor), y si no se cruza (← desde el contenido → menú).
 
 Campos de texto: al seleccionarlos con flechas reciben `inputmode=none` (no abre el teclado); la WebView se queda el OK sin pasarlo a la página, así que `MainActivity` al soltar OK llama `window.__ritmiqTvOk()` y si devuelve `'kb'` muestra el teclado (`showSoftInput`). ←/→ mueven el cursor salvo en los extremos; ↑/↓ salen. Sliders horizontales: ←/→ los ajusta el control; verticales (`data-tv-axis="vertical"`, bandas del EQ): ↑/↓ ±1 dB y ←/→ cambian de banda. `use-shortcuts.js` ignora las flechas en TV (antes ↑/↓ = volumen, ←/→ = canción).
 
@@ -37,5 +37,6 @@ Campos de texto: al seleccionarlos con flechas reciben `inputmode=none` (no abre
 Flechas por Inicio/playlist, OK reproduce, Canal ^ siguiente, buscador alcanzable con ↑, Atrás: Ajustes → Inicio → aviso → sale. Depurar foco: `adb forward tcp:9229 localabstract:webview_devtools_remote_<pid>` + `Runtime.evaluate(document.activeElement)`.
 
 ## Notas / Changelog
+- 2026-11-05: la Biblioteca no se podía recorrer (las filas son botones con un «reproducir rápido» dentro y se descartaban); ahora cuentan los botones nativos.
 - 2026-11-04 (b): filas de canción (OK a la primera), botón principal de ventanas, teclado solo con OK, EQ vertical, zonas en la puntuación (↓ desde el hero de playlist iba al menú).
 - 2026-11-04: creación (ADR-042).
