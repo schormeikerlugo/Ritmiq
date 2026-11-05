@@ -56,5 +56,6 @@ En el onn.: Ajustes → Sistema → Información → pulsar 7 veces "Compilació
 4. APK de release firmado + auto-actualización desde el servidor.
 
 ## Notas / Changelog
+- 2026-11-04 (c): navegación con el mando y pantalla 1280×720 ([[tv-nav]]).
 - 2026-11-04 (b): rendimiento — modo ligero forzado en la TV ([[perf-mode]]), `largeHeap`, sin overscroll, espejo IndexedDB diferencial y en reposo. CPU en reposo 190 % → 0–6 %. Depuración: `adb forward tcp:9229 localabstract:webview_devtools_remote_<pid>` + perfilador CDP.
 - 2026-11-04: prototipo (fase 1): APK debug, LAN directa + túnel, verificado en navegador con viewport TV. Ver ADR-040.

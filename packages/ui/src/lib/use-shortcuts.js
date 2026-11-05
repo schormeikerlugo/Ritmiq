@@ -24,6 +24,7 @@
 import { createElement, useEffect } from 'react';
 import { usePlayerStore } from '../stores/player.js';
 import { useBottomSheet } from '../stores/bottom-sheet.js';
+import { IS_TV } from './tv-nav.js';
 
 /** ID del input de busqueda en TopBar — se usa para focus via getElementById. */
 export const SEARCH_INPUT_ID = 'ritmiq-search-input';
@@ -120,6 +121,9 @@ export function useGlobalShortcuts() {
         store.togglePlay();
         return;
       }
+
+      // En la TV las flechas son navegación con el mando (lib/tv-nav.js).
+      if (IS_TV && k.startsWith('Arrow')) return;
 
       // ── ArrowRight / ArrowLeft → next / prev ──────────────────
       if (k === 'ArrowRight') {

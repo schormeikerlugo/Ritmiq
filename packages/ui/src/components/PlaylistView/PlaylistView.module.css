@@ -757,3 +757,16 @@
   0%   { transform: translateX(0); }
   100% { transform: translateX(calc(-50% - 1rem)); }
 }
+
+/* TV (1280×720): portada y título más compactos para ver la lista sin bajar. */
+:global(html[data-tv]) .hero {
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-3);
+}
+:global(html[data-tv]) .heroCover {
+  width: 150px;
+  height: 150px;
+}
+:global(html[data-tv]) .heroTitle {
+  font-size: 48px;
+}

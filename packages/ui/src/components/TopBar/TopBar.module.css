@@ -467,3 +467,8 @@
   color: var(--color-text-1);
   background: var(--color-bg-3);
 }
+
+/* TV: sin teclado, el atajo Ctrl K no aplica. */
+:global(html[data-tv]) .kbdHint {
+  display: none;
+}

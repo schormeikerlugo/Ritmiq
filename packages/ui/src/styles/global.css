@@ -79,3 +79,21 @@ html[data-perf='low'] *::after {
   will-change: auto !important;
   scroll-behavior: auto !important;
 }
+
+/* ── App de Google TV (lib/tv-nav.js, html[data-tv]) ──────────────────
+   Selección visible desde el sofá: borde de acento hacia dentro (no lo
+   recortan las filas con scroll) y un tinte de fondo. */
+html[data-tv] :focus {
+  outline: 3px solid var(--color-accent) !important;
+  outline-offset: -3px;
+  background-color: color-mix(in oklab, var(--color-accent) 18%, transparent);
+  border-radius: var(--radius-md, 8px);
+}
+html[data-tv] input:focus,
+html[data-tv] textarea:focus {
+  background-color: transparent;
+}
+/* Menú lateral más estrecho: más espacio para el contenido. */
+html[data-tv] {
+  --layout-sidebar-w: 200px;
+}

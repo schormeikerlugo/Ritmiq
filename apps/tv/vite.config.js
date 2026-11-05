@@ -10,6 +10,7 @@ const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf
 export default defineConfig({
   envDir: resolve(process.cwd(), '../..'),
   define: {
+    'import.meta.env.VITE_TARGET': JSON.stringify('tv'),
     // Modo ligero siempre en la TV (lib/perf-mode.js).
     'import.meta.env.VITE_PERF_LOW': JSON.stringify('1'),
     // Servidor 24/7 por la red local (ver lan-client.js SERVER_LAN_URL).

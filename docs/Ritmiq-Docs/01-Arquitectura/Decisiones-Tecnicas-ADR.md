@@ -375,6 +375,12 @@ Cada decisión sigue el formato:
 - **Decisión**: `lib/perf-mode.js` marca `html[data-perf=low]` (forzado en la build de TV con `VITE_PERF_LOW=1`; 'auto' en ≤ 2 GB/≤ 2 núcleos; interruptor en Ajustes → Apariencia). CSS global que lleva animaciones al estado final y quita desenfoques/sombras/filtros; JS sin GSAP, BPM, visualizador, crossfade ni resumen mensual automático; `content-visibility` en filas de Inicio; espejo offline diferencial y en reposo; Android `largeHeap` y sin overscroll.
 - **Consecuencias**: CPU en reposo 0–6 %, fotogramas 18 ms de mediana, sin congelamientos. Aspecto igual pero sin animaciones. Pendiente: interfaz de TV (foco con mando), y si hace falta, renderizar a 720p. Ver [[perf-mode]], [[Google-TV]].
 
+## ADR-042 — Mando de TV: navegación espacial propia y 1280×720
+
+- **Contexto**: en el onn. las flechas cambiaban volumen/canción (atajos de escritorio que cancelaban la tecla) y no había forma de navegar; Atrás cerraba la app; la UI se maquetaba a 960×540 (densidad 2×) y se veía enorme. El mando no tiene botones de música.
+- **Decisión**: `lib/tv-nav.js` (navegación espacial geométrica sobre la UI existente, sin reescribir componentes ni añadir librerías), atajos de flechas desactivados en TV, Atrás jerárquico y Canal ^/v = siguiente/anterior resueltos en `MainActivity` y delegados a JS, viewport 1280×720, estilos `html[data-tv]` (foco visible, menú y portadas compactas).
+- **Consecuencias**: la app se maneja entera con el mando; ~78 % más contenido en pantalla. Pendiente: interfaz específica de TV e inicio de sesión con código desde el teléfono. Ver [[tv-nav]], [[Google-TV]].
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

@@ -145,3 +145,8 @@
 
 /* Sin override mobile — el saludo conserva su tamano grande (fs-3xl)
    incluso en mobile, como pedido por el usuario. Se ve como hero text. */
+
+/* TV (1280×720): saludo más contenido para ver más filas. */
+:global(html[data-tv]) .title {
+  font-size: 40px;
+}

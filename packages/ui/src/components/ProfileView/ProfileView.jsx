@@ -224,7 +224,7 @@ export function ProfileView({ userId }) {
 
         {/* Escuchando ahora */}
         {presenceEntry && (
-          <div className={styles.presenceCard} onClick={handlePlaySameTrack}>
+          <div className={styles.presenceCard} role="button" tabIndex={0} onClick={handlePlaySameTrack}>
             {presenceEntry.coverUrl && (
               <img src={presenceEntry.coverUrl} alt="" className={styles.presenceCover} loading="lazy" />
             )}

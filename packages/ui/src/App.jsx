@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Sidebar } from './components/Sidebar/Sidebar.jsx';
 import { Library } from './components/Library/Library.jsx';
 import { Home } from './components/Home/Home.jsx';
@@ -139,6 +139,8 @@ import { subscribeTunnelUrl, subscribeServerEndpoint, publishTunnelUrl, clearTun
 import { useEdgeSwipeBack } from './lib/use-edge-swipe-back.js';
 import styles from './App.module.css';
 import { isLowPerf } from './lib/perf-mode.js';
+import { IS_TV, useTvRemote, closeTopDialog, focusMain } from './lib/tv-nav.js';
+import { toast } from './stores/toast.js';
 
 // Parsea el query param `?share=...` al cargar el modulo — solo una vez.
 // Si encuentra un share valido se renderiza la landing publica antes que
@@ -254,6 +256,41 @@ export function App() {
     el.style.transform = '';
     el.style.opacity = '';
   };
+  // Mando de la TV (MainActivity → JS). Atrás: ventana abierta → overlay →
+  // pantalla anterior → Inicio → doble pulsación para salir.
+  const tvLastBackRef = useRef(0);
+  const tvOnBack = useCallback(() => {
+    if (closeTopDialog()) return 'handled';
+    const a = document.activeElement;
+    if (a instanceof HTMLInputElement && a.type !== 'range') { a.blur(); focusMain(); return 'handled'; }
+    if (edgeBackAvailable()) { edgeBackAction(); return 'handled'; }
+    const v = useViewStore.getState();
+    if (v.view.kind !== 'home') { v.goHome(); return 'handled'; }
+    const now = Date.now();
+    if (now - tvLastBackRef.current < 2500) return 'exit';
+    tvLastBackRef.current = now;
+    toast.info('Pulsa Atrás otra vez para salir');
+    return 'handled';
+  }, []);
+  const tvOnKey = useCallback((name) => {
+    const p = usePlayerStore.getState();
+    if (!p.currentTrack) return;
+    if (name === 'next') p.next();
+    else if (name === 'prev') p.prev();
+    else if (name === 'playpause') p.togglePlay();
+  }, []);
+  useTvRemote({ onBack: tvOnBack, onKey: tvOnKey });
+  // Al cambiar de pantalla, el foco pasa al contenido (no se queda en el menú).
+  useEffect(() => {
+    if (!IS_TV) return undefined;
+    const t = setTimeout(() => {
+      const a = document.activeElement;
+      const main = document.querySelector('main');
+      if (!main?.contains(a)) focusMain();
+    }, 350);
+    return () => clearTimeout(t);
+  }, [viewKind]);
+
   useEdgeSwipeBack({
     onBack: edgeBackAction,
     canGoBack: edgeBackAvailable,

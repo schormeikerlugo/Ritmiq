@@ -180,7 +180,7 @@ function FriendsTab() {
       {friends.map((f) => {
         const p = presence.get(f.userId);
         return (
-          <li key={f.userId} className={styles.friendRow} onClick={() => goProfile(f.userId)}>
+          <li key={f.userId} className={styles.friendRow} role="button" tabIndex={0} onClick={() => goProfile(f.userId)}>
             <Avatar user={f} />
             <div className={styles.friendInfo}>
               <span className={styles.displayName}>{f.displayName ?? f.username}</span>
