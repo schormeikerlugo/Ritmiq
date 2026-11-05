@@ -25,6 +25,9 @@ import { Icon } from '../Icon/Icon.jsx';
 import { TvLyrics } from './TvLyrics.jsx';
 import { ArtistInfoPanel } from '../NowPlaying/ArtistInfoPanel.jsx';
 import { TvConnectBlock } from '../Jam/TvConnect.jsx';
+import { TrackImg } from '../primitives/TrackImg.jsx';
+import { useArtistImage } from '../../lib/track-art.js';
+import { useArtStore } from '../../stores/art.js';
 import styles from './TvNowPlaying.module.css';
 
 const IDLE_MS = 8000;
@@ -37,7 +40,7 @@ function fmt(sec) {
   return `${m}:${s}`;
 }
 
-/** Imagen grande: la miniatura máxima de YouTube si existe; si no, la portada. */
+/** Fondo sin foto de artista: la miniatura máxima de YouTube; si no, la portada. */
 function backdropOf(track) {
   if (track?.ytId) return `https://i.ytimg.com/vi/${track.ytId}/maxresdefault.jpg`;
   return track?.coverUrl ?? null;
@@ -73,13 +76,21 @@ export function TvNowPlaying() {
   // el store de vistas (el botón de letra de la barra abre esta pantalla así).
   const [side, setSide] = useState(lyricsOpen ? 'lyrics' : null);
   const [idle, setIdle] = useState(false);
-  const [bgSrc, setBgSrc] = useState(() => backdropOf(track));
+  // Fondo: foto del artista (portadas oficiales, lib/track-art.js); sin ella,
+  // el fotograma del vídeo como antes.
+  const artistImage = useArtistImage(track);
+  // Título/artista limpios si el servidor identificó la canción (sin
+  // "(Official Video)", "Artista - …"). Solo para mostrar.
+  const artEntry = useArtStore((s) => (track?.ytId ? s.entries[track.ytId] : null));
+  const showTitle = artEntry?.s === 'found' && artEntry.t ? artEntry.t : track?.title;
+  const showArtist = artEntry?.s === 'found' && artEntry.ar ? artEntry.ar : track?.artist;
+  const [bgSrc, setBgSrc] = useState(() => artistImage ?? backdropOf(track));
   const rootRef = useRef(null);
   const playRef = useRef(null);
   const sideRef = useRef(null);
   const idleTimer = useRef(null);
 
-  useEffect(() => { setBgSrc(backdropOf(track)); }, [track?.ytId, track?.coverUrl]);
+  useEffect(() => { setBgSrc(artistImage ?? backdropOf(track)); }, [track?.ytId, track?.coverUrl, artistImage]);
   useEffect(() => { setLyricsOpen(side === 'lyrics'); }, [side, setLyricsOpen]);
 
   // Foco inicial en play; al cerrar, devolverlo a donde estaba.
@@ -182,7 +193,11 @@ export function TvNowPlaying() {
           className={styles.bg}
           src={bgSrc}
           alt=""
-          onError={() => { if (bgSrc !== track.coverUrl) setBgSrc(track.coverUrl ?? null); }}
+          data-artist={bgSrc === artistImage || undefined}
+          onError={() => {
+            if (bgSrc === artistImage) setBgSrc(backdropOf(track));
+            else if (bgSrc !== track.coverUrl) setBgSrc(track.coverUrl ?? null);
+          }}
         />
       )}
       <div className={styles.shade} aria-hidden="true" />
@@ -190,11 +205,11 @@ export function TvNowPlaying() {
       {side === 'lyrics' && (
         <div className={styles.lyricsHead}>
           {track.coverUrl
-            ? <img className={styles.lyricsHeadCover} src={track.coverUrl} alt="" />
+            ? <TrackImg className={styles.lyricsHeadCover} track={track} />
             : <span className={styles.lyricsHeadCover}><Icon name="Music" size={22} /></span>}
           <span className={styles.lyricsHeadText}>
-            <span className={styles.lyricsHeadTitle}>{track.title}</span>
-            <span className={styles.lyricsHeadArtist}>{track.artist ?? ''}</span>
+            <span className={styles.lyricsHeadTitle}>{showTitle}</span>
+            <span className={styles.lyricsHeadArtist}>{showArtist ?? ''}</span>
           </span>
         </div>
       )}
@@ -210,11 +225,11 @@ export function TvNowPlaying() {
       <section className={styles.bottom}>
         <div className={styles.meta}>
           {track.coverUrl
-            ? <img className={styles.cover} src={track.coverUrl} alt="" />
+            ? <TrackImg className={styles.cover} track={track} size={1000} priority />
             : <span className={styles.cover}><Icon name="Music" size={40} /></span>}
           <div className={styles.titles}>
-            <h1 className={styles.title}>{track.title}</h1>
-            <p className={styles.artist}>{track.artist ?? '—'}</p>
+            <h1 className={styles.title}>{showTitle}</h1>
+            <p className={styles.artist}>{showArtist ?? '—'}</p>
           </div>
         </div>
 
@@ -329,7 +344,7 @@ function UpNext() {
               return (
                 <li key={s.id}>
                   <button type="button" className={styles.item} onClick={() => playSuggestion(s.id)}>
-                    <Thumb src={s.track?.coverUrl} />
+                    <Thumb track={s.track} />
                     <span className={styles.itemText}>
                       <span className={styles.itemTitle}>{s.track?.title}</span>
                       <span className={styles.itemSub}>
@@ -351,7 +366,7 @@ function UpNext() {
           {upcoming.map(({ t, i }) => (
             <li key={`${t.id ?? t.ytId}-${i}`}>
               <button type="button" className={styles.item} onClick={() => playAt(i)}>
-                <Thumb src={t.coverUrl} />
+                <Thumb track={t} />
                 <span className={styles.itemText}>
                   <span className={styles.itemTitle}>{t.title}</span>
                   <span className={styles.itemSub}>{t.artist ?? ''}</span>
@@ -365,8 +380,8 @@ function UpNext() {
   );
 }
 
-function Thumb({ src }) {
-  return src
-    ? <img className={styles.thumb} src={src} alt="" loading="lazy" />
+function Thumb({ track }) {
+  return track?.coverUrl
+    ? <TrackImg className={styles.thumb} track={track} loading="lazy" />
     : <span className={styles.thumb}><Icon name="Music" size={18} /></span>;
 }

@@ -175,6 +175,11 @@ export function getServerUrlSync() {
   // Fallback al servidor por defecto del build (VITE_SERVER_URL).
   return DEFAULT_SERVER_URL || null;
 }
+/** Dirección LAN del servidor si responde ahora (app de TV en casa); si no, null. */
+export function getServerLanUrlSync() {
+  return serverLanOk && SERVER_LAN_URL ? SERVER_LAN_URL : null;
+}
+
 /** @param {string|null} url */
 export function setServerUrl(url) {
   try {
@@ -561,5 +566,39 @@ export async function lanSpotifyPlaylist(spotifyUrl) {
     const j = await r.json().catch(() => ({}));
     throw new Error(j.error ?? `LAN spotify ${r.status}`);
   }
+  return r.json();
+}
+
+/**
+ * Portadas: pide al servidor identificar canciones (art-resolver). Devuelve
+ * lo que ya conoce (`known`, por ytId) o null si no hay servidor.
+ * @param {Array<{ ytId: string, title?: string, artist?: string, durationSeconds?: number|null }>} items
+ * @param {{ priority?: boolean }} [opts]
+ */
+export async function artResolve(items, opts = {}) {
+  const base = preferredBase();
+  if (!base || !items.length) return null;
+  try {
+    const r = await fetch(`${base}/art/resolve`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items, priority: !!opts.priority }),
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+/**
+ * "Buscar portada": candidatos (iTunes/Deezer) para una canción.
+ * @param {{ title: string, artist?: string, durationSeconds?: number|null }} t
+ */
+export async function artCandidates(t) {
+  const base = preferredBase();
+  if (!base) throw new Error('Sin servidor disponible');
+  const qs = new URLSearchParams({ title: t.title ?? '', artist: t.artist ?? '' });
+  if (t.durationSeconds) qs.set('duration', String(Math.round(t.durationSeconds)));
+  const r = await fetch(`${base}/art/candidates?${qs}`, { headers: authHeaders() });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }

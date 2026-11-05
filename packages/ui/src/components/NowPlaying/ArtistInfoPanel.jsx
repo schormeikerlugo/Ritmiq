@@ -19,6 +19,7 @@ import { usePlayerStore } from '../../stores/player.js';
 import { useViewStore } from '../../stores/view.js';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './ArtistInfoPanel.module.css';
+import { TrackImg } from '../primitives/TrackImg.jsx';
 
 /** @param {{ artistName: string }} props */
 export function ArtistInfoPanel({ artistName }) {
@@ -114,7 +115,7 @@ export function ArtistInfoPanel({ artistName }) {
               >
                 <div className={styles.cardCover}>
                   {t.coverUrl
-                    ? <img src={t.coverUrl} alt="" loading="lazy" />
+                    ? <TrackImg track={t} loading="lazy" />
                     : <Icon name="Music" size={28} />
                   }
                   <span className={styles.cardPlayOverlay} aria-hidden="true">

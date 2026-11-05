@@ -25,6 +25,7 @@ import { ArtistCard } from '../Home/ArtistCard.jsx';
 import { RowSkeleton } from '../Home/RowSkeleton.jsx';
 import { ExploreView } from './ExploreView.jsx';
 import styles from './SearchView.module.css';
+import { TrackImg } from '../primitives/TrackImg.jsx';
 
 const TABS = [
   { id: 'all',       label: 'Todo' },
@@ -636,7 +637,7 @@ function SongRow({ track, onClick, badge, cached, knownCount, inLibrary }) {
     <button type="button" className={styles.songRow} onClick={onClick} onPointerDown={prewarmOnDown}>
       <div className={styles.songCover}>
         {track.coverUrl
-          ? <img src={track.coverUrl} alt="" loading="lazy" />
+          ? <TrackImg track={track} loading="lazy" />
           : <Icon name="Music" size={18} />}
         <span className={styles.songPlay} aria-hidden="true">
           <Icon name="Play" size={14} filled />

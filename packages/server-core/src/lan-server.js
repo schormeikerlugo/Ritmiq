@@ -43,6 +43,7 @@ import {
   startLoginSession, getLoginStatus, stopLoginSession, isDockerAvailable,
 } from './youtube-login.js';
 import { createJwtVerifier } from './auth-jwt.js';
+import { createArtResolver } from './art-resolver.js';
 
 /**
  * Cache global de URLs (Fase 1): publica a Supabase Edge cada resolucion
@@ -289,6 +290,40 @@ export async function publishTrackMetaFromMain(meta) {
  * @param {string} url
  * @param {number} expiresAtMs  Timestamp (Date.now() + TTL)
  */
+/**
+ * Publica el resultado de portada en Supabase `track_art` (PostgREST, JWT de
+ * la cuenta del servidor; RLS solo deja escribir a `art_writers`).
+ * @param {object} row  fila de art_cache
+ */
+async function publishTrackArt(row) {
+  const SUP = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
+  const ANON = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
+  if (!SUP || !ANON || !supabaseUserJwt) return;
+  const res = await fetch(`${SUP}/rest/v1/track_art?on_conflict=yt_id`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: ANON,
+      Authorization: `Bearer ${supabaseUserJwt}`,
+      Prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    body: JSON.stringify({
+      yt_id: row.yt_id,
+      status: row.status,
+      source: row.source,
+      score: row.score,
+      matched_title: row.matched_title,
+      matched_artist: row.matched_artist,
+      album: row.album,
+      cover_url: row.cover_url,
+      cover_small_url: row.cover_small_url,
+      artist_image_url: row.artist_image_url,
+      updated_at: row.checked_at,
+    }),
+  });
+  if (!res.ok) throw new Error(`track_art ${res.status} ${(await res.text().catch(() => '')).slice(0, 120)}`);
+}
+
 async function publishToGlobalCache(ytId, url, expiresAtMs) {
   const SUP = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
   const ANON = process.env.VITE_SUPABASE_ANON_KEY
@@ -435,6 +470,9 @@ export async function startLanServer({
   // server no puede validar firmas y rechaza requests `/stream/` salvo
   // que ACCEPT_UNSIGNED esté activo (modo de compatibilidad temporal).
   const STREAM_SIGNING_SECRET = process.env.RITMIQ_STREAM_SIGNING_SECRET ?? null;
+  // Portadas oficiales + fotos de artista (art-resolver.js): caché en SQLite
+  // e imágenes en <dataDir>/art/, publicadas en Supabase track_art.
+  const art = createArtResolver({ db, dir: dataSubdir('art'), publish: publishTrackArt });
   const ACCEPT_UNSIGNED =
     String(process.env.RITMIQ_ACCEPT_UNSIGNED_STREAMS ?? '').toLowerCase() === 'true';
   if (!STREAM_SIGNING_SECRET) {
@@ -1257,6 +1295,32 @@ export async function startLanServer({
         return;
       }
 
+      // Imágenes de portada/artista: públicas (un <img> no manda cabeceras) y
+      // solo sirven lo ya cacheado. Sin archivo pero con resultado → CDN.
+      const artMatch = url.pathname.match(/^\/art\/(track|artist)\/([A-Za-z0-9_-]{6,20})$/);
+      if (artMatch && req.method === 'GET') {
+        const [, kind, ytId] = artMatch;
+        const size = url.searchParams.get('s') === '300' ? 300 : 1000;
+        const fileKind = kind === 'artist' ? 'artist' : size === 300 ? 'cover300' : 'cover1000';
+        const file = art.file(ytId, fileKind);
+        if (file) {
+          const st = statSync(file);
+          res.writeHead(200, {
+            'Content-Type': 'image/jpeg',
+            'Content-Length': st.size,
+            'Cache-Control': 'public, max-age=2592000, immutable',
+          });
+          createReadStream(file).pipe(res);
+          return;
+        }
+        const row = art.get(ytId);
+        const cdn = kind === 'artist' ? row?.artist_image_url
+          : size === 300 ? (row?.cover_small_url ?? row?.cover_url) : row?.cover_url;
+        if (cdn) { res.writeHead(302, { Location: cdn, 'Cache-Control': 'public, max-age=86400' }).end(); return; }
+        res.writeHead(404, { 'Cache-Control': 'public, max-age=300' }).end();
+        return;
+      }
+
       if (url.pathname === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, service: 'ritmiq', version: '0.1.0' }));
@@ -1577,7 +1641,9 @@ export async function startLanServer({
           url.pathname.startsWith('/yt/') ||
           url.pathname.startsWith('/stream/') ||
           url.pathname.startsWith('/download/') ||
-          url.pathname === '/shared-cache/check'
+          url.pathname === '/shared-cache/check' ||
+          url.pathname === '/art/resolve' ||
+          url.pathname === '/art/candidates'
         );
       // Modelo Y: ademas del owner token, aceptamos device_token aprobado
       // para todos los endpoints de musica (/yt/*, /stream/*, /download/*,
@@ -1591,6 +1657,8 @@ export async function startLanServer({
         url.pathname.startsWith('/youtube/link') ||
         url.pathname === '/youtube/unlink' ||
         url.pathname === '/shared-cache/check' ||
+        url.pathname === '/art/resolve' ||
+        url.pathname === '/art/candidates' ||
         // Import de Spotify: solo scrapea el embed público de una playlist, no
         // expone datos privados. Aceptar device_token (no solo owner) para que
         // cualquier cuenta aprobada pueda importar (antes daba 401 a no-owners).
@@ -1699,6 +1767,52 @@ export async function startLanServer({
         } else {
           resolveCached(ytId, 5).catch(() => {});
           res.writeHead(204).end();
+        }
+        return;
+      }
+
+      // Portadas: encolar canciones para identificar (la que suena, prioridad).
+      // Body: { items: [{ ytId, title, artist, durationSeconds }], priority? }
+      // Responde lo ya conocido para no esperar a Supabase.
+      if (url.pathname === '/art/resolve' && req.method === 'POST') {
+        const chunks = [];
+        let size = 0;
+        req.on('data', (c) => { size += c.length; if (size < 256 * 1024) chunks.push(c); });
+        req.on('end', () => {
+          try {
+            const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+            const items = (Array.isArray(body.items) ? body.items : []).slice(0, 200)
+              .filter((t) => t && typeof t.ytId === 'string' && /^[A-Za-z0-9_-]{6,20}$/.test(t.ytId));
+            const queued = art.enqueue(items, { priority: !!body.priority });
+            const known = {};
+            for (const t of items) {
+              const r = art.get(t.ytId);
+              if (r) known[t.ytId] = r;
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ queued, pending: art.pending(), known }));
+          } catch {
+            res.writeHead(400).end('bad json');
+          }
+        });
+        return;
+      }
+
+      // "Buscar portada": candidatos para elegir a mano.
+      if (url.pathname === '/art/candidates' && req.method === 'GET') {
+        const title = url.searchParams.get('title') ?? '';
+        if (!title) { res.writeHead(400).end('title required'); return; }
+        try {
+          const { query, candidates } = await art.findCandidates({
+            title,
+            artist: url.searchParams.get('artist') ?? '',
+            durationSeconds: Number(url.searchParams.get('duration')) || null,
+          });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ query, candidates: candidates.slice(0, 8) }));
+        } catch (e) {
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: String(e?.message ?? e) }));
         }
         return;
       }
@@ -2122,6 +2236,10 @@ export async function startLanServer({
     onPairRequest,
     /** Prefetch de bibliotecas a shared-audio (servidor 24/7). */
     prefetch,
+    /** Portadas: encolar canciones (pasada periódica de bibliotecas). */
+    artEnqueue: (tracks) => art.enqueue(tracks, { background: true }),
+    artStats: () => ({ ...art.stats, pending: art.pending() }),
+    artRepublish: (limit) => art.republish(limit),
     stop: async () => {
       try { advert?.stop?.(); } catch {}
       try { bonjour?.destroy(); } catch {}

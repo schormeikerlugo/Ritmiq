@@ -198,7 +198,7 @@ export function HistoryView() {
                 onClick={() => handleClick(i)}
               >
                 <CoverArt
-                  coverUrl={ev.coverUrl}
+                  track={{ ytId: ev.ytId, coverUrl: ev.coverUrl, title: ev.title, artist: ev.artist, durationSeconds: ev.durationSeconds }}
                   seed={ev.title || ev.artist || 'ritmiq'}
                   size={44}
                   radius="sm"

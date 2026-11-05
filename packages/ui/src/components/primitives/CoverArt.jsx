@@ -15,6 +15,8 @@
  *
  * @param {{
  *   coverUrl?: string | null,
+ *   track?: object,               canción (ytId/coverUrl/title/artist): usa la
+ *     portada oficial identificada por el servidor (lib/track-art.js).
  *   seed?: string,                titulo o artista para hash. default ''.
  *   alt?: string,                 alt del <img>. default ''.
  *   size?: number | string,       width+height. default '100%'.
@@ -27,6 +29,7 @@
  * }} props
  */
 import { useMemo, useState } from 'react';
+import { useTrackCover } from '../../lib/track-art.js';
 import styles from './CoverArt.module.css';
 
 /** Hash 32-bit deterministico de un string (FNV-1a). */
@@ -71,7 +74,8 @@ function radiusToToken(radius) {
 }
 
 export function CoverArt({
-  coverUrl,
+  coverUrl: coverUrlProp,
+  track,
   seed = '',
   alt = '',
   size,
@@ -81,6 +85,8 @@ export function CoverArt({
   className,
   onClick,
 }) {
+  const best = useTrackCover(track ?? null);
+  const coverUrl = track ? best : coverUrlProp;
   // Si la imagen falla, mostramos gradient. State local para el fallback.
   const [imgFailed, setImgFailed] = useState(false);
 

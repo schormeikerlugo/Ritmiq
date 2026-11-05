@@ -28,6 +28,7 @@ import { toast } from '../../stores/toast.js';
 import { Icon } from '../Icon/Icon.jsx';
 import { EmptyState } from '../primitives/index.js';
 import styles from './QueuePanel.module.css';
+import { TrackImg } from '../primitives/TrackImg.jsx';
 
 function fmtDur(s) {
   if (!Number.isFinite(s)) return '';
@@ -282,7 +283,7 @@ function Row({ track, playing, muted, dragging, onClick, onRemove }) {
       >
         <div className={styles.thumb}>
           {track.coverUrl
-            ? <img src={track.coverUrl} alt="" loading="lazy" />
+            ? <TrackImg track={track} loading="lazy" />
             : <Icon name="Music" size={18} />}
         </div>
         <div className={styles.meta}>
@@ -446,7 +447,7 @@ function JamRow({ track, profile, userId, playing, muted, canPlay, onPlay, onRem
       >
         <div className={styles.thumb}>
           {track.coverUrl
-            ? <img src={track.coverUrl} alt="" loading="lazy" />
+            ? <TrackImg track={track} loading="lazy" />
             : <Icon name="Music" size={18} />}
         </div>
         <div className={styles.meta}>

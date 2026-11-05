@@ -11,6 +11,7 @@ import { usePullToRefresh } from '../../lib/use-pull-to-refresh.js';
 import { PullIndicator } from '../PullToRefresh/PullToRefresh.jsx';
 import { DownloadsSummary, fmtBytes } from './DownloadsSummary.jsx';
 import styles from './Downloads.module.css';
+import { TrackImg } from '../primitives/TrackImg.jsx';
 
 function fmtDur(s) {
   if (!Number.isFinite(s)) return '—';
@@ -123,7 +124,7 @@ export function Downloads() {
                 >
                   <div className={styles.thumb}>
                     {t.coverUrl
-                      ? <img src={t.coverUrl} alt="" loading="lazy" />
+                      ? <TrackImg track={t} loading="lazy" />
                       : <Icon name="Music" size={18} />}
                   </div>
                   <div className={styles.meta}>

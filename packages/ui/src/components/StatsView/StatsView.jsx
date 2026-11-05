@@ -265,7 +265,7 @@ export function StatsView() {
                       className={styles.topItem}
                       onClick={() => playNow(t)}
                     >
-                      <CoverArt coverUrl={t.coverUrl} seed={t.title || t.artist} size={44} radius="sm" />
+                      <CoverArt track={t} seed={t.title || t.artist} size={44} radius="sm" />
                       <div className={styles.topMeta}>
                         <span className={styles.topTitle}>{t.title}</span>
                         <span className={styles.topSub}>{t.artist ?? '—'}</span>

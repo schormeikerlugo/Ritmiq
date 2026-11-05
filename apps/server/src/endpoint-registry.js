@@ -163,3 +163,21 @@ export async function fetchPrefetchTargets(limit = 3000) {
   }
   return out;
 }
+
+/**
+ * Canciones de bibliotecas/historial sin portada identificada todavía
+ * (RPC get_art_targets, solo cuentas en prefetch_principals).
+ * @returns {Promise<Array<{ ytId: string, title: string, artist: string, durationSeconds: number|null }>>}
+ */
+export async function fetchArtTargets(limit = 200) {
+  const sb = await getOwnerClient();
+  if (!sb) return [];
+  const { data, error } = await sb.rpc('get_art_targets', { p_limit: limit });
+  if (error) {
+    console.warn('[endpoint-registry] get_art_targets falló:', error.message);
+    return [];
+  }
+  return (data ?? []).map((r) => ({
+    ytId: r.yt_id, title: r.title, artist: r.artist ?? '', durationSeconds: r.duration_seconds ?? null,
+  }));
+}

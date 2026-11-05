@@ -36,6 +36,8 @@ import { useMobileViewport } from '../../lib/use-mobile-viewport.js';
 import { useLoadingBar, formatLoadingSeconds } from '../../lib/use-loading-bar.js';
 import styles from './NowPlaying.module.css';
 import { isLowPerf } from '../../lib/perf-mode.js';
+import { TrackImg } from '../primitives/TrackImg.jsx';
+import { useTrackCover } from '../../lib/track-art.js';
 
 function fmt(sec) {
   if (!Number.isFinite(sec)) return '0:00';
@@ -159,19 +161,20 @@ export function NowPlaying() {
   const rootRef = useRef(null);
   const dragStateRef = useRef({ startY: 0, currentY: 0, dragging: false });
 
-  // Extraer color dominante cuando cambia la cover.
+  // Extraer color dominante cuando cambia la cover (la oficial si la hay).
+  const bestCover = useTrackCover(currentTrack, 300, { priority: true });
   useEffect(() => {
     let cancelled = false;
-    if (!currentTrack?.coverUrl) {
+    if (!bestCover) {
       setBgColor('var(--color-bg-1)');
       return;
     }
-    getDominantColor(currentTrack.coverUrl).then((c) => {
+    getDominantColor(bestCover).then((c) => {
       if (cancelled) return;
       setBgColor(c || 'var(--color-bg-1)');
     });
     return () => { cancelled = true; };
-  }, [currentTrack?.coverUrl]);
+  }, [bestCover]);
 
   // Cerrar con ESC para desktop / teclado físico.
   useEffect(() => {
@@ -320,7 +323,7 @@ export function NowPlaying() {
     },
     {
       id: 'edit',
-      label: 'Editar título y artista',
+      label: 'Editar título, artista o portada',
       icon: <Icon name="Pencil" size={16} />,
       disabled: !currentTrack?.ytId && !currentTrack?.id,
       onClick: () => openEditDialog(),
@@ -439,7 +442,7 @@ export function NowPlaying() {
           style={{ transform: `scale(${bpmScale.toFixed(3)})` }}
         >
           {currentTrack?.coverUrl
-            ? <img src={currentTrack.coverUrl} alt="" />
+            ? <TrackImg track={currentTrack} size={1000} priority />
             : <div className={styles.coverPlaceholder}><Icon name="Music" size={64} /></div>}
         </div>
       </div>

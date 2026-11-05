@@ -27,6 +27,7 @@ import { ConfirmDialog, ErrorState } from '../primitives/index.js';
 import { HeroSkeleton, TrackRowSkeleton } from '../Skeleton/index.js';
 import { toast } from '../../stores/toast.js';
 import styles from './ArtistView.module.css';
+import { TrackImg } from '../primitives/TrackImg.jsx';
 
 function fmtListeners(n) {
   if (!n) return '';
@@ -227,7 +228,7 @@ export function ArtistView({ name }) {
                   <span className={styles.trackIdx}>{i + 1}</span>
                   <div className={styles.trackCover}>
                     {t.coverUrl
-                      ? <img src={t.coverUrl} alt="" loading="lazy" />
+                      ? <TrackImg track={t} loading="lazy" />
                       : <Icon name="Music" size={16} />}
                     <span className={styles.trackPlay} aria-hidden="true">
                       <Icon name="Play" size={14} filled />

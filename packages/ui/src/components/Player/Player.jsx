@@ -13,6 +13,7 @@ import { useLoadingBar, formatLoadingSeconds } from '../../lib/use-loading-bar.j
 import { IS_TV } from '../../lib/tv-nav.js';
 import { TvConnectBlock } from '../Jam/TvConnect.jsx';
 import styles from './Player.module.css';
+import { TrackImg } from '../primitives/TrackImg.jsx';
 
 function fmt(sec) {
   if (!Number.isFinite(sec)) return '0:00';
@@ -250,7 +251,7 @@ export function Player() {
             aria-hidden="true"
           >
             {currentTrack?.coverUrl
-              ? <img src={currentTrack.coverUrl} alt="" />
+              ? <TrackImg track={currentTrack} priority />
               : <div className={styles.coverPlaceholder}><Icon name="Music" size={20} /></div>}
           </div>
           <div className={styles.meta}>

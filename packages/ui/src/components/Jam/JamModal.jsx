@@ -22,6 +22,7 @@ import { toast } from '../../stores/toast.js';
 import { copyToClipboard } from '../../lib/share.js';
 import styles from './JamModal.module.css';
 import { buildJamLink } from '../../lib/jam-link.js';
+import { TrackImg } from '../primitives/TrackImg.jsx';
 
 /** Construye la URL de invitacion deep-link para un codigo de jam. */
 
@@ -531,7 +532,7 @@ export function JamModal({ onClose, initialCode = '' }) {
               <div className={styles.remoteNow}>
                 <div className={styles.remoteCover}>
                   {jamPlayState?.currentTrack?.coverUrl
-                    ? <img src={jamPlayState.currentTrack.coverUrl} alt="" loading="lazy" />
+                    ? <TrackImg track={jamPlayState.currentTrack} loading="lazy" />
                     : <Icon name="Music" size={22} />}
                 </div>
                 <div className={styles.remoteMeta}>

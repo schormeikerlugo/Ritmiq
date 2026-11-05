@@ -35,6 +35,7 @@ import { DownloadIndicator } from '../DownloadIndicator/DownloadIndicator.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import { HeroSkeleton, TrackRowSkeleton } from '../Skeleton/index.js';
 import styles from './PlaylistView.module.css';
+import { TrackImg } from '../primitives/TrackImg.jsx';
 
 function fmtDur(s) {
   if (!Number.isFinite(s)) return '—';
@@ -894,7 +895,7 @@ function PlaylistRow({
     },
     { id: 'info', label: 'Mostrar info', icon: <Icon name="Info" size={16} />, onClick: () => actions.setInfoTrack(track) },
     {
-      id: 'edit', label: 'Editar título y artista', icon: <Icon name="Pencil" size={16} />,
+      id: 'edit', label: 'Editar título, artista o portada', icon: <Icon name="Pencil" size={16} />,
       onClick: () => actions.setEditTrack(track),
     },
     { separator: true },
@@ -960,7 +961,7 @@ function PlaylistRow({
         <div className={styles.cell}>
           <div className={styles.thumb}>
             {track.coverUrl
-              ? <img src={track.coverUrl} alt="" loading="lazy" />
+              ? <TrackImg track={track} loading="lazy" />
               : <Icon name="Music" size={18} />}
           </div>
           <div className={styles.meta}>
@@ -977,7 +978,7 @@ function PlaylistRow({
         >
           <div className={styles.thumb}>
             {track.coverUrl
-              ? <img src={track.coverUrl} alt="" loading="lazy" />
+              ? <TrackImg track={track} loading="lazy" />
               : <Icon name="Music" size={18} />}
           </div>
           <div className={styles.meta}>

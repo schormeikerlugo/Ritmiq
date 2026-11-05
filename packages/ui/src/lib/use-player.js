@@ -34,6 +34,7 @@ import { ensureServerPairing, getDeviceToken, getAutoPairResult } from './device
 import { registerAudioPrime } from './audio-prime.js';
 import { recordPlaybackMetric } from './playback-metrics.js';
 import { isLowPerf } from './perf-mode.js';
+import { coverOf } from './track-art.js';
 
 /**
  * Telemetria de orígenes de stream — singleton in-memory. Cuenta cuantas
@@ -1277,7 +1278,8 @@ export function usePlayerEngine() {
  */
 function applyMediaSessionMetadata(track) {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-  const cover = track.coverUrl || '';
+  // Portada oficial si el servidor la identificó (lib/track-art.js).
+  const cover = coverOf(track, 1000) || track.coverUrl || '';
   const artwork = cover
     ? [
         { src: cover, sizes: '96x96',   type: 'image/jpeg' },

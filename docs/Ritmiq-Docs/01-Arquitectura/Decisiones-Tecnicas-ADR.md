@@ -388,6 +388,12 @@ Cada decisión sigue el formato:
 - **Consecuencias**: verificado de punta a punta (otro dispositivo: reproducir, pausar, volumen, añadir a la cola; la TV retoma el mismo código al reiniciar). Migración `jam_kick` aplicada y verificada (expulsar, veto, cambio de código). Ver [[jam_bans]], [[jam]], [[Google-TV]].
 - **Adenda — sin QR**: en iPhone los enlaces siempre abren Safari, nunca la app de la pantalla de inicio (sin solución en iOS), y Safari no comparte la sesión. Se quita el QR; la TV muestra solo el código, y la app ofrece **«Conectar a mi TV»** en Jam cuando la cuenta tiene un altavoz con latido en los últimos 3 min en otro aparato (`findMySpeakers`). Los demás escriben el código. Tampoco se muestra el aviso «Sonando en el altavoz» (la barra ya lo indica).
 
+## ADR-044 — Portadas oficiales identificadas por el servidor
+
+- **Contexto**: las portadas eran miniaturas de YouTube (fotogramas, "vídeo no disponible") y los títulos venían sucios. El usuario quiere la portada adecuada de cada canción y que se guarde en el servidor para que cargue rápido.
+- **Decisión**: `server-core/art-resolver.js` limpia el título, busca en iTunes y Deezer (sin claves), puntúa por título/artista/duración/variantes y acepta ≥ 0,62; guarda imágenes en disco + SQLite y publica en Supabase `track_art` (escritura solo cuentas de servidor). Cola: apps primero (1,5 s), pasada automática de bibliotecas (3,5 s). Clientes con `useTrackCover`/`TrackImg`; las portadas manuales (`tracks.cover_url` no-YouTube) ganan siempre; "Buscar portada" para corregir. TV: foto del artista de fondo.
+- **Consecuencias**: ≈ 93 % de la biblioteca identificada (631/675 en la primera pasada); LAN 14–88 ms por imagen; búsquedas ya resueltas aparecen al instante. Ver [[Portadas]], [[track_art]], [[track-art]].
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

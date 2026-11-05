@@ -346,6 +346,13 @@ export const useLibraryStore = create((set, get) => ({
       const al = typeof patch.album === 'string' ? patch.album.trim() : null;
       cleanPatch.album = al ? al.slice(0, 500) : null;
     }
+    // Portada elegida a mano ("Buscar portada"): una URL que no es miniatura
+    // de YouTube gana siempre a la automática (lib/track-art.js).
+    if (patch.coverUrl !== undefined) {
+      const c = typeof patch.coverUrl === 'string' ? patch.coverUrl.trim() : '';
+      if (c && !/^https?:\/\//.test(c)) throw new Error('URL de portada invalida');
+      cleanPatch.coverUrl = c || null;
+    }
 
     // Si no hubo cambios reales, no-op.
     const hasChange = Object.entries(cleanPatch).some(

@@ -17,7 +17,7 @@ export function TrackCard({ track, subtitle, onClick }) {
     >
       <div className={styles.coverWrap}>
         <CoverArt
-          coverUrl={track.coverUrl}
+          track={track}
           seed={track.title || track.artist || ''}
           radius="sm"
           className={styles.cover}

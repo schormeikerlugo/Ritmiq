@@ -28,6 +28,7 @@ import { api, isDesktop } from '../../lib/api.js';
 import { pushTrack } from '../../lib/sync.js';
 import { tryOrQueue } from '../../lib/sync-queue.js';
 import styles from './YtPlaylistView.module.css';
+import { TrackImg } from '../primitives/TrackImg.jsx';
 
 function fmtDur(s) {
   if (!Number.isFinite(s)) return '';
@@ -220,7 +221,7 @@ export function YtPlaylistView({ id }) {
                 <span className={styles.trackIdx}>{i + 1}</span>
                 <div className={styles.trackCover}>
                   {t.coverUrl
-                    ? <img src={t.coverUrl} alt="" loading="lazy" />
+                    ? <TrackImg track={t} loading="lazy" />
                     : <Icon name="Music" size={16} />}
                   <span className={styles.trackPlay} aria-hidden="true">
                     <Icon name="Play" size={14} filled />

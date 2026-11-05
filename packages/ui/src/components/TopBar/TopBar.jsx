@@ -14,6 +14,7 @@ import { SEARCH_INPUT_ID } from '../../lib/use-shortcuts.js';
 import { useSearchHistoryStore } from '../../stores/search-history.js';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './TopBar.module.css';
+import { TrackImg } from '../primitives/TrackImg.jsx';
 
 const URL_OR_ID_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})|^[\w-]{11}$/;
 
@@ -309,7 +310,7 @@ export function TopBar() {
                 >
                   <div className={styles.thumb}>
                     {t.coverUrl
-                      ? <img src={t.coverUrl} alt="" loading="lazy" />
+                      ? <TrackImg track={t} loading="lazy" />
                       : <Icon name="Music" size={16} />}
                   </div>
                   <div className={styles.itemMeta}>
@@ -353,7 +354,7 @@ export function TopBar() {
                 >
                   <div className={styles.thumb}>
                     {r.thumbnail
-                      ? <img src={r.thumbnail} alt="" loading="lazy" />
+                      ? <TrackImg track={{ ytId: r.id, title: r.title, artist: r.uploader, durationSeconds: r.duration, coverUrl: r.thumbnail }} loading="lazy" />
                       : <Icon name="Music" size={16} />}
                   </div>
                   <div className={styles.itemMeta}>

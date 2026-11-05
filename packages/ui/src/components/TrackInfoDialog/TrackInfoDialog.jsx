@@ -3,6 +3,7 @@ import { api, isDesktop } from '../../lib/api.js';
 import { Modal } from '../Modal/Modal.jsx';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './TrackInfoDialog.module.css';
+import { TrackImg } from '../primitives/TrackImg.jsx';
 
 function fmtBytes(n) {
   if (!n) return '\u2014';
@@ -52,7 +53,7 @@ export function TrackInfoDialog({ track, onClose, onEdit }) {
       <div className={styles.body}>
         <div className={styles.cover}>
           {track.coverUrl
-            ? <img src={track.coverUrl} alt="" loading="lazy" />
+            ? <TrackImg track={track} loading="lazy" />
             : <Icon name="Music" size={32} />}
         </div>
 

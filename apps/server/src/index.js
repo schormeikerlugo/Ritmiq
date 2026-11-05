@@ -22,7 +22,7 @@ import {
 } from '@ritmiq/server-core';
 import { CloudflaredManager, getStoredToken } from '@ritmiq/server-core/cloudflared';
 import { resolveDataDir, resolvePort } from './config.js';
-import { publishServerEndpoint, clearServerEndpoint, getOwnerAccessToken, fetchPrefetchTargets } from './endpoint-registry.js';
+import { publishServerEndpoint, clearServerEndpoint, getOwnerAccessToken, fetchPrefetchTargets, fetchArtTargets } from './endpoint-registry.js';
 
 async function main() {
   const dataDir = resolveDataDir();
@@ -99,6 +99,28 @@ async function main() {
     };
     setTimeout(runPrefetch, 60_000).unref?.();
     setInterval(runPrefetch, 10 * 60_000).unref?.();
+  }
+
+  // ── Portadas oficiales de las bibliotecas (art-resolver) ──────────────
+  // Cada 10 min encola las canciones sin portada identificada (la cola hace
+  // una búsqueda cada ~3 s). RITMIQ_ART_BACKFILL=false lo apaga.
+  if (String(process.env.RITMIQ_ART_BACKFILL ?? 'true').toLowerCase() !== 'false' && lan.artEnqueue) {
+    const runArt = async () => {
+      try {
+        const rep = await lan.artRepublish?.(300);
+        if (rep) console.log(`[ritmiq-server] portadas: ${rep} republicadas en Supabase`);
+        if (lan.artStats().pending > 50) return;
+        const targets = await fetchArtTargets(150);
+        if (targets.length === 0) return;
+        const n = lan.artEnqueue(targets);
+        const st = lan.artStats();
+        console.log(`[ritmiq-server] portadas: ${targets.length} sin identificar, ${n} encoladas (encontradas ${st.found}, sin resultado ${st.none}, cola ${st.pending})`);
+      } catch (e) {
+        console.warn('[ritmiq-server] pasada de portadas falló:', e?.message ?? e);
+      }
+    };
+    setTimeout(runArt, 30_000).unref?.();
+    setInterval(runArt, 10 * 60_000).unref?.();
   }
 
   // ── Cloudflare Tunnel + publicación del endpoint 'server' ──────────────

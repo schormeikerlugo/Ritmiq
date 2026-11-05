@@ -14,6 +14,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLyricsStore } from '../../stores/lyrics.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { getDominantColor } from '../../lib/dominant-color.js';
+import { useTrackCover } from '../../lib/track-art.js';
 import styles from './TvLyrics.module.css';
 
 const FALLBACK_BG = 'hsl(262 45% 38%)';
@@ -74,12 +75,14 @@ export function TvLyrics({ track, idle = false }) {
     if (params.artist && params.title) fetchLyrics(params).catch(() => {});
   }, [params.artist, params.title, params.duration, fetchLyrics]);
 
+  // Color de la portada oficial si la hay (más fiel que el fotograma).
+  const cover = useTrackCover(track, 300);
   const [bg, setBg] = useState(FALLBACK_BG);
   useEffect(() => {
     let alive = true;
-    getDominantColor(track?.coverUrl).then((c) => { if (alive) setBg(lyricsBg(c)); }).catch(() => {});
+    getDominantColor(cover).then((c) => { if (alive) setBg(lyricsBg(c)); }).catch(() => {});
     return () => { alive = false; };
-  }, [track?.coverUrl]);
+  }, [cover]);
 
   const parsed = entry?.parsed?.length ? entry.parsed : null;
   const active = parsed ? activeIndex(parsed, position * 1000) : -1;

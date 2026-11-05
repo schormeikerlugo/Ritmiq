@@ -215,7 +215,7 @@ export function MonthlyWrappedModal({ onClose }) {
                 <li key={t.ytId} className={styles.trackRow}>
                   <span className={styles.rank}>{i + 1}</span>
                   <CoverArt
-                    coverUrl={t.cover}
+                    track={{ ytId: t.ytId, coverUrl: t.cover, title: t.title, artist: t.artist }}
                     seed={t.title}
                     size={44}
                     radius="sm"
