@@ -381,6 +381,12 @@ Cada decisión sigue el formato:
 - **Decisión**: `lib/tv-nav.js` (navegación espacial geométrica sobre la UI existente, sin reescribir componentes ni añadir librerías), atajos de flechas desactivados en TV, Atrás jerárquico y Canal ^/v = siguiente/anterior resueltos en `MainActivity` y delegados a JS, viewport 1280×720, estilos `html[data-tv]` (foco visible, menú y portadas compactas).
 - **Consecuencias**: la app se maneja entera con el mando; ~78 % más contenido en pantalla. Pendiente: interfaz específica de TV e inicio de sesión con código desde el teléfono. Ver [[tv-nav]], [[Google-TV]].
 
+## ADR-043 — La TV como altavoz controlable (QR/código)
+
+- **Contexto**: el usuario quiere que la TV sea un altavoz al que cualquiera conecta su teléfono o PC (estilo Jam de Spotify), sin aprobar canciones, y manejar el ecualizador con el mando.
+- **Decisión**: reutilizar la jam de tipo `speaker` (ADR-028). La TV crea/retoma sola una sesión como host ([[tv-speaker]]) y muestra QR + código en la barra inferior (el QR abre `ritmiq.app/jam/<CODE>`; en PC se escribe el código). **El host es el aparato** que creó la sesión (`localStorage ritmiq:jam:hostedSessionId`), no la cuenta: con la misma cuenta en el móvil, el móvil entra como mando. En el mando, el reproductor normal muestra el estado de la TV y sus botones envían `requestControl`; tocar una canción = `play-now` (se inserta sin borrar la cola de la TV) y "Añadir a la cola" = sugerencia que suena en orden sin aprobación; la TV pide al servidor descargar las 5 próximas. Volumen remoto (con límite de 150 ms). Expulsar = borrar participante + `jam_bans`; cambiar código limpia vetos.
+- **Consecuencias**: verificado de punta a punta (otro dispositivo: reproducir, pausar, volumen, añadir a la cola; la TV retoma el mismo código al reiniciar). Pendiente: aplicar la migración `jam_kick` (sin ella, expulsar falla). Ver [[jam_bans]], [[jam]], [[Google-TV]].
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

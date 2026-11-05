@@ -10,6 +10,8 @@ import { ShareToFriendModal } from '../ShareToFriendModal/ShareToFriendModal.jsx
 import { Icon } from '../Icon/Icon.jsx';
 import { hapticTap } from '../../lib/haptics.js';
 import { useLoadingBar, formatLoadingSeconds } from '../../lib/use-loading-bar.js';
+import { IS_TV } from '../../lib/tv-nav.js';
+import { TvConnectBlock } from '../Jam/TvConnect.jsx';
 import styles from './Player.module.css';
 
 function fmt(sec) {
@@ -20,10 +22,8 @@ function fmt(sec) {
 }
 
 export function Player() {
-  const { currentTrack, isPlaying, positionSeconds, durationSeconds, volume,
-          shuffle, repeat, error, togglePlay, setVolume, toggleShuffle,
-          cycleRepeat, next, prev } =
-    usePlayerStore();
+  const local = usePlayerStore();
+  const { shuffle, repeat, error, toggleShuffle, cycleRepeat } = local;
 
   const tracks = useLibraryStore((s) => s.tracks);
   const persistEphemeral = useLibraryStore((s) => s.persistEphemeral);
@@ -43,6 +43,24 @@ export function Player() {
   // se deshabilitan para no pelear con el sync. El guest sigue pudiendo
   // ajustar volumen, ver la letra y abrir el panel de la cola del jam.
   const isJamGuest = jamMode === 'guest';
+  // Jam ALTAVOZ como invitado (p. ej. conectado a la TV con el QR): este
+  // reproductor se convierte en el MANDO del altavoz. Muestra lo que suena
+  // allí y sus botones le envían órdenes (requestControl), sin sonar aquí.
+  const jamKind = useJamStore((s) => s.kind);
+  const jamState = useJamStore((s) => s.state);
+  const requestControl = useJamStore((s) => s.requestControl);
+  const setSpeakerVolume = useJamStore((s) => s.setSpeakerVolume);
+  const isRemote = isJamGuest && jamKind === 'speaker';
+  const transportLocked = isJamGuest && !isRemote;
+  const currentTrack = isRemote ? (jamState?.currentTrack ?? null) : local.currentTrack;
+  const isPlaying = isRemote ? !!jamState?.isPlaying : local.isPlaying;
+  const positionSeconds = isRemote ? (Number(jamState?.positionSeconds) || 0) : local.positionSeconds;
+  const durationSeconds = isRemote ? (Number(jamState?.currentTrack?.durationSeconds) || 0) : local.durationSeconds;
+  const volume = isRemote ? (jamState?.volume ?? local.volume) : local.volume;
+  const togglePlay = isRemote ? () => requestControl(isPlaying ? 'pause' : 'play') : local.togglePlay;
+  const next = isRemote ? () => requestControl('next') : local.next;
+  const prev = isRemote ? () => requestControl('prev') : local.prev;
+  const setVolume = isRemote ? setSpeakerVolume : local.setVolume;
 
   const [saveOpen, setSaveOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -85,10 +103,11 @@ export function Player() {
 
   const commitSeek = useCallback((sec) => {
     if (typeof sec !== 'number' || !Number.isFinite(sec)) return;
+    if (isRemote) { requestControl('seek', sec); return; }
     window.dispatchEvent(
       new CustomEvent('ritmiq:seek', { detail: { seconds: sec } }),
     );
-  }, []);
+  }, [isRemote, requestControl]);
 
   const onBarPointerDown = useCallback(
     (e) => {
@@ -256,28 +275,33 @@ export function Player() {
             >
               <Icon name="Heart" filled={fav} size={18} />
             </button>
-            <button
+            {!IS_TV && <button
               className={styles.iconBtn}
               onClick={onPlus}
               aria-label="Guardar en biblioteca o playlist"
               title={inLibrary ? 'Añadir a playlist…' : 'Guardar…'}
             >
               <Icon name="Plus" size={18} />
-            </button>
-            <button
+            </button>}
+            {!IS_TV && <button
               className={styles.iconBtn}
               onClick={onShare}
               aria-label="Compartir con un amigo"
               title="Compartir con un amigo"
             >
               <Icon name="Share2" size={18} />
-            </button>
+            </button>}
           </div>
         )}
       </div>
 
-      <div className={styles.controls} data-jam-guest={isJamGuest || undefined}>
-        {isJamGuest && (
+      <div className={styles.controls} data-jam-guest={transportLocked || undefined}>
+        {isRemote && (
+          <p className={styles.jamGuestHint}>
+            <Icon name="Volume2" size={13} /> Controlando el altavoz
+          </p>
+        )}
+        {transportLocked && (
           <p className={styles.jamGuestHint}>
             <Icon name="Radio" size={13} /> El host controla la reproducción
           </p>
@@ -293,7 +317,7 @@ export function Player() {
           <button
             className={styles.iconBtn}
             onClick={prev}
-            disabled={isJamGuest}
+            disabled={transportLocked}
             aria-label="Anterior"
           >
             <Icon name="SkipBack" size={20} filled />
@@ -301,7 +325,7 @@ export function Player() {
           <button
             className={styles.playBtn}
             onClick={togglePlay}
-            disabled={isJamGuest}
+            disabled={transportLocked}
             aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
           >
             <Icon name={isPlaying ? 'Pause' : 'Play'} size={18} filled />
@@ -309,7 +333,7 @@ export function Player() {
           <button
             className={styles.iconBtn}
             onClick={next}
-            disabled={isJamGuest}
+            disabled={transportLocked}
             aria-label="Siguiente"
           >
             <Icon name="SkipForward" size={20} filled />
@@ -344,15 +368,15 @@ export function Player() {
             aria-valuemax={durationSeconds || 0}
             aria-valuenow={Math.floor(effectivePos)}
             aria-valuetext={`${fmt(effectivePos)} de ${fmt(durationSeconds)}`}
-            aria-disabled={!currentTrack || !durationSeconds || isJamGuest}
+            aria-disabled={!currentTrack || !durationSeconds || transportLocked}
             data-scrubbing={scrubPos != null || undefined}
-            data-locked={isJamGuest || undefined}
+            data-locked={transportLocked || undefined}
             data-loading={showLoading ? loadingBar.phase : undefined}
-            onPointerDown={isJamGuest ? undefined : onBarPointerDown}
-            onPointerMove={isJamGuest ? undefined : onBarPointerMove}
-            onPointerUp={isJamGuest ? undefined : onBarPointerEnd}
-            onPointerCancel={isJamGuest ? undefined : onBarPointerEnd}
-            onKeyDown={isJamGuest ? undefined : onBarKeyDown}
+            onPointerDown={transportLocked ? undefined : onBarPointerDown}
+            onPointerMove={transportLocked ? undefined : onBarPointerMove}
+            onPointerUp={transportLocked ? undefined : onBarPointerEnd}
+            onPointerCancel={transportLocked ? undefined : onBarPointerEnd}
+            onKeyDown={transportLocked ? undefined : onBarKeyDown}
           >
             <div className={styles.barFill} style={{ width: `${progress}%` }}>
               <span className={styles.barThumb} aria-hidden="true" />
@@ -373,7 +397,7 @@ export function Player() {
         >
           <Icon name="Music2" size={18} />
         </button>
-        <button
+        {!IS_TV && <button
           className={styles.iconBtn}
           data-active={jamMode !== 'idle' || undefined}
           onClick={onJam}
@@ -381,21 +405,26 @@ export function Player() {
           title="Jam con amigos"
         >
           <Icon name="Users" size={18} />
-        </button>
+        </button>}
         <QueueToggle />
-        <span className={styles.volIcon} aria-hidden="true">
-          <Icon name={volume === 0 ? 'VolumeX' : 'Volume2'} size={16} />
-        </span>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          value={volume}
-          onChange={(e) => setVolume(parseFloat(e.target.value))}
-          className={styles.volume}
-          aria-label="Volumen"
-        />
+        {/* TV: el volumen lo maneja el mando; en su lugar, conexión con QR. */}
+        {IS_TV ? <TvConnectBlock /> : (
+          <>
+            <span className={styles.volIcon} aria-hidden="true">
+              <Icon name={volume === 0 ? 'VolumeX' : 'Volume2'} size={16} />
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              className={styles.volume}
+              aria-label="Volumen"
+            />
+          </>
+        )}
       </div>
 
       {/* En mobile, único botón visible junto al meta: play/pause grande */}

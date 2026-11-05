@@ -47,16 +47,18 @@ export function useJamSync() {
         currentTrack: p.currentTrack,
         positionSeconds: p.positionSeconds,
         isPlaying: p.isPlaying,
+        volume: p.volume,
       });
     };
     // En cambios de track/play y cada 3s para la barra de progreso.
     const unsubTrack = usePlayerStore.subscribe((s) => s.currentTrack?.id, emit);
     const unsubPlay = usePlayerStore.subscribe((s) => s.isPlaying, emit);
+    const unsubVol = usePlayerStore.subscribe((s) => s.volume, emit);
     const interval = setInterval(() => {
       if (usePlayerStore.getState().isPlaying) emit();
     }, 3000);
     emit();
-    return () => { unsubTrack(); unsubPlay(); clearInterval(interval); };
+    return () => { unsubTrack(); unsubPlay(); unsubVol(); clearInterval(interval); };
   }, [mode, kind]);
 
   // ── HOST: orquestar la reproduccion coordinada ────────────────────────

@@ -69,13 +69,18 @@ export function TopBar() {
     return [...cached, ...others];
   }, [results, cachedSet]);
 
-  // Cerrar dropdown al hacer click fuera
+  // Cerrar dropdown al hacer click fuera o al llevar el foco fuera (teclado
+  // o mando de la TV: si no, la lista se quedaba abierta tapando la vista).
   useEffect(() => {
     const onDoc = (e) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
     };
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    document.addEventListener('focusin', onDoc);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('focusin', onDoc);
+    };
   }, []);
 
   // Debounce de búsqueda

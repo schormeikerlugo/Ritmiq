@@ -26,6 +26,7 @@ import { CoverUploadDialog } from '../CoverUploadDialog/CoverUploadDialog.jsx';
 import { ConfirmDialog } from '../primitives/index.js';
 import { exportPlaylistJson, exportPlaylistCsv } from '../../lib/export.js';
 import { isDesktop } from '../../lib/api.js';
+import { IS_TV } from '../../lib/tv-nav.js';
 import { prewarmStream } from '../../lib/lan-client.js';
 import { getDominantColor } from '../../lib/dominant-color.js';
 import { useSocialStore } from '../../stores/social.js';
@@ -732,7 +733,7 @@ export function PlaylistView({ playlistId }) {
                     downloadOne, undownloadOne, removeTrack, setSaveDialogTrack,
                     setInfoTrack, setEditTrack,
                   }}
-                  draggable
+                  draggable={!IS_TV}
                 />
               ))}
             </ul>

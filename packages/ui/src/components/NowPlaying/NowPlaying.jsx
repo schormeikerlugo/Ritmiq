@@ -516,6 +516,7 @@ export function NowPlaying() {
         </button>
         <button
           className={styles.playBtn}
+          data-primary
           onClick={togglePlay}
           disabled={isJamGuest}
           aria-label={isPlaying ? 'Pausar' : 'Reproducir'}

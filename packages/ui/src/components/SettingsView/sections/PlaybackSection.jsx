@@ -13,6 +13,7 @@ import { useSettingsStore, EQ_PRESETS } from '../../../stores/settings.js';
 import { EQ_BANDS } from '../../../lib/html-audio-backend.js';
 import { getSharedBackend } from '../../../lib/use-player.js';
 import { isDesktop } from '../../../lib/api.js';
+import { IS_TV } from '../../../lib/tv-nav.js';
 import { SettingsGroup } from '../SettingsGroup.jsx';
 import { SettingRow } from '../SettingRow.jsx';
 import { Toggle } from '../controls/Toggle.jsx';
@@ -139,11 +140,16 @@ export function PlaybackSection() {
       {eqEnabled && (
         <div className={styles.subBlock}>
           <SegmentedControl
-            value={eqPreset === 'custom' ? 'flat' : eqPreset}
-            options={PRESETS}
-            onChange={setEqPreset}
+            value={eqPreset}
+            options={eqPreset === 'custom' ? [...PRESETS, { id: 'custom', label: 'Personalizado' }] : PRESETS}
+            onChange={(id) => { if (id !== 'custom') setEqPreset(id); }}
             ariaLabel="Preset de ecualizador"
           />
+          {IS_TV && (
+            <p className={styles.eqTvHint}>
+              Mando: ← → elige la banda · ↑ ↓ sube o baja 1 dB
+            </p>
+          )}
           {/* Curva de respuesta combinada \u2014 reactiva a los sliders. */}
           <EqCurve gains={eqGains} />
           <div className={styles.eqGrid}>
@@ -159,6 +165,14 @@ export function PlaybackSection() {
                   step="0.5"
                   value={eqGains[i]}
                   onChange={(e) => setEqBand(i, parseFloat(e.target.value))}
+                  // TV: ↑/↓ ajustan ±1 dB; ←/→ cambian de banda (lib/tv-nav.js).
+                  data-tv-axis="vertical"
+                  onKeyDown={IS_TV ? (e) => {
+                    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+                    e.preventDefault();
+                    const delta = e.key === 'ArrowUp' ? 1 : -1;
+                    setEqBand(i, Math.max(-12, Math.min(12, Math.round(eqGains[i] + delta))));
+                  } : undefined}
                   className={styles.eqSlider}
                   aria-label={`Banda ${band.label} Hz`}
                 />

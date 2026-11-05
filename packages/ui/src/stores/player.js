@@ -3,6 +3,17 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import { primeAudioForPlayback } from '../lib/audio-prime.js';
 
 /**
+ * Desvío al altavoz (jam tipo 'speaker' como invitado, p. ej. el móvil
+ * conectado a la TV): lo registra stores/jam.js. Devuelve true si se encargó
+ * (la canción suena en el altavoz y no aquí). Sin import directo de jam.js
+ * para evitar la dependencia circular.
+ * @type {null | ((action: 'play'|'queue', track: Track) => boolean)}
+ */
+let speakerRouter = null;
+/** @param {typeof speakerRouter} fn */
+export function setSpeakerRouter(fn) { speakerRouter = fn; }
+
+/**
  * @typedef {import('@ritmiq/core/types').Track} Track
  */
 
@@ -81,6 +92,7 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
     // parpadea play/pausa sin sonar).
     primeAudioForPlayback();
     const idx = Math.max(0, Math.min(startIdx, tracks.length - 1));
+    if (speakerRouter?.('play', tracks[idx])) return;
     set({
       queue: tracks,
       index: idx,
@@ -93,6 +105,7 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
 
   /** Inserta un track justo después del actual. */
   playNext(track) {
+    if (speakerRouter?.('queue', track)) return;
     const { queue, index } = get();
     const insertAt = index < 0 ? 0 : index + 1;
     const next = queue.slice();
@@ -103,6 +116,7 @@ export const usePlayerStore = create(subscribeWithSelector((set, get) => ({
   /** Añade tracks al final de la cola. */
   enqueue(input) {
     const tracks = Array.isArray(input) ? input : [input];
+    if (speakerRouter && tracks.length && tracks.every((t) => speakerRouter('queue', t))) return;
     const { queue } = get();
     set({ queue: [...queue, ...tracks] });
   },

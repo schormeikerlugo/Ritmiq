@@ -3,6 +3,7 @@ package org.ritmiq.tv;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import androidx.activity.OnBackPressedCallback;
@@ -36,6 +37,21 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // OK sobre un campo de texto: la WebView se lo queda sin avisar a la
+        // página, y el campo tiene inputmode=none (seleccionarlo con las flechas
+        // no abre el teclado). Al soltar OK, la página lo habilita
+        // (__ritmiqTvOk) y aquí se muestra el teclado.
+        int code = event.getKeyCode();
+        if ((code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER)
+                && event.getAction() == KeyEvent.ACTION_UP) {
+            WebView wv = getBridge().getWebView();
+            wv.evaluateJavascript("(window.__ritmiqTvOk ? window.__ritmiqTvOk() : '')", value -> {
+                if ("\"kb\"".equals(value)) {
+                    InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                    if (imm != null) imm.showSoftInput(wv, InputMethodManager.SHOW_IMPLICIT);
+                }
+            });
+        }
         String name = null;
         switch (event.getKeyCode()) {
             case KeyEvent.KEYCODE_CHANNEL_UP:

@@ -20,9 +20,24 @@
  */
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase.js';
+import { setSpeakerRouter } from './player.js';
+import { toast } from './toast.js';
 
 /** Heartbeat de presence (last_seen_at) cada N ms. */
 const HEARTBEAT_MS = 30_000;
+let volTimer = null;
+let volLastAt = 0;
+
+// El HOST es el aparato que creó la sesión, no la cuenta: con la misma cuenta
+// en la TV y en el móvil, el móvil debe entrar como mando (invitado), no
+// creerse anfitrión y reproducir él.
+const HOSTED_KEY = 'ritmiq:jam:hostedSessionId';
+function hostedHere(sessionId) {
+  try { return localStorage.getItem(HOSTED_KEY) === sessionId; } catch { return false; }
+}
+function markHostedHere(sessionId) {
+  try { localStorage.setItem(HOSTED_KEY, sessionId); } catch {}
+}
 
 /** Genera codigo en cliente como fallback si el helper SQL falla. */
 function makeCode() {
@@ -137,6 +152,7 @@ export const useJamStore = create((set, get) => ({
       if (error.code !== '23505') throw error;
     }
     if (!inserted) throw new Error('no se pudo generar codigo unico');
+    markHostedHere(inserted.id);
 
     set({
       mode: 'hosting',
@@ -184,7 +200,8 @@ export const useJamStore = create((set, get) => ({
     if (error) throw error;
     if (!ses) throw new Error('sesion no encontrada');
 
-    const isHost = ses.host_id === user.id;
+    const sameAccountAsHost = ses.host_id === user.id;
+    const isHost = sameAccountAsHost && hostedHere(ses.id);
 
     set({
       mode: isHost ? 'hosting' : 'guest',
@@ -198,12 +215,16 @@ export const useJamStore = create((set, get) => ({
       },
     });
 
-    await supabase.from('jam_participants').upsert({
-      session_id: ses.id,
-      user_id: user.id,
-      role: isHost ? 'host' : 'guest',
-      last_seen_at: new Date().toISOString(),
-    });
+    // Misma cuenta que el host en otro aparato: la fila de participante es la
+    // del host (PK session_id+user_id); no sobrescribirla con 'guest'.
+    if (!(sameAccountAsHost && !isHost)) {
+      await supabase.from('jam_participants').upsert({
+        session_id: ses.id,
+        user_id: user.id,
+        role: isHost ? 'host' : 'guest',
+        last_seen_at: new Date().toISOString(),
+      });
+    }
 
     await get()._subscribe(ses.id);
     get()._startHeartbeat();
@@ -236,7 +257,8 @@ export const useJamStore = create((set, get) => ({
       if (mode === 'hosting' && user?.id === session.hostId) {
         // Host cierra la sesion entera.
         await supabase.from('jam_sessions').delete().eq('id', session.id);
-      } else if (user?.id) {
+      } else if (user?.id && user.id !== session.hostId) {
+        // (misma cuenta que el host en otro aparato: no borrar su fila)
         await supabase.from('jam_participants').delete()
           .eq('session_id', session.id)
           .eq('user_id', user.id);
@@ -419,6 +441,15 @@ export const useJamStore = create((set, get) => ({
       .filter((s) => !s.playedAt)
       .sort((a, b) => a.position - b.position);
     const next = pending[0];
+    if (!next && get().kind === 'speaker') {
+      // ALTAVOZ: sin canciones añadidas por los demás, sigue la cola normal
+      // del dispositivo (no se corta la playlist que suena en la TV).
+      try {
+        const { usePlayerStore } = await import('./player.js');
+        usePlayerStore.getState().next();
+      } catch {}
+      return;
+    }
     if (!next) {
       // Cola vacia: detener limpiamente y avisar a los guests.
       try {
@@ -452,7 +483,11 @@ export const useJamStore = create((set, get) => ({
       set({ state: { ...get().state, currentTrack: track, positionSeconds: 0, isPlaying: true } });
       try {
         const { usePlayerStore } = await import('./player.js');
-        usePlayerStore.getState().playNow([track], 0);
+        const p = usePlayerStore.getState();
+        // Insertar después de la actual y saltar a ella: la cola propia del
+        // altavoz (p. ej. la playlist que suena en la TV) se conserva.
+        if (p.currentTrack && p.queue.length > 0) { p.playNext(track); p.next(); }
+        else p.playNow([track], 0);
       } catch {}
       supabase.from('jam_sessions').update({
         current_track: track, position_seconds: 0, is_playing: true,
@@ -557,9 +592,58 @@ export const useJamStore = create((set, get) => ({
    * @param {'play'|'pause'|'next'|'prev'|'seek'} action
    * @param {number} [seconds] para action='seek'
    */
-  requestControl(action, seconds) {
+  requestControl(action, seconds, extra = {}) {
     if (get().kind !== 'speaker') return;
-    get()._broadcast('control', { action, seconds, speaker: true });
+    get()._broadcast('control', { action, seconds, speaker: true, ...extra });
+  },
+
+  /** Remoto: reproducir ya en el altavoz (sin borrar su cola). */
+  playOnSpeaker(track) {
+    if (!track) return;
+    const slim = {
+      ytId: track.ytId ?? null, id: track.id ?? null, title: track.title ?? '',
+      artist: track.artist ?? null, album: track.album ?? null, coverUrl: track.coverUrl ?? null,
+      durationSeconds: typeof track.durationSeconds === 'number' ? track.durationSeconds : null,
+    };
+    get().requestControl('play-now', undefined, { track: slim });
+  },
+
+  /** Remoto: volumen del altavoz (0..1). */
+  setSpeakerVolume(value) {
+    // Al arrastrar el control llegan decenas de cambios por segundo:
+    // enviar como máximo uno cada 150 ms (y siempre el último).
+    clearTimeout(volTimer);
+    const now = Date.now();
+    const send = () => { volLastAt = Date.now(); get().requestControl('volume', undefined, { value }); };
+    set((s) => ({ state: { ...s.state, volume: value } }));
+    if (now - volLastAt >= 150) send();
+    else volTimer = setTimeout(send, 150);
+  },
+
+  /** Host: expulsar a un participante (y vetarlo hasta cambiar el código). */
+  async kickParticipant(userId) {
+    const { session, mode } = get();
+    if (!session || mode !== 'hosting' || !userId) return;
+    await supabase.from('jam_bans').upsert({ session_id: session.id, user_id: userId });
+    const { error } = await supabase.from('jam_participants').delete()
+      .eq('session_id', session.id).eq('user_id', userId);
+    if (error) throw error;
+  },
+
+  /** Host: código nuevo (el QR anterior deja de servir; limpia vetos). */
+  async rotateCode() {
+    const { session, mode } = get();
+    if (!session || mode !== 'hosting') return null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = makeCode();
+      const { error } = await supabase.from('jam_sessions').update({ code }).eq('id', session.id);
+      if (!error) {
+        set({ session: { ...get().session, code } });
+        return code;
+      }
+      if (error.code !== '23505') throw error;
+    }
+    throw new Error('no se pudo generar codigo unico');
   },
 
   /** Internal: envia un mensaje broadcast por el canal del jam. */
@@ -629,6 +713,23 @@ export const useJamStore = create((set, get) => ({
       const next = pending[0];
       if (next?.track) {
         window.dispatchEvent(new CustomEvent('ritmiq:jam-preprepare', { detail: { track: next.track } }));
+      }
+      if (get().mode === 'hosting' && get().kind === 'speaker') {
+        // Descarga anticipada en el servidor de las próximas 5 añadidas:
+        // suenan al instante cuando les toca (aunque no estuvieran en disco).
+        import('../lib/lan-client.js').then(({ prewarmStream }) => {
+          for (const s of pending.slice(0, 5)) {
+            const ytId = s.track?.ytId;
+            if (ytId) { try { prewarmStream(ytId, { download: 1 }); } catch {} }
+          }
+        }).catch(() => {});
+        // Altavoz sin nada sonando: empezar ya con la primera añadida.
+        if (next) {
+          import('./player.js').then(({ usePlayerStore }) => {
+            const p = usePlayerStore.getState();
+            if (!p.currentTrack) get().jamAdvance();
+          }).catch(() => {});
+        }
       }
     }
   },
@@ -709,10 +810,11 @@ export const useJamStore = create((set, get) => ({
       // reproduzcan audio. Solo visual.
       .on('broadcast', { event: 'speaker-state' }, ({ payload }) => {
         if (get().mode === 'hosting') return; // el host es la fuente
-        const { currentTrack, positionSeconds, isPlaying } = payload ?? {};
+        const { currentTrack, positionSeconds, isPlaying, volume } = payload ?? {};
         set((s) => ({
           state: {
             ...s.state,
+            ...(volume !== undefined && { volume }),
             ...(currentTrack !== undefined && { currentTrack }),
             ...(positionSeconds !== undefined && { positionSeconds: Number(positionSeconds) || 0 }),
             ...(isPlaying !== undefined && { isPlaying }),
@@ -721,6 +823,7 @@ export const useJamStore = create((set, get) => ({
       })
       .on('broadcast', { event: 'control' }, ({ payload }) => {
         const { action, seconds, speaker } = payload ?? {};
+        // (payload también lleva track/value para play-now/volume)
         if (typeof window === 'undefined') return;
         const { mode, kind } = get();
 
@@ -738,6 +841,10 @@ export const useJamStore = create((set, get) => ({
               get().jamAdvance();
             }
             else if (action === 'prev') { p.prev?.(); }
+            else if (action === 'play-now' && payload?.track) { get().coordinatedPlay(payload.track); }
+            else if (action === 'volume' && typeof payload?.value === 'number') {
+              p.setVolume?.(Math.max(0, Math.min(1, payload.value)));
+            }
             else if (action === 'seek' && typeof seconds === 'number') {
               window.dispatchEvent(new CustomEvent('ritmiq:seek', { detail: { seconds } }));
             }
@@ -783,6 +890,16 @@ export const useJamStore = create((set, get) => ({
           .eq('session_id', sessionId);
         set({ participants: data ?? [] });
         get()._resolveProfiles((data ?? []).map((p) => p.user_id));
+        // Expulsado: mi fila ya no está (y no soy el host) → salir.
+        if (get().mode === 'guest') {
+          const me = await get()._myUserId();
+          if (me && !(data ?? []).some((p) => p.user_id === me)) {
+            await get().leaveSession();
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('ritmiq:jam-kicked'));
+            }
+          }
+        }
       })
       .subscribe();
 
@@ -829,6 +946,11 @@ export const useJamStore = create((set, get) => ({
         await supabase.from('jam_participants').update({
           last_seen_at: new Date().toISOString(),
         }).eq('session_id', session.id).eq('user_id', user.id);
+        // Host: refrescar updated_at para que el cron de 24h no borre una
+        // sesión en uso (la TV la mantiene abierta días).
+        if (get().mode === 'hosting') {
+          await supabase.from('jam_sessions').update({ updated_at: new Date().toISOString() }).eq('id', session.id);
+        }
       } catch {}
     }, HEARTBEAT_MS);
     set({ _heartbeatTimer: timer });
@@ -857,3 +979,20 @@ export const useJamStore = create((set, get) => ({
     });
   },
 }));
+
+// Móvil/PC conectado como MANDO de un altavoz (p. ej. la TV): tocar una
+// canción la reproduce allí, y "Añadir a la cola"/"A continuación" la añaden a
+// la cola compartida (suena en orden). Ver stores/player.js setSpeakerRouter.
+setSpeakerRouter((action, track) => {
+  const j = useJamStore.getState();
+  if (j.mode !== 'guest' || j.kind !== 'speaker' || !track) return false;
+  if (action === 'play') {
+    j.playOnSpeaker(track);
+    toast.success(`Sonando en el altavoz: ${track.title ?? ''}`);
+  } else {
+    j.suggestTrack(track)
+      .then(() => toast.success('Añadida a la cola del altavoz'))
+      .catch((e) => toast.error(String(e?.message ?? e)));
+  }
+  return true;
+});

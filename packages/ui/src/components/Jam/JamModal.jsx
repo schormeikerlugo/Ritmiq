@@ -21,12 +21,9 @@ import { Icon } from '../Icon/Icon.jsx';
 import { toast } from '../../stores/toast.js';
 import { copyToClipboard } from '../../lib/share.js';
 import styles from './JamModal.module.css';
+import { buildJamLink } from '../../lib/jam-link.js';
 
 /** Construye la URL de invitacion deep-link para un codigo de jam. */
-function buildJamLink(code) {
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://ritmiq.app';
-  return `${origin}/jam/${code}`;
-}
 
 /**
  * Mini-wizard educativo del Jam. Se muestra la PRIMERA vez que el user

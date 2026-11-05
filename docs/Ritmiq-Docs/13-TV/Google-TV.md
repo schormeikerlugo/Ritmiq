@@ -49,6 +49,9 @@ pnpm install-tv
 ```
 En el onn.: Ajustes → Sistema → Información → pulsar 7 veces "Compilación del SO" → Opciones de desarrollador → **Depuración por red/USB**.
 
+## La TV como altavoz
+Con sesión iniciada, la TV abre sola una jam de tipo altavoz ([[tv-speaker]]) y la barra inferior muestra, en lugar del volumen y los botones de compartir/guardar/jam, un bloque con **QR + código** y los avatares de quien está conectado (latido en los últimos 2 min). OK sobre el bloque abre el QR grande con la lista de conectados ("Desconectar") y "Cambiar código". Teléfono: escanear el QR; PC: Jam → Unirse + código. Desde ahí el reproductor del teléfono/PC es el mando de la TV. Ver ADR-043.
+
 ## Pendiente (fases siguientes)
 1. Reproductor nativo en segundo plano (servicio en primer plano + MediaSession) para controles del mando/asistente y que no lo mate el sistema.
 2. Interfaz de TV: navegación con flechas (foco), tamaños para ver de lejos, inicio de sesión con código desde el teléfono.
@@ -56,6 +59,7 @@ En el onn.: Ajustes → Sistema → Información → pulsar 7 veces "Compilació
 4. APK de release firmado + auto-actualización desde el servidor.
 
 ## Notas / Changelog
+- 2026-11-04 (d): TV como altavoz con QR/código, control remoto desde móvil/PC, cola sin aprobación con descarga anticipada, EQ con mando, teclado del buscador solo con OK. ADR-043.
 - 2026-11-04 (c): navegación con el mando y pantalla 1280×720 ([[tv-nav]]).
 - 2026-11-04 (b): rendimiento — modo ligero forzado en la TV ([[perf-mode]]), `largeHeap`, sin overscroll, espejo IndexedDB diferencial y en reposo. CPU en reposo 190 % → 0–6 %. Depuración: `adb forward tcp:9229 localabstract:webview_devtools_remote_<pid>` + perfilador CDP.
 - 2026-11-04: prototipo (fase 1): APK debug, LAN directa + túnel, verificado en navegador con viewport TV. Ver ADR-040.

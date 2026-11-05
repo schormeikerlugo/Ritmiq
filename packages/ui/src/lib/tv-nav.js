@@ -49,7 +49,22 @@ function isVisible(el) {
 }
 
 function candidates(root) {
-  return [...root.querySelectorAll(FOCUSABLE)].filter(isVisible);
+  const all = [...root.querySelectorAll(FOCUSABLE)];
+  // Sin contenedores que tengan controles dentro (p. ej. filas arrastrables
+  // con role=button): se navega directo al botón interior, que es el que
+  // reproduce/abre. Si no, OK caía en el contenedor y no hacía nada.
+  return all.filter((el) => isVisible(el) && !el.querySelector(FOCUSABLE));
+}
+
+const PRIMARY_RE = /^(continuar|siguiente|empezar|comenzar|aceptar|entendido|listo|ok|unirse|crear|guardar|recuperar|terminar|finalizar)\b/i;
+
+/** Botón principal de una ventana: texto típico de avance, o el último botón. */
+function primaryOf(root) {
+  const btns = candidates(root).filter((el) => el.tagName === 'BUTTON');
+  return btns.find((b) => b.hasAttribute('autofocus') || b.dataset.primary != null)
+    ?? btns.find((b) => PRIMARY_RE.test((b.textContent || '').trim()))
+    ?? btns[btns.length - 1]
+    ?? null;
 }
 
 /**
@@ -59,6 +74,25 @@ function candidates(root) {
  * @param {Element[]} list
  */
 function pick(from, dir, list, current) {
+  const fromRegion = current ? regionOf(current) : null;
+  const horizontal = dir === 'left' || dir === 'right';
+  // En horizontal, si en la MISMA zona hay algo en la misma fila (p. ej. la
+  // banda siguiente del EQ), gana a lo de otra zona aunque esté más cerca
+  // (el reproductor de abajo). Si no lo hay, se cruza de zona libremente
+  // (← desde el contenido va a la barra lateral).
+  if (horizontal && fromRegion) {
+    const sameRow = list.filter((el) => {
+      if (regionOf(el) !== fromRegion) return false;
+      const r = el.getBoundingClientRect();
+      return overlap1d(from.top, from.bottom, r.top, r.bottom);
+    });
+    const best = pickScored(from, dir, sameRow, current, null);
+    if (best) return best;
+  }
+  return pickScored(from, dir, list, current, horizontal ? null : fromRegion);
+}
+
+function pickScored(from, dir, list, current, fromRegion) {
   const cx = from.left + from.width / 2;
   const cy = from.top + from.height / 2;
   let best = null;
@@ -74,10 +108,24 @@ function pick(from, dir, list, current) {
     else if (dir === 'left') { if (r.right > from.left + 4 && ex >= cx - 4) continue; main = Math.max(0, from.left - r.right); cross = overlap1d(from.top, from.bottom, r.top, r.bottom) ? 0 : Math.abs(ey - cy); }
     else if (dir === 'down') { if (r.top < from.bottom - 4 && ey <= cy + 4) continue; main = Math.max(0, r.top - from.bottom); cross = overlap1d(from.left, from.right, r.left, r.right) ? 0 : Math.abs(ex - cx); }
     else { if (r.bottom > from.top + 4 && ey >= cy - 4) continue; main = Math.max(0, from.top - r.bottom); cross = overlap1d(from.left, from.right, r.left, r.right) ? 0 : Math.abs(ex - cx); }
-    const score = main + cross * 2;
+    // En vertical, quedarse en la misma zona (contenido / barra lateral /
+    // reproductor) mientras haya algo: un botón estrecho del contenido no
+    // salta a la barra lateral.
+    const penalty = fromRegion && regionOf(el) !== fromRegion ? 2000 : 0;
+    // Vertical: la distancia en la dirección pesa más que la lateral (↓
+    // desde un control a la derecha va a la fila de debajo, no a lo más
+    // alineado varias filas más abajo). Horizontal: al revés, se prefiere la
+    // misma altura (← desde una canción va a la barra lateral, no al botón
+    // de arriba que queda algo a la izquierda).
+    const vertical = dir === 'up' || dir === 'down';
+    const score = (vertical ? main * 2 + cross : main + cross * 2) + penalty;
     if (score < bestScore) { bestScore = score; best = el; }
   }
   return best;
+}
+
+function regionOf(el) {
+  return el.closest('main, aside') ?? 'other';
 }
 
 function overlap1d(a1, a2, b1, b2) {
@@ -94,6 +142,14 @@ function overlap1d(a1, a2, b1, b2) {
 export function tvFocus(el, dir) {
   if (!el) return;
   if (!el.matches('a[href], button, input, select, textarea, [tabindex]')) el.setAttribute('tabindex', '-1');
+  // Campo de texto: seleccionarlo NO abre el teclado de la TV (si no, el
+  // teclado se queda con las flechas y la navegación parece atascada). OK lo
+  // abre (ver onKeyDown).
+  if (isTextField(el) && !el.hasAttribute('inputmode')) {
+    el.setAttribute('inputmode', 'none');
+    el.dataset.tvIm = '1';
+    el.addEventListener('blur', restoreInputMode, { once: true });
+  }
   el.focus({ preventScroll: true });
   const vertical = dir === 'up' || dir === 'down';
   el.scrollIntoView({ block: vertical ? 'center' : 'nearest', inline: 'nearest' });
@@ -105,6 +161,25 @@ export function focusMain() {
   const main = root === document.body ? (document.querySelector('main') ?? root) : root;
   const first = candidates(main)[0] ?? candidates(root)[0];
   tvFocus(first);
+}
+
+/**
+ * OK sobre un campo de texto seleccionado con el mando. La WebView no pasa
+ * ese OK a la página: lo llama MainActivity al soltar OK y, si devuelve
+ * 'kb', muestra el teclado del sistema.
+ */
+function tvOk() {
+  const el = document.activeElement;
+  if (!el || !isTextField(el) || !el.dataset.tvIm) return '';
+  el.removeAttribute('inputmode');
+  delete el.dataset.tvIm;
+  return 'kb';
+}
+if (IS_TV && typeof window !== 'undefined') window.__ritmiqTvOk = tvOk;
+
+function restoreInputMode(e) {
+  const el = e.target;
+  if (el?.dataset?.tvIm) { el.removeAttribute('inputmode'); delete el.dataset.tvIm; }
 }
 
 function isTextField(el) {
@@ -121,9 +196,24 @@ function onKeyDown(e) {
   const active = document.activeElement;
   const hasFocus = active && active !== document.body && active !== document.documentElement;
 
+  // Ventana abierta y foco fuera de ella (o perdido al cambiar de paso):
+  // ir al botón principal; con OK, además pulsarlo (avanzar el carrusel).
+  const root0 = navRoot();
+  if (root0 !== document.body && (!hasFocus || !root0.contains(active)) && (e.key === 'Enter' || DIRS[e.key])) {
+    const primary = primaryOf(root0);
+    if (primary) {
+      e.preventDefault();
+      e.stopPropagation();
+      tvFocus(primary);
+      if (e.key === 'Enter') primary.click();
+      return;
+    }
+  }
+
   if (e.key === 'Enter' && hasFocus && !active.matches('a[href], button, input, select, textarea')) {
     e.preventDefault();
-    active.click();
+    const inner = active.querySelector('button, a[href]');
+    (inner ?? active).click();
     return;
   }
   if (!dir || e.ctrlKey || e.altKey || e.metaKey) return;
@@ -133,7 +223,13 @@ function onKeyDown(e) {
     if (dir === 'left' && active.selectionStart > 0) return;
     if (dir === 'right' && active.selectionEnd < len) return;
   }
-  if (hasFocus && isSlider(active) && (dir === 'left' || dir === 'right')) return;
+  if (hasFocus && isSlider(active)) {
+    // Sliders verticales (bandas del EQ): ↑/↓ los ajusta el propio control,
+    // ←/→ navegan. Horizontales (posición, volumen): al revés.
+    const vertical = active.dataset?.tvAxis === 'vertical';
+    if (vertical && (dir === 'up' || dir === 'down')) return;
+    if (!vertical && (dir === 'left' || dir === 'right')) return;
+  }
 
   e.preventDefault();
   e.stopPropagation();

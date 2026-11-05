@@ -54,6 +54,11 @@ tags: [migraciones, indice, postgres]
 > Nota: este índice se actualizó parcialmente en F12 (entradas de F4-F8). Las migraciones de
 > streaks/stream_url_cache/tracks_global anteriores a 2026-05-27 aún no están listadas aquí.
 
+## 2026-11
+| Archivo | Qué hace |
+|---|---|
+| `20261104000000_jam_kick.sql` | [[jam_bans]]: expulsar participantes de una jam, vetos que se limpian al cambiar el código. **Pendiente de aplicar.** |
+
 ## Cómo añadir una migración
 
 1. `supabase migration new <descripcion>` genera el archivo.
@@ -65,3 +70,4 @@ tags: [migraciones, indice, postgres]
 ## Notas / Changelog
 - 2026-05-22: nivel simple. Consolidado en una sola nota índice.
 - 2026-10-12: añadidas las migraciones de racha (tz/trofeos y recuperación).
+- 2026-11-04: `jam_kick`.

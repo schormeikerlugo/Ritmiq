@@ -140,6 +140,7 @@ import { useEdgeSwipeBack } from './lib/use-edge-swipe-back.js';
 import styles from './App.module.css';
 import { isLowPerf } from './lib/perf-mode.js';
 import { IS_TV, useTvRemote, closeTopDialog, focusMain } from './lib/tv-nav.js';
+import { useTvSpeakerSession } from './lib/tv-speaker.js';
 import { toast } from './stores/toast.js';
 
 // Parsea el query param `?share=...` al cargar el modulo — solo una vez.
@@ -686,6 +687,14 @@ export function App() {
   // atajos. Solo se muestra una vez por device, solo en desktop/PWA con
   // teclado fisico probable. Persistido en localStorage.
   useShortcutsOnboarding(user?.id ?? null);
+  // TV: sesión "altavoz" permanente (QR/código en la barra inferior).
+  useTvSpeakerSession(user?.id ?? null);
+  // Expulsado de una jam por el host.
+  useEffect(() => {
+    const onKicked = () => toast.info('Te han desconectado de la jam');
+    window.addEventListener('ritmiq:jam-kicked', onKicked);
+    return () => window.removeEventListener('ritmiq:jam-kicked', onKicked);
+  }, []);
   // Notificaciones nativas del SO al cambiar pista — solo desktop y solo
   // cuando la ventana no esta enfocada (evita spam si el user mira la app).
   useDesktopNotifications();

@@ -147,3 +147,13 @@
 .linkBtnDanger:hover {
   background: rgba(255, 93, 108, 0.1);
 }
+
+/* TV: presets del EQ y demás segmentados, más grandes para el mando. */
+:global(html[data-tv]) .segmented {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+:global(html[data-tv]) .segment {
+  padding: 10px 16px;
+  font-size: var(--fs-md, 15px);
+}

@@ -334,3 +334,25 @@
   }
   .eqSlider { height: 100px; }
 }
+
+/* ── TV: ecualizador manejable con el mando ─────────────────────── */
+.eqTvHint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-3);
+}
+:global(html[data-tv]) .eqVal {
+  font-size: 16px;
+  min-height: 20px;
+}
+:global(html[data-tv]) .eqLabel {
+  font-size: 14px;
+}
+:global(html[data-tv]) .eqSlider {
+  width: 36px;
+  height: 160px;
+}
+:global(html[data-tv]) .eqBand:focus-within .eqVal,
+:global(html[data-tv]) .eqBand:focus-within .eqLabel {
+  color: var(--color-accent);
+}
