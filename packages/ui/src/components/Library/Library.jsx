@@ -323,6 +323,7 @@ export function Library() {
             className={styles.avatar}
             onClick={goAccount}
             aria-label="Cuenta"
+            data-tv-skip-initial
           >{initial}</button>
           <h1 className={styles.title}>Tu biblioteca</h1>
           <div className={styles.headerActions}>
@@ -331,12 +332,14 @@ export function Library() {
               className={styles.iconBtn}
               onClick={() => setSearchOpen((v) => !v)}
               aria-label="Buscar en biblioteca"
+            data-tv-skip-initial
             ><Icon name="Search" size={20} /></button>
             <button
               type="button"
               className={styles.iconBtn}
               onClick={() => setImportOpen(true)}
               aria-label="Importar de Spotify"
+            data-tv-skip-initial
               title="Importar de Spotify"
             ><SpotifyIcon size={22} /></button>
           </div>

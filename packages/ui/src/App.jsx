@@ -140,7 +140,8 @@ import { subscribeTunnelUrl, subscribeServerEndpoint, publishTunnelUrl, clearTun
 import { useEdgeSwipeBack } from './lib/use-edge-swipe-back.js';
 import styles from './App.module.css';
 import { isLowPerf } from './lib/perf-mode.js';
-import { IS_TV, useTvRemote, closeTopDialog, focusMain } from './lib/tv-nav.js';
+import { IS_TV, useTvRemote, closeTopDialog, focusMain, isZoneLayerOpen, openZoneLayer, closeZoneLayer, getCurrentZone } from './lib/tv-nav.js';
+import { TvZoneLayer } from './components/TvZoneLayer/TvZoneLayer.jsx';
 import { useTvSpeakerSession } from './lib/tv-speaker.js';
 import { toast } from './stores/toast.js';
 
@@ -258,20 +259,32 @@ export function App() {
     el.style.transform = '';
     el.style.opacity = '';
   };
-  // Mando de la TV (MainActivity → JS). Atrás: ventana abierta → overlay →
-  // pantalla anterior → Inicio → doble pulsación para salir.
+  // Mando de la TV (MainActivity → JS). Atrás "sube una capa":
+  //   ventana abierta → se cierra · campo de texto → se sale ·
+  //   Reproduciendo/cola/Jam → se cierran ·
+  //   en el contenido de una sub‑página (playlist, artista…) → página anterior ·
+  //   en una página principal, o desde menú/reproductor → CAPA DE ZONAS ·
+  //   en la capa → Inicio; en Inicio → doble pulsación para salir.
   const tvLastBackRef = useRef(0);
   const tvOnBack = useCallback(() => {
+    const v = useViewStore.getState();
+    if (isZoneLayerOpen()) {
+      // A Inicio con la capa abierta: la siguiente pulsación ya avisa de salir.
+      if (v.view.kind !== 'home') { v.goHome(); return 'handled'; }
+      const now = Date.now();
+      if (now - tvLastBackRef.current < 2500) return 'exit';
+      tvLastBackRef.current = now;
+      toast.info('Pulsa Atrás otra vez para salir');
+      return 'handled';
+    }
     if (closeTopDialog()) return 'handled';
     const a = document.activeElement;
     if (a instanceof HTMLInputElement && a.type !== 'range') { a.blur(); focusMain(); return 'handled'; }
-    if (edgeBackAvailable()) { edgeBackAction(); return 'handled'; }
-    const v = useViewStore.getState();
-    if (v.view.kind !== 'home') { v.goHome(); return 'handled'; }
-    const now = Date.now();
-    if (now - tvLastBackRef.current < 2500) return 'exit';
-    tvLastBackRef.current = now;
-    toast.info('Pulsa Atrás otra vez para salir');
+    if (v.nowPlayingOpen || v.queueOpen || v.sidebarOpen) { edgeBackAction(); return 'handled'; }
+    try { if (useJamStore.getState().jamModalOpen) { edgeBackAction(); return 'handled'; } } catch {}
+    if (getCurrentZone() === 'content' && v.view.kind === 'settings' && v.settingsSubview) { v.setSettingsSubview(null); return 'handled'; }
+    if (getCurrentZone() === 'content' && (v.history?.length ?? 0) > 0) { v.goBack(); return 'handled'; }
+    openZoneLayer();
     return 'handled';
   }, []);
   const tvOnKey = useCallback((name) => {
@@ -756,7 +769,7 @@ export function App() {
 
   return (
     <div className={styles.shell} data-queue-open={queueOpen} data-nowplaying-open={!IS_TV && nowPlayingOpen}>
-      <aside className={styles.sidebar} data-mobile-open={sidebarOpen}>
+      <aside className={styles.sidebar} data-mobile-open={sidebarOpen} data-tv-zone="menu">
         <Sidebar />
       </aside>
       <div
@@ -768,13 +781,13 @@ export function App() {
       {/* TopBar como modulo flotante independiente — fila propia del grid,
           ocupa solo la columna central. Oculta en mobile (cada view tiene
           su propio header). */}
-      <header className={styles.topbar}>
+      <header className={styles.topbar} data-tv-zone="content">
         <TopBar />
       </header>
-      <main ref={shellRef} className={styles.main} data-view={viewKind} data-main-scroll>
+      <main ref={shellRef} className={styles.main} data-view={viewKind} data-main-scroll data-tv-zone="content">
         <MainView />
       </main>
-      <aside className={styles.queue}>
+      <aside className={styles.queue} data-tv-zone="queue">
         <QueueOutlet />
       </aside>
       {/* NowPlaying side panel — en desktop renderiza dentro del grid-area
@@ -793,9 +806,10 @@ export function App() {
           <NowPlaying />
         </aside>
       )}
-      <footer className={styles.player}>
+      <footer className={styles.player} data-tv-zone="player">
         <Player />
       </footer>
+      {IS_TV && <TvZoneLayer />}
       <BottomNav />
       <DownloadProgress />
       {/* Render unico de todos los bottom sheets globales — controlados

@@ -167,7 +167,10 @@ export function tvFocus(el, dir) {
 export function focusMain() {
   const root = navRoot();
   const main = root === document.body ? (document.querySelector('main') ?? root) : root;
-  const first = candidates(main)[0] ?? candidates(root)[0];
+  // Botones de cabecera (avatar, buscar…) marcados con data-tv-skip-initial:
+  // al entrar en una página el foco va al contenido, no a ellos.
+  const list = candidates(main);
+  const first = list.find((el) => !el.closest('[data-tv-skip-initial]')) ?? list[0] ?? candidates(root)[0];
   tvFocus(first);
 }
 
@@ -199,6 +202,131 @@ function isSlider(el) {
   return (el instanceof HTMLInputElement && el.type === 'range') || el.getAttribute?.('role') === 'slider';
 }
 
+/* ── Zonas ─────────────────────────────────────────────────────────────
+ * La pantalla se divide en zonas (atributo data-tv-zone en App.jsx): menu,
+ * content (buscador + página), player y queue (si está abierta). Las flechas
+ * no salen de la zona; para cambiar se usa la CAPA DE ZONAS (Atrás en una
+ * página principal o desde menú/reproductor): ← Menú, → Contenido/Cola,
+ * ↓ Reproductor, OK entra. Cada zona recuerda su último elemento. */
+
+export const ZONE_LABELS = { menu: 'Menú', content: 'Contenido', player: 'Reproductor', queue: 'Cola' };
+
+/** @param {Element|null} el */
+export function zoneOf(el) {
+  return el?.closest?.('[data-tv-zone]')?.getAttribute('data-tv-zone') ?? null;
+}
+
+/** Elementos (visibles) de cada zona. */
+function zoneEls(zone) {
+  return [...document.querySelectorAll(`[data-tv-zone="${zone}"]`)].filter((z) => {
+    const r = z.getBoundingClientRect();
+    return r.width > 4 && r.height > 4 && getComputedStyle(z).display !== 'none';
+  });
+}
+
+/** Zonas presentes ahora. */
+export function availableZones() {
+  return ['menu', 'content', 'queue', 'player'].filter((z) => zoneEls(z).length > 0);
+}
+
+/** Rectángulo que abarca todos los elementos de la zona. */
+export function zoneRect(zone) {
+  const rs = zoneEls(zone).map((z) => z.getBoundingClientRect());
+  if (!rs.length) return null;
+  const left = Math.min(...rs.map((r) => r.left));
+  const top = Math.min(...rs.map((r) => r.top));
+  const right = Math.max(...rs.map((r) => r.right));
+  const bottom = Math.max(...rs.map((r) => r.bottom));
+  return { left, top, right, bottom, width: right - left, height: bottom - top };
+}
+
+/** @type {Record<string, Element>} */
+const lastFocus = {};
+let currentZone = null;
+
+function setZoneAttr(zone) {
+  currentZone = zone;
+  if (zone) document.documentElement.dataset.tvZone = zone;
+  else delete document.documentElement.dataset.tvZone;
+}
+
+function onFocusIn(e) {
+  const el = e.target;
+  if (navRoot() !== document.body) return; // ventanas: no cuentan como zona
+  const z = zoneOf(el);
+  if (!z) return;
+  lastFocus[z] = el;
+  setZoneAttr(z);
+}
+
+export function getCurrentZone() { return currentZone; }
+
+/** Entra en una zona: último elemento recordado o el primero razonable. */
+export function focusZone(zone) {
+  const last = lastFocus[zone];
+  if (last && document.contains(last) && isVisible(last) && zoneOf(last) === zone) { tvFocus(last); return; }
+  if (zone === 'content') { focusMain(); return; }
+  const els = zoneEls(zone);
+  const list = els.flatMap((z) => candidates(z));
+  const pref = zone === 'player'
+    ? list.find((b) => /^(Pausar|Reproducir)$/.test(b.getAttribute('aria-label') ?? ''))
+    : zone === 'menu'
+      ? list.find((b) => b.getAttribute('aria-current') === 'page' || b.dataset.active === 'true')
+      : null;
+  tvFocus(pref ?? list[0]);
+}
+
+// Capa de zonas.
+let layer = { open: false, selected: null };
+function emitLayer() {
+  if (layer.open && layer.selected) document.documentElement.dataset.tvLayer = layer.selected;
+  else delete document.documentElement.dataset.tvLayer;
+  window.dispatchEvent(new CustomEvent('ritmiq:tv-zone-layer', { detail: { ...layer } }));
+}
+export function isZoneLayerOpen() { return layer.open; }
+export function openZoneLayer() {
+  const zones = availableZones();
+  layer = { open: true, selected: zones.includes(currentZone) ? currentZone : 'content' };
+  emitLayer();
+}
+/** Cierra la capa y entra en `zone` (o en la seleccionada). */
+export function closeZoneLayer(zone) {
+  const target = zone ?? layer.selected ?? 'content';
+  layer = { open: false, selected: null };
+  emitLayer();
+  focusZone(target);
+}
+
+const LAYER_MOVES = {
+  left: { content: 'menu', queue: 'content', player: 'menu' },
+  right: { menu: 'content', content: 'queue', player: 'content' },
+  down: { menu: 'player', content: 'player', queue: 'player' },
+  up: { player: 'content' },
+};
+
+function onLayerKey(e) {
+  const dir = DIRS[e.key];
+  if (e.key === 'Enter') { closeZoneLayer(); return true; }
+  if (!dir) return e.key !== 'Escape'; // Atrás lo resuelve App.jsx
+  const next = LAYER_MOVES[dir][layer.selected];
+  if (next && availableZones().includes(next)) {
+    layer = { ...layer, selected: next };
+    emitLayer();
+  }
+  return true;
+}
+
+// Aviso (pocas veces) de cómo cambiar de zona al chocar con el borde.
+let edgeHints = 0;
+function edgeHint() {
+  let seen = 0;
+  try { seen = Number(localStorage.getItem('ritmiq:tv:zoneHint') || 0); } catch {}
+  if (seen >= 3 || edgeHints >= 1) return;
+  edgeHints++;
+  try { localStorage.setItem('ritmiq:tv:zoneHint', String(seen + 1)); } catch {}
+  window.dispatchEvent(new CustomEvent('ritmiq:tv-zone-hint'));
+}
+
 /**
  * Interceptor de teclas (p. ej. la pantalla "Reproduciendo" en reposo: la
  * primera tecla solo la despierta). Si devuelve true, la tecla se consume.
@@ -215,6 +343,10 @@ function onKeyDown(e) {
   if (keyInterceptor?.(e)) {
     e.preventDefault();
     e.stopPropagation();
+    return;
+  }
+  if (layer.open && navRoot() === document.body) {
+    if (onLayerKey(e)) { e.preventDefault(); e.stopPropagation(); }
     return;
   }
   const dir = DIRS[e.key];
@@ -241,6 +373,11 @@ function onKeyDown(e) {
     (inner ?? active).click();
     return;
   }
+  // OK en el menú: tras abrir la sección, el foco pasa al contenido (aunque
+  // sea la misma sección y no cambie la vista).
+  if (e.key === 'Enter' && hasFocus && zoneOf(active) === 'menu' && navRoot() === document.body) {
+    setTimeout(() => { if (zoneOf(document.activeElement) === 'menu') focusZone('content'); }, 400);
+  }
   if (!dir || e.ctrlKey || e.altKey || e.metaKey) return;
 
   if (hasFocus && isTextField(active)) {
@@ -260,8 +397,13 @@ function onKeyDown(e) {
   e.stopPropagation();
   const root = navRoot();
   if (!hasFocus || !root.contains(active)) { focusMain(); return; }
-  const next = pick(active.getBoundingClientRect(), dir, candidates(root), active);
+  // Zonas: sin salir de la del elemento enfocado (fuera de ventanas).
+  let list = candidates(root);
+  const zone = root === document.body ? zoneOf(active) : null;
+  if (zone) list = list.filter((el) => zoneOf(el) === zone);
+  const next = pick(active.getBoundingClientRect(), dir, list, active);
   if (next) tvFocus(next, dir);
+  else if (zone && pick(active.getBoundingClientRect(), dir, candidates(root), active)) edgeHint();
 }
 
 let installed = false;
@@ -272,6 +414,7 @@ export function installTvNav() {
   installed = true;
   // Fase de captura: antes que cualquier atajo o componente.
   window.addEventListener('keydown', onKeyDown, true);
+  document.addEventListener('focusin', onFocusIn, true);
 }
 
 /**

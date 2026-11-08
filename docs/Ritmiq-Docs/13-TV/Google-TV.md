@@ -59,6 +59,7 @@ Con sesión iniciada, la TV abre sola una jam de tipo altavoz ([[tv-speaker]]) y
 4. APK de release firmado + auto-actualización desde el servidor.
 
 ## Notas / Changelog
+- 2026-11-08: navegación por zonas con capa, memoria por zona y menú compacto ([[tv-nav]], ADR-045).
 - 2026-11-05 (b): portadas oficiales y foto del artista servidas por LAN ([[Portadas]]).
 - 2026-11-05: pantalla «Reproduciendo» propia ([[TvNowPlaying]]) con letra a pantalla completa estilo karaoke; Biblioteca navegable con el mando.
 - 2026-11-04 (e): fuera el QR; «Conectar a mi TV» en la app; sin aviso «Sonando en el altavoz».

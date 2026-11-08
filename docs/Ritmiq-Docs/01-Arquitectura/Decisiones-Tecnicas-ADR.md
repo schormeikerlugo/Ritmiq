@@ -394,6 +394,12 @@ Cada decisión sigue el formato:
 - **Decisión**: `server-core/art-resolver.js` limpia el título, busca en iTunes y Deezer (sin claves), puntúa por título/artista/duración/variantes y acepta ≥ 0,62; guarda imágenes en disco + SQLite y publica en Supabase `track_art` (escritura solo cuentas de servidor). Cola: apps primero (1,5 s), pasada automática de bibliotecas (3,5 s). Clientes con `useTrackCover`/`TrackImg`; las portadas manuales (`tracks.cover_url` no-YouTube) ganan siempre; "Buscar portada" para corregir. TV: foto del artista de fondo.
 - **Consecuencias**: ≈ 93 % de la biblioteca identificada (631/675 en la primera pasada); LAN 14–88 ms por imagen; búsquedas ya resueltas aparecen al instante. Ver [[Portadas]], [[track_art]], [[track-art]].
 
+## ADR-045 — TV: navegación por zonas con capa de selección
+
+- **Contexto**: con el mando había que recorrer muchas opciones para ir del contenido al menú o al reproductor (p. ej. bajar por toda una playlist hasta la barra inferior).
+- **Decisión**: zonas estrictas (menú, contenido, cola, reproductor) en `tv-nav.js`; una capa de zonas que se abre con Atrás en páginas principales (en sub‑páginas Atrás sigue volviendo atrás, como Netflix); memoria del último elemento por zona; arranque en Contenido; menú compacto de iconos que se despliega por encima del contenido. Propuesta del usuario + memoria por zona y arranque directo.
+- **Consecuencias**: contenido → reproductor → mismo elemento en 4 pulsaciones (Atrás, ↓, OK… Atrás, ↑, OK) en vez de recorrer la página; 128 px más de contenido. Verificado en navegador a 1280×720 con la build de TV; pendiente en el onn. Ver [[tv-nav]].
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

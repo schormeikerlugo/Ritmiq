@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { IS_TV } from '../lib/tv-nav.js';
 
 /**
  * Restaura el estado persistido de queueOpen desde localStorage.
@@ -122,8 +123,11 @@ export const useViewStore = create((set, get) => ({
   goProfile:   (userId) => navigateTo(set, get, { kind: 'profile', userId }),
   goSearchView: () => set({ view: { kind: 'search', query: '' }, history: [], sidebarOpen: false }),
   /** @param {string} playlistId */
-  goPlaylist: (playlistId) =>
-    set({ view: { kind: 'playlist', playlistId }, history: [], sidebarOpen: false }),
+  // TV: con historial, para que Atrás vuelva de la playlist a donde estabas
+  // (Biblioteca, Inicio…). En móvil/escritorio es una sección principal.
+  goPlaylist: (playlistId) => (IS_TV
+    ? navigateTo(set, get, { kind: 'playlist', playlistId })
+    : set({ view: { kind: 'playlist', playlistId }, history: [], sidebarOpen: false })),
 
   // Navegaciones "exploratorias" sí guardan historial → permiten back.
   /** @param {string} query */

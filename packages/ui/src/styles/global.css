@@ -93,7 +93,8 @@ html[data-tv] input:focus,
 html[data-tv] textarea:focus {
   background-color: transparent;
 }
-/* Menú lateral más estrecho: más espacio para el contenido. */
+/* Menú lateral compacto (columna de iconos de 72 px); se despliega por
+   encima del contenido al entrar en la zona Menú (App.module.css). */
 html[data-tv] {
-  --layout-sidebar-w: 200px;
+  --layout-sidebar-w: 72px;
 }

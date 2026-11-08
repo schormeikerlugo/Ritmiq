@@ -250,3 +250,31 @@ li[data-drag-over='true'] > .link .icon {
   line-height: 1.5;
   flex-shrink: 0;
 }
+
+
+/* ── TV: menú compacto (fuera de la zona Menú) ──────────────────────
+   Solo iconos y miniaturas de playlists; nombres y logo al desplegarse. */
+:global(html[data-tv]:not([data-tv-zone='menu'])) .nav {
+  padding: var(--space-4) var(--space-2);
+}
+:global(html[data-tv]:not([data-tv-zone='menu'])) .brand,
+:global(html[data-tv]:not([data-tv-zone='menu'])) .sectionTitle,
+:global(html[data-tv]:not([data-tv-zone='menu'])) .quickPlay,
+:global(html[data-tv]:not([data-tv-zone='menu'])) .link > span:not(.icon):not(.thumb):not(.badge) {
+  display: none;
+}
+:global(html[data-tv]:not([data-tv-zone='menu'])) .link {
+  justify-content: center;
+  gap: 0;
+  padding: var(--space-3) 0;
+}
+:global(html[data-tv]:not([data-tv-zone='menu'])) .badge {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+}
+:global(html[data-tv]) .link > span:not(.icon):not(.thumb):not(.badge),
+:global(html[data-tv]) .brand,
+:global(html[data-tv]) .sectionTitle {
+  white-space: nowrap;
+}
