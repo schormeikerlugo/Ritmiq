@@ -17,6 +17,9 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* Recorte desde arriba: en fotos de artista lo importante (caras) suele
+     estar en la parte superior; centrado se cortaban las cabezas. */
+  object-position: center top;
 }
 /* Oscurece abajo y a la izquierda (donde va el texto) y deja ver la imagen. */
 .shade {

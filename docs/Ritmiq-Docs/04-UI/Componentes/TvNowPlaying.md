@@ -25,6 +25,7 @@ tags: [tv, reproductor, letras]
 - Reposo: 8 s sin teclas, sonando, sin panel (o con la letra) → se ocultan cabecera, play y controles; el hueco del play se cierra (barra a todo el ancho) y el bloque inferior baja 70 px (`translateY`); la primera tecla solo despierta (`setTvKeyInterceptor` de [[tv-nav]]).
 
 ## Notas / Changelog
+- 2026-11-08: el fondo se recorta desde arriba (`object-position: center top`) para no cortar las caras de los artistas.
 - 2026-11-05 (d): fondo = foto del artista ([[track-art]]), portada oficial y título/artista limpios.
 - 2026-11-05 (c): en la vista normal también baja la barra en reposo.
 - 2026-11-05 (b): letra centrada como Spotify TV, cabecera de canción arriba, barra baja en reposo, animaciones suaves.
