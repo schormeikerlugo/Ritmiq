@@ -90,7 +90,7 @@ export function SearchView({ query: queryProp }) {
       prevQueryRef.current = query;
       useSearchStore.getState().setScrollTop(0);
       const el = scrollElRef.current;
-      if (el) el.scrollTop = 0;
+      if (el) el.scrollTo({ top: 0, behavior: 'instant' });
     }
   }, [query]);
 
@@ -107,7 +107,7 @@ export function SearchView({ query: queryProp }) {
     const saved = useSearchStore.getState().scrollTop;
     if (saved > 0) {
       // rAF para asegurar que el contenido ya está pintado antes de saltar.
-      requestAnimationFrame(() => { try { el.scrollTop = saved; } catch {} });
+      requestAnimationFrame(() => { try { el.scrollTo({ top: saved, behavior: 'instant' }); } catch {} });
     }
     let raf = 0;
     const onScroll = () => {

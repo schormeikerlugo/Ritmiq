@@ -903,17 +903,16 @@ function MainView() {
     if (view.kind === 'search') return;
     const main = document.querySelector(`.${styles.main}`);
     if (main && main.scrollTop > 0) {
-      // scrollTop = 0 directo (en vez de scrollTo({behavior:'instant'}))
-      // porque el CSS tiene scroll-behavior: smooth y queremos teleport
-      // inmediato al cambiar de vista, no animar el scroll de vuelta al top.
-      // Asignar scrollTop directamente bypasea el behavior CSS.
-      main.scrollTop = 0;
+      // Teleport inmediato al cambiar de vista. OJO: asignar scrollTop SÍ
+      // respeta el `scroll-behavior: smooth` del CSS (se animaba la subida y
+      // en la TV la lista "brincaba" al entrar). behavior:'instant' lo ignora.
+      main.scrollTo({ top: 0, behavior: 'instant' });
     }
     // Resetear contenedores internos marcados con data-scroll-reset
     // (FriendsView, ProfileView tienen overflow propio).
     document
       .querySelectorAll('[data-scroll-reset="true"]')
-      .forEach((el) => { if (el.scrollTop > 0) el.scrollTop = 0; });
+      .forEach((el) => { if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior: 'instant' }); });
   }, [key]);
 
   let content;

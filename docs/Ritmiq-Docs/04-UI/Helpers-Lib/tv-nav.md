@@ -47,6 +47,7 @@ La pantalla se divide en zonas (`data-tv-zone` en `App.jsx`): **menu** (menú la
 Flechas por Inicio/playlist, OK reproduce, Canal ^ siguiente, buscador alcanzable con ↑, Atrás: Ajustes → Inicio → aviso → sale. Depurar foco: `adb forward tcp:9229 localabstract:webview_devtools_remote_<pid>` + `Runtime.evaluate(document.activeElement)`.
 
 ## Notas / Changelog
+- 2026-11-08 (c): con animaciones completas la lista "brincaba" al bajar rápido. Causas: (1) scroll suave reiniciado en cada pulsación → `tvFocus` usa `behavior: 'instant'` si la anterior fue hace < 600 ms; (2) `content-visibility: auto` con altura estimada menor que la real en la TV (56 vs 72/61 px) → desactivado en filas de Biblioteca y playlists en TV; (3) al cambiar de página `main.scrollTop = 0` se ANIMABA por el `scroll-behavior: smooth` del CSS → `scrollTo({ behavior: 'instant' })` (App.jsx y SearchView, también PWA/escritorio). Medido en el onn.: 0 retrocesos de scroll al bajar 20 veces.
 - 2026-11-08 (b): capa sin nombres; barras horizontales se activan con OK.
 - 2026-11-08: zonas estrictas, capa de zonas, memoria por zona, menú compacto y nuevo Atrás (ADR-045).
 - 2026-11-05 (b): `setTvKeyInterceptor(fn)` — consume teclas antes de la navegación (reposo de [[TvNowPlaying]]).

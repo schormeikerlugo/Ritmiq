@@ -770,3 +770,9 @@
 :global(html[data-tv]) .heroTitle {
   font-size: 48px;
 }
+
+/* TV: sin altura estimada (56 px vs ~61 px reales, y no todas iguales): al
+   bajar rápido con el mando la lista se reajustaba y "brincaba". */
+:global(html[data-tv]) .row {
+  content-visibility: visible;
+}

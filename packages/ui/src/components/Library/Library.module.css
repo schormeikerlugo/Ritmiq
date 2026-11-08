@@ -600,3 +600,10 @@
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
 }
 .bigEmptyBtn:active { transform: scale(0.98); }
+
+
+/* TV: sin altura estimada (56 px vs 72 px reales): al bajar rápido con el
+   mando las filas aparecían y la lista "brincaba". Son pocas filas. */
+:global(html[data-tv]) .row {
+  content-visibility: visible;
+}

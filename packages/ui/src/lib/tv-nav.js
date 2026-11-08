@@ -160,8 +160,19 @@ export function tvFocus(el, dir) {
   }
   el.focus({ preventScroll: true });
   const vertical = dir === 'up' || dir === 'down';
-  el.scrollIntoView({ block: vertical ? 'center' : 'nearest', inline: 'nearest' });
+  // Con animaciones completas el contenido usa scroll suave: al pulsar rápido
+  // cada pulsación reiniciaba la animación a medio camino y la lista avanzaba
+  // a tirones. Pulsación suelta → suave; seguidas (< 600 ms) → inmediato.
+  const now = Date.now();
+  const rapid = now - lastScrollAt < 600;
+  lastScrollAt = now;
+  el.scrollIntoView({
+    block: vertical ? 'center' : 'nearest',
+    inline: 'nearest',
+    behavior: rapid ? 'instant' : 'auto',
+  });
 }
+let lastScrollAt = 0;
 
 /** Enfoca el primer elemento del contenido principal (no el menú lateral). */
 export function focusMain() {
