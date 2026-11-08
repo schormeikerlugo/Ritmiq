@@ -398,7 +398,7 @@ Cada decisión sigue el formato:
 
 - **Contexto**: con el mando había que recorrer muchas opciones para ir del contenido al menú o al reproductor (p. ej. bajar por toda una playlist hasta la barra inferior).
 - **Decisión**: zonas estrictas (menú, contenido, cola, reproductor) en `tv-nav.js`; una capa de zonas que se abre con Atrás en páginas principales (en sub‑páginas Atrás sigue volviendo atrás, como Netflix); memoria del último elemento por zona; arranque en Contenido; menú compacto de iconos que se despliega por encima del contenido. Propuesta del usuario + memoria por zona y arranque directo.
-- **Consecuencias**: contenido → reproductor → mismo elemento en 4 pulsaciones (Atrás, ↓, OK… Atrás, ↑, OK) en vez de recorrer la página; 128 px más de contenido. Verificado en navegador a 1280×720 con la build de TV; pendiente en el onn. Ver [[tv-nav]].
+- **Consecuencias**: contenido → reproductor → mismo elemento en 4 pulsaciones (Atrás, ↓, OK… Atrás, ↑, OK) en vez de recorrer la página; 128 px más de contenido. Verificado en navegador a 1280×720 y en el onn. con el mando (CPU con música 20–35 % de un núcleo). Ver [[tv-nav]].
 
 ---
 

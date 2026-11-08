@@ -49,6 +49,8 @@ pnpm install-tv
 ```
 En el onn.: Ajustes → Sistema → Información → pulsar 7 veces "Compilación del SO" → Opciones de desarrollador → **Depuración por red/USB**.
 
+**La IP del onn. puede cambiar** (DHCP; pasó de .107 a .105). Si `adb connect` da "Connection refused", buscarla con `adb mdns services` (anuncia `_adb._tcp …:5555`). Conviene reservarle IP fija en el router.
+
 ## La TV como altavoz
 Con sesión iniciada, la TV abre sola una jam de tipo altavoz ([[tv-speaker]]) y la barra inferior muestra, en lugar del volumen y los botones de compartir/guardar/jam, un bloque con el **código** y los avatares de quien está conectado (latido en los últimos 2 min). OK sobre el bloque abre el código grande con la lista de conectados ("Desconectar") y "Cambiar código". Con la misma cuenta: Jam → «Conectar a mi TV» (sin código); otra persona: Jam → Unirse + código. Sin QR: en iPhone abría Safari, no la app. Desde ahí el reproductor del teléfono/PC es el mando de la TV. Ver ADR-043.
 
