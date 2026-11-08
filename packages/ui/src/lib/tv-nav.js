@@ -327,6 +327,40 @@ function edgeHint() {
   window.dispatchEvent(new CustomEvent('ritmiq:tv-zone-hint'));
 }
 
+/* ── Barras horizontales (tiempo, crossfade…): se activan con OK ───────
+ * Sin activar, las flechas pasan por encima como por cualquier botón (si no,
+ * cruzar la barra de tiempo hacia la cola movía la canción). OK la activa
+ * (← → la mueven); OK, Atrás, ↑ o ↓ la sueltan. Las verticales del EQ no
+ * cambian (←→ banda, ↑↓ ajustan). */
+let engaged = null;
+
+function isHorizontalSlider(el) {
+  return !!el && isSlider(el) && el.dataset?.tvAxis !== 'vertical';
+}
+function engage(el) {
+  engaged = el;
+  el.setAttribute('data-tv-engaged', '');
+  el.addEventListener('blur', releaseSlider, { once: true });
+}
+/** Suelta la barra activada. Devuelve true si había una (Atrás lo usa). */
+export function releaseSlider() {
+  if (!engaged) return false;
+  engaged.removeAttribute('data-tv-engaged');
+  engaged = null;
+  return true;
+}
+
+// Pista (2 veces en total) al pasar por una barra: "OK para moverla".
+let sliderHints = 0;
+function sliderHint() {
+  let seen = 0;
+  try { seen = Number(localStorage.getItem('ritmiq:tv:sliderHint') || 0); } catch {}
+  if (seen >= 2 || sliderHints >= 1) return;
+  sliderHints++;
+  try { localStorage.setItem('ritmiq:tv:sliderHint', String(seen + 1)); } catch {}
+  window.dispatchEvent(new CustomEvent('ritmiq:tv-slider-hint'));
+}
+
 /**
  * Interceptor de teclas (p. ej. la pantalla "Reproduciendo" en reposo: la
  * primera tecla solo la despierta). Si devuelve true, la tecla se consume.
@@ -367,6 +401,14 @@ function onKeyDown(e) {
     }
   }
 
+  // OK sobre una barra horizontal: activarla / soltarla.
+  if (e.key === 'Enter' && hasFocus && isHorizontalSlider(active)) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (engaged === active) releaseSlider(); else { releaseSlider(); engage(active); }
+    return;
+  }
+
   if (e.key === 'Enter' && hasFocus && !active.matches('a[href], button, input, select, textarea')) {
     e.preventDefault();
     const inner = active.querySelector('button, a[href]');
@@ -386,11 +428,14 @@ function onKeyDown(e) {
     if (dir === 'right' && active.selectionEnd < len) return;
   }
   if (hasFocus && isSlider(active)) {
-    // Sliders verticales (bandas del EQ): ↑/↓ los ajusta el propio control,
-    // ←/→ navegan. Horizontales (posición, volumen): al revés.
+    // Verticales (bandas del EQ): ↑/↓ los ajusta el propio control, ←/→
+    // navegan. Horizontales: solo si están activadas (OK); ↑/↓ las sueltan.
     const vertical = active.dataset?.tvAxis === 'vertical';
     if (vertical && (dir === 'up' || dir === 'down')) return;
-    if (!vertical && (dir === 'left' || dir === 'right')) return;
+    if (!vertical) {
+      if (engaged === active && (dir === 'left' || dir === 'right')) return;
+      releaseSlider();
+    }
   }
 
   e.preventDefault();
@@ -402,8 +447,10 @@ function onKeyDown(e) {
   const zone = root === document.body ? zoneOf(active) : null;
   if (zone) list = list.filter((el) => zoneOf(el) === zone);
   const next = pick(active.getBoundingClientRect(), dir, list, active);
-  if (next) tvFocus(next, dir);
-  else if (zone && pick(active.getBoundingClientRect(), dir, candidates(root), active)) edgeHint();
+  if (next) {
+    tvFocus(next, dir);
+    if (isHorizontalSlider(next)) sliderHint();
+  } else if (zone && pick(active.getBoundingClientRect(), dir, candidates(root), active)) edgeHint();
 }
 
 let installed = false;

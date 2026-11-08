@@ -25,25 +25,6 @@
   box-shadow: 0 0 0 6px rgba(124, 92, 255, 0.3);
 }
 
-.label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: rgba(20, 20, 28, 0.92);
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 18px;
-  font-weight: 700;
-  transform: scale(0.94);
-  transition: transform 200ms ease, background-color 200ms ease, color 200ms ease;
-}
-.zone[data-selected] .label {
-  background: var(--color-accent);
-  color: #fff;
-  transform: scale(1.06);
-}
-
 .hint {
   position: fixed;
   left: 50%;

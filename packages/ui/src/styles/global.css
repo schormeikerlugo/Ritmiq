@@ -89,6 +89,12 @@ html[data-tv] :focus {
   background-color: color-mix(in oklab, var(--color-accent) 18%, transparent);
   border-radius: var(--radius-md, 8px);
 }
+/* Barra activada con OK (lib/tv-nav.js): blanco + halo, distinto del foco. */
+html[data-tv] [data-tv-engaged] {
+  outline: 3px solid #fff !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 7px color-mix(in oklab, var(--color-accent) 55%, transparent) !important;
+}
 html[data-tv] input:focus,
 html[data-tv] textarea:focus {
   background-color: transparent;

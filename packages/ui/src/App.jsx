@@ -140,7 +140,7 @@ import { subscribeTunnelUrl, subscribeServerEndpoint, publishTunnelUrl, clearTun
 import { useEdgeSwipeBack } from './lib/use-edge-swipe-back.js';
 import styles from './App.module.css';
 import { isLowPerf } from './lib/perf-mode.js';
-import { IS_TV, useTvRemote, closeTopDialog, focusMain, isZoneLayerOpen, openZoneLayer, closeZoneLayer, getCurrentZone } from './lib/tv-nav.js';
+import { IS_TV, useTvRemote, closeTopDialog, focusMain, isZoneLayerOpen, openZoneLayer, closeZoneLayer, getCurrentZone, releaseSlider } from './lib/tv-nav.js';
 import { TvZoneLayer } from './components/TvZoneLayer/TvZoneLayer.jsx';
 import { useTvSpeakerSession } from './lib/tv-speaker.js';
 import { toast } from './stores/toast.js';
@@ -267,6 +267,8 @@ export function App() {
   //   en la capa → Inicio; en Inicio → doble pulsación para salir.
   const tvLastBackRef = useRef(0);
   const tvOnBack = useCallback(() => {
+    // Barra activada con OK (tiempo, crossfade…): Atrás solo la suelta.
+    if (releaseSlider()) return 'handled';
     const v = useViewStore.getState();
     if (isZoneLayerOpen()) {
       // A Inicio con la capa abierta: la siguiente pulsación ya avisa de salir.

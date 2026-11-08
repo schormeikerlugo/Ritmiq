@@ -1,7 +1,7 @@
 /**
  * Capa de zonas de la app de TV (lib/tv-nav.js): al pulsar Atrás en una
- * página principal (o desde el menú/reproductor) se marcan las zonas de la
- * pantalla con su nombre; ← → ↓ ↑ eligen y OK entra (al último elemento
+ * página principal (o desde el menú/reproductor) se recuadra la zona elegida
+ * y se oscurecen las demás (sin nombres: el recuadro basta); ← → ↓ ↑ eligen y OK entra (al último elemento
  * usado en esa zona). Solo dibuja: el manejo de teclas está en tv-nav.js.
  *
  * Solo opacidad, bordes y transform: barato en el onn.
@@ -10,12 +10,9 @@
  */
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { availableZones, zoneRect, ZONE_LABELS } from '../../lib/tv-nav.js';
+import { availableZones, zoneRect } from '../../lib/tv-nav.js';
 import { toast } from '../../stores/toast.js';
-import { Icon } from '../Icon/Icon.jsx';
 import styles from './TvZoneLayer.module.css';
-
-const ICONS = { menu: 'Menu', content: 'Home', player: 'Play', queue: 'ListMusic' };
 
 export function TvZoneLayer() {
   const [state, setState] = useState({ open: false, selected: null });
@@ -37,11 +34,14 @@ export function TvZoneLayer() {
       setState({ open: !!d.open, selected: d.selected ?? null });
     };
     const onHint = () => toast.info('Pulsa Atrás para cambiar de zona (menú, contenido, reproductor)');
+    const onSliderHint = () => toast.info('Pulsa OK para mover la barra; OK o Atrás para soltarla');
     window.addEventListener('ritmiq:tv-zone-layer', onLayer);
     window.addEventListener('ritmiq:tv-zone-hint', onHint);
+    window.addEventListener('ritmiq:tv-slider-hint', onSliderHint);
     return () => {
       window.removeEventListener('ritmiq:tv-zone-layer', onLayer);
       window.removeEventListener('ritmiq:tv-zone-hint', onHint);
+      window.removeEventListener('ritmiq:tv-slider-hint', onSliderHint);
     };
   }, []);
 
@@ -54,12 +54,7 @@ export function TvZoneLayer() {
           className={styles.zone}
           data-selected={zone === state.selected || undefined}
           style={{ left: r.left, top: r.top, width: r.width, height: r.height }}
-        >
-          <span className={styles.label}>
-            <Icon name={ICONS[zone] ?? 'Circle'} size={18} />
-            {ZONE_LABELS[zone] ?? zone}
-          </span>
-        </div>
+        />
       ))}
       <div className={styles.hint}>
         <span><kbd>←</kbd><kbd>→</kbd><kbd>↓</kbd> elegir zona</span>
