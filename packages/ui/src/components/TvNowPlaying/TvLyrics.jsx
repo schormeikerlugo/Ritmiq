@@ -5,13 +5,14 @@
  * queda a media altura (desplazamiento con transform, barato en el onn.) y
  * los cambios se animan con color/opacity/transform.
  *
- * Letra sin sincronizar: texto completo en blanco; ↑/↓ la desplazan
- * (role=slider vertical, así lib/tv-nav.js no mueve el foco).
+ * Letra sin sincronizar (o mientras el servidor la sincroniza): texto completo
+ * que baja solo según el avance de la canción, con aviso; ↑/↓ la mueven a
+ * mano durante 8 s (role=slider vertical, así lib/tv-nav.js no mueve el foco).
  *
  * @module @ritmiq/ui/components/TvNowPlaying/TvLyrics
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useLyricsStore } from '../../stores/lyrics.js';
+import { useTrackLyrics } from '../../stores/lyrics.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { getDominantColor } from '../../lib/dominant-color.js';
 import { useTrackCover } from '../../lib/track-art.js';
@@ -55,25 +56,8 @@ function activeIndex(parsed, ms) {
 }
 
 export function TvLyrics({ track, idle = false }) {
-  const fetchLyrics = useLyricsStore((s) => s.fetch);
   const position = usePlayerStore((s) => s.positionSeconds);
-  const params = {
-    artist: track?.artist ?? '',
-    title: track?.title ?? '',
-    duration: track?.durationSeconds ?? null,
-  };
-  // Misma clave que stores/lyrics.js (ver LyricsPanel).
-  const key = useMemo(() => {
-    const a = String(params.artist).trim().toLowerCase();
-    const t = String(params.title).trim().toLowerCase();
-    const bucket = params.duration ? Math.round(params.duration / 5) * 5 : 0;
-    return `${a}::${t}::${bucket}`;
-  }, [params.artist, params.title, params.duration]);
-  const entry = useLyricsStore((s) => s.entries[key]);
-
-  useEffect(() => {
-    if (params.artist && params.title) fetchLyrics(params).catch(() => {});
-  }, [params.artist, params.title, params.duration, fetchLyrics]);
+  const { entry, key } = useTrackLyrics(track);
 
   // Color de la portada oficial si la hay (más fiel que el fotograma).
   const cover = useTrackCover(track, 300);
@@ -107,14 +91,20 @@ export function TvLyrics({ track, idle = false }) {
     setOffset(Math.max(0, el.offsetTop + el.offsetHeight / 2 - box.clientHeight * 0.45));
   }, [active, parsed, settled]);
 
-  // Letra sin sincronizar: ↑/↓ desplazan.
-  const [plainOffset, setPlainOffset] = useState(0);
-  useEffect(() => { setPlainOffset(0); }, [key]);
+  // Letra sin sincronizar: baja según el avance (a mitad de canción, mitad
+  // de la letra, empezando un poco después del inicio). ↑/↓ a mano 8 s.
+  const duration = track?.durationSeconds || 0;
+  const [manual, setManual] = useState(null); // { offset, until }
+  useEffect(() => { setManual(null); }, [key]);
+  const plainMax = Math.max(0, (listRef.current?.scrollHeight ?? 0) - (boxRef.current?.clientHeight ?? 0) * 0.6);
+  const progress = duration > 0 ? Math.min(1, Math.max(0, (position - 10) / Math.max(1, duration - 25))) : 0;
+  const autoOffset = Math.round(progress * plainMax);
+  const plainOffset = manual && manual.until > Date.now() ? manual.offset : autoOffset;
   const onPlainKey = (e) => {
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     e.preventDefault();
-    const max = Math.max(0, (listRef.current?.scrollHeight ?? 0) - (boxRef.current?.clientHeight ?? 0));
-    setPlainOffset((o) => Math.max(0, Math.min(max, o + (e.key === 'ArrowDown' ? 160 : -160))));
+    const next = Math.max(0, Math.min(plainMax, plainOffset + (e.key === 'ArrowDown' ? 160 : -160)));
+    setManual({ offset: next, until: Date.now() + 8000 });
   };
 
   let body;
@@ -143,6 +133,7 @@ export function TvLyrics({ track, idle = false }) {
       <div
         ref={listRef}
         className={styles.plain}
+        data-auto={!(manual && manual.until > Date.now()) || undefined}
         style={{ transform: `translateY(${-plainOffset}px)` }}
         role="slider"
         data-tv-axis="vertical"
@@ -156,8 +147,13 @@ export function TvLyrics({ track, idle = false }) {
     );
   }
 
+  const status = entry && !entry.loading && !parsed && entry.plain
+    ? (entry.syncing ? 'Sincronizando la letra con la canción…' : 'Letra sin sincronizar')
+    : null;
+
   return (
     <div className={styles.root} style={{ background: bg }} data-idle={idle || undefined}>
+      {status && <span className={styles.status}>{status}</span>}
       <div ref={boxRef} className={styles.box} key={key}>{body}</div>
     </div>
   );

@@ -57,12 +57,28 @@
 
 .plain {
   font-size: 34px;
+  will-change: transform;
   line-height: 1.4;
   font-weight: 800;
   color: #fff;
   white-space: pre-wrap;
   outline: none;
   transition: transform 400ms ease;
+}
+/* Desplazamiento automático: avance lento y continuo. */
+.plain[data-auto] { transition: transform 1200ms linear; }
+
+.status {
+  position: absolute;
+  top: 44px;
+  right: 56px;
+  z-index: 2;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .msg {

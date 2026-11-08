@@ -9,6 +9,23 @@
 #
 # El contexto de build es el monorepo completo (necesita los workspaces).
 
+# ── whisper.cpp con Vulkan (sincronizar letras; GPU AMD RX 570 vía RADV) ──
+# Debian 12 trae cabeceras Vulkan/SPIR-V antiguas o sin config de CMake: se
+# compilan las de Khronos. Etapa aparte: la imagen final solo lleva el binario.
+FROM debian:bookworm-slim AS whisper
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git cmake build-essential libvulkan-dev glslc glslang-tools ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN for r in SPIRV-Headers Vulkan-Headers; do \
+      git clone --depth 1 --branch vulkan-sdk-1.4.309.0 https://github.com/KhronosGroup/$r /deps/$r \
+      && cmake -S /deps/$r -B /deps/$r/build -DCMAKE_INSTALL_PREFIX=/usr/local \
+      && cmake --install /deps/$r/build; done
+RUN git clone --depth 1 https://github.com/ggml-org/whisper.cpp /src
+RUN cmake -S /src -B /build -DGGML_VULKAN=ON -DBUILD_SHARED_LIBS=OFF \
+      -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DWHISPER_BUILD_TESTS=OFF \
+      -DCMAKE_PREFIX_PATH=/usr/local -DVulkan_INCLUDE_DIR=/usr/local/include \
+    && cmake --build /build -j 12 --config Release --target whisper-cli
+
 FROM node:22-bookworm-slim
 
 # ── Dependencias del sistema ─────────────────────────────────────────
@@ -16,11 +33,16 @@ FROM node:22-bookworm-slim
 # - ffmpeg: extracción/transcodificación de audio.
 # - ca-certificates/curl/xz-utils: descargar binarios.
 # - build-essential + python3 (node-gyp): compilar better-sqlite3 si no hay prebuilt.
+# - libvulkan1 + mesa-vulkan-drivers + libgomp1: whisper-cli en la GPU (RADV).
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 ffmpeg ca-certificates curl xz-utils unzip \
       build-essential \
       docker.io \
+      libvulkan1 mesa-vulkan-drivers libgomp1 \
     && rm -rf /var/lib/apt/lists/*
+
+# whisper-cli (modelo medium: se descarga solo a /data/models la 1ª vez).
+COPY --from=whisper /build/bin/whisper-cli /usr/local/bin/whisper-cli
 
 ARG TARGETARCH
 

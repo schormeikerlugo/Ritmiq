@@ -20,7 +20,7 @@
  *     player ya lo throttle a ~4Hz).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLyricsStore } from '../../stores/lyrics.js';
+import { useTrackLyrics } from '../../stores/lyrics.js';
 import { usePlayerStore } from '../../stores/player.js';
 import { Icon } from '../Icon/Icon.jsx';
 import styles from './LyricsPanel.module.css';
@@ -42,7 +42,6 @@ function findActiveLineIdx(parsed, positionMs) {
 }
 
 export function LyricsPanel({ track }) {
-  const fetchLyrics = useLyricsStore((s) => s.fetch);
   const positionSeconds = usePlayerStore((s) => s.positionSeconds);
   const patch = usePlayerStore((s) => s.patch);
 
@@ -56,27 +55,9 @@ export function LyricsPanel({ track }) {
     } catch {}
   };
 
-  // Lookup en el store \u2014 selector inline para reaccionar a cambios.
-  // No usamos `get(...)` directo porque queremos reactividad.
-  const params = {
-    artist: track?.artist ?? '',
-    title: track?.title ?? '',
-    duration: track?.durationSeconds ?? null,
-  };
-  const key = useMemo(() => {
-    const a = String(params.artist ?? '').trim().toLowerCase();
-    const t = String(params.title ?? '').trim().toLowerCase();
-    const bucket = params.duration ? Math.round(params.duration / 5) * 5 : 0;
-    return `${a}::${t}::${bucket}`;
-  }, [params.artist, params.title, params.duration]);
-  const entry = useLyricsStore((s) => s.entries[key]);
-
-  // Dispara fetch al cambiar el track. fetch() es idempotente: si ya hay
-  // entry, no hace nada.
-  useEffect(() => {
-    if (!params.artist || !params.title) return;
-    fetchLyrics(params).catch(() => {});
-  }, [params.artist, params.title, params.duration, fetchLyrics]);
+  // Letra por vídeo (stores/lyrics.js useTrackLyrics): sincronizada con
+  // este audio si existe; si no, LRCLIB o petición al servidor.
+  const { entry } = useTrackLyrics(track);
 
   const positionMs = positionSeconds * 1000;
   const activeIdx = useMemo(

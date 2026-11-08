@@ -61,6 +61,7 @@ Con sesión iniciada, la TV abre sola una jam de tipo altavoz ([[tv-speaker]]) y
 4. APK de release firmado + auto-actualización desde el servidor.
 
 ## Notas / Changelog
+- 2026-11-08 (b): letras siempre sincronizadas (LRCLIB amplio, subtítulos de YouTube, Whisper en la RX 570) y texto que baja según el avance ([[Letras-Sincronizadas]]).
 - 2026-11-08: navegación por zonas con capa, memoria por zona y menú compacto ([[tv-nav]], ADR-045).
 - 2026-11-05 (b): portadas oficiales y foto del artista servidas por LAN ([[Portadas]]).
 - 2026-11-05: pantalla «Reproduciendo» propia ([[TvNowPlaying]]) con letra a pantalla completa estilo karaoke; Biblioteca navegable con el mando.

@@ -602,3 +602,20 @@ export async function artCandidates(t) {
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
+
+/**
+ * Letras: pide al servidor una versión sincronizada con el audio de este
+ * vídeo (subtítulos de YouTube / Whisper). Responde enseguida; el resultado
+ * aparece en Supabase `track_lyrics`.
+ * @param {{ ytId: string, title: string, artist: string, durationSeconds: number|null, lrc: object }} body
+ */
+export async function lyricsSyncRequest(body) {
+  const base = preferredBase();
+  if (!base) return null;
+  const r = await fetch(`${base}/lyrics/sync`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.ok ? r.json() : null;
+}

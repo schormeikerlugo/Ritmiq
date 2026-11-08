@@ -127,6 +127,14 @@ No se valida estrictamente el JWT (anti-abuso público suficiente). lrclib no re
 supabase functions deploy lyrics --project-ref <ref>
 ```
 
+## Búsqueda amplia (2026-11-08, payload v2)
+Si `/api/get` no trae `syncedLyrics` (o no existe), se busca en `/api/search` (por `track_name`+`artist_name` y por `q`) y se elige la mejor versión **sincronizada**: título ≥ 0,8 y artista ≥ 0,7 de parecido, y a igualdad la duración más cercana. El título se limpia antes (fuera "(Official Video)", "[…]", "Artista - "). El payload incluye `duration` (de la versión elegida) y `v: 2`. TTL: 30 días sincronizada, 7 días solo texto o no encontrada; las entradas v1 sin tiempos se rebuscan.
+
+Caso real: "Veneno" (Caramelos de Cianuro) — `/api/get` daba la versión de *Flor de Fuego* solo texto; ahora llega la de *Veneno y Fuego* (255,5 s) sincronizada. También "La Terraza", "Wasted Years", "Nublado".
+
+Cuando los tiempos no cuadran con el vídeo, ver [[Letras-Sincronizadas]].
+
 ## Changelog
+- 2026-11-08 — Búsqueda amplia de versión sincronizada, títulos limpios, `duration` y TTL por tipo.
 
 - 2026-05-27 — Creada en Fase 4.1. Commit `1375f40`. Deployada vía Management API el mismo día.

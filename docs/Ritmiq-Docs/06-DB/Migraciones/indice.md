@@ -57,6 +57,7 @@ tags: [migraciones, indice, postgres]
 ## 2026-11
 | Archivo | Qué hace |
 |---|---|
+| `20261108000000_track_lyrics.sql` | [[track_lyrics]]: letra sincronizada por vídeo (subtítulos/Whisper). Aplicada 2026-11-08. |
 | `20261105000000_track_art.sql` | [[track_art]]: portadas oficiales/foto de artista por yt_id (servidor), `is_art_writer()`, `get_art_targets()`. Aplicada 2026-11-05. |
 | `20261104000000_jam_kick.sql` | [[jam_bans]]: expulsar participantes de una jam, vetos que se limpian al cambiar el código. Aplicada 2026-11-04. |
 

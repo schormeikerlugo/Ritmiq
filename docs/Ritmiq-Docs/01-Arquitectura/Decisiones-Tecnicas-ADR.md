@@ -400,6 +400,12 @@ Cada decisión sigue el formato:
 - **Decisión**: zonas estrictas (menú, contenido, cola, reproductor) en `tv-nav.js`; una capa de zonas que se abre con Atrás en páginas principales (en sub‑páginas Atrás sigue volviendo atrás, como Netflix); memoria del último elemento por zona; arranque en Contenido; menú compacto de iconos que se despliega por encima del contenido. Propuesta del usuario + memoria por zona y arranque directo.
 - **Consecuencias**: contenido → reproductor → mismo elemento en 4 pulsaciones (Atrás, ↓, OK… Atrás, ↑, OK) en vez de recorrer la página; 128 px más de contenido. Verificado en navegador a 1280×720 y en el onn. con el mando (CPU con música 20–35 % de un núcleo). Ver [[tv-nav]].
 
+## ADR-046 — Letras siempre sincronizadas: LRCLIB amplio, subtítulos de YouTube y Whisper en la GPU
+
+- **Contexto**: "Veneno" y otras se veían quietas: LRCLIB `/api/get` devolvía una versión solo texto aunque existía otra sincronizada; y los tiempos de LRCLIB pueden no cuadrar con el vídeo (intros de videoclip).
+- **Decisión**: (1) la función `lyrics` busca la mejor versión sincronizada con `/api/search`; (2) letra por vídeo en `track_lyrics`, generada por el servidor con subtítulos manuales del propio vídeo (yt-dlp) o con Whisper (whisper.cpp + Vulkan en la RX 570) para calcular el desfase o alinear texto sin tiempos; (3) en la TV, mientras tanto, la letra baja según el avance.
+- **Consecuencias**: Veneno/La Terraza/Wasted Years/Nublado recuperadas al instante; "As It Was" con subtítulos del vídeo; "Dinero y Poder" alineada por Whisper en 47 s. Imagen del servidor +1 etapa de build; modelo 540 MB en `/data/models`. Ver [[Letras-Sincronizadas]], [[track_lyrics]], [[lyrics]].
+
 ---
 
 > Agregá nuevos ADRs aquí cuando tomes decisiones que afecten la arquitectura.

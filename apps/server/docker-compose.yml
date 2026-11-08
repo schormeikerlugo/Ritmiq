@@ -24,6 +24,13 @@ services:
     environment:
       RITMIQ_DATA_DIR: /data
       RITMIQ_PORT: "3939"
+    # GPU (AMD RX 570) para Whisper vía Vulkan: dispositivo DRM + grupos
+    # render (992) y video (44) del HOST (comprobar con `getent group render`).
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "992"
+      - "44"
     volumes:
       - ritmiq-data:/data
       # Socket de Docker: el servidor levanta el contenedor de login (noVNC)

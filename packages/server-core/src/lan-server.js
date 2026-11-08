@@ -44,6 +44,9 @@ import {
 } from './youtube-login.js';
 import { createJwtVerifier } from './auth-jwt.js';
 import { createArtResolver } from './art-resolver.js';
+import { createLyricsSync } from './lyrics-sync.js';
+import { createWhisper } from './whisper-align.js';
+import { execFileSync } from 'node:child_process';
 
 /**
  * Cache global de URLs (Fase 1): publica a Supabase Edge cada resolucion
@@ -324,6 +327,24 @@ async function publishTrackArt(row) {
   if (!res.ok) throw new Error(`track_art ${res.status} ${(await res.text().catch(() => '')).slice(0, 120)}`);
 }
 
+/** Publica una letra sincronizada por vídeo en Supabase `track_lyrics`. */
+async function publishTrackLyrics(row) {
+  const SUP = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
+  const ANON = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
+  if (!SUP || !ANON || !supabaseUserJwt) throw new Error('sin sesión de servidor');
+  const res = await fetch(`${SUP}/rest/v1/track_lyrics?on_conflict=yt_id`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: ANON,
+      Authorization: `Bearer ${supabaseUserJwt}`,
+      Prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    body: JSON.stringify(row),
+  });
+  if (!res.ok) throw new Error(`track_lyrics ${res.status} ${(await res.text().catch(() => '')).slice(0, 120)}`);
+}
+
 async function publishToGlobalCache(ytId, url, expiresAtMs) {
   const SUP = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
   const ANON = process.env.VITE_SUPABASE_ANON_KEY
@@ -557,6 +578,33 @@ export async function startLanServer({
     // m4a sin problema, así que lo dejamos global.
     preferM4a: true,
   };
+  // Letras sincronizadas por vídeo (lyrics-sync.js): subtítulos de YouTube y
+  // Whisper. Se crea aquí porque necesita las opciones de yt-dlp del dueño.
+  // Whisper (whisper.cpp; RX 570 vía Vulkan en el servidor 24/7): solo si el
+  // binario existe (imagen Docker) y no está desactivado (RITMIQ_WHISPER=off).
+  let whisper = null;
+  const whisperBin = process.env.RITMIQ_WHISPER_BIN || 'whisper-cli';
+  if (String(process.env.RITMIQ_WHISPER ?? 'on').toLowerCase() !== 'off') {
+    try {
+      execFileSync('sh', ['-c', `command -v ${whisperBin}`], { stdio: 'ignore' });
+      whisper = createWhisper({
+        modelsDir: dataSubdir('models'),
+        binary: whisperBin,
+        // Audio en disco; si no está, se pide la descarga y se espera (≤ 3 min).
+        findAudio: async (ytId) => {
+          for (let i = 0; i < 60; i++) {
+            const f = findSharedAudio(db, ytId);
+            if (f?.filePath) return f.filePath;
+            if (i === 0) schedulePrewarmDownload(ytId, null);
+            await new Promise((r) => setTimeout(r, 3000));
+          }
+          return null;
+        },
+      });
+      console.log('[lan-server] Whisper disponible para sincronizar letras');
+    } catch { /* sin whisper-cli: solo subtítulos de YouTube */ }
+  }
+  const lyricsSync = createLyricsSync({ db, ytOpts, publish: publishTrackLyrics, whisper });
   if (cookiesFromBrowser && !cookiesFileEnv) {
     // Background — no bloquear el arranque del LAN server. Cuando termine,
     // mutamos `ytOpts` para que los próximos plays vayan por la vía rápida.
@@ -1643,7 +1691,8 @@ export async function startLanServer({
           url.pathname.startsWith('/download/') ||
           url.pathname === '/shared-cache/check' ||
           url.pathname === '/art/resolve' ||
-          url.pathname === '/art/candidates'
+          url.pathname === '/art/candidates' ||
+          url.pathname === '/lyrics/sync'
         );
       // Modelo Y: ademas del owner token, aceptamos device_token aprobado
       // para todos los endpoints de musica (/yt/*, /stream/*, /download/*,
@@ -1659,6 +1708,7 @@ export async function startLanServer({
         url.pathname === '/shared-cache/check' ||
         url.pathname === '/art/resolve' ||
         url.pathname === '/art/candidates' ||
+        url.pathname === '/lyrics/sync' ||
         // Import de Spotify: solo scrapea el embed público de una playlist, no
         // expone datos privados. Aceptar device_token (no solo owner) para que
         // cualquier cuenta aprobada pueda importar (antes daba 401 a no-owners).
@@ -1791,6 +1841,34 @@ export async function startLanServer({
             }
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ queued, pending: art.pending(), known }));
+          } catch {
+            res.writeHead(400).end('bad json');
+          }
+        });
+        return;
+      }
+
+      // Letra sincronizada con el audio de este vídeo (subtítulos/Whisper).
+      // Body: { ytId, title, artist, durationSeconds, lrc: { synced, plain, duration } }
+      if (url.pathname === '/lyrics/sync' && req.method === 'POST') {
+        const chunks = [];
+        let size = 0;
+        req.on('data', (c) => { size += c.length; if (size < 512 * 1024) chunks.push(c); });
+        req.on('end', () => {
+          try {
+            const b = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+            if (typeof b.ytId !== 'string' || !/^[A-Za-z0-9_-]{6,20}$/.test(b.ytId)) { res.writeHead(400).end('ytId'); return; }
+            const queued = lyricsSync.enqueue({
+              ytId: b.ytId, title: String(b.title ?? ''), artist: String(b.artist ?? ''),
+              durationSeconds: Number(b.durationSeconds) || null,
+              lrc: b.lrc && typeof b.lrc === 'object' ? {
+                synced: typeof b.lrc.synced === 'string' ? b.lrc.synced.slice(0, 200_000) : null,
+                plain: typeof b.lrc.plain === 'string' ? b.lrc.plain.slice(0, 200_000) : null,
+                duration: Number(b.lrc.duration) || null,
+              } : null,
+            });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ queued, job: lyricsSync.job(b.ytId) ?? null, pending: lyricsSync.pending() }));
           } catch {
             res.writeHead(400).end('bad json');
           }
